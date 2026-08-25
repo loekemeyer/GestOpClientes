@@ -54,6 +54,23 @@ const BOT_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "consultar_avance_pedido",
+    description:
+      "Muestra el avance de los pedidos del cliente en el proceso de producción. " +
+      "Estados posibles: recibido (pendiente de programación), programado, preparando (en picking/armado), " +
+      "preparado (listo para despacho), en camino (despachado), entregado. " +
+      "Usar cuando el cliente pregunta '¿cómo va mi pedido?', '¿cuándo me llega?', '¿ya salió?', etc.",
+    input_schema: {
+      type: "object",
+      properties: {
+        limite: {
+          type: "integer",
+          description: "Cantidad de pedidos a mostrar (default 10)",
+        },
+      },
+    },
+  },
+  {
     name: "consultar_mis_descuentos",
     description:
       "Muestra los descuentos del cliente: descuento por volumen personal, descuento web, y rangos de descuento por cantidad de cajas.",
@@ -271,6 +288,16 @@ async function executeTool(
       return { data };
     }
 
+    case "consultar_avance_pedido": {
+      const { data, error } = await supabase.rpc("bot_tracking_produccion", {
+        p_telefono: phone,
+        p_limit: input.limite ?? 10,
+      });
+      if (error) return { data: { error: error.message } };
+      if (!data?.length) return { data: { mensaje: "No hay pedidos en proceso en este momento." } };
+      return { data };
+    }
+
     case "consultar_mis_descuentos": {
       const { data, error } = await supabase.rpc("bot_mis_descuentos", {
         p_telefono: phone,
@@ -426,7 +453,7 @@ const AUDITABLE_TOOLS = new Set([
   "consultar_kb", "kb_agregar", "kb_eliminar", "kb_listar",
   "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
   "consultar_mi_historial", "consultar_mis_pedidos", "consultar_detalle_pedido",
-  "consultar_mis_descuentos", "consultar_novedades",
+  "consultar_mis_descuentos", "consultar_novedades", "consultar_avance_pedido",
 ]);
 
 async function auditTool(
