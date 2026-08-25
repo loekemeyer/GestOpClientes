@@ -137,6 +137,34 @@ const BOT_TOOLS: ToolDef[] = [
       required: ["query"],
     },
   },
+  {
+    name: "enviar_pedido",
+    description:
+      "Envía/confirma un pedido del cliente. SOLO usar después de que el cliente confirmó explícitamente los productos y cantidades. Primero buscar productos con buscar_productos para obtener los códigos, mostrar resumen al cliente, y recién cuando confirme usar esta herramienta.",
+    input_schema: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          description: "Lista de productos a pedir",
+          items: {
+            type: "object",
+            properties: {
+              cod: { type: "string", description: "Código del producto (ej: '505')" },
+              cajas: { type: "integer", description: "Cantidad de cajas" },
+            },
+            required: ["cod", "cajas"],
+          },
+        },
+        metodo_pago: {
+          type: "string",
+          enum: ["transferencia", "debito", "efectivo", "cheque"],
+          description: "Método de pago (default: transferencia)",
+        },
+      },
+      required: ["items"],
+    },
+  },
 ];
 
 // ─── System prompt ─────────────────────────────────────────────────
@@ -175,7 +203,9 @@ Reglas:
 - Cuando muestres pedidos, formateá legible para WhatsApp (listas con emoji, sin tablas)
 - Los precios son en ARS (pesos argentinos), formateá con punto de miles
 - "cajas" es la unidad de venta mayorista, cada caja tiene N unidades (uxb = unidades por bulto)
-- Si el cliente quiere hacer un pedido nuevo, explicale que por ahora puede hacerlo por la web (loekemeyer.com) o contactando a ventas`;
+- Para pedidos nuevos: primero buscar los productos con buscar_productos, armar un resumen claro (código, descripción, cajas, precio estimado), pedir confirmación explícita al cliente, y SOLO entonces usar enviar_pedido
+- NUNCA enviar un pedido sin que el cliente confirme explícitamente
+- Si el total estimado es menor a $500.000, avisar que es el mínimo`;
 }
 
 // ─── Tool execution (despacho a RPCs bot_*) ────────────────────────
@@ -334,6 +364,53 @@ async function executeTool(
         return { data: { mensaje: "No encontré información sobre eso en la base de conocimiento." } };
       }
       return { data };
+    }
+
+    case "enviar_pedido": {
+      const items = input.items;
+      if (!Array.isArray(items) || !items.length) {
+        return { data: { error: "Se necesita al menos un item con cod y cajas." } };
+      }
+
+      // Convertir a formato esperado por bot_submit_order
+      const jsonItems = items.map((it: { cod: string; cajas: number }) => ({
+        cod: String(it.cod),
+        cajas: Number(it.cajas),
+      }));
+
+      const { data, error } = await supabase.rpc("bot_submit_order", {
+        p_telefono: phone,
+        p_items: jsonItems,
+        p_payment_method: input.metodo_pago ?? "transferencia",
+      });
+
+      if (error) {
+        console.error("Error en bot_submit_order:", error.message);
+        // Mensajes amigables para errores comunes
+        if (error.message.includes("no encontrado")) {
+          return { data: { error: `Producto no encontrado: ${error.message}` } };
+        }
+        if (error.message.includes("no identificado")) {
+          return { data: { error: "No se pudo identificar al cliente." } };
+        }
+        return { data: { error: `Error al enviar el pedido: ${error.message}` } };
+      }
+
+      if (!data?.length) {
+        return { data: { error: "No se obtuvo respuesta del sistema de pedidos." } };
+      }
+
+      const result = data[0];
+      return {
+        data: {
+          pedido_enviado: true,
+          order_id: result.order_id,
+          subtotal: result.subtotal,
+          total: result.total,
+          items_count: result.items_count,
+          metodo_pago: input.metodo_pago ?? "transferencia",
+        },
+      };
     }
 
     default:
