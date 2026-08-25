@@ -12,6 +12,7 @@ import {
   sendText,
   sendImage,
   sendDocument,
+  sendTemplate,
   markRead,
   extractMessage,
 } from "../_shared/wa-api.ts";
@@ -237,6 +238,64 @@ async function sendMediaActions(
   }
 }
 
+// ─── Flush outbox (enviar mensajes pendientes) ─────────────────────
+
+async function flushOutbox(cfg: Config): Promise<{ sent: number; failed: number }> {
+  const { data: batch, error } = await supabase.rpc("bot_flush_outbox", {
+    p_limit: 20,
+  });
+
+  if (error || !batch?.length) {
+    return { sent: 0, failed: 0 };
+  }
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const msg of batch) {
+    try {
+      if (msg.template_name) {
+        // Enviar template aprobado por Meta
+        const params: string[] = [];
+        if (msg.template_params) {
+          // Extraer valores del JSON como params posicionales
+          const vals = Object.values(msg.template_params);
+          for (const v of vals) params.push(String(v));
+        }
+        await sendTemplate(
+          cfg.waPhoneId, cfg.waToken, msg.phone,
+          msg.template_name, "es_AR", params,
+        );
+      } else if (msg.body) {
+        // Enviar texto libre (dentro de ventana 24h o como respuesta)
+        await sendText(cfg.waPhoneId, cfg.waToken, msg.phone, msg.body);
+      } else {
+        // Sin body ni template — marcar como error
+        await supabase.rpc("bot_outbox_mark", {
+          p_id: msg.id, p_status: "failed", p_error: "Sin body ni template",
+        });
+        failed++;
+        continue;
+      }
+
+      // Marcar como enviado
+      await supabase.rpc("bot_outbox_mark", {
+        p_id: msg.id, p_status: "sent",
+      });
+      sent++;
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      console.error(`Outbox ${msg.id} falló:`, errMsg);
+      await supabase.rpc("bot_outbox_mark", {
+        p_id: msg.id, p_status: "failed", p_error: errMsg.slice(0, 500),
+      });
+      failed++;
+    }
+  }
+
+  return { sent, failed };
+}
+
 // ─── Handler principal ──────────────────────────────────────────────
 
 async function handleMessage(
@@ -317,12 +376,22 @@ Deno.serve(async (req: Request) => {
     return new Response("OK", { status: 200 });
   }
 
-  // ── POST: Mensaje entrante ──
+  // ── POST: Mensaje entrante o acción interna ──
   if (req.method === "POST") {
-    // Siempre responder 200 a Meta (no perder webhook)
     try {
       const body = await req.json();
 
+      // ── Acción interna: flush outbox (llamada desde pg_cron) ──
+      if (body?.action === "flush") {
+        const cfg = loadConfig();
+        const result = await flushOutbox(cfg);
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // ── Webhook de Meta: mensaje entrante ──
       const msg = extractMessage(body);
       if (!msg) {
         return new Response("OK", { status: 200 });
@@ -341,6 +410,7 @@ Deno.serve(async (req: Request) => {
       console.error("Error procesando mensaje:", e);
     }
 
+    // Siempre responder 200 a Meta (no perder webhook)
     return new Response("OK", { status: 200 });
   }
 

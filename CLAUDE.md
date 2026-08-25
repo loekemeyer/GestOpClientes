@@ -80,9 +80,13 @@ Todo el acceso a datos va por RPCs `security definer`, no por queries directos.
 - `submit_order_fast(...)` — RPC web (requiere auth.uid())
 - `bot_submit_order(...)` — RPC bot (por teléfono, sin auth, sql/007)
 
-### Notificaciones
-- `trg_notify_order_created` — trigger en orders INSERT → POST a `notify-order-created` edge function
-- `wa_outbox` — cola de mensajes salientes (patrón Virgilio)
+### Notificaciones (patrón outbox — sql/008)
+- `wa_outbox` — cola de mensajes salientes (pending → sending → sent/failed, con reintentos)
+- `trg_notify_order_created` — trigger en orders INSERT → inserta en wa_outbox (pedido recibido)
+- `trg_order_tracking_notify` — trigger en order_tracking INSERT/UPDATE → inserta en wa_outbox (programado/entregado)
+- `bot_flush_outbox(p_limit)` — RPC: toma batch pendiente con FOR UPDATE SKIP LOCKED
+- `bot_outbox_mark(p_id, p_status, p_error)` — RPC: marca resultado de envío (con retry automático)
+- `pg_cron wa_outbox_flush` — cada 2 min → POST action:flush a lk_whatsapp-webhook
 
 ## Flujo principal
 

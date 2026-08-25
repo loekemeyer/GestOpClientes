@@ -15,8 +15,8 @@ Bot conversacional WhatsApp para gestión de clientes mayoristas de Loekemeyer H
 | Base de conocimiento         | ✅ hecho   |
 | IA conversacional (tool-use) | ✅ hecho   |
 | Modo humano (pausa bot)      | ✅ hecho   |
-| Carga de pedidos por WA      | 🔲 pendiente |
-| Notificaciones proactivas    | 🔲 pendiente |
+| Carga de pedidos por WA      | ✅ hecho   |
+| Notificaciones proactivas    | ✅ hecho   |
 | Reactivación inactivos       | 🔲 pendiente |
 
 ## Arquitectura
@@ -84,7 +84,8 @@ GestOpClientes/
 │   ├── 004_wa_conversations.sql    # Log de mensajes (auditoría)
 │   ├── 005_wa_cron_jobs.sql        # pg_cron para flush/expiración
 │   ├── 006_wa_tracking_triggers.sql# Triggers notificación tracking
-│   └── 007_bot_submit_order.sql    # RPC envío pedido desde bot
+│   ├── 007_bot_submit_order.sql    # RPC envío pedido desde bot
+│   └── 008_wa_notifications.sql   # Outbox + triggers notificaciones proactivas
 ├── docs/
 │   ├── PLAN.md                     # Plan de desarrollo detallado
 │   ├── DECISIONES.md               # Registro de decisiones técnicas
