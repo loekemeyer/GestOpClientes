@@ -37,6 +37,8 @@ wa_outbox ← triggers order_tracking / pg_cron inactivos
 | Virgilio | `loekemeyer/Produccion-Virgilio` | Tablas whatsapp_clientes, patrón outbox, tracking |
 | Planify  | (sin repo git aún) | Template webhook WhatsApp + Claude API |
 
+**Este repo**: `loekemeyer/GestOpClientes` (privado)
+
 ## Stack
 
 - **Runtime**: Supabase Edge Functions (Deno/TypeScript)
