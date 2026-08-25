@@ -86,7 +86,8 @@ GestOpClientes/
 │   ├── 006_wa_tracking_triggers.sql# Triggers notificación tracking
 │   ├── 007_bot_submit_order.sql    # RPC envío pedido desde bot
 │   ├── 008_wa_notifications.sql   # Outbox + triggers notificaciones proactivas
-│   └── 009_bot_tracking_produccion.sql # RPC avance pedidos desde PPP
+│   ├── 009_bot_tracking_produccion.sql # RPC avance pedidos desde PPP
+│   └── 010_notify_despacho.sql    # Trigger notificación despacho (facturación → wa_outbox)
 ├── docs/
 │   ├── PLAN.md                     # Plan de desarrollo detallado
 │   ├── DECISIONES.md               # Registro de decisiones técnicas
