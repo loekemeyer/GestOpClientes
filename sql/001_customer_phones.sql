@@ -1,12 +1,21 @@
--- Índice sobre customers.whatsapp para búsqueda rápida por teléfono
--- La tabla customers ya tiene la columna "whatsapp" — no creamos tabla separada.
--- Aplicar en proyecto PaginaLK (kwkclwhmoygunqmlegrg)
+-- NOTA: Esta migración ya NO es necesaria.
+-- La tabla bot_customer_whatsapps (creada en sesión "Webhook para bot de WhatsApp")
+-- reemplaza el uso de customers.whatsapp para el bot.
+--
+-- bot_customer_whatsapps:
+--   id bigint PK
+--   customer_id uuid FK → customers(id)
+--   cod_cliente int
+--   whatsapp text NOT NULL
+--   is_primary bool DEFAULT false
+--   empresa text DEFAULT 'LK'
+--   permiso_ver_pedidos bool DEFAULT false
+--   created_at timestamptz
+--
+-- RPCs existentes:
+--   bot_cliente_por_whatsapp(p_telefono) — lookup con regexp normalización
+--   bot_register_request_v2(p_telefono, p_cuit) — alta/vinculación
+--   bot_register_decide(p_request_id, p_decision, ...) — aprobación asesor
+--   bot_register_decide_by_primary(...) — aprobación titular
 
--- Índice para lookup por teléfono
-create index if not exists idx_customers_whatsapp
-  on customers(whatsapp)
-  where whatsapp is not null and whatsapp != '';
-
--- Columna opt_out si no existe (para opt-out de notificaciones)
-alter table customers
-  add column if not exists wa_opt_out boolean not null default false;
+-- NO APLICAR — solo referencia histórica

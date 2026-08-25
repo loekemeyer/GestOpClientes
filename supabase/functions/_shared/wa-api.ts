@@ -39,6 +39,46 @@ export function sendText(
   });
 }
 
+/** Envía una imagen por URL */
+export function sendImage(
+  phoneId: string,
+  token: string,
+  to: string,
+  imageUrl: string,
+  caption?: string,
+): Promise<unknown> {
+  return waPost(phoneId, token, {
+    messaging_product: "whatsapp",
+    to,
+    type: "image",
+    image: {
+      link: imageUrl,
+      ...(caption ? { caption: caption.slice(0, 1024) } : {}),
+    },
+  });
+}
+
+/** Envía un documento (PDF, etc) por URL */
+export function sendDocument(
+  phoneId: string,
+  token: string,
+  to: string,
+  docUrl: string,
+  filename: string,
+  caption?: string,
+): Promise<unknown> {
+  return waPost(phoneId, token, {
+    messaging_product: "whatsapp",
+    to,
+    type: "document",
+    document: {
+      link: docUrl,
+      filename,
+      ...(caption ? { caption: caption.slice(0, 1024) } : {}),
+    },
+  });
+}
+
 /** Marca un mensaje como leído */
 export function markRead(
   phoneId: string,
@@ -90,8 +130,8 @@ export function canonPhone(phone: string): string {
 /**
  * Genera variantes de formato para un número argentino.
  * Meta manda el "from" como 5491131181594 (sin +).
- * En customers.whatsapp hay de todo: 5491131181594, 1131181594, 31181594, etc.
- * Probamos todas las variantes posibles al buscar.
+ * Las RPCs bot_* usan regexp_replace para normalizar, pero esta
+ * función es útil para búsquedas directas en tabla.
  */
 export function phoneVariants(raw: string): string[] {
   const d = canonPhone(raw);
@@ -99,22 +139,15 @@ export function phoneVariants(raw: string): string[] {
   v.add(d);
 
   if (d.startsWith("549") && d.length >= 12) {
-    // 5491131181594 → 1131181594 (sin país ni 9)
     v.add(d.slice(3));
-    // 5491131181594 → 91131181594 (sin 54)
     v.add(d.slice(2));
-    // 5491131181594 → 541131181594 (sin 9 móvil)
     v.add("54" + d.slice(3));
   } else if (d.startsWith("54") && d.length >= 11) {
-    // 541131181594 → 1131181594
     v.add(d.slice(2));
-    // Agregar variante con 9 móvil
     v.add("549" + d.slice(2));
   } else if (d.length >= 8 && d.length <= 11) {
-    // Número local → agregar prefijos
     v.add("54" + d);
     v.add("549" + d);
-    // Si empieza con 9, probar sin ella
     if (d.startsWith("9")) {
       v.add(d.slice(1));
       v.add("54" + d.slice(1));
@@ -126,7 +159,7 @@ export function phoneVariants(raw: string): string[] {
 
 // ─── Extracción de datos del webhook ────────────────────────────────
 
-interface WaMessage {
+export interface WaMessage {
   from: string;       // teléfono del remitente (formato internacional sin +)
   msgId: string;      // ID del mensaje de Meta (para dedup)
   text: string;       // texto del mensaje
