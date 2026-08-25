@@ -17,7 +17,7 @@ Bot conversacional WhatsApp para gestión de clientes mayoristas de Loekemeyer H
 | Modo humano (pausa bot)      | ✅ hecho   |
 | Carga de pedidos por WA      | ✅ hecho   |
 | Notificaciones proactivas    | ✅ hecho   |
-| Reactivación inactivos       | 🔲 pendiente |
+| Reactivación inactivos       | ✅ hecho   |
 
 ## Arquitectura
 
@@ -87,7 +87,8 @@ GestOpClientes/
 │   ├── 007_bot_submit_order.sql    # RPC envío pedido desde bot
 │   ├── 008_wa_notifications.sql   # Outbox + triggers notificaciones proactivas
 │   ├── 009_bot_tracking_produccion.sql # RPC avance pedidos desde PPP
-│   └── 010_notify_despacho.sql    # Trigger notificación despacho (facturación → wa_outbox)
+│   ├── 010_notify_despacho.sql    # Trigger notificación despacho (facturación → wa_outbox)
+│   └── 011_reactivacion_inactivos.sql # Reactivación automática de clientes inactivos
 ├── docs/
 │   ├── PLAN.md                     # Plan de desarrollo detallado
 │   ├── DECISIONES.md               # Registro de decisiones técnicas
