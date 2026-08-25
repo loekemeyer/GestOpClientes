@@ -30,9 +30,16 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 | Conversacional / respuestas complejas | `claude-sonnet-4-6` | Balance costo/calidad |
 | Scoring / análisis | `claude-sonnet-4-6` | Necesita razonamiento |
 
+## Tablas existentes usadas (en schema public de PaginaLK)
+
+- `customers` — columna `whatsapp` para identificación por teléfono, `wa_opt_out` para opt-out
+- `orders` + `order_items` — pedidos y líneas
+- `order_tracking` — seguimiento (programado/recibido/entregado)
+- `products` — catálogo de productos activos
+- `app_settings` — secrets (key/value)
+
 ## Tablas nuevas (en schema public de PaginaLK)
 
-- `customer_phones` — vincula teléfono WA con customer
 - `wa_outbox` — cola de mensajes salientes (patrón Virgilio)
 - `wa_order_draft` — borrador de pedido en curso por WA
 - `wa_conversations` — log de mensajes (in/out) para auditoría
@@ -40,8 +47,8 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 ## Flujo principal
 
 1. Meta envía POST al webhook
-2. Buscar teléfono en `customer_phones`
-3. Si no existe: flujo de vinculación (pedir CUIT/código)
+2. Buscar teléfono en `customers.whatsapp` (con phoneVariants para normalizar)
+3. Si no existe: flujo de vinculación (pedir CUIT/código → linkear whatsapp)
 4. Si existe: detectar intent con Claude haiku
 5. Ejecutar acción (consulta pedido / nuevo pedido / conversacional)
 6. Responder vía Meta API

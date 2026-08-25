@@ -6,11 +6,12 @@ Bot conversacional WhatsApp para gestión de clientes mayoristas de Loekemeyer H
 
 | Feature                      | Estado     |
 |------------------------------|------------|
-| Consulta estado de pedido    | 🔲 pendiente |
+| Identificación de cliente    | ✅ hecho   |
+| Consulta estado de pedido    | ✅ hecho   |
+| IA conversacional general    | ✅ hecho   |
 | Notificaciones proactivas    | 🔲 pendiente |
 | Recepción de pedidos por WA  | 🔲 pendiente |
 | Reactivación clientes inactivos | 🔲 pendiente |
-| IA conversacional general    | 🔲 pendiente |
 
 ## Arquitectura
 
@@ -19,7 +20,7 @@ Cliente WhatsApp
     ↕ Meta Cloud API (Graph API v21.0)
     ↕
 lk_whatsapp-webhook (Supabase Edge Function — proyecto PaginaLK)
-    ├── identify_customer(phone) → customer_phones
+    ├── identify_customer(phone) → customers.whatsapp
     ├── parse_intent(Claude haiku) → consulta / pedido / otro
     ├── consulta → orders + order_tracking → respuesta
     ├── pedido → wa_order_draft → submit_order_fast RPC
