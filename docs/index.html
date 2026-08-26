@@ -121,8 +121,9 @@
         <div class="avatar">🤖</div>
         <div class="info">
           <h2>Bot Loekemeyer</h2>
-          <span id="chatStatus">Simulador de prueba</span>
+          <span id="chatStatus">En línea</span>
         </div>
+        <button class="clear-btn" onclick="resetSession()">🔄 Nueva sesión</button>
         <button class="clear-btn" onclick="clearChat()">🗑 Limpiar</button>
       </div>
       <div class="chat-messages" id="chatMessages"></div>
@@ -142,7 +143,7 @@ const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
 let currentRole = null;
 let sessionStart = null;
-const testPhone = "5491100000000"; // Teléfono simulado para pruebas
+let testPhone = "54911" + Math.floor(10000000 + Math.random() * 90000000); // Teléfono random por sesión
 
 // --- Auth ---
 async function sha256(text) {
@@ -187,14 +188,15 @@ function showApp() {
   document.getElementById("loginOverlay").style.display = "none";
   document.getElementById("app").classList.add("active");
   document.getElementById("userRole").textContent = currentRole === "admin" ? "🔑 Admin" : "👤 Vendedor";
-  addSystemMsg("Simulador del bot WhatsApp. Escribí como si fueras un cliente.");
-  addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
+  addSystemMsg("Escribí como si fueras un cliente de WhatsApp.");
   // Admin cost panel
   if (currentRole === "admin") {
     sessionStart = new Date().toISOString();
     document.getElementById("costPanel").style.display = "block";
     refreshCosts();
   }
+  // Greeting from real bot
+  botGreet();
 }
 
 // Auto-login
@@ -296,7 +298,35 @@ chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !chatSend.
 function clearChat() {
   chatMessages.innerHTML = "";
   addSystemMsg("Chat limpiado. Escribí como si fueras un cliente.");
-  addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
+  botGreet();
+}
+
+function resetSession() {
+  testPhone = "54911" + Math.floor(10000000 + Math.random() * 90000000);
+  chatMessages.innerHTML = "";
+  document.getElementById("chatStatus").textContent = "En línea";
+  addSystemMsg("Nueva sesión iniciada — cliente no vinculado.");
+  botGreet();
+}
+
+async function botGreet() {
+  showTyping();
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { phone: testPhone, text: "hola" },
+    });
+    hideTyping();
+    if (error) {
+      addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
+    } else {
+      addBotMsg(data.reply || "¡Hola! ¿En qué puedo ayudarte?");
+      if (data.customer) document.getElementById("chatStatus").textContent = "Conectado — " + data.customer;
+    }
+  } catch {
+    hideTyping();
+    addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
+  }
+  if (currentRole === "admin") refreshCosts();
 }
 
 // --- Costs (admin only) ---
@@ -329,6 +359,6 @@ async function refreshCosts() {
   } catch (e) { /* silent */ }
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.2.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.2.2</div>
 </body>
 </html>
