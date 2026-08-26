@@ -147,10 +147,15 @@
 </div>
 
 <script>
+// PaginaLK — datos, edge functions, chat
 const SB_URL = "https://kwkclwhmoygunqmlegrg.supabase.co";
 const SB_KEY = "sb_publishable_mVX5MnjwM770cNjgiL6yLw_LDNl9pML";
-
 const sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+// Control Partes Talleristas — Google OAuth (provider ya configurado)
+const AUTH_URL = "https://hrxfctzncixxqmpfhskv.supabase.co";
+const AUTH_KEY = "sb_publishable_BqpAgZH6ty-9wft10_YMhw_0rcIPuWT";
+const sbAuth = window.supabase.createClient(AUTH_URL, AUTH_KEY);
 
 let currentRole = null;
 let currentEmail = null;
@@ -163,7 +168,7 @@ const KNOWN_PHONES = ["5493586017973","5491138267294","5491134360609","549113618
 // --- Auth (Google OAuth via Supabase) ---
 async function doGoogleLogin() {
   document.getElementById("loginError").textContent = "";
-  const { error } = await sb.auth.signInWithOAuth({
+  const { error } = await sbAuth.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: window.location.href.split("#")[0].split("?")[0] }
   });
@@ -173,12 +178,12 @@ async function doGoogleLogin() {
 }
 
 async function checkSession() {
-  const { data: { session } } = await sb.auth.getSession();
+  const { data: { session } } = await sbAuth.auth.getSession();
   if (!session) return;
 
   const email = session.user.email;
 
-  // Verificar email contra whitelist en gestop_users
+  // Verificar email contra whitelist en gestop_users (PaginaLK)
   const { data } = await sb
     .from("gestop_users")
     .select("role")
@@ -190,13 +195,13 @@ async function checkSession() {
     currentEmail = email;
     showApp();
   } else {
-    await sb.auth.signOut();
+    await sbAuth.auth.signOut();
     document.getElementById("loginError").textContent = "Email no autorizado: " + email;
   }
 }
 
 async function doLogout() {
-  await sb.auth.signOut();
+  await sbAuth.auth.signOut();
   currentRole = null;
   currentEmail = null;
   document.getElementById("app").classList.remove("active");
@@ -219,7 +224,7 @@ function showApp() {
 
 // Auto-login: check existing session + handle OAuth redirect
 checkSession();
-sb.auth.onAuthStateChange((event) => {
+sbAuth.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_IN") checkSession();
 });
 
