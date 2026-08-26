@@ -37,10 +37,26 @@
     .sidebar .spacer { flex: 1; }
     .sidebar .user-info { padding: 0.6rem 1rem; font-size: 0.8rem; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.1); }
 
-    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .main { flex: 1; display: flex; flex-direction: row; overflow: hidden; }
 
     /* Chat */
-    .chat-container { flex: 1; display: flex; flex-direction: column; max-width: 900px; width: 100%; margin: 0 auto; }
+    .chat-container { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+    /* Control panel */
+    .control-panel { width: 260px; background: var(--card); border-left: 1px solid var(--border); padding: 1rem; overflow-y: auto; }
+    .control-panel h4 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1rem; }
+    .toggle-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; }
+    .toggle-label { font-size: 0.85rem; font-weight: 600; }
+    .toggle-desc { font-size: 0.73rem; color: var(--muted); margin-top: 0.25rem; line-height: 1.3; }
+    .switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; margin-top: 2px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch .slider { position: absolute; cursor: pointer; inset: 0; background: #ccc; border-radius: 24px; transition: 0.3s; }
+    .switch .slider::before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
+    .switch input:checked + .slider { background: var(--danger); }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+    .ai-status { margin-top: 0.6rem; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.78rem; font-weight: 500; text-align: center; }
+    .ai-status.on { background: #f0fdf4; color: var(--success); }
+    .ai-status.off { background: #fef2f2; color: var(--danger); }
     .chat-header { padding: 0.8rem 1.2rem; background: #075e54; color: #fff; display: flex; align-items: center; gap: 0.8rem; }
     .chat-header .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--wa-green); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
     .chat-header .info h2 { font-size: 1rem; font-weight: 600; }
@@ -143,6 +159,21 @@
         <button id="chatSend" onclick="sendMessage()">➤</button>
       </div>
     </div>
+
+    <div class="control-panel" id="controlPanel">
+      <h4>⚙️ Controles</h4>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">🚫 Desconectar Agente IA</div>
+          <div class="toggle-desc">Solo respuestas FAQ automáticas (0 tokens)</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggleNoAI" onchange="toggleAI()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="ai-status on" id="aiStatus">🤖 Agente IA conectado</div>
+    </div>
   </div>
 </div>
 
@@ -161,6 +192,7 @@ let currentRole = null;
 let currentEmail = null;
 let sessionStart = null;
 let testPhone = null;
+let aiDisabled = false;
 
 // Teléfonos reales de clientes en la base (wa_clientes_telefono)
 const KNOWN_PHONES = ["5493586017973","5491138267294","5491134360609","5491136188988"];
@@ -286,8 +318,10 @@ async function sendMessage() {
   showTyping();
 
   try {
+    const reqBody = { phone: testPhone, text };
+    if (aiDisabled) reqBody.noAI = true;
     const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: { phone: testPhone, text },
+      body: reqBody,
     });
 
     hideTyping();
@@ -309,6 +343,18 @@ async function sendMessage() {
 }
 
 chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !chatSend.disabled) sendMessage(); });
+
+function toggleAI() {
+  aiDisabled = document.getElementById("toggleNoAI").checked;
+  const badge = document.getElementById("aiStatus");
+  if (aiDisabled) {
+    badge.className = "ai-status off";
+    badge.textContent = "🔴 Agente IA desconectado";
+  } else {
+    badge.className = "ai-status on";
+    badge.textContent = "🤖 Agente IA conectado";
+  }
+}
 
 function resetSession() {
   showStartScreen();
@@ -386,6 +432,6 @@ async function refreshCosts() {
   } catch (e) { /* silent */ }
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.2</div>
 </body>
 </html>

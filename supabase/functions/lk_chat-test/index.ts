@@ -21,12 +21,29 @@ serve(async (req) => {
     }
 
     // ── Chat endpoint ──
-    const { phone, text } = body;
+    const { phone, text, noAI } = body;
     if (!phone || !text) {
       return json({ error: "phone y text requeridos" }, 400);
     }
 
     const testPhone = canonPhone(phone);
+
+    // ── Modo sin IA: solo FAQ automáticas, 0 tokens ──
+    if (noAI) {
+      const faqResult = await handleFaq(text);
+      const reply = faqResult
+        ? faqResult.reply
+        : "🤷 No encontré una respuesta automática para eso. Activá el Agente IA para respuestas más completas.";
+      const detectedIntent = faqResult?.intent ?? "no_match";
+
+      supabase.from("wa_conversations").insert([
+        { phone, direction: "in",  body: text,  msg_type: "text", customer_id: null, intent: detectedIntent },
+        { phone, direction: "out", body: reply, msg_type: "text", customer_id: null, intent: detectedIntent },
+      ]).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
+
+      return json({ reply, customer: null, noAI: true });
+    }
+
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY")
       ?? Deno.env.get("CLAUDE_API_KEY")
       ?? (await getSetting("anthropic_api_key"))
