@@ -13,16 +13,27 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    const { phone, text } = await req.json();
+    const body = await req.json();
+
+    // ── Stats endpoint (admin cost panel) ──
+    if (body.action === "stats") {
+      return await handleStats(body.since);
+    }
+
+    // ── Chat endpoint ──
+    const { phone, text } = body;
     if (!phone || !text) {
       return json({ error: "phone y text requeridos" }, 400);
     }
 
     const testPhone = canonPhone(phone);
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY") ?? (await getSetting("anthropic_api_key")) ?? "";
+    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY")
+      ?? Deno.env.get("CLAUDE_API_KEY")
+      ?? (await getSetting("anthropic_api_key"))
+      ?? "";
 
     if (!anthropicKey) {
-      return json({ reply: "⚠️ ANTHROPIC_API_KEY no configurada. Configurala en Supabase secrets." });
+      return json({ reply: "⚠️ API Key de Claude no configurada. Configurala en Supabase secrets como ANTHROPIC_API_KEY o CLAUDE_API_KEY." });
     }
 
     // Buscar cliente vinculado
@@ -82,6 +93,45 @@ function menuText(nombre?: string): string {
 🛒 Hacer un pedido nuevo
 🚚 Saber si podés pasar a retirar
 💬 Cualquier otra consulta`;
+}
+
+// ── Stats handler ──
+
+async function handleStats(since?: string) {
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+
+  // Semana empieza el lunes
+  const day = now.getUTCDay();
+  const mondayOffset = day === 0 ? 6 : day - 1;
+  const ws = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - mondayOffset));
+  const weekStart = ws.toISOString();
+
+  const { data: monthRows } = await supabase
+    .from("bot_token_usage")
+    .select("input_tokens, output_tokens, estimated_cost_usd, created_at")
+    .gte("created_at", monthStart);
+
+  // deno-lint-ignore no-explicit-any
+  const aggregate = (rows: any[] | null) => {
+    if (!rows?.length) return { cost: 0, input_tokens: 0, output_tokens: 0, calls: 0 };
+    return {
+      cost: rows.reduce((s, r) => s + Number(r.estimated_cost_usd), 0),
+      input_tokens: rows.reduce((s, r) => s + (r.input_tokens ?? 0), 0),
+      output_tokens: rows.reduce((s, r) => s + (r.output_tokens ?? 0), 0),
+      calls: rows.length,
+    };
+  };
+
+  const allMonth = monthRows ?? [];
+  const weekRows = allMonth.filter(r => r.created_at >= weekStart);
+  const sessionRows = since ? allMonth.filter(r => r.created_at >= since) : null;
+
+  return json({
+    month: aggregate(allMonth),
+    week: aggregate(weekRows),
+    session: sessionRows ? aggregate(sessionRows) : { cost: 0, input_tokens: 0, output_tokens: 0, calls: 0 },
+  });
 }
 
 // ── Handlers (misma lógica que webhook, sin enviar a WA) ──

@@ -1,6 +1,13 @@
+import { supabase } from "./supabase.ts";
+
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-/** Llama a Claude API directo (sin SDK). */
+const COST_PER_MTOK: Record<string, { input: number; output: number }> = {
+  "claude-haiku-4-5-20241022": { input: 1.0, output: 5.0 },
+  "claude-sonnet-4-6-20250514": { input: 3.0, output: 15.0 },
+};
+
+/** Llama a Claude API directo (sin SDK). Loguea tokens a bot_token_usage. */
 export async function claudeMessage(opts: {
   apiKey: string;
   model: string;
@@ -31,6 +38,20 @@ export async function claudeMessage(opts: {
   }
 
   const data = await res.json();
+
+  // Log token usage (fire and forget)
+  const usage = data.usage;
+  if (usage) {
+    const rates = COST_PER_MTOK[opts.model] ?? { input: 3, output: 15 };
+    const cost = (usage.input_tokens * rates.input + usage.output_tokens * rates.output) / 1_000_000;
+    supabase.from("bot_token_usage").insert({
+      model: opts.model,
+      input_tokens: usage.input_tokens ?? 0,
+      output_tokens: usage.output_tokens ?? 0,
+      estimated_cost_usd: cost,
+    }).then(() => {}).catch((e: unknown) => console.error("token log err:", e));
+  }
+
   return data.content?.[0]?.text ?? "";
 }
 

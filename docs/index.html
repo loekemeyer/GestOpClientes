@@ -67,6 +67,15 @@
     .chat-input button { width: 42px; height: 42px; border-radius: 50%; border: none; background: var(--wa-green); color: #fff; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
     .chat-input button:hover { background: #1da851; }
     .chat-input button:disabled { background: #ccc; cursor: default; }
+
+    /* Cost panel (admin only) */
+    .cost-panel { padding: 0.6rem 1rem; border-top: 1px solid rgba(255,255,255,0.1); display: none; }
+    .cost-panel .cost-title { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem; }
+    .cost-panel .cost-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.75rem; padding: 0.15rem 0; }
+    .cost-panel .cost-label { color: #94a3b8; }
+    .cost-panel .cost-val { color: #e2e8f0; font-family: 'SF Mono', 'Menlo', monospace; font-size: 0.7rem; }
+    .cost-panel .cost-tok { color: #64748b; font-size: 0.6rem; font-family: 'SF Mono', 'Menlo', monospace; }
+    .cost-panel .cost-divider { border-top: 1px solid rgba(255,255,255,0.05); margin: 0.3rem 0; }
   </style>
 </head>
 <body>
@@ -89,6 +98,17 @@
     <h3>🤖 GestOp</h3>
     <a href="#" class="active">💬 Chat Bot</a>
     <div class="spacer"></div>
+    <div class="cost-panel" id="costPanel">
+      <div class="cost-title">💰 Costos IA</div>
+      <div class="cost-row"><span class="cost-label">Sesión</span><span class="cost-val" id="costSession">—</span></div>
+      <div class="cost-row"><span></span><span class="cost-tok" id="costSessionTok"></span></div>
+      <div class="cost-divider"></div>
+      <div class="cost-row"><span class="cost-label">Semana</span><span class="cost-val" id="costWeek">—</span></div>
+      <div class="cost-row"><span></span><span class="cost-tok" id="costWeekTok"></span></div>
+      <div class="cost-divider"></div>
+      <div class="cost-row"><span class="cost-label">Mes</span><span class="cost-val" id="costMonth">—</span></div>
+      <div class="cost-row"><span></span><span class="cost-tok" id="costMonthTok"></span></div>
+    </div>
     <div class="user-info">
       <span id="userRole"></span><br>
       <a href="#" onclick="doLogout()" style="color:#94a3b8;font-size:0.8rem;">Cerrar sesión</a>
@@ -121,6 +141,7 @@ const SB_KEY = "sb_publishable_mVX5MnjwM770cNjgiL6yLw_LDNl9pML";
 const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
 let currentRole = null;
+let sessionStart = null;
 const testPhone = "5491100000000"; // Teléfono simulado para pruebas
 
 // --- Auth ---
@@ -168,6 +189,12 @@ function showApp() {
   document.getElementById("userRole").textContent = currentRole === "admin" ? "🔑 Admin" : "👤 Vendedor";
   addSystemMsg("Simulador del bot WhatsApp. Escribí como si fueras un cliente.");
   addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
+  // Admin cost panel
+  if (currentRole === "admin") {
+    sessionStart = new Date().toISOString();
+    document.getElementById("costPanel").style.display = "block";
+    refreshCosts();
+  }
 }
 
 // Auto-login
@@ -261,6 +288,7 @@ async function sendMessage() {
 
   chatSend.disabled = false;
   chatInput.focus();
+  if (currentRole === "admin") refreshCosts();
 }
 
 chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !chatSend.disabled) sendMessage(); });
@@ -270,7 +298,37 @@ function clearChat() {
   addSystemMsg("Chat limpiado. Escribí como si fueras un cliente.");
   addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
 }
+
+// --- Costs (admin only) ---
+function fmtCost(v) {
+  if (v == null || v === 0) return "$0.00";
+  if (v < 0.01) return "$" + v.toFixed(4);
+  return "$" + v.toFixed(2);
+}
+
+function fmtTok(inp, out) {
+  const total = (inp || 0) + (out || 0);
+  if (total === 0) return "";
+  const fmt = total >= 1000 ? (total / 1000).toFixed(1) + "k" : total;
+  return fmt + " tok (" + (inp || 0) + "→ " + (out || 0) + "←)";
+}
+
+async function refreshCosts() {
+  if (currentRole !== "admin") return;
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "stats", since: sessionStart },
+    });
+    if (error || !data) return;
+    document.getElementById("costSession").textContent = fmtCost(data.session?.cost);
+    document.getElementById("costSessionTok").textContent = fmtTok(data.session?.input_tokens, data.session?.output_tokens);
+    document.getElementById("costWeek").textContent = fmtCost(data.week?.cost);
+    document.getElementById("costWeekTok").textContent = fmtTok(data.week?.input_tokens, data.week?.output_tokens);
+    document.getElementById("costMonth").textContent = fmtCost(data.month?.cost);
+    document.getElementById("costMonthTok").textContent = fmtTok(data.month?.input_tokens, data.month?.output_tokens);
+  } catch (e) { /* silent */ }
+}
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.2.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.2.1</div>
 </body>
 </html>
