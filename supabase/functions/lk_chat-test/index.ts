@@ -330,41 +330,52 @@ async function handleStats(since?: string) {
 
 // ── Handlers (misma lógica que webhook, sin enviar a WA) ──
 
-const ALTA_SPEECH = `¡Genial! Para darte de alta como cliente necesitamos los siguientes datos:
+// ── Alta de cliente nuevo: pasos secuenciales, 0 tokens ──
 
-📋 *Razón social*
-👤 *Nombre de contacto*
-📱 *Teléfono*
-📧 *Mail*
-📍 *Dirección y localidad*
-🚚 *Expreso con el que trabajan* (dirección y teléfono)
-🏪 *Tipo de comercio* (Ej: Bazar, mayorista) y dimensión (Ej: 4x8=32m²)
-🌐 *Tiene venta web/página*
-📦 *Si ya vende nuestra mercadería*, indicar a quién le compra
-📢 *Si no la vende*, indicar de dónde conoce la marca
+const ALTA_INTRO = `¡Genial! Te voy a dar de alta como cliente.\n\n📋 ¿Cuál es tu *razón social*?`;
 
-Podés enviarme todo junto o de a poco, como te quede más cómodo. 👍`;
+// Orden de campos a pedir (CUIT ya lo tenemos del paso de identificación)
+const ALTA_STEPS: { field: string; prompt: string }[] = [
+  { field: "razon_social",     prompt: "📋 ¿Cuál es tu *razón social*?" },
+  { field: "nombre_contacto",  prompt: "👤 ¿*Nombre de contacto*?" },
+  { field: "telefono",         prompt: "📱 ¿*Teléfono* de contacto?" },
+  { field: "mail",             prompt: "📧 ¿*Mail*?" },
+  { field: "direccion",        prompt: "📍 ¿*Dirección*?" },
+  { field: "localidad",        prompt: "📍 ¿*Localidad*?" },
+  { field: "expreso_nombre",   prompt: "🚚 ¿Con qué *expreso* trabajan? (nombre)" },
+  { field: "expreso_direccion", prompt: "🚚 ¿*Dirección del expreso*?" },
+  { field: "expreso_telefono", prompt: "🚚 ¿*Teléfono del expreso*?" },
+  { field: "tipo_comercio",    prompt: "🏪 ¿*Tipo de comercio*? (Ej: Bazar, mayorista, distribuidor)" },
+  { field: "dimension_comercio", prompt: "🏪 ¿*Dimensión del comercio*? (Ej: 4x8=32m²)" },
+  { field: "tiene_venta_web",  prompt: "🌐 ¿Tiene *venta web / página*?" },
+  { field: "ya_vende_lk",      prompt: "📦 ¿Ya vendés *mercadería Loekemeyer*? (Sí/No)" },
+];
+
+// Paso extra según respuesta de ya_vende_lk
+const STEP_A_QUIEN = "📦 ¿A quién le comprás actualmente?";
+const STEP_COMO_CONOCE = "📢 ¿De dónde conocés la marca?";
 
 async function handleLinking(phone: string, text: string, apiKey: string): Promise<string> {
-  // ── ¿Ya tiene un lead en curso? → recolectar datos ──
+  // ── ¿Ya tiene un lead en curso? → siguiente paso del alta ──
   const { data: existingLead } = await supabase
     .from("wa_prospect_leads")
-    .select("id, raw_messages")
+    .select("id, razon_social, nombre_contacto, telefono, mail, direccion, localidad, expreso_nombre, expreso_direccion, expreso_telefono, tipo_comercio, dimension_comercio, tiene_venta_web, ya_vende_lk, a_quien_compra, como_conoce_marca, alta_step, raw_messages")
     .eq("phone", phone)
     .eq("status", "pending")
     .maybeSingle();
 
   if (existingLead) {
-    return await handleProspectData(phone, text, existingLead);
+    return await handleAltaStep(phone, text, existingLead);
   }
 
-  // ── Mensaje sin números y dice "soy nuevo" / "no soy cliente" → directo a alta ──
+  // ── Dice "soy nuevo" / "no soy cliente" → crear lead y empezar alta ──
   if (/\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|darme de alta|primera vez)\b/i.test(text)) {
     await supabase.from("wa_prospect_leads").insert({
       phone,
+      alta_step: 0,
       raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
     });
-    return ALTA_SPEECH;
+    return ALTA_INTRO;
   }
 
   const cleaned = text.replace(/[^0-9]/g, "");
@@ -404,35 +415,81 @@ async function handleLinking(phone: string, text: string, apiKey: string): Promi
     return `¡Hola ${customer.business_name}! Ya quedaste vinculado.\n${menuText()}`;
   }
 
-  // ── CUIT no encontrado → cliente nuevo ──
+  // ── CUIT no encontrado → cliente nuevo, arrancar alta ──
   if (cleaned.length >= 10) {
     await supabase.from("wa_prospect_leads").insert({
       phone,
       cuit: cleaned,
+      alta_step: 0,
       raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
     });
-    return `No encontré ese CUIT en nuestro sistema. ¡Pero no hay problema, te damos de alta!\n\n${ALTA_SPEECH}`;
+    return `No encontré ese CUIT en nuestro sistema. ¡Pero no hay problema, te damos de alta!\n\n${ALTA_INTRO}`;
   }
 
   // ── Código corto no encontrado ──
   return "No encontré ese código. ¿Me pasás tu CUIT? Si todavía no sos cliente, decime *soy nuevo* y te ayudo con el alta.";
 }
 
-// ── Recolección de datos de prospect (solo acumula mensajes crudos) ──
+// ── Alta paso a paso: cada respuesta va al campo que toca ──
 
-async function handleProspectData(
-  phone: string,
-  text: string,
-  lead: { id: number; raw_messages: unknown },
-): Promise<string> {
+// deno-lint-ignore no-explicit-any
+async function handleAltaStep(phone: string, text: string, lead: any): Promise<string> {
+  const step: number = lead.alta_step ?? 0;
   const messages = Array.isArray(lead.raw_messages) ? [...lead.raw_messages] : [];
   messages.push({ role: "user", content: text, ts: new Date().toISOString() });
 
-  await supabase.from("wa_prospect_leads")
-    .update({ raw_messages: messages, updated_at: new Date().toISOString() })
-    .eq("id", lead.id);
+  // Guardar respuesta en el campo correspondiente al paso actual
+  if (step < ALTA_STEPS.length) {
+    const currentField = ALTA_STEPS[step].field;
+    let value: unknown = text.trim();
 
-  return "Recibido ✅ Cuando tengas todos los datos, envialos y un vendedor se va a poner en contacto con vos.";
+    // ya_vende_lk → convertir a boolean
+    if (currentField === "ya_vende_lk") {
+      value = /^(si|sí|s|yes|y|1|true)\b/i.test(text.trim());
+    }
+
+    const nextStep = step + 1;
+    await supabase.from("wa_prospect_leads")
+      .update({
+        [currentField]: value,
+        alta_step: nextStep,
+        raw_messages: messages,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lead.id);
+
+    // ── ¿Terminamos los pasos base? ──
+    if (nextStep >= ALTA_STEPS.length) {
+      // Preguntar paso extra según ya_vende_lk
+      const yaVende = currentField === "ya_vende_lk" ? value : lead.ya_vende_lk;
+      if (yaVende === true) {
+        return STEP_A_QUIEN;
+      }
+      return STEP_COMO_CONOCE;
+    }
+
+    return ALTA_STEPS[nextStep].prompt;
+  }
+
+  // ── Paso extra: a_quien_compra o como_conoce_marca ──
+  const yaVende = lead.ya_vende_lk;
+  const needsExtra = yaVende === true ? "a_quien_compra" : "como_conoce_marca";
+
+  if (!lead[needsExtra]) {
+    await supabase.from("wa_prospect_leads")
+      .update({
+        [needsExtra]: text.trim(),
+        status: "complete",
+        raw_messages: messages,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lead.id);
+
+    return `✅ ¡Listo! Ya tenemos todos tus datos. Tu solicitud de alta fue registrada y va a ser revisada por el equipo de ventas.\n\nTe vamos a contactar cuando esté aprobada. ¡Gracias! 🙌`;
+  }
+
+  // Ya completó todo — mensaje genérico
+  return "Tu solicitud de alta ya fue registrada ✅ Un vendedor se va a poner en contacto con vos.";
 }
 
 async function handleOrderQuery(
