@@ -899,16 +899,35 @@ Ahí podés ver todos los precios con tu descuento ya aplicado. Si necesitás la
         <div class="bubble">"Cuánto es mi bonificación?"</div>
         <div class="bubble">"Che, qué porcentaje me hacen?"</div>
       </div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Consulta DB</div>
+              <code>customer_phones</code> → verificar si el teléfono está vinculado a un cliente
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="web-first-block">
-        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-label">🌐 Si es cliente → Derivar a la web</div>
         <div class="web-first-text">Tu descuento lo podés ver directamente en la página web, donde todos los precios ya aparecen con tu bonificación aplicada. 📋
 🔗 [link a la página web]
 
 Ingresá con tu usuario y contraseña. Si no los tenés, avisame y te los envío.</div>
       </div>
+      <div class="web-first-block">
+        <div class="web-first-label">👤 Si no es cliente</div>
+        <div class="web-first-text">Tu descuento lo podés ver directamente en la página web, donde todos los precios ya aparecen con tu bonificación aplicada. 📋
+🔗 [link a la página web]
+
+Si no tenés usuario, y querés hacerte cliente, avisame y procederemos con el alta.</div>
+      </div>
       <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere atención por chat</span></div>
       <div class="flow-block">
-        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-label">Fallback — Responder por chat</div>
         <div class="flow-steps">
           <div class="flow-step">
             <div class="flow-dot db"></div>

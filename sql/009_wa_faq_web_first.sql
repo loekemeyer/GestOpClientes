@@ -33,8 +33,11 @@ comment on column wa_faq.requires_product_match is
 -- ─────────────────────────────────────────────────────────────
 
 -- #2 — ¿Qué descuento tengo? (descuentos_promociones)
+-- Requiere verificar si el teléfono está en customer_phones.
+-- Si es cliente: ofrecer la web con su usuario.
+-- Si no es cliente: ofrecer hacerse cliente.
 update wa_faq set
-  web_first_response = E'Podés consultar tus descuentos y precios finales directamente en la web: 💰\n🔗 loekemeyer.com → "Pedidos Mayorista"\n\n📝 Cómo hacerlo:\n1. Ingresá con tu CUIT y contraseña\n2. Los precios que ves ya tienen tu descuento por volumen aplicado\n3. Al finalizar el pedido, se suma el 2% extra por compra web\n\nAsí podés ver tus precios reales al instante. Si necesitás tu clave, avisame. 😊',
+  web_first_response = E'Tu descuento lo podés ver directamente en la página web, donde todos los precios ya aparecen con tu bonificación aplicada. 📋\n🔗 [link a la página web]\n\n{{SI_CLIENTE}} Ingresá con tu usuario y contraseña. Si no los tenés, avisame y te los envío.\n{{SI_NO_CLIENTE}} Si no tenés usuario, y querés hacerte cliente, avisame y procederemos con el alta.',
   fallback_label = 'Si el cliente prefiere consultar por chat'
 where category = 'descuentos_promociones'
   and subcategory is null;
