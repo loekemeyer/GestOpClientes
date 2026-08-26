@@ -76,35 +76,7 @@ serve(async (req) => {
       }
     }
 
-    // ── Modo sin IA: solo FAQ automáticas, 0 tokens ──
-    if (noAI) {
-      const faqResult = await handleFaq(text);
-      const reply = faqResult
-        ? faqResult.reply
-        : "🤷 No encontré una respuesta automática para eso. Activá el Agente IA para respuestas más completas.";
-      const detectedIntent = faqResult?.intent ?? "no_match";
-
-      supabase.from("wa_conversations").insert([
-        { phone, direction: "in",  body: text,  msg_type: "text", customer_id: null, intent: detectedIntent },
-        { phone, direction: "out", body: reply, msg_type: "text", customer_id: null, intent: detectedIntent },
-      ]).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
-
-      return json({ reply, customer: null, noAI: true });
-    }
-
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY")
-      ?? Deno.env.get("CLAUDE_API_KEY")
-      ?? (await getSetting("anthropic_api_key"))
-      ?? "";
-
-    if (!anthropicKey) {
-      return json({ reply: "⚠️ API Key de Claude no configurada. Configurala en Supabase secrets como ANTHROPIC_API_KEY o CLAUDE_API_KEY." });
-    }
-
     // Paso 0: identificar cliente por teléfono
-    // 1) wa_identify_customer — busca en wa_clientes_telefono (610 registros) + customers.whatsapp
-    //    Usar phone raw (no canonPhone) porque wa_identify_customer tiene su propia normalización
-    // 2) Fallback: bot_cliente_por_whatsapp — busca en bot_customer_whatsapps (vinculados por el bot)
     let customerRow: { id: string; cod_cliente: number; business_name: string } | null = null;
 
     const { data: identified } = await supabase
@@ -117,7 +89,6 @@ serve(async (req) => {
         business_name: iRow.customer_name,
       };
     } else {
-      // Fallback: clientes vinculados manualmente via bot
       const { data: legacy } = await supabase
         .rpc("bot_cliente_por_whatsapp", { p_telefono: testPhone });
       customerRow = legacy?.[0] ?? null;
@@ -125,6 +96,41 @@ serve(async (req) => {
 
     let reply: string;
     let detectedIntent: string | null = null;
+
+    // ── Paso 1: FAQ trigram ANTES de gastar tokens (0 tokens) ──
+    const faqResult = await handleFaq(text, customerRow);
+    if (faqResult) {
+      detectedIntent = faqResult.intent;
+      reply = faqResult.reply;
+
+      const customerId = customerRow?.id ?? null;
+      supabase.from("wa_conversations").insert([
+        { phone, direction: "in",  body: text,  msg_type: "text", customer_id: customerId, intent: detectedIntent },
+        { phone, direction: "out", body: reply, msg_type: "text", customer_id: customerId, intent: detectedIntent },
+      ]).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
+
+      return json({ reply, customer: customerRow?.business_name ?? null, faqHit: true });
+    }
+
+    // ── Modo sin IA: solo FAQ, ya intentamos arriba ──
+    if (noAI) {
+      const noAiReply = "🤷 No encontré una respuesta automática para eso. Activá el Agente IA para respuestas más completas.";
+      supabase.from("wa_conversations").insert([
+        { phone, direction: "in",  body: text,  msg_type: "text", customer_id: customerRow?.id ?? null, intent: "no_match" },
+        { phone, direction: "out", body: noAiReply, msg_type: "text", customer_id: customerRow?.id ?? null, intent: "no_match" },
+      ]).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
+      return json({ reply: noAiReply, customer: customerRow?.business_name ?? null, noAI: true });
+    }
+
+    // ── Paso 2: IA (requiere API key) ──
+    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY")
+      ?? Deno.env.get("CLAUDE_API_KEY")
+      ?? (await getSetting("anthropic_api_key"))
+      ?? "";
+
+    if (!anthropicKey) {
+      return json({ reply: "⚠️ API Key de Claude no configurada. Configurala en Supabase secrets como ANTHROPIC_API_KEY o CLAUDE_API_KEY." });
+    }
 
     if (!customerRow) {
       detectedIntent = "linking";
@@ -152,17 +158,8 @@ serve(async (req) => {
         case "opt_out":
           reply = "⚠️ Opt-out deshabilitado en modo test.";
           break;
-        case "faq":
-        default: {
-          // ── Paso 1: intentar FAQ antes de gastar tokens en Sonnet ──
-          const faqResult = await handleFaq(text);
-          if (faqResult) {
-            detectedIntent = faqResult.intent;
-            reply = faqResult.reply;
-          } else {
-            reply = await handleGeneral(customerRow, text, anthropicKey);
-          }
-        }
+        default:
+          reply = await handleGeneral(customerRow, text, anthropicKey);
       }
     }
 
@@ -605,9 +602,12 @@ async function handleCancel(phone: string): Promise<string> {
   return "No tenés un pedido en curso para cancelar.";
 }
 
-// ── FAQ handler — respuestas automáticas sin gastar tokens Sonnet ──
+// ── FAQ handler — respuestas automáticas sin gastar tokens ──
 
-async function handleFaq(text: string): Promise<{ reply: string; intent: string } | null> {
+async function handleFaq(
+  text: string,
+  customer?: { id: string; cod_cliente: number; business_name: string } | null,
+): Promise<{ reply: string; intent: string } | null> {
   const { data: matches, error } = await supabase
     .rpc("wa_faq_match", { p_text: text });
 
@@ -615,7 +615,7 @@ async function handleFaq(text: string): Promise<{ reply: string; intent: string 
 
   const top = matches[0];
 
-  // Score bajo → no es un match real, dejar que Sonnet responda
+  // Score bajo → no es un match real, dejar que IA responda
   if (top.match_score < 0.3) return null;
 
   // ── Escalación: needs_human → derivar a vendedor ──
@@ -627,21 +627,81 @@ async function handleFaq(text: string): Promise<{ reply: string; intent: string 
     };
   }
 
+  // ── DB lookup: consultas que requieren datos reales (0 tokens) ──
+  if (top.requires_db_lookup && customer) {
+    const lookupReply = await handleFaqLookup(top.db_lookup_type, customer);
+    if (lookupReply) return { reply: lookupReply, intent: top.db_lookup_type || "faq_lookup" };
+    // Si lookup falla, caer a respuesta estática
+  }
+
   // ── full_auto / semi_auto → respuesta directa ──
   let reply = "";
-
-  // Si tiene web_first_response, sugerir la web primero
-  if (top.web_first_response) {
-    reply += top.web_first_response + "\n\n";
-  }
-
-  if (top.bot_response) {
-    reply += top.bot_response;
-  }
-
+  if (top.web_first_response) reply += top.web_first_response + "\n\n";
+  if (top.bot_response) reply += top.bot_response;
   if (!reply.trim()) return null;
 
   return { reply: reply.trim(), intent: "faq" };
+}
+
+// ── FAQ DB Lookups — respuestas con datos reales, 0 tokens ──
+
+const STATUS_MAP: Record<string, string> = {
+  pendiente: "📝 recibido, en proceso de preparación",
+  recibido: "📦 recibido, siendo preparado",
+  programado: "🚚 programado para despacho",
+  entregado: "✅ entregado",
+};
+
+async function handleFaqLookup(
+  lookupType: string,
+  customer: { id: string; cod_cliente: number; business_name: string },
+): Promise<string | null> {
+  if (lookupType === "order_status") {
+    return await lookupOrderStatus(customer);
+  }
+  // Otros lookup types se pueden agregar acá
+  return null;
+}
+
+async function lookupOrderStatus(
+  customer: { id: string; cod_cliente: number; business_name: string },
+): Promise<string> {
+  const { data: orders } = await supabase
+    .from("orders")
+    .select("id, created_at, total, status")
+    .eq("customer_id", customer.id)
+    .gte("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (!orders?.length) {
+    return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, decime.`;
+  }
+
+  const orderIds = orders.map((o) => String(o.id));
+  const { data: tracking } = await supabase
+    .from("order_tracking")
+    .select("np_number, status, fecha_entrega")
+    .in("np_number", orderIds);
+
+  const trackingMap = new Map((tracking ?? []).map((t) => [t.np_number, t]));
+
+  const lines = orders.map((o, i) => {
+    const t = trackingMap.get(String(o.id));
+    const fecha = new Date(o.created_at).toLocaleDateString("es-AR");
+    const rawStatus = t?.status ?? o.status;
+    const statusText = STATUS_MAP[rawStatus] || rawStatus;
+    let line = `${i + 1}️⃣ NP-${o.id} (${fecha}) — ${statusText}`;
+    if (t?.fecha_entrega && rawStatus === "programado") {
+      line += ` para el ${t.fecha_entrega}`;
+    }
+    if (t?.fecha_entrega && rawStatus === "entregado") {
+      line += ` el ${t.fecha_entrega}`;
+    }
+    return line;
+  });
+
+  return `${customer.business_name}, acá está el estado de tus pedidos:\n\n${lines.join("\n")}\n\n¿Necesitás más detalle de alguno?`;
 }
 
 async function handleGeneral(
