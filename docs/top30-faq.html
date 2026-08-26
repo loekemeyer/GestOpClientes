@@ -751,12 +751,12 @@
   <div class="summary-chip">
     <span class="dot dot-green"></span>
     <span>Full Auto</span>
-    <span class="count">13</span>
+    <span class="count">12</span>
   </div>
   <div class="summary-chip">
     <span class="dot dot-blue"></span>
     <span>Semi Auto</span>
-    <span class="count">13</span>
+    <span class="count">14</span>
   </div>
   <div class="summary-chip">
     <span class="dot dot-amber"></span>
@@ -1245,14 +1245,14 @@ Los precios ya tienen tu descuento aplicado. Si necesitás tu usuario y clave, a
   </details>
 
   <!-- #9 -->
-  <details class="faq-card" data-level="full_auto">
+  <details class="faq-card" data-level="semi_auto">
     <summary>
       <span class="rank-num">9</span>
       <div class="faq-main">
         <span class="faq-question">Confirmar fecha de retiro</span>
         <div class="faq-meta">
           <span class="cat-label">Retiro</span>
-          <span class="level-pill level-full">Full Auto</span>
+          <span class="level-pill level-semi">Semi Auto</span>
         </div>
       </div>
       <div class="faq-freq">
@@ -1267,15 +1267,39 @@ Los precios ya tienen tu descuento aplicado. Si necesitás tu usuario y clave, a
         <div class="bubble">"Qué horarios tienen para retiro?"</div>
         <div class="bubble">"Puedo ir mañana a buscar mi pedido?"</div>
       </div>
-      <div class="response-block">
-        <div class="response-label">Respuesta del bot</div>
-        <div class="response-text">📦 Retiro en depósito:
 
-📍 Dirección: {dirección del depósito}
+      <div class="strategy-section">
+        <div class="strategy-label">⚙️ Estrategia: consulta a DB + posible escalado</div>
+        <div class="strategy-text">
+          <strong>Paso 1:</strong> El bot consulta <code>wa_customer_orders(cod_cliente)</code> en <code>order_tracking</code>.<br>
+          <strong>Paso 2:</strong> Responde según el estado del pedido:<br>
+          <br>
+          <strong>Si tiene pedido "programado":</strong><br>
+          → "Tu pedido NP-{nro} está programado para entrega. Te confirmo los datos del retiro: 📍 {dirección} 🕐 Lunes a Viernes 8:00 a 16:00 hs. Para la fecha exacta, el sector de logística te va a contactar."<br>
+          <em>⚠️ No hay fecha programada en la DB → escala a logística si el cliente insiste.</em><br>
+          <br>
+          <strong>Si tiene pedido "recibido":</strong><br>
+          → "Tu pedido NP-{nro} fue recibido y está en preparación. Todavía no tiene fecha de entrega asignada. Apenas se programe, te avisamos."<br>
+          <br>
+          <strong>Si no tiene pedidos activos:</strong><br>
+          → "No encontré pedidos activos a tu nombre. Si hiciste un pedido recientemente, puede estar siendo procesado. ¿Querés que consulte con el equipo?"
+        </div>
+      </div>
+
+      <div class="response-block">
+        <div class="response-label">Respuesta tipo (pedido programado)</div>
+        <div class="response-text">📦 Tu pedido NP-{nro} está programado para entrega.
+
+📍 Retiro en depósito: {dirección del depósito}
 🕐 Horario: Lunes a Viernes de 8:00 a 16:00 hs
 📋 Presentarse con: DNI y número de pedido
 
-Cuando estés llegando, avisanos por acá así te tenemos todo listo. 👍</div>
+Para la fecha exacta de retiro, el sector de logística te va a contactar. Si necesitás coordinar con urgencia, te paso con el equipo. 👍</div>
+      </div>
+
+      <div class="db-badge">
+        <span class="db-icon">🗄️</span>
+        <code>wa_customer_orders(cod_cliente)</code> → order_tracking (status, fecha_entrega)
       </div>
     </div>
   </details>
