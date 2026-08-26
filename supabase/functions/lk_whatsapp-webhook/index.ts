@@ -3,7 +3,7 @@ import { supabase, getSetting } from "../_shared/supabase.ts";
 import { canonPhone, parseIncoming, sendText, markRead } from "../_shared/wa-api.ts";
 import { detectIntent, conversationalReply } from "../_shared/claude.ts";
 
-const VERIFY_TOKEN = Deno.env.get("WA_VERIFY_TOKEN") ?? "lk-bot-verify-2026";
+const VERIFY_TOKEN = Deno.env.get("WA_VERIFY_TOKEN") ?? "";
 
 serve(async (req) => {
   try {
