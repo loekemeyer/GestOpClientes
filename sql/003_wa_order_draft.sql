@@ -4,7 +4,7 @@
 create table if not exists wa_order_draft (
   id          bigint generated always as identity primary key,
   phone       text not null unique,        -- 1 draft activo por teléfono
-  customer_id bigint not null references customers(id),
+  customer_id uuid not null references customers(id),
   items       jsonb not null default '[]', -- [{product_id, cod, description, cajas, uxb, unit_price}]
   status      text not null default 'building',  -- building / confirming / submitted / expired
   created_at  timestamptz default now(),

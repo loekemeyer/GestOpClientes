@@ -8,7 +8,7 @@ create table if not exists wa_conversations (
   body        text,
   msg_type    text default 'text',    -- text / template / document / audio
   wa_msg_id   text,                   -- ID de Meta para dedup
-  customer_id bigint references customers(id),
+  customer_id uuid references customers(id),
   intent      text,                   -- intent detectado (consulta_pedido, nuevo_pedido, etc)
   created_at  timestamptz default now()
 );

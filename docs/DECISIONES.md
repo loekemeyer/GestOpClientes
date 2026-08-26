@@ -36,12 +36,10 @@
 
 ---
 
-## D005 — Número WhatsApp (pendiente)
+## D005 — Número WhatsApp (2026-08-26)
 
-**Decisión**: TBD — ¿número nuevo o compartir con Planify?
+**Decisión**: Usar un número WhatsApp preexistente, separado del de Planify.
 
-**Opciones**:
-- **Número nuevo**: Aislamiento total, branding propio. Costo: ~$15/mes meta + verificación.
-- **Compartir**: Router por contexto (si el teléfono es cliente → BotWA-LK, si es empleado → Planify). Ahorra costo pero acopla.
+**Razón**: Aislamiento total entre bot de clientes y bot interno (Planify). Sin necesidad de router/proxy. Cada bot tiene su webhook independiente.
 
-**Nota**: Meta permite 1 webhook por app, pero se puede routear en un proxy.
+**Consecuencia**: Configurar webhook de Meta apuntando a `lk_whatsapp-webhook`. Secrets necesarios: `WA_TOKEN`, `WA_VERIFY_TOKEN`, `WA_PHONE_NUMBER_ID`.
