@@ -66,7 +66,7 @@ export async function detectIntent(
 ): Promise<{ intent: string; details: string }> {
   const system = `Sos un clasificador de intents para un bot WhatsApp de una empresa mayorista de artículos de cocina.
 Dado el mensaje del cliente, respondé SOLO con JSON válido:
-{"intent": "consulta_pedido" | "nuevo_pedido" | "retiro" | "cancelar" | "ayuda" | "opt_out" | "otro", "details": "breve contexto"}
+{"intent": "consulta_pedido" | "nuevo_pedido" | "retiro" | "cancelar" | "ayuda" | "opt_out" | "faq" | "otro", "details": "breve contexto"}
 
 Reglas:
 - "consulta_pedido": pregunta por estado, seguimiento, envío de un pedido
@@ -75,7 +75,8 @@ Reglas:
 - "cancelar": quiere cancelar pedido en curso
 - "ayuda": pide ayuda o menú de opciones
 - "opt_out": no quiere recibir más mensajes
-- "otro": cualquier otra cosa`;
+- "faq": preguntas generales sobre la empresa (horarios, formas de pago, envíos, mínimos, devoluciones, catálogo, precios, descuentos, zonas de entrega)
+- "otro": cualquier otra cosa que no encaje arriba`;
 
   const text = await claudeMessage({
     apiKey,

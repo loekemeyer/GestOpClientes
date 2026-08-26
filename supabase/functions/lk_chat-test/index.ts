@@ -87,8 +87,17 @@ serve(async (req) => {
         case "opt_out":
           reply = "⚠️ Opt-out deshabilitado en modo test.";
           break;
-        default:
-          reply = await handleGeneral(customerRow, text, anthropicKey);
+        case "faq":
+        default: {
+          // ── Paso 1: intentar FAQ antes de gastar tokens en Sonnet ──
+          const faqResult = await handleFaq(text);
+          if (faqResult) {
+            detectedIntent = faqResult.intent;
+            reply = faqResult.reply;
+          } else {
+            reply = await handleGeneral(customerRow, text, anthropicKey);
+          }
+        }
       }
     }
 
@@ -292,12 +301,9 @@ Si no hay productos claros, respondé [].`;
   const currentItems = Array.isArray(draft.items) ? [...draft.items] : [];
 
   for (const item of items) {
+    // Búsqueda inteligente: aliases → trigrama → ILIKE (sin gastar tokens)
     const { data: products } = await supabase
-      .from("products")
-      .select("id, cod, description, list_price, uxb")
-      .eq("active", true)
-      .or(`description.ilike.%${item.query}%,cod.ilike.%${item.query}%`)
-      .limit(3);
+      .rpc("wa_product_match", { p_query: item.query, p_limit: 3 });
 
     if (!products?.length) { notFound.push(item.query); continue; }
 
@@ -309,7 +315,7 @@ Si no hay productos claros, respondé [].`;
 
     const p = products[0];
     currentItems.push({
-      product_id: p.id,
+      product_id: p.product_id,
       cod: p.cod,
       description: p.description,
       cajas: item.cajas,
@@ -436,6 +442,45 @@ async function handleCancel(phone: string): Promise<string> {
     return "Pedido en borrador cancelado. Si necesitás algo más, decime.";
   }
   return "No tenés un pedido en curso para cancelar.";
+}
+
+// ── FAQ handler — respuestas automáticas sin gastar tokens Sonnet ──
+
+async function handleFaq(text: string): Promise<{ reply: string; intent: string } | null> {
+  const { data: matches, error } = await supabase
+    .rpc("wa_faq_match", { p_text: text });
+
+  if (error || !matches?.length) return null;
+
+  const top = matches[0];
+
+  // Score bajo → no es un match real, dejar que Sonnet responda
+  if (top.match_score < 0.3) return null;
+
+  // ── Escalación: needs_human → derivar a vendedor ──
+  if (top.automation_level === "needs_human") {
+    const topic = top.fallback_label || top.subcategory || "tu consulta";
+    return {
+      reply: `📋 *${topic}* necesita atención de un vendedor. Te van a contactar a la brevedad.\n\nTambién podés escribirnos a ventas@loekemeyer.com`,
+      intent: "escalation",
+    };
+  }
+
+  // ── full_auto / semi_auto → respuesta directa ──
+  let reply = "";
+
+  // Si tiene web_first_response, sugerir la web primero
+  if (top.web_first_response) {
+    reply += top.web_first_response + "\n\n";
+  }
+
+  if (top.bot_response) {
+    reply += top.bot_response;
+  }
+
+  if (!reply.trim()) return null;
+
+  return { reply: reply.trim(), intent: "faq" };
 }
 
 async function handleGeneral(
