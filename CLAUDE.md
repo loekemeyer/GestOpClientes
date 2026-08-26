@@ -63,6 +63,13 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 - `wa_outbox` — cola de mensajes salientes (patrón Virgilio)
 - `wa_order_draft` — borrador de pedido en curso por WA
 - `wa_conversations` — log de mensajes (in/out) para auditoría
+- `bot_token_usage` — log de tokens/costo por llamada a Claude API
+- `wa_faq` — preguntas frecuentes catalogadas con respuestas y nivel de automatización
+- `product_aliases` — aliases de productos para matching por texto libre (pg_trgm)
+
+### Funciones SQL del bot
+- `wa_product_match(query, limit)` — búsqueda inteligente de productos (aliases → trigrama → ILIKE)
+- `wa_identify_customer(phone)` — Paso 0: identifica cliente por teléfono normalizando variantes
 
 ## Flujo principal
 
@@ -93,3 +100,46 @@ Formato `vX.Y.Z`:
 - **X** = full release (0 mientras esté en beta)
 - **Y** = big feature, módulo nuevo funcional, landmark importante
 - **Z** = bump por cambios menores (la más común)
+
+## Coordinación multi-sesión
+
+Varias sesiones Claude trabajan en paralelo sobre este repo. Para no romperse entre sí:
+
+### Regla de oro
+**Siempre basar tu branch en `origin/main` actualizado.** Antes de crear una branch o empezar a trabajar:
+```bash
+git fetch origin main
+git checkout -B mi-branch origin/main
+```
+
+### Zonas de responsabilidad
+
+| Zona | Archivos | Quién modifica |
+|------|----------|----------------|
+| **Backend SQL** | `sql/*.sql` | Cualquier sesión (numerar secuencialmente, verificar último número en main) |
+| **Edge Functions** | `supabase/functions/**` | Solo sesiones que trabajan en lógica del bot |
+| **Frontend** | `docs/index.html` | Solo sesiones que trabajan en el dashboard |
+| **Config proyecto** | `CLAUDE.md`, `.claude/`, `config-claude.json` | Con cuidado — leer antes de escribir |
+
+### Qué NO hacer
+- **NO mergear una branch vieja** que borra archivos que no tocaste — verificar con `git diff --stat origin/main..mi-branch` antes de mergear
+- **NO borrar archivos que no creaste** — si tu diff muestra deleciones de archivos que no modificaste, tu branch está desactualizada
+- **NO pushear directo a main** sin verificar que no hay conflictos con lo que otros pushearon
+
+### Cómo agregar archivos nuevos sin riesgo
+Si tu sesión solo agrega archivos nuevos (ej: migraciones SQL), usar cherry-pick de archivos:
+```bash
+git checkout origin/mi-branch -- sql/007_nuevo.sql sql/008_otro.sql
+```
+Esto trae solo esos archivos sin tocar el resto.
+
+### Migraciones SQL
+- Verificar el último número en `sql/` de `origin/main` antes de numerar
+- Si dos sesiones crean la misma numeración, la segunda renumera
+- Cada migración debe ser idempotente (`CREATE TABLE IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`)
+
+### Checklist pre-merge
+1. `git fetch origin main`
+2. `git diff --stat origin/main..HEAD` — ¿hay deleciones inesperadas?
+3. Si hay deleciones de archivos que no tocaste → tu branch está rota, NO mergear
+4. Si solo hay adiciones y modificaciones de archivos que sí tocaste → OK
