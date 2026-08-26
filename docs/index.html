@@ -68,6 +68,16 @@
     .chat-input button:hover { background: #1da851; }
     .chat-input button:disabled { background: #ccc; cursor: default; }
 
+    /* Start screen */
+    .start-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 1.2rem; padding: 2rem; }
+    .start-screen h3 { color: #667; font-weight: 500; font-size: 1rem; }
+    .start-screen .start-btns { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+    .start-screen button { padding: 1.2rem 1.5rem; border-radius: 12px; border: 2px solid var(--border); background: var(--card); cursor: pointer; font-size: 0.95rem; transition: all 0.2s; min-width: 200px; text-align: center; }
+    .start-screen button:hover { border-color: var(--wa-green); background: #f0fdf4; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .start-screen .btn-icon { font-size: 2rem; display: block; margin-bottom: 0.5rem; }
+    .start-screen .btn-label { font-weight: 600; color: var(--text); display: block; }
+    .start-screen .btn-desc { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; display: block; }
+
     /* Cost panel (admin only) */
     .cost-panel { padding: 0.6rem 1rem; border-top: 1px solid rgba(255,255,255,0.1); display: none; }
     .cost-panel .cost-title { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem; }
@@ -123,8 +133,7 @@
           <h2>Bot Loekemeyer</h2>
           <span id="chatStatus">En línea</span>
         </div>
-        <button class="clear-btn" onclick="resetSession()">🔄 Nueva sesión</button>
-        <button class="clear-btn" onclick="clearChat()">🗑 Limpiar</button>
+        <button class="clear-btn" onclick="resetSession()">🔄 Reiniciar</button>
       </div>
       <div class="chat-messages" id="chatMessages"></div>
       <div class="chat-input">
@@ -143,7 +152,10 @@ const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
 let currentRole = null;
 let sessionStart = null;
-let testPhone = "54911" + Math.floor(10000000 + Math.random() * 90000000); // Teléfono random por sesión
+let testPhone = null;
+
+// Teléfonos reales de clientes en la base (wa_clientes_telefono)
+const KNOWN_PHONES = ["5493586017973","5491138267294","5491134360609","5491136188988"];
 
 // --- Auth ---
 async function sha256(text) {
@@ -188,15 +200,12 @@ function showApp() {
   document.getElementById("loginOverlay").style.display = "none";
   document.getElementById("app").classList.add("active");
   document.getElementById("userRole").textContent = currentRole === "admin" ? "🔑 Admin" : "👤 Vendedor";
-  addSystemMsg("Escribí como si fueras un cliente de WhatsApp.");
-  // Admin cost panel
   if (currentRole === "admin") {
     sessionStart = new Date().toISOString();
     document.getElementById("costPanel").style.display = "block";
     refreshCosts();
   }
-  // Greeting from real bot
-  botGreet();
+  showStartScreen();
 }
 
 // Auto-login
@@ -263,7 +272,7 @@ function hideTyping() {
 
 async function sendMessage() {
   const text = chatInput.value.trim();
-  if (!text) return;
+  if (!text || !testPhone) return;
 
   addUserMsg(text);
   chatInput.value = "";
@@ -295,38 +304,50 @@ async function sendMessage() {
 
 chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !chatSend.disabled) sendMessage(); });
 
-function clearChat() {
-  chatMessages.innerHTML = "";
-  addSystemMsg("Chat limpiado. Escribí como si fueras un cliente.");
-  botGreet();
-}
-
 function resetSession() {
-  testPhone = "54911" + Math.floor(10000000 + Math.random() * 90000000);
-  chatMessages.innerHTML = "";
-  document.getElementById("chatStatus").textContent = "En línea";
-  addSystemMsg("Nueva sesión iniciada — cliente no vinculado.");
-  botGreet();
+  showStartScreen();
 }
 
-async function botGreet() {
-  showTyping();
-  try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: { phone: testPhone, text: "hola" },
-    });
-    hideTyping();
-    if (error) {
-      addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
-    } else {
-      addBotMsg(data.reply || "¡Hola! ¿En qué puedo ayudarte?");
-      if (data.customer) document.getElementById("chatStatus").textContent = "Conectado — " + data.customer;
-    }
-  } catch {
-    hideTyping();
-    addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
+function showStartScreen() {
+  testPhone = null;
+  chatMessages.innerHTML = "";
+  chatInput.disabled = true;
+  chatSend.disabled = true;
+  chatInput.placeholder = "Elegí un modo para empezar...";
+  document.getElementById("chatStatus").textContent = "En línea";
+
+  const screen = document.createElement("div");
+  screen.className = "start-screen";
+  screen.innerHTML = `
+    <h3>Simulador WhatsApp</h3>
+    <div class="start-btns">
+      <button onclick="startAs('client')">
+        <span class="btn-icon">👤</span>
+        <span class="btn-label">Cliente existente</span>
+        <span class="btn-desc">Teléfono vinculado en la base</span>
+      </button>
+      <button onclick="startAs('new')">
+        <span class="btn-icon">🆕</span>
+        <span class="btn-label">Cliente nuevo</span>
+        <span class="btn-desc">Teléfono no registrado</span>
+      </button>
+    </div>
+  `;
+  chatMessages.appendChild(screen);
+}
+
+function startAs(mode) {
+  if (mode === "client") {
+    testPhone = KNOWN_PHONES[Math.floor(Math.random() * KNOWN_PHONES.length)];
+  } else {
+    testPhone = "54911" + Math.floor(10000000 + Math.random() * 90000000);
   }
-  if (currentRole === "admin") refreshCosts();
+  chatMessages.innerHTML = "";
+  chatInput.disabled = false;
+  chatSend.disabled = false;
+  chatInput.placeholder = "Escribí un mensaje...";
+  document.getElementById("chatStatus").textContent = mode === "client" ? "Cliente vinculado" : "Cliente no vinculado";
+  chatInput.focus();
 }
 
 // --- Costs (admin only) ---
@@ -359,6 +380,6 @@ async function refreshCosts() {
   } catch (e) { /* silent */ }
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.2.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.2.3</div>
 </body>
 </html>
