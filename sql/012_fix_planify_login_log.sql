@@ -1,0 +1,68 @@
+-- ============================================================================
+-- 012_fix_planify_login_log.sql
+-- LOG: Fix error de login en Planify (26/08/2026)
+-- Proyecto afectado: Virgilio / Control Partes Talleristas (hrxfctzncixxqmpfhskv)
+-- ============================================================================
+--
+-- PROBLEMA
+-- --------
+-- Desde el 25/08/2026 ~16:30 UTC, todos los usuarios de Planify (app desktop)
+-- recibían "Nombre no reconocido. Elegí tu nombre de la lista." al intentar
+-- loguearse, a pesar de que el nombre aparecía en el dropdown.
+--
+-- CAUSA RAÍZ
+-- ----------
+-- La sesión "Gestión productiva 2.0" (session_015A9qFqwe1sNzQbyQJR4WE5) aplicó
+-- dos migraciones que sobreescribieron la configuración de schemas expuestos
+-- de PostgREST con un valor hardcodeado que NO incluía 'planify':
+--
+--   Migration: nuevo_exponer_api_movimiento (20260825162658)
+--     ALTER ROLE authenticator SET pgrst.db_schemas = 'public, graphql_public, nuevo';
+--
+--   Migration: rename_schema_nuevo_a_GP2 (20260825171636)
+--     ALTER ROLE authenticator SET pgrst.db_schemas = 'public, graphql_public, GP2';
+--
+-- Ambas usaron SET (sobreescribe) en lugar de agregar al valor existente.
+-- Esto eliminó 'planify', 'lecturacvs' y 'relevamiento_cervantes' de la lista.
+--
+-- CADENA DE FALLO
+-- ---------------
+-- 1. Planify login → findEmployeeMultiTenant() → loadAllEmployees()
+-- 2. loadAllEmployees() hace GET /rest/v1/employees con header Accept-Profile: planify
+-- 3. PostgREST rechaza: error PGRST106 "The schema must be one of: public, graphql_public, GP2"
+-- 4. catch{return[];} en supabase.js traga el error → retorna array vacío
+-- 5. findEmployeeMultiTenant() no encuentra match → retorna null
+-- 6. main.js:1157 muestra "Nombre no reconocido. Elegí tu nombre de la lista."
+-- 7. El autocomplete seguía mostrando nombres porque usa localStorage (cache previo)
+--
+-- FIX APLICADO (26/08/2026 ~12:00 UTC)
+-- -------------------------------------
+-- Ejecutado directamente en Virgilio (hrxfctzncixxqmpfhskv) vía Supabase MCP:
+--
+--   ALTER ROLE authenticator
+--     SET pgrst.db_schemas = 'public, graphql_public, GP2, planify, lecturacvs, relevamiento_cervantes';
+--   NOTIFY pgrst, 'reload config';
+--   NOTIFY pgrst, 'reload schema';
+--
+-- PostgREST recargó la config en caliente. Login restaurado inmediatamente.
+--
+-- LECCIÓN / PREVENCIÓN
+-- --------------------
+-- Al agregar un schema nuevo a pgrst.db_schemas, NUNCA hacer SET con una lista
+-- hardcodeada. En su lugar, leer el valor actual y agregar:
+--
+--   DO $$
+--   DECLARE current_schemas text;
+--   BEGIN
+--     SELECT unnest(setconfig) INTO current_schemas
+--     FROM pg_db_role_setting
+--     WHERE setrole = (SELECT oid FROM pg_roles WHERE rolname = 'authenticator')
+--       AND unnest(setconfig) LIKE 'pgrst.db_schemas=%';
+--     -- Parsear y agregar el nuevo schema si no está
+--   END $$;
+--
+-- O como mínimo, verificar qué schemas están expuestos antes de sobreescribir:
+--
+--   SELECT rolconfig FROM pg_roles WHERE rolname = 'authenticator';
+--
+-- ============================================================================
