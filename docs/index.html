@@ -171,16 +171,29 @@ const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-const USERS = { vendedor: "1234", admin: "gestop" };
 let currentRole = null;
 
 // --- Auth ---
-function doLogin() {
+async function sha256(text) {
+  const data = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function doLogin() {
   const role = document.getElementById("loginRole").value;
   const pass = document.getElementById("loginPass").value;
-  if (USERS[role] === pass) {
-    currentRole = role;
-    sessionStorage.setItem("gestop_role", role);
+  const hash = await sha256(pass);
+  const { data, error } = await sb
+    .from("gestop_users")
+    .select("role")
+    .eq("username", role)
+    .eq("password_hash", hash)
+    .maybeSingle();
+  if (data) {
+    currentRole = data.role;
+    sessionStorage.setItem("gestop_role", data.role);
+    sessionStorage.setItem("gestop_hash", hash);
     showApp();
   } else {
     document.getElementById("loginError").textContent = "Contraseña incorrecta";
@@ -189,6 +202,7 @@ function doLogin() {
 
 function doLogout() {
   sessionStorage.removeItem("gestop_role");
+  sessionStorage.removeItem("gestop_hash");
   currentRole = null;
   document.getElementById("app").classList.remove("active");
   document.getElementById("loginOverlay").style.display = "flex";
@@ -204,9 +218,14 @@ function showApp() {
 }
 
 // Auto-login si ya hay sesion
-(function() {
+(async function() {
   const saved = sessionStorage.getItem("gestop_role");
-  if (saved && USERS[saved]) { currentRole = saved; showApp(); }
+  const hash = sessionStorage.getItem("gestop_hash");
+  if (saved && hash) {
+    const { data } = await sb.from("gestop_users").select("role").eq("username", saved).eq("password_hash", hash).maybeSingle();
+    if (data) { currentRole = data.role; showApp(); }
+    else { sessionStorage.removeItem("gestop_role"); sessionStorage.removeItem("gestop_hash"); }
+  }
 })();
 
 // Enter key login

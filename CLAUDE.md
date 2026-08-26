@@ -34,9 +34,9 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 
 ## Proyectos hermanos (NO modificar desde acá)
 
-- **PaginaLK** (`\\loeke-svr\...\Pagina WEB\Pagina Actual\PaginaLK-main\`) — tablas orders, products, customers. RPCs: `submit_order_fast`, `edit_order_fast`.
-- **Virgilio** (`\\loeke-svr\...\_pv_fresh\`) — tablas whatsapp_clientes, whatsapp_vendedores. Patrón telegram_outbox reutilizado para wa_outbox.
-- **Planify** (`\\loeke-svr\...\Planify 3.5\Planify-Gest-Prod\supafn\supabase\functions\planify_whatsapp-webhook\index.ts`) — webhook WhatsApp de referencia. Copiar patrones de `waPost`, `sendText`, `canonPhone`, `phoneVariants`.
+- **PaginaLK** (repo privado separado) — tablas orders, products, customers. RPCs: `submit_order_fast`, `edit_order_fast`.
+- **Virgilio** (repo privado separado) — tablas whatsapp_clientes, whatsapp_vendedores. Patrón telegram_outbox reutilizado para wa_outbox.
+- **Planify** (repo privado separado, referencia en `planify_whatsapp-webhook/index.ts`) — webhook WhatsApp de referencia. Copiar patrones de `waPost`, `sendText`, `canonPhone`, `phoneVariants`.
 
 ## Convenciones
 
