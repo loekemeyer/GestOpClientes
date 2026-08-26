@@ -2,9 +2,13 @@ import { supabase } from "./supabase.ts";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
+// Usar aliases sin fecha para no romperse cuando Anthropic depreca versiones
+const MODEL_HAIKU = "claude-haiku-4-5";
+const MODEL_SONNET = "claude-sonnet-4-6";
+
 const COST_PER_MTOK: Record<string, { input: number; output: number }> = {
-  "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
-  "claude-sonnet-4-6-20250514": { input: 3.0, output: 15.0 },
+  [MODEL_HAIKU]: { input: 1.0, output: 5.0 },
+  [MODEL_SONNET]: { input: 3.0, output: 15.0 },
 };
 
 /** Llama a Claude API directo (sin SDK). Loguea tokens a bot_token_usage. */
@@ -75,7 +79,7 @@ Reglas:
 
   const text = await claudeMessage({
     apiKey,
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL_HAIKU,
     system,
     messages: [{ role: "user", content: userMessage }],
     maxTokens: 150,
@@ -97,7 +101,7 @@ export async function conversationalReply(
 ): Promise<string> {
   return claudeMessage({
     apiKey,
-    model: "claude-sonnet-4-6-20250514",
+    model: MODEL_SONNET,
     system,
     messages,
     maxTokens: 800,
