@@ -85,3 +85,11 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 - NUNCA enviar datos sensibles del cliente a Claude (solo lo necesario)
 - Siempre responder 200 a Meta (incluso en error interno) para no perder webhook
 - Rate limit: max 80 msg/seg por número (Meta), respetar 24h window para templates
+- Bumpear versión en badge de `docs/index.html` con cada cambio al front
+
+## Versionado (dashboard)
+
+Formato `vX.Y.Z`:
+- **X** = full release (0 mientras esté en beta)
+- **Y** = big feature, módulo nuevo funcional, landmark importante
+- **Z** = bump por cambios menores (la más común)
