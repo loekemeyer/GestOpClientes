@@ -137,6 +137,7 @@ Esto trae solo esos archivos sin tocar el resto.
 - Verificar el último número en `sql/` de `origin/main` antes de numerar
 - Si dos sesiones crean la misma numeración, la segunda renumera
 - Cada migración debe ser idempotente (`CREATE TABLE IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`)
+- **APLICAR a Supabase al crear**: Cuando crees una migración SQL, aplicarla inmediatamente al proyecto Supabase PaginaLK (`kwkclwhmoygunqmlegrg`) usando `mcp__Supabase__apply_migration`. No dejar migraciones sin aplicar.
 
 ### Checklist pre-merge
 1. `git fetch origin main`
