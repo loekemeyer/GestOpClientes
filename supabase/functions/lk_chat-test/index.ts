@@ -59,11 +59,14 @@ serve(async (req) => {
     }
 
     let reply: string;
+    let detectedIntent: string | null = null;
 
     if (!customerRow) {
+      detectedIntent = "linking";
       reply = await handleLinking(testPhone, text, anthropicKey);
     } else {
       const { intent } = await detectIntent(anthropicKey, text);
+      detectedIntent = intent;
 
       switch (intent) {
         case "consulta_pedido":
@@ -88,6 +91,13 @@ serve(async (req) => {
           reply = await handleGeneral(customerRow, text, anthropicKey);
       }
     }
+
+    // Log conversación (fire and forget, no bloquea respuesta)
+    const customerId = customerRow?.id ?? null;
+    supabase.from("wa_conversations").insert([
+      { phone, direction: "in",  body: text,  msg_type: "text", customer_id: customerId, intent: detectedIntent },
+      { phone, direction: "out", body: reply, msg_type: "text", customer_id: customerId, intent: detectedIntent },
+    ]).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
 
     return json({ reply, customer: customerRow?.business_name ?? null });
   } catch (err) {
