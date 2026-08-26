@@ -101,6 +101,8 @@ Formato `vX.Y.Z`:
 - **Y** = big feature, módulo nuevo funcional, landmark importante
 - **Z** = bump por cambios menores (la más común)
 
+**SIEMPRE comunicar versión al usuario**: Al implementar cambios, decirle al usuario qué versión debería ver en la página. Si el cambio toca el front → bumpear badge y decir la nueva versión. Si es solo backend → aclarar que la versión visible no cambia y cuál es la actual.
+
 ## Coordinación multi-sesión
 
 Varias sesiones Claude trabajan en paralelo sobre este repo. Para no romperse entre sí:
