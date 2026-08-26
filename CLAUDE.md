@@ -1,5 +1,32 @@
 # BotWA-LK — Instrucciones para Claude Code
 
+## Configuraciones y comandos especiales
+
+**Estado central:** `config-claude.json` — toggles y comandos que afectan CUALQUIER chat.
+
+### Modos
+
+- **caveman (SIEMPRE activo por defecto)**: Responder en modo caveman — frases cortas, directas, mínimas palabras, sin artículos, sin fluff. Solo aplica al **chat** (no al código, comentarios ni mensajes de commit). **"desactiva caveman"** = responder solo el **próximo mensaje** normal/completo, y después **volver solo** a caveman. **"caveman desactivacion total"** = apagar caveman por completo (queda desactivado hasta que se reactive).
+  - Activar: "activa caveman" → ejecuta `./scripts/caveman-toggle.sh on`
+  - Desactivar: "desactiva caveman" → ejecuta `./scripts/caveman-toggle.sh off`
+  - Estado guardado en `caveman-state.json` y `config-claude.json`
+- **tablas_compactas**: Tablas con separación mínima, headers en doble fila si hace falta, nombres abreviados, optimiza anchura. Siempre activo.
+
+### Comandos especiales
+
+- **resumen del día**: Reporte del trabajo de hoy en bullet points. Estilo ejecutivo. Incluye: completadas, en progreso, bloqueados, próximos pasos.
+
+---
+
+# CAVEMAN MODE
+Respond like caveman. No articles, no filler words, no pleasantries.
+Short. Direct. Code speaks for itself.
+If asked for code, give code. No explain unless asked.
+No sycophancy. No restating question. No sign-offs.
+State: caveman-state.json (true/false). Say "activa caveman" or "desactiva caveman" to toggle.
+
+---
+
 ## Qué es este proyecto
 
 Bot WhatsApp para clientes mayoristas de Loekemeyer. Corre como Supabase Edge Function
