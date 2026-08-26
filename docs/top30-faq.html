@@ -782,6 +782,52 @@
 <div class="strategy-section">
   <details class="strategy-card" open>
     <summary>
+      <span class="strategy-icon">👤</span>
+      Paso 0 — Identificación del cliente (se aplica a TODAS las preguntas)
+      <span class="strategy-affected">Paso global obligatorio</span>
+    </summary>
+    <div class="strategy-body">
+      <p>Antes de responder cualquier pregunta, el bot debe identificar al cliente usando su número de teléfono. Este paso es <strong>universal</strong> — se ejecuta en cada mensaje entrante.</p>
+
+      <p><strong>Flujo de identificación:</strong></p>
+
+      <div class="layers">
+        <div class="layer">
+          <span class="layer-num nlp">1. Normalizar</span>
+          <div>
+            <div class="layer-desc">El número llega de Meta en formato <code>5491130303594</code>. Normalizar: quitar <code>+</code>, espacios, guiones. Generar variantes (con/sin <code>54</code>, con/sin <code>549</code>).</div>
+            <div class="layer-example">"+54 9 11 3030-3594" → "5491130303594" → variantes: "91130303594", "1130303594"</div>
+          </div>
+        </div>
+        <div class="layer">
+          <span class="layer-num alias">2. Buscar</span>
+          <div>
+            <div class="layer-desc">Consultar <code>wa_clientes_telefono</code> (610 registros, 540 con match a <code>customers</code>). Cruzar todas las variantes del número.</div>
+            <div class="layer-example">wa_clientes_telefono.telefono → cod_cliente → customers.cod_cliente</div>
+          </div>
+        </div>
+        <div class="layer">
+          <span class="layer-num trgm">3a. Es cliente ✅</span>
+          <div>
+            <div class="layer-desc">Se encontró match → cargar datos del cliente (<code>cod_cliente</code>, nombre, descuento, etc.). Continuar con la respuesta a su pregunta.</div>
+            <div class="layer-example">→ Procede a responder usando datos personalizados del cliente</div>
+          </div>
+        </div>
+        <div class="layer">
+          <span class="layer-num ilike">3b. No es cliente ❌</span>
+          <div>
+            <div class="layer-desc">No se encontró match → responder con invitación al alta. <strong>No se intenta responder la pregunta original.</strong></div>
+            <div class="layer-example">"¡Hola! No tenemos tu número registrado como cliente. Si querés hacerte cliente, avisame y procederemos con el alta. 😊"</div>
+          </div>
+        </div>
+      </div>
+
+      <p>Cobertura actual: <strong>540 clientes</strong> de 1,275 (42%) ya tienen teléfono en <code>wa_clientes_telefono</code>. Los que no estén serán vinculados progresivamente al recibir su primer mensaje.</p>
+    </div>
+  </details>
+
+  <details class="strategy-card" open>
+    <summary>
       <span class="strategy-icon">🔍</span>
       Estrategia de identificación de productos
       <span class="strategy-affected">Afecta 8 de 30 preguntas</span>
@@ -899,31 +945,12 @@ Ahí podés ver todos los precios con tu descuento ya aplicado. Si necesitás la
         <div class="bubble">"Cuánto es mi bonificación?"</div>
         <div class="bubble">"Che, qué porcentaje me hacen?"</div>
       </div>
-      <div class="flow-block">
-        <div class="flow-label">Flujo semi auto</div>
-        <div class="flow-steps">
-          <div class="flow-step">
-            <div class="flow-dot db"></div>
-            <div class="step-content db">
-              <div class="step-tag db">Consulta DB</div>
-              <code>customer_phones</code> → verificar si el teléfono está vinculado a un cliente
-            </div>
-          </div>
-        </div>
-      </div>
       <div class="web-first-block">
-        <div class="web-first-label">🌐 Si es cliente → Derivar a la web</div>
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
         <div class="web-first-text">Tu descuento lo podés ver directamente en la página web, donde todos los precios ya aparecen con tu bonificación aplicada. 📋
 🔗 [link a la página web]
 
 Ingresá con tu usuario y contraseña. Si no los tenés, avisame y te los envío.</div>
-      </div>
-      <div class="web-first-block">
-        <div class="web-first-label">👤 Si no es cliente</div>
-        <div class="web-first-text">Tu descuento lo podés ver directamente en la página web, donde todos los precios ya aparecen con tu bonificación aplicada. 📋
-🔗 [link a la página web]
-
-Si no tenés usuario, y querés hacerte cliente, avisame y procederemos con el alta.</div>
       </div>
       <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere atención por chat</span></div>
       <div class="flow-block">

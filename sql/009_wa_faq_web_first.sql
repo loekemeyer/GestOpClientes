@@ -33,11 +33,10 @@ comment on column wa_faq.requires_product_match is
 -- ─────────────────────────────────────────────────────────────
 
 -- #2 — ¿Qué descuento tengo? (descuentos_promociones)
--- Requiere verificar si el teléfono está en customer_phones.
--- Si es cliente: ofrecer la web con su usuario.
--- Si no es cliente: ofrecer hacerse cliente.
+-- Nota: la identificación cliente/no-cliente es global (Paso 0).
+-- Esta respuesta solo se envía si el Paso 0 ya confirmó que es cliente.
 update wa_faq set
-  web_first_response = E'Tu descuento lo podés ver directamente en la página web, donde todos los precios ya aparecen con tu bonificación aplicada. 📋\n🔗 [link a la página web]\n\n{{SI_CLIENTE}} Ingresá con tu usuario y contraseña. Si no los tenés, avisame y te los envío.\n{{SI_NO_CLIENTE}} Si no tenés usuario, y querés hacerte cliente, avisame y procederemos con el alta.',
+  web_first_response = E'Tu descuento lo podés ver directamente en la página web, donde todos los precios ya aparecen con tu bonificación aplicada. 📋\n🔗 [link a la página web]\n\nIngresá con tu usuario y contraseña. Si no los tenés, avisame y te los envío.',
   fallback_label = 'Si el cliente prefiere consultar por chat'
 where category = 'descuentos_promociones'
   and subcategory is null;
