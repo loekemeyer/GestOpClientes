@@ -53,7 +53,7 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 
 | Uso | Modelo | Razón |
 |-----|--------|-------|
-| Intent detection / parsing | `claude-haiku-4-5` | Rápido, barato, suficiente para clasificar |
+| Intent detection / parsing | `claude-haiku-4-5-20251001` | Rápido, barato, suficiente para clasificar |
 | Conversacional / respuestas complejas | `claude-sonnet-4-6` | Balance costo/calidad |
 | Scoring / análisis | `claude-sonnet-4-6` | Necesita razonamiento |
 
