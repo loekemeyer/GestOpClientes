@@ -161,8 +161,8 @@
 <div class="app" id="app">
   <nav class="sidebar">
     <h3>🤖 GestOp</h3>
-    <a href="#" class="active" id="navChat" onclick="showPage('chat')">💬 Chat Bot</a>
-    <a href="#" id="navConfig" onclick="showPage('config')">⚙️ Panel de Control</a>
+    <a href="javascript:void(0)" class="active" id="navChat" onclick="showPage('chat')">💬 Chat Bot</a>
+    <a href="javascript:void(0)" id="navConfig" onclick="showPage('config')">⚙️ Panel de Control</a>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
       <div class="cost-title">💰 Costos IA</div>
@@ -341,17 +341,22 @@ async function doLogout() {
   document.getElementById("loginError").textContent = "";
 }
 
+let appInitialized = false;
+
 function showApp() {
   document.getElementById("loginOverlay").style.display = "none";
   document.getElementById("app").classList.add("active");
   document.getElementById("userRole").textContent = currentRole === "admin" ? "🔑 Admin" : "👤 Vendedor";
   document.getElementById("userEmail").textContent = currentEmail || "";
   if (currentRole === "admin") {
-    sessionStart = new Date().toISOString();
+    if (!sessionStart) sessionStart = new Date().toISOString();
     document.getElementById("costPanel").style.display = "block";
     refreshCosts();
   }
-  showStartScreen();
+  if (!appInitialized) {
+    appInitialized = true;
+    showStartScreen();
+  }
 }
 
 // Auto-login: check existing session + handle OAuth redirect
