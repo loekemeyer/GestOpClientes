@@ -49,20 +49,36 @@
 -- LECCIÓN / PREVENCIÓN
 -- --------------------
 -- Al agregar un schema nuevo a pgrst.db_schemas, NUNCA hacer SET con una lista
--- hardcodeada. En su lugar, leer el valor actual y agregar:
+-- hardcodeada. En su lugar, leer el valor actual y agregar el nuevo:
 --
 --   DO $$
---   DECLARE current_schemas text;
+--   DECLARE current_val text;
 --   BEGIN
---     SELECT unnest(setconfig) INTO current_schemas
---     FROM pg_db_role_setting
---     WHERE setrole = (SELECT oid FROM pg_roles WHERE rolname = 'authenticator')
---       AND unnest(setconfig) LIKE 'pgrst.db_schemas=%';
---     -- Parsear y agregar el nuevo schema si no está
+--     SELECT option_value INTO current_val
+--     FROM pg_options_to_table(
+--       (SELECT rolconfig FROM pg_roles WHERE rolname = 'authenticator')
+--     )
+--     WHERE option_name = 'pgrst.db_schemas';
+--
+--     IF current_val IS NULL THEN
+--       current_val := 'public, graphql_public';
+--     END IF;
+--
+--     IF current_val NOT LIKE '%MI_SCHEMA%' THEN
+--       current_val := current_val || ', MI_SCHEMA';
+--     END IF;
+--
+--     EXECUTE format(
+--       'ALTER ROLE authenticator SET pgrst.db_schemas = %L', current_val
+--     );
 --   END $$;
+--   NOTIFY pgrst, 'reload config';
+--   NOTIFY pgrst, 'reload schema';
 --
--- O como mínimo, verificar qué schemas están expuestos antes de sobreescribir:
+-- Esto lee qué schemas ya están, agrega el nuevo solo si falta,
+-- y no toca los demás. Mismo patrón para renombrar:
 --
---   SELECT rolconfig FROM pg_roles WHERE rolname = 'authenticator';
+--   -- Reemplazar 'viejo' por 'nuevo' sin perder los demás:
+--   current_val := replace(current_val, 'viejo', 'nuevo');
 --
 -- ============================================================================
