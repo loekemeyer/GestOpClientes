@@ -629,7 +629,7 @@ async function handleFaq(
 
   // ── DB lookup: consultas que requieren datos reales (0 tokens) ──
   if (top.requires_db_lookup && customer) {
-    const lookupReply = await handleFaqLookup(top.db_lookup_type, customer);
+    const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text);
     if (lookupReply) return { reply: lookupReply, intent: top.db_lookup_type || "faq_lookup" };
     // Si lookup falla, caer a respuesta estática
   }
@@ -655,12 +655,22 @@ const STATUS_MAP: Record<string, string> = {
 async function handleFaqLookup(
   lookupType: string,
   customer: { id: string; cod_cliente: number; business_name: string },
+  message: string,
 ): Promise<string | null> {
-  if (lookupType === "order_status") {
-    return await lookupOrderStatus(customer);
+  switch (lookupType) {
+    case "order_status":
+      return await lookupOrderStatus(customer);
+    case "customer_discount":
+      return await lookupCustomerDiscount(customer);
+    case "product_price":
+      return await lookupProductPrice(customer, message);
+    case "product_stock":
+      return await lookupProductStock(customer, message);
+    case "order_modify":
+      return await lookupOrderModify(customer);
+    default:
+      return null;
   }
-  // Otros lookup types se pueden agregar acá
-  return null;
 }
 
 async function lookupOrderStatus(
@@ -702,6 +712,96 @@ async function lookupOrderStatus(
   });
 
   return `${customer.business_name}, acá está el estado de tus pedidos:\n\n${lines.join("\n")}\n\n¿Necesitás más detalle de alguno?`;
+}
+
+async function lookupCustomerDiscount(
+  customer: { id: string; cod_cliente: number; business_name: string },
+): Promise<string | null> {
+  const { data: row } = await supabase
+    .from("customers")
+    .select("discount")
+    .eq("id", customer.id)
+    .maybeSingle();
+
+  const volumeDiscount = row?.discount ?? 0;
+
+  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}%\n💻 *Por compra web*: 2% adicional\n💰 *Por pago*:\n  • Contado (0-14 días): 25%\n  • 30 días: 20%\n  • 60 días: 10%\n  • 90 días: 5%\n\nEstos se aplican sobre el precio base de la web. 💡`;
+}
+
+async function lookupProductPrice(
+  customer: { id: string; cod_cliente: number; business_name: string },
+  message: string,
+): Promise<string | null> {
+  // Usar wa_product_match para buscar el producto por descripción/código en el mensaje
+  const { data: products } = await supabase
+    .rpc("wa_product_match", { p_query: message, p_limit: 1 });
+
+  if (!products?.length) {
+    return `No encontré el artículo que mencionás. Decime el código o el nombre más completo.`;
+  }
+
+  const p = products[0];
+  const basePrice = Number(p.list_price);
+  const iva = basePrice * 0.21; // IVA 21%
+  const withIva = basePrice + iva;
+
+  // Descuentos aplicables
+  const volumeDiscount = 0; // Obtener del customer si es posible
+  const webDiscount = 0.02; // 2% por compra web
+  const finalPrice = withIva * (1 - volumeDiscount - webDiscount);
+
+  return `${customer.business_name}, el artículo *${p.description}* (${p.cod}):\n💰 Precio sin IVA: $${basePrice.toLocaleString("es-AR")}\n📊 IVA 21%: $${iva.toLocaleString("es-AR")}\n✅ Total con IVA: $${withIva.toLocaleString("es-AR")}\n\n🏷️ Tu precio con descuentos (volumen + web 2%): $${finalPrice.toLocaleString("es-AR")}\n\n*(Los descuentos por pago se aplican en el carrito)*`;
+}
+
+async function lookupProductStock(
+  customer: { id: string; cod_cliente: number; business_name: string },
+  message: string,
+): Promise<string | null> {
+  // Usar wa_product_match para buscar el producto
+  const { data: products } = await supabase
+    .rpc("wa_product_match", { p_query: message, p_limit: 1 });
+
+  if (!products?.length) {
+    return `No encontré el artículo que mencionás. Decime el código o el nombre más completo.`;
+  }
+
+  const p = products[0];
+  const stock = p.stock ?? 0;
+
+  if (stock <= 0) {
+    return `El artículo *${p.description}* (${p.cod}) está sin stock en este momento. Podés ponerte en contacto con ventas para consultar por disponibilidad.`;
+  }
+
+  if (stock < 10) {
+    return `El artículo *${p.description}* (${p.cod}) tiene *${stock} unidades* disponibles (stock limitado).\n\n¿Querés hacer un pedido?`;
+  }
+
+  return `El artículo *${p.description}* (${p.cod}) tiene *stock disponible* ✅\n\n¿Querés hacer un pedido?`;
+}
+
+async function lookupOrderModify(
+  customer: { id: string; cod_cliente: number; business_name: string },
+): Promise<string | null> {
+  const { data: orders } = await supabase
+    .from("orders")
+    .select("id, status, created_at")
+    .eq("customer_id", customer.id)
+    .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (!orders?.length) {
+    return `No tenés pedidos recientes que modificar. ¿Quieres hacer uno nuevo?`;
+  }
+
+  const latest = orders[0];
+  const canModify = ["pendiente", "recibido"].includes(latest.status || "");
+
+  if (!canModify) {
+    return `Tu último pedido (NP-${latest.id}) está en estado "${latest.status}" y no se puede modificar.\n\nDerivamos tu solicitud a un vendedor para que evalúe opciones.`;
+  }
+
+  return `Tu pedido NP-${latest.id} aún puede modificarse. ¿Qué cambios necesitás?\n📝 Indicame:\n• Artículos que quieres agregar/quitar\n• Cantidades\n\nUn vendedor va a confirmar los cambios.`;
 }
 
 async function handleGeneral(
