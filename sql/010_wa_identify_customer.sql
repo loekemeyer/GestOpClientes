@@ -38,7 +38,6 @@ returns table (
   cod_cliente     text,
   customer_name   text,
   customer_id     uuid,
-  discount_pct    numeric,
   source          text
 )
 language plpgsql
@@ -73,7 +72,6 @@ begin
     wc.cod_cliente::text,
     c.business_name,
     c.id,
-    c.discount_pct,
     'wa_clientes_telefono'::text as source
   from wa_clientes_telefono wc
   join customers c on c.cod_cliente::text = wc.cod_cliente::text
@@ -94,7 +92,6 @@ begin
     c.cod_cliente::text,
     c.business_name,
     c.id,
-    c.discount_pct,
     'customers.whatsapp'::text as source
   from customers c
   where c.whatsapp is not null
@@ -107,7 +104,7 @@ $$;
 comment on function wa_identify_customer is
   'Paso 0 del bot: identifica un cliente por su número de teléfono WhatsApp.
    Busca en wa_clientes_telefono y customers.whatsapp con normalización de formato.
-   Retorna cod_cliente, nombre, id, descuento y fuente. Vacío si no se encuentra.';
+   Retorna cod_cliente, nombre, id y fuente. Vacío si no se encuentra.';
 
 -- ─────────────────────────────────────────────────────────────
 -- 3. Índice para acelerar la búsqueda normalizada
