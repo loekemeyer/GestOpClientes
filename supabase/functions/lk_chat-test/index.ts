@@ -20,13 +20,61 @@ serve(async (req) => {
       return await handleStats(body.since);
     }
 
+    // ── Config get (rate limit settings) ──
+    if (body.action === "config_get") {
+      return await handleConfigGet();
+    }
+
+    // ── Config save (rate limit settings) ──
+    if (body.action === "config_save") {
+      return await handleConfigSave(body);
+    }
+
+    // ── Blacklist list ──
+    if (body.action === "blacklist_list") {
+      return await handleBlacklistList();
+    }
+
+    // ── Blacklist add ──
+    if (body.action === "blacklist_add") {
+      return await handleBlacklistAdd(body.phone, body.reason);
+    }
+
+    // ── Blacklist remove ──
+    if (body.action === "blacklist_remove") {
+      return await handleBlacklistRemove(body.id);
+    }
+
     // ── Chat endpoint ──
-    const { phone, text, noAI } = body;
+    const { phone, text, noAI, skipRateLimit } = body;
     if (!phone || !text) {
       return json({ error: "phone y text requeridos" }, 400);
     }
 
     const testPhone = canonPhone(phone);
+
+    // ── Blacklist check ──
+    const { data: blEntry } = await supabase
+      .from("wa_blacklist")
+      .select("id")
+      .eq("phone", testPhone)
+      .maybeSingle();
+    if (blEntry) {
+      return json({ reply: "🚫 Este número está en la blacklist y no puede usar el bot.", blocked: true });
+    }
+
+    // ── Rate limit check (skip si toggle activo en test) ──
+    if (!skipRateLimit) {
+      const rlEnabled = await getSetting("wa_rate_limit_enabled");
+      if (rlEnabled && Number(rlEnabled) === 1) {
+        const rlLimit = Number(await getSetting("wa_rate_limit_per_hour")) || 20;
+        const { data: blocked } = await supabase
+          .rpc("wa_check_rate_limit", { p_phone: testPhone, p_limit: rlLimit });
+        if (blocked === true) {
+          return json({ reply: `⏳ Límite de mensajes alcanzado (${rlLimit}/hora). Intentá más tarde.`, rateLimited: true });
+        }
+      }
+    }
 
     // ── Modo sin IA: solo FAQ automáticas, 0 tokens ──
     if (noAI) {
@@ -146,6 +194,102 @@ function menuText(nombre?: string): string {
 🛒 Hacer un pedido nuevo
 🚚 Saber si podés pasar a retirar
 💬 Cualquier otra consulta`;
+}
+
+// ── Config & Blacklist handlers ──
+
+async function handleConfigGet() {
+  const perHour = await getSetting("wa_rate_limit_per_hour");
+  const enabled = await getSetting("wa_rate_limit_enabled");
+  return json({
+    rate_limit_per_hour: Number(perHour) || 20,
+    rate_limit_enabled: Number(enabled) === 1,
+  });
+}
+
+async function handleConfigSave(body: Record<string, unknown>) {
+  const updates: Promise<unknown>[] = [];
+
+  if (body.rate_limit_per_hour !== undefined) {
+    updates.push(
+      supabase.from("app_settings")
+        .upsert({ key: "wa_rate_limit_per_hour", value: Number(body.rate_limit_per_hour) }, { onConflict: "key" })
+    );
+  }
+  if (body.rate_limit_enabled !== undefined) {
+    updates.push(
+      supabase.from("app_settings")
+        .upsert({ key: "wa_rate_limit_enabled", value: body.rate_limit_enabled ? 1 : 0 }, { onConflict: "key" })
+    );
+  }
+
+  await Promise.all(updates);
+  return json({ ok: true });
+}
+
+async function handleBlacklistList() {
+  const { data: items, error } = await supabase
+    .from("wa_blacklist")
+    .select("id, phone, reason, created_at, created_by")
+    .order("created_at", { ascending: false });
+
+  if (error) return json({ error: error.message }, 500);
+
+  // Enriquecer con nombre de cliente si existe
+  const enriched = await Promise.all(
+    (items ?? []).map(async (item) => {
+      let customer_name: string | null = null;
+      const { data: identified } = await supabase
+        .rpc("wa_identify_customer", { p_phone: item.phone });
+      if (identified?.[0]) {
+        customer_name = identified[0].customer_name;
+      }
+      return { ...item, customer_name };
+    })
+  );
+
+  return json({ items: enriched });
+}
+
+async function handleBlacklistAdd(phone?: string, reason?: string) {
+  if (!phone) return json({ error: "phone requerido" }, 400);
+
+  const canonical = canonPhone(phone);
+
+  // Verificar si ya existe
+  const { data: existing } = await supabase
+    .from("wa_blacklist")
+    .select("id")
+    .eq("phone", canonical)
+    .maybeSingle();
+  if (existing) return json({ error: "Ya está en la blacklist" }, 409);
+
+  // Buscar nombre de cliente
+  let customer_name: string | null = null;
+  const { data: identified } = await supabase
+    .rpc("wa_identify_customer", { p_phone: canonical });
+  if (identified?.[0]) {
+    customer_name = identified[0].customer_name;
+  }
+
+  const { error } = await supabase
+    .from("wa_blacklist")
+    .insert({ phone: canonical, reason: reason || null, created_by: "admin" });
+
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true, customer_name });
+}
+
+async function handleBlacklistRemove(id?: number) {
+  if (!id) return json({ error: "id requerido" }, 400);
+
+  const { error } = await supabase
+    .from("wa_blacklist")
+    .delete()
+    .eq("id", id);
+
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
 }
 
 // ── Stats handler ──

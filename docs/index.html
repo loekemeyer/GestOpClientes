@@ -32,20 +32,24 @@
     .app.active { display: flex; }
     .sidebar { width: 220px; background: var(--sidebar-bg); color: var(--sidebar-text); padding: 1rem 0; display: flex; flex-direction: column; }
     .sidebar h3 { padding: 0 1rem; margin-bottom: 1rem; font-size: 1rem; }
-    .sidebar a { display: block; padding: 0.6rem 1rem; color: var(--sidebar-text); text-decoration: none; font-size: 0.9rem; border-left: 3px solid transparent; }
+    .sidebar a { display: block; padding: 0.6rem 1rem; color: var(--sidebar-text); text-decoration: none; font-size: 0.9rem; border-left: 3px solid transparent; cursor: pointer; }
     .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.1); border-left-color: var(--primary); }
     .sidebar .spacer { flex: 1; }
     .sidebar .user-info { padding: 0.6rem 1rem; font-size: 0.8rem; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.1); }
 
     .main { flex: 1; display: flex; flex-direction: row; overflow: hidden; }
 
+    /* Pages */
+    .page { display: none; flex: 1; }
+    .page.active { display: flex; }
+
     /* Chat */
     .chat-container { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
-    /* Control panel */
+    /* Control panel (right side of chat) */
     .control-panel { width: 260px; background: var(--card); border-left: 1px solid var(--border); padding: 1rem; overflow-y: auto; }
     .control-panel h4 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1rem; }
-    .toggle-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; }
+    .toggle-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; margin-bottom: 1rem; }
     .toggle-label { font-size: 0.85rem; font-weight: 600; }
     .toggle-desc { font-size: 0.73rem; color: var(--muted); margin-top: 0.25rem; line-height: 1.3; }
     .switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; margin-top: 2px; }
@@ -54,9 +58,11 @@
     .switch .slider::before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
     .switch input:checked + .slider { background: var(--danger); }
     .switch input:checked + .slider::before { transform: translateX(20px); }
-    .ai-status { margin-top: 0.6rem; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.78rem; font-weight: 500; text-align: center; }
+    .ai-status { margin-top: 0.3rem; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.78rem; font-weight: 500; text-align: center; margin-bottom: 1rem; }
     .ai-status.on { background: #f0fdf4; color: var(--success); }
     .ai-status.off { background: #fef2f2; color: var(--danger); }
+    .control-divider { border-top: 1px solid var(--border); margin: 0.5rem 0 1rem 0; }
+
     .chat-header { padding: 0.8rem 1.2rem; background: #075e54; color: #fff; display: flex; align-items: center; gap: 0.8rem; }
     .chat-header .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--wa-green); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
     .chat-header .info h2 { font-size: 1rem; font-weight: 600; }
@@ -102,6 +108,38 @@
     .cost-panel .cost-val { color: #e2e8f0; font-family: 'SF Mono', 'Menlo', monospace; font-size: 0.7rem; }
     .cost-panel .cost-tok { color: #64748b; font-size: 0.6rem; font-family: 'SF Mono', 'Menlo', monospace; }
     .cost-panel .cost-divider { border-top: 1px solid rgba(255,255,255,0.05); margin: 0.3rem 0; }
+
+    /* Config page */
+    .config-page { flex: 1; padding: 2rem; overflow-y: auto; }
+    .config-page h2 { font-size: 1.3rem; margin-bottom: 1.5rem; }
+    .config-section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; margin-bottom: 1.5rem; max-width: 700px; }
+    .config-section h3 { font-size: 0.95rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .config-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.8rem; }
+    .config-row label { font-size: 0.85rem; min-width: 180px; }
+    .config-row input[type="number"] { width: 80px; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; outline: none; }
+    .config-row input[type="number"]:focus { border-color: var(--primary); }
+    .config-row .hint { font-size: 0.73rem; color: var(--muted); }
+    .config-btn { padding: 0.5rem 1.2rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s; }
+    .config-btn.primary { background: var(--primary); color: #fff; }
+    .config-btn.primary:hover { background: var(--primary-hover); }
+    .config-btn.danger { background: var(--danger); color: #fff; }
+    .config-btn.danger:hover { background: #b91c1c; }
+    .config-btn.small { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+    .config-btn:disabled { opacity: 0.5; cursor: default; }
+    .config-status { font-size: 0.8rem; margin-left: 0.5rem; }
+    .config-status.ok { color: var(--success); }
+    .config-status.err { color: var(--danger); }
+
+    /* Blacklist table */
+    .bl-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.8rem; }
+    .bl-table th { text-align: left; font-size: 0.73rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; padding: 0.4rem 0.5rem; border-bottom: 2px solid var(--border); }
+    .bl-table td { padding: 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .bl-table tr:last-child td { border-bottom: none; }
+    .bl-table .customer-tag { display: inline-block; background: #dbeafe; color: #1e40af; font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 500; }
+    .bl-add-row { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
+    .bl-add-row input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; outline: none; }
+    .bl-add-row input:focus { border-color: var(--primary); }
+    .bl-empty { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 1.5rem 0; }
   </style>
 </head>
 <body>
@@ -123,7 +161,8 @@
 <div class="app" id="app">
   <nav class="sidebar">
     <h3>🤖 GestOp</h3>
-    <a href="#" class="active">💬 Chat Bot</a>
+    <a href="#" class="active" id="navChat" onclick="showPage('chat')">💬 Chat Bot</a>
+    <a href="#" id="navConfig" onclick="showPage('config')">⚙️ Panel de Control</a>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
       <div class="cost-title">💰 Costos IA</div>
@@ -144,35 +183,95 @@
   </nav>
 
   <div class="main">
-    <div class="chat-container">
-      <div class="chat-header">
-        <div class="avatar">🤖</div>
-        <div class="info">
-          <h2>Bot Loekemeyer</h2>
-          <span id="chatStatus">En línea</span>
+    <!-- Page: Chat -->
+    <div class="page active" id="pageChat">
+      <div class="chat-container">
+        <div class="chat-header">
+          <div class="avatar">🤖</div>
+          <div class="info">
+            <h2>Bot Loekemeyer</h2>
+            <span id="chatStatus">En línea</span>
+          </div>
+          <button class="clear-btn" onclick="resetSession()">🔄 Reiniciar</button>
         </div>
-        <button class="clear-btn" onclick="resetSession()">🔄 Reiniciar</button>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input">
+          <input type="text" id="chatInput" placeholder="Escribí un mensaje..." autocomplete="off">
+          <button id="chatSend" onclick="sendMessage()">➤</button>
+        </div>
       </div>
-      <div class="chat-messages" id="chatMessages"></div>
-      <div class="chat-input">
-        <input type="text" id="chatInput" placeholder="Escribí un mensaje..." autocomplete="off">
-        <button id="chatSend" onclick="sendMessage()">➤</button>
+
+      <div class="control-panel" id="controlPanel">
+        <h4>⚙️ Controles de sesión</h4>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">🚫 Desconectar Agente IA</div>
+            <div class="toggle-desc">Solo respuestas FAQ automáticas (0 tokens)</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleNoAI" onchange="toggleAI()">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="ai-status on" id="aiStatus">🤖 Agente IA conectado</div>
+
+        <div class="control-divider"></div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">🔓 Deshabilitar Rate Limit</div>
+            <div class="toggle-desc">Sin límite de mensajes en esta sesión de test</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleSkipRL" onchange="toggleSkipRL()">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="ai-status on" id="rlStatus">🛡️ Rate limit activo</div>
       </div>
     </div>
 
-    <div class="control-panel" id="controlPanel">
-      <h4>⚙️ Controles</h4>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-label">🚫 Desconectar Agente IA</div>
-          <div class="toggle-desc">Solo respuestas FAQ automáticas (0 tokens)</div>
+    <!-- Page: Panel de Control -->
+    <div class="page" id="pageConfig">
+      <div class="config-page">
+        <h2>⚙️ Panel de Control</h2>
+
+        <!-- Rate Limit -->
+        <div class="config-section">
+          <h3>🛡️ Rate Limit</h3>
+          <div class="config-row">
+            <label>Estado global:</label>
+            <label class="switch">
+              <input type="checkbox" id="cfgRLEnabled" checked>
+              <span class="slider" style="background: var(--success);"></span>
+            </label>
+            <span class="hint" id="cfgRLEnabledLabel">Activo — aplica a chat real y test</span>
+          </div>
+          <div class="config-row">
+            <label>Mensajes por número / hora:</label>
+            <input type="number" id="cfgRLLimit" min="1" max="200" value="20">
+            <span class="hint">Límite antes de bloquear</span>
+          </div>
+          <div style="margin-top:0.8rem; display:flex; align-items:center;">
+            <button class="config-btn primary" onclick="saveRateLimitConfig()">💾 Guardar</button>
+            <span class="config-status" id="rlSaveStatus"></span>
+          </div>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="toggleNoAI" onchange="toggleAI()">
-          <span class="slider"></span>
-        </label>
+
+        <!-- Blacklist -->
+        <div class="config-section">
+          <h3>🚫 Blacklist de teléfonos</h3>
+          <div class="bl-add-row">
+            <input type="text" id="blPhoneInput" placeholder="Número de teléfono (ej: 5491112345678)">
+            <input type="text" id="blReasonInput" placeholder="Motivo (opcional)" style="max-width:180px;">
+            <button class="config-btn primary" onclick="addToBlacklist()">+ Agregar</button>
+          </div>
+          <span class="config-status" id="blAddStatus"></span>
+          <div id="blTableContainer">
+            <div class="bl-empty">Cargando...</div>
+          </div>
+        </div>
       </div>
-      <div class="ai-status on" id="aiStatus">🤖 Agente IA conectado</div>
     </div>
   </div>
 </div>
@@ -193,6 +292,7 @@ let currentEmail = null;
 let sessionStart = null;
 let testPhone = null;
 let aiDisabled = false;
+let skipRateLimit = false;
 
 // Teléfonos reales de clientes en la base (wa_clientes_telefono)
 const KNOWN_PHONES = ["5493586017973","5491138267294","5491134360609","5491136188988"];
@@ -260,6 +360,15 @@ sbAuth.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_IN") checkSession();
 });
 
+// --- Page navigation ---
+function showPage(page) {
+  document.getElementById("pageChat").classList.toggle("active", page === "chat");
+  document.getElementById("pageConfig").classList.toggle("active", page === "config");
+  document.getElementById("navChat").classList.toggle("active", page === "chat");
+  document.getElementById("navConfig").classList.toggle("active", page === "config");
+  if (page === "config") loadConfigPage();
+}
+
 // --- Chat ---
 const chatMessages = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
@@ -274,7 +383,6 @@ function addMsg(text, cls) {
   div.className = "msg " + cls;
   div.innerHTML = text.replace(/\n/g, "<br>") + `<span class="time">${now()}</span>`;
   chatMessages.appendChild(div);
-  // Clear float
   const clear = document.createElement("div");
   clear.style.clear = "both";
   chatMessages.appendChild(clear);
@@ -320,6 +428,7 @@ async function sendMessage() {
   try {
     const reqBody = { phone: testPhone, text };
     if (aiDisabled) reqBody.noAI = true;
+    if (skipRateLimit) reqBody.skipRateLimit = true;
     const { data, error } = await sb.functions.invoke("lk_chat-test", {
       body: reqBody,
     });
@@ -331,6 +440,8 @@ async function sendMessage() {
     } else {
       addBotMsg(data.reply || "Sin respuesta");
       if (data.customer) document.getElementById("chatStatus").textContent = "Conectado — " + data.customer;
+      if (data.rateLimited) addSystemMsg("⚠️ Rate limit alcanzado para este número");
+      if (data.blacklisted) addSystemMsg("🚫 Número en blacklist");
     }
   } catch (err) {
     hideTyping();
@@ -344,6 +455,7 @@ async function sendMessage() {
 
 chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !chatSend.disabled) sendMessage(); });
 
+// --- Control panel toggles ---
 function toggleAI() {
   aiDisabled = document.getElementById("toggleNoAI").checked;
   const badge = document.getElementById("aiStatus");
@@ -353,6 +465,18 @@ function toggleAI() {
   } else {
     badge.className = "ai-status on";
     badge.textContent = "🤖 Agente IA conectado";
+  }
+}
+
+function toggleSkipRL() {
+  skipRateLimit = document.getElementById("toggleSkipRL").checked;
+  const badge = document.getElementById("rlStatus");
+  if (skipRateLimit) {
+    badge.className = "ai-status off";
+    badge.textContent = "🔓 Rate limit deshabilitado (sesión)";
+  } else {
+    badge.className = "ai-status on";
+    badge.textContent = "🛡️ Rate limit activo";
   }
 }
 
@@ -402,6 +526,124 @@ function startAs(mode) {
   chatInput.focus();
 }
 
+// --- Config page ---
+async function loadConfigPage() {
+  try {
+    const { data } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "config_get" },
+    });
+    if (data) {
+      document.getElementById("cfgRLLimit").value = data.rate_limit_per_hour || 20;
+      const enabled = data.rate_limit_enabled;
+      document.getElementById("cfgRLEnabled").checked = enabled;
+      updateRLEnabledStyle(enabled);
+    }
+  } catch (e) { /* silent */ }
+  loadBlacklist();
+}
+
+function updateRLEnabledStyle(enabled) {
+  const slider = document.getElementById("cfgRLEnabled").nextElementSibling;
+  slider.style.background = enabled ? "var(--success)" : "#ccc";
+  document.getElementById("cfgRLEnabledLabel").textContent = enabled
+    ? "Activo — aplica a chat real y test"
+    : "Desactivado — sin límites para nadie";
+}
+
+document.getElementById("cfgRLEnabled").addEventListener("change", function() {
+  updateRLEnabledStyle(this.checked);
+});
+
+async function saveRateLimitConfig() {
+  const st = document.getElementById("rlSaveStatus");
+  st.textContent = "Guardando...";
+  st.className = "config-status";
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: {
+        action: "config_save",
+        rate_limit_per_hour: parseInt(document.getElementById("cfgRLLimit").value) || 20,
+        rate_limit_enabled: document.getElementById("cfgRLEnabled").checked ? 1 : 0,
+      },
+    });
+    if (error) throw error;
+    st.textContent = "✓ Guardado";
+    st.className = "config-status ok";
+  } catch (e) {
+    st.textContent = "✗ Error";
+    st.className = "config-status err";
+  }
+  setTimeout(() => { st.textContent = ""; }, 3000);
+}
+
+// --- Blacklist ---
+async function loadBlacklist() {
+  const container = document.getElementById("blTableContainer");
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "blacklist_list" },
+    });
+    if (error) throw error;
+    const items = data?.items || [];
+    if (!items.length) {
+      container.innerHTML = '<div class="bl-empty">Sin números bloqueados</div>';
+      return;
+    }
+    let html = '<table class="bl-table"><thead><tr><th>Teléfono</th><th>Cliente</th><th>Motivo</th><th>Fecha</th><th></th></tr></thead><tbody>';
+    for (const it of items) {
+      const cust = it.customer_name ? `<span class="customer-tag">👤 ${it.customer_name}</span>` : '<span style="color:var(--muted);font-size:0.8rem">—</span>';
+      const fecha = it.created_at ? new Date(it.created_at).toLocaleDateString("es-AR") : "";
+      html += `<tr>
+        <td style="font-family:monospace;font-size:0.82rem;">${it.phone}</td>
+        <td>${cust}</td>
+        <td style="font-size:0.82rem;">${it.reason || "—"}</td>
+        <td style="font-size:0.78rem;color:var(--muted);">${fecha}</td>
+        <td><button class="config-btn danger small" onclick="removeFromBlacklist(${it.id})">✕</button></td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+  }
+}
+
+async function addToBlacklist() {
+  const phone = document.getElementById("blPhoneInput").value.trim();
+  const reason = document.getElementById("blReasonInput").value.trim();
+  const st = document.getElementById("blAddStatus");
+  if (!phone) { st.textContent = "Ingresá un número"; st.className = "config-status err"; return; }
+  st.textContent = "Agregando...";
+  st.className = "config-status";
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "blacklist_add", phone, reason },
+    });
+    if (error) throw error;
+    if (data?.error) { st.textContent = "✗ " + data.error; st.className = "config-status err"; return; }
+    let msg = "✓ Agregado";
+    if (data?.customer_name) msg += ` (cliente: ${data.customer_name})`;
+    st.textContent = msg;
+    st.className = "config-status ok";
+    document.getElementById("blPhoneInput").value = "";
+    document.getElementById("blReasonInput").value = "";
+    loadBlacklist();
+  } catch (e) {
+    st.textContent = "✗ Error al agregar";
+    st.className = "config-status err";
+  }
+  setTimeout(() => { st.textContent = ""; }, 4000);
+}
+
+async function removeFromBlacklist(id) {
+  try {
+    await sb.functions.invoke("lk_chat-test", {
+      body: { action: "blacklist_remove", id },
+    });
+    loadBlacklist();
+  } catch (e) { /* retry on next load */ }
+}
+
 // --- Costs (admin only) ---
 function fmtCost(v) {
   if (v == null || v === 0) return "$0.00";
@@ -432,6 +674,6 @@ async function refreshCosts() {
   } catch (e) { /* silent */ }
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.3</div>
 </body>
 </html>
