@@ -22,10 +22,10 @@
     .login-box { background: var(--card); border-radius: 12px; padding: 2rem; width: 320px; text-align: center; }
     .login-box h2 { margin-bottom: 0.5rem; }
     .login-box p { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
-    .login-box input { width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem; font-size: 0.95rem; }
-    .login-box button { width: 100%; padding: 0.6rem; background: var(--primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; }
-    .login-box button:hover { background: var(--primary-hover); }
-    .login-error { color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.2em; }
+    .google-btn { width: 100%; padding: 0.7rem 1rem; background: #fff; color: #3c4043; border: 1px solid #dadce0; border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 0.6rem; transition: background 0.2s, box-shadow 0.2s; }
+    .google-btn:hover { background: #f7f8f8; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .google-btn svg { flex-shrink: 0; }
+    .login-error { color: var(--danger); font-size: 0.85rem; margin-top: 0.75rem; min-height: 1.2em; }
 
     /* Layout */
     .app { display: none; height: 100vh; }
@@ -95,9 +95,10 @@
   <div class="login-box">
     <h2>GestOp</h2>
     <p>Bot WhatsApp — Loekemeyer</p>
-    <input type="text" id="loginRole" placeholder="Usuario" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <input type="password" id="loginPass" placeholder="Contraseña" autocomplete="off">
-    <button onclick="doLogin()">Ingresar</button>
+    <button onclick="doGoogleLogin()" class="google-btn">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.014 24.014 0 0 0 0 21.56l7.98-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Iniciar sesión con Google
+    </button>
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
@@ -121,6 +122,7 @@
     </div>
     <div class="user-info">
       <span id="userRole"></span><br>
+      <span id="userEmail" style="font-size:0.7rem;word-break:break-all;opacity:0.7;"></span><br>
       <a href="#" onclick="doLogout()" style="color:#94a3b8;font-size:0.8rem;">Cerrar sesión</a>
     </div>
   </nav>
@@ -151,48 +153,54 @@ const SB_KEY = "sb_publishable_mVX5MnjwM770cNjgiL6yLw_LDNl9pML";
 const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
 let currentRole = null;
+let currentEmail = null;
 let sessionStart = null;
 let testPhone = null;
 
 // Teléfonos reales de clientes en la base (wa_clientes_telefono)
 const KNOWN_PHONES = ["5493586017973","5491138267294","5491134360609","5491136188988"];
 
-// --- Auth ---
-async function sha256(text) {
-  const data = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function doLogin() {
-  const role = document.getElementById("loginRole").value;
-  const pass = document.getElementById("loginPass").value;
-  const hash = await sha256(pass);
-  const { data, error } = await sb
-    .from("gestop_users")
-    .select("role")
-    .eq("username", role)
-    .eq("password_hash", hash)
-    .maybeSingle();
-  if (data) {
-    currentRole = data.role;
-    sessionStorage.setItem("gestop_user", role);
-    sessionStorage.setItem("gestop_role", data.role);
-    sessionStorage.setItem("gestop_hash", hash);
-    showApp();
-  } else {
-    document.getElementById("loginError").textContent = "Usuario o contraseña incorrecta";
+// --- Auth (Google OAuth via Supabase) ---
+async function doGoogleLogin() {
+  document.getElementById("loginError").textContent = "";
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.href.split("#")[0].split("?")[0] }
+  });
+  if (error) {
+    document.getElementById("loginError").textContent = "Error: " + error.message;
   }
 }
 
-function doLogout() {
-  sessionStorage.removeItem("gestop_user");
-  sessionStorage.removeItem("gestop_role");
-  sessionStorage.removeItem("gestop_hash");
+async function checkSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+
+  const email = session.user.email;
+
+  // Verificar email contra whitelist en gestop_users
+  const { data } = await sb
+    .from("gestop_users")
+    .select("role")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (data) {
+    currentRole = data.role;
+    currentEmail = email;
+    showApp();
+  } else {
+    await sb.auth.signOut();
+    document.getElementById("loginError").textContent = "Email no autorizado: " + email;
+  }
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
   currentRole = null;
+  currentEmail = null;
   document.getElementById("app").classList.remove("active");
   document.getElementById("loginOverlay").style.display = "flex";
-  document.getElementById("loginPass").value = "";
   document.getElementById("loginError").textContent = "";
 }
 
@@ -200,6 +208,7 @@ function showApp() {
   document.getElementById("loginOverlay").style.display = "none";
   document.getElementById("app").classList.add("active");
   document.getElementById("userRole").textContent = currentRole === "admin" ? "🔑 Admin" : "👤 Vendedor";
+  document.getElementById("userEmail").textContent = currentEmail || "";
   if (currentRole === "admin") {
     sessionStart = new Date().toISOString();
     document.getElementById("costPanel").style.display = "block";
@@ -208,19 +217,11 @@ function showApp() {
   showStartScreen();
 }
 
-// Auto-login
-(async function() {
-  const savedUser = sessionStorage.getItem("gestop_user");
-  const hash = sessionStorage.getItem("gestop_hash");
-  if (savedUser && hash) {
-    const { data } = await sb.from("gestop_users").select("role").eq("username", savedUser).eq("password_hash", hash).maybeSingle();
-    if (data) { currentRole = data.role; showApp(); }
-    else { sessionStorage.removeItem("gestop_user"); sessionStorage.removeItem("gestop_role"); sessionStorage.removeItem("gestop_hash"); }
-  }
-})();
-
-// Enter key login
-document.getElementById("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+// Auto-login: check existing session + handle OAuth redirect
+checkSession();
+sb.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_IN") checkSession();
+});
 
 // --- Chat ---
 const chatMessages = document.getElementById("chatMessages");
@@ -380,6 +381,6 @@ async function refreshCosts() {
   } catch (e) { /* silent */ }
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.1</div>
 </body>
 </html>
