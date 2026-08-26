@@ -757,8 +757,8 @@ async function handleFaq(
     // Si lookup falla, caer a respuesta estática
   }
 
-  // ── Alta cliente: si no está identificado, dejar que handleLinking maneje el flujo paso a paso ──
-  if (top.subcategory === "alta_cliente" && !customer) {
+  // ── Usuario no vinculado: FAQs que requieren cliente → dejar que handleLinking se encargue ──
+  if (!customer) {
     return null;
   }
 
