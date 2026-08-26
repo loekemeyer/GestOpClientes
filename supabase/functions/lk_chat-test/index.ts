@@ -330,43 +330,109 @@ async function handleStats(since?: string) {
 
 // ── Handlers (misma lógica que webhook, sin enviar a WA) ──
 
+const ALTA_SPEECH = `¡Genial! Para darte de alta como cliente necesitamos los siguientes datos:
+
+📋 *Razón social*
+👤 *Nombre de contacto*
+📱 *Teléfono*
+📧 *Mail*
+📍 *Dirección y localidad*
+🚚 *Expreso con el que trabajan* (dirección y teléfono)
+🏪 *Tipo de comercio* (Ej: Bazar, mayorista) y dimensión (Ej: 4x8=32m²)
+🌐 *Tiene venta web/página*
+📦 *Si ya vende nuestra mercadería*, indicar a quién le compra
+📢 *Si no la vende*, indicar de dónde conoce la marca
+
+Podés enviarme todo junto o de a poco, como te quede más cómodo. 👍`;
+
 async function handleLinking(phone: string, text: string, apiKey: string): Promise<string> {
-  const cleaned = text.replace(/[^0-9]/g, "");
-  if (!cleaned) {
-    return "¡Hola! Soy el asistente de Loekemeyer. Para poder ayudarte, necesito identificarte. ¿Me pasás tu código de cliente o tu CUIT?";
+  // ── ¿Ya tiene un lead en curso? → recolectar datos ──
+  const { data: existingLead } = await supabase
+    .from("wa_prospect_leads")
+    .select("id, raw_messages")
+    .eq("phone", phone)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (existingLead) {
+    return await handleProspectData(phone, text, existingLead);
   }
 
-  let query = supabase
+  // ── Mensaje sin números y dice "soy nuevo" / "no soy cliente" → directo a alta ──
+  if (/\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|darme de alta|primera vez)\b/i.test(text)) {
+    await supabase.from("wa_prospect_leads").insert({
+      phone,
+      raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
+    });
+    return ALTA_SPEECH;
+  }
+
+  const cleaned = text.replace(/[^0-9]/g, "");
+  if (!cleaned) {
+    return "¡Hola! Soy el asistente de Loekemeyer. Para poder ayudarte, necesito identificarte. ¿Me pasás tu CUIT o código de cliente?\n\nSi todavía no sos cliente, decime *soy nuevo* y te ayudo con el alta.";
+  }
+
+  // ── Buscar por código de cliente ──
+  let customer = null;
+  const { data: byCod } = await supabase
     .from("customers")
     .select("id, cod_cliente, business_name")
     .eq("cod_cliente", parseInt(cleaned))
     .maybeSingle();
-  let { data: customer } = await query;
+  customer = byCod;
 
+  // ── Buscar por CUIT si tiene 10+ dígitos ──
   if (!customer && cleaned.length >= 10) {
-    const res = await supabase
+    const { data: byCuit } = await supabase
       .from("customers")
       .select("id, cod_cliente, business_name")
       .eq("cuit", cleaned)
       .maybeSingle();
-    customer = res.data;
+    customer = byCuit;
   }
 
-  if (!customer) {
-    return "No encontré ese código o CUIT. Verificá e intentá de nuevo, o contactanos a ventas@loekemeyer.com";
+  // ── Cliente encontrado → vincular ──
+  if (customer) {
+    await supabase.from("bot_customer_whatsapps").upsert({
+      customer_id: customer.id,
+      whatsapp: phone,
+      is_primary: true,
+      empresa: "LK",
+      cod_cliente: customer.cod_cliente,
+      permiso_ver_pedidos: true,
+    }, { onConflict: "whatsapp" });
+    return `¡Hola ${customer.business_name}! Ya quedaste vinculado.\n${menuText()}`;
   }
 
-  // En modo test, vincular temporalmente
-  await supabase.from("bot_customer_whatsapps").upsert({
-    customer_id: customer.id,
-    whatsapp: phone,
-    is_primary: true,
-    empresa: "LK",
-    cod_cliente: customer.cod_cliente,
-    permiso_ver_pedidos: true,
-  }, { onConflict: "whatsapp" });
+  // ── CUIT no encontrado → cliente nuevo ──
+  if (cleaned.length >= 10) {
+    await supabase.from("wa_prospect_leads").insert({
+      phone,
+      cuit: cleaned,
+      raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
+    });
+    return `No encontré ese CUIT en nuestro sistema. ¡Pero no hay problema, te damos de alta!\n\n${ALTA_SPEECH}`;
+  }
 
-  return `¡Hola ${customer.business_name}! Ya quedaste vinculado.\n${menuText()}`;
+  // ── Código corto no encontrado ──
+  return "No encontré ese código. ¿Me pasás tu CUIT? Si todavía no sos cliente, decime *soy nuevo* y te ayudo con el alta.";
+}
+
+// ── Recolección de datos de prospect (solo acumula mensajes crudos) ──
+
+async function handleProspectData(
+  phone: string,
+  text: string,
+  lead: { id: number; raw_messages: unknown },
+): Promise<string> {
+  const messages = Array.isArray(lead.raw_messages) ? [...lead.raw_messages] : [];
+  messages.push({ role: "user", content: text, ts: new Date().toISOString() });
+
+  await supabase.from("wa_prospect_leads")
+    .update({ raw_messages: messages, updated_at: new Date().toISOString() })
+    .eq("id", lead.id);
+
+  return "Recibido ✅ Cuando tengas todos los datos, envialos y un vendedor se va a poner en contacto con vos.";
 }
 
 async function handleOrderQuery(
