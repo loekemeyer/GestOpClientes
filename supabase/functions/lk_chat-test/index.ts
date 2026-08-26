@@ -36,10 +36,27 @@ serve(async (req) => {
       return json({ reply: "⚠️ API Key de Claude no configurada. Configurala en Supabase secrets como ANTHROPIC_API_KEY o CLAUDE_API_KEY." });
     }
 
-    // Buscar cliente vinculado
-    const { data: cliente } = await supabase
-      .rpc("bot_cliente_por_whatsapp", { p_telefono: testPhone });
-    const customerRow = cliente?.[0] ?? null;
+    // Paso 0: identificar cliente por teléfono
+    // 1) wa_identify_customer — busca en wa_clientes_telefono (610 registros) + customers.whatsapp
+    //    Usar phone raw (no canonPhone) porque wa_identify_customer tiene su propia normalización
+    // 2) Fallback: bot_cliente_por_whatsapp — busca en bot_customer_whatsapps (vinculados por el bot)
+    let customerRow: { id: string; cod_cliente: number; business_name: string } | null = null;
+
+    const { data: identified } = await supabase
+      .rpc("wa_identify_customer", { p_phone: phone });
+    const iRow = identified?.[0];
+    if (iRow) {
+      customerRow = {
+        id: iRow.customer_id,
+        cod_cliente: Number(iRow.cod_cliente),
+        business_name: iRow.customer_name,
+      };
+    } else {
+      // Fallback: clientes vinculados manualmente via bot
+      const { data: legacy } = await supabase
+        .rpc("bot_cliente_por_whatsapp", { p_telefono: testPhone });
+      customerRow = legacy?.[0] ?? null;
+    }
 
     let reply: string;
 
