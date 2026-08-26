@@ -48,15 +48,17 @@ update wa_faq set
   requires_product_match = true
 where category = 'stock_disponibilidad';
 
--- #4 — Novedad de mi pedido (estado_demora_pedido)
+-- #4+5 — Estado del pedido / ¿Cuándo llega? (fusionadas)
+-- Antes eran dos preguntas separadas (#4 estado_demora_pedido, #5 transporte_fecha_entrega).
+-- Ahora son una sola: el cliente puede ver en la web si el pedido fue
+-- recibido, programado o entregado (tabla order_tracking).
 update wa_faq set
-  web_first_response = E'Podés ver el estado de tus pedidos desde la web: 📋\n🔗 loekemeyer.com → "Mis Pedidos"\n\n📝 Cómo hacerlo:\n1. Ingresá con tu CUIT y contraseña\n2. Andá a "Mis Pedidos"\n3. Ahí ves el estado actualizado de cada pedido\n\nSi necesitás tu usuario y clave, avisame. 😊',
+  web_first_response = E'Podés ver el estado de tus pedidos en la web: 📦\n🔗 loekemeyer.com → "Mis Pedidos"\n\nCada pedido muestra su estado:\n• Recibido — tu pedido fue recibido y está en proceso\n• Programado — ya está programado para despacho\n• Entregado — ya fue entregado, con fecha de entrega\n\nIngresá con tu usuario y contraseña. Si no los tenés, avisame y te los envío.',
   fallback_label = 'Si el cliente prefiere consultar por chat'
 where category = 'estado_demora_pedido';
 
--- #5 — ¿Cuándo sale mi pedido? (transporte_fecha_entrega)
 update wa_faq set
-  web_first_response = E'Podés ver la fecha programada de tu pedido desde la web: 🚚\n🔗 loekemeyer.com → "Mis Pedidos"\n\n📝 Cómo hacerlo:\n1. Ingresá con tu CUIT y contraseña\n2. Andá a "Mis Pedidos"\n3. Cada pedido muestra la fecha estimada de entrega\n\nRecordá que la fecha de salida es aproximada y puede variar 2-3 días. Si necesitás tu clave, avisame. 😊',
+  web_first_response = E'Podés ver el estado de tus pedidos en la web: 📦\n🔗 loekemeyer.com → "Mis Pedidos"\n\nCada pedido muestra su estado:\n• Recibido — tu pedido fue recibido y está en proceso\n• Programado — ya está programado para despacho\n• Entregado — ya fue entregado, con fecha de entrega\n\nIngresá con tu usuario y contraseña. Si no los tenés, avisame y te los envío.',
   fallback_label = 'Si el cliente prefiere consultar por chat'
 where category = 'transporte_fecha_entrega';
 
