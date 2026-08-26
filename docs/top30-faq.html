@@ -1,0 +1,2341 @@
+<title>Top 30 Preguntas Frecuentes</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=Source+Sans+3:wght@300;400;600;700&display=swap">
+
+<style>
+  :root {
+    --green: #1A7F64;
+    --green-light: #E8F5F0;
+    --blue: #2D6A9F;
+    --blue-light: #E6EFF7;
+    --amber: #B85C38;
+    --amber-light: #FBF0EB;
+    --bg: #F7F6F3;
+    --surface: #FFFFFF;
+    --surface-alt: #EEEDEA;
+    --text: #1C1C1E;
+    --text-secondary: #5A5D63;
+    --text-muted: #8E9196;
+    --border: #D8D6D2;
+    --border-light: #EEEDEA;
+    --rank-bg: #2C2C2E;
+    --rank-text: #FFFFFF;
+    --chat-user: #DCF8C6;
+    --chat-bot: #FFFFFF;
+    --chat-user-text: #1C1C1E;
+    --chat-bot-text: #1C1C1E;
+    --flow-line: #C4C4C6;
+    --flow-step-bg: #F0F4F8;
+    --flow-db-bg: #FFF8E1;
+    --flow-response-bg: #E8F5F0;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --green: #3DB893;
+      --green-light: #1A2E28;
+      --blue: #5A9FD4;
+      --blue-light: #1A2533;
+      --amber: #D4845A;
+      --amber-light: #2E2118;
+      --bg: #141416;
+      --surface: #1E1E20;
+      --surface-alt: #28282A;
+      --text: #E8E8EA;
+      --text-secondary: #A0A3A8;
+      --text-muted: #6B6E73;
+      --border: #38383A;
+      --border-light: #2A2A2C;
+      --rank-bg: #3DB893;
+      --rank-text: #141416;
+      --chat-user: #1A3A25;
+      --chat-bot: #28282A;
+      --chat-user-text: #E8E8EA;
+      --chat-bot-text: #E8E8EA;
+      --flow-line: #48484A;
+      --flow-step-bg: #1E2530;
+      --flow-db-bg: #2A2518;
+      --flow-response-bg: #1A2E28;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+      --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --green: #3DB893;
+    --green-light: #1A2E28;
+    --blue: #5A9FD4;
+    --blue-light: #1A2533;
+    --amber: #D4845A;
+    --amber-light: #2E2118;
+    --bg: #141416;
+    --surface: #1E1E20;
+    --surface-alt: #28282A;
+    --text: #E8E8EA;
+    --text-secondary: #A0A3A8;
+    --text-muted: #6B6E73;
+    --border: #38383A;
+    --border-light: #2A2A2C;
+    --rank-bg: #3DB893;
+    --rank-text: #141416;
+    --chat-user: #1A3A25;
+    --chat-bot: #28282A;
+    --chat-user-text: #E8E8EA;
+    --chat-bot-text: #E8E8EA;
+    --flow-line: #48484A;
+    --flow-step-bg: #1E2530;
+    --flow-db-bg: #2A2518;
+    --flow-response-bg: #1A2E28;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page-header {
+    padding: 2.5rem 1.5rem 2rem;
+    max-width: 820px;
+    margin: 0 auto;
+  }
+  .page-header h1 {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 1.75rem;
+    line-height: 1.2;
+    color: var(--text);
+    margin-bottom: 0.35rem;
+  }
+  .page-header .subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+  .page-header .subtitle strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  /* Summary bar */
+  .summary-bar {
+    display: flex;
+    gap: 0.75rem;
+    max-width: 820px;
+    margin: 0 auto 1.5rem;
+    padding: 0 1.5rem;
+    flex-wrap: wrap;
+  }
+  .summary-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    border: 1px solid var(--border-light);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+  .summary-chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .summary-chip .count {
+    font-family: 'DM Sans', sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 1rem;
+  }
+  .dot-green { background: var(--green); }
+  .dot-blue { background: var(--blue); }
+  .dot-amber { background: var(--amber); }
+
+  /* Filter tabs */
+  .filters {
+    display: flex;
+    gap: 0.4rem;
+    max-width: 820px;
+    margin: 0 auto 1rem;
+    padding: 0 1.5rem;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    letter-spacing: 0.02em;
+  }
+  .filter-btn:hover { border-color: var(--text-muted); color: var(--text); }
+  .filter-btn.active {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
+
+  /* FAQ list */
+  .faq-list {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 0 1.5rem 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .faq-card {
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.15s ease;
+  }
+  .faq-card:hover { box-shadow: var(--shadow-md); }
+  .faq-card[open] { box-shadow: var(--shadow-md); }
+
+  .faq-card summary {
+    display: grid;
+    grid-template-columns: 2.2rem 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .faq-card summary::-webkit-details-marker { display: none; }
+  .faq-card summary::marker { content: ''; }
+
+  .rank-num {
+    font-family: 'DM Sans', sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 0.78rem;
+    width: 2.2rem;
+    height: 2.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    background: var(--rank-bg);
+    color: var(--rank-text);
+    flex-shrink: 0;
+  }
+
+  .faq-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+  .faq-question {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.95rem;
+    color: var(--text);
+    line-height: 1.35;
+  }
+  .faq-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .cat-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .level-pill {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+  }
+  .level-full { background: var(--green-light); color: var(--green); }
+  .level-semi { background: var(--blue-light); color: var(--blue); }
+  .level-human { background: var(--amber-light); color: var(--amber); }
+
+  .faq-freq {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+    padding-right: 0.25rem;
+  }
+  .freq-num {
+    font-family: 'DM Sans', sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  .freq-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+
+  .chevron {
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+    margin-left: -0.25rem;
+  }
+  .faq-card[open] .chevron { transform: rotate(180deg); }
+
+  /* Expanded content */
+  .faq-detail {
+    padding: 0 1rem 1rem 3.95rem;
+    border-top: 1px solid var(--border-light);
+  }
+
+  /* Examples */
+  .examples-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0.85rem 0 0.5rem;
+  }
+  .example-bubbles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.85rem;
+  }
+  .bubble {
+    padding: 0.45rem 0.7rem;
+    border-radius: 8px 8px 8px 2px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    background: var(--chat-user);
+    color: var(--chat-user-text);
+    max-width: 85%;
+    font-style: italic;
+  }
+
+  /* Full auto response */
+  .response-block {
+    border-left: 3px solid var(--green);
+    padding: 0.65rem 0.85rem;
+    border-radius: 0 6px 6px 0;
+    background: var(--green-light);
+    margin-top: 0.15rem;
+  }
+  .response-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 0.3rem;
+  }
+  .response-text {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--text);
+    white-space: pre-line;
+  }
+
+  /* Semi auto flow */
+  .flow-block {
+    margin-top: 0.15rem;
+  }
+  .flow-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 0.6rem;
+  }
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    padding-left: 1.2rem;
+  }
+  .flow-steps::before {
+    content: '';
+    position: absolute;
+    left: 0.45rem;
+    top: 0.7rem;
+    bottom: 0.7rem;
+    width: 2px;
+    background: var(--flow-line);
+  }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    position: relative;
+    padding: 0.3rem 0;
+  }
+  .flow-dot {
+    position: absolute;
+    left: -0.85rem;
+    top: 0.65rem;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--blue);
+    background: var(--surface);
+    z-index: 1;
+    flex-shrink: 0;
+  }
+  .flow-dot.db { border-color: #D4A017; background: var(--flow-db-bg); }
+  .flow-dot.respond { border-color: var(--green); background: var(--flow-response-bg); }
+
+  .step-content {
+    font-size: 0.84rem;
+    line-height: 1.45;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+  .step-content.action { background: var(--flow-step-bg); }
+  .step-content.db { background: var(--flow-db-bg); }
+  .step-content.respond { background: var(--flow-response-bg); }
+  .step-tag {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    display: inline-block;
+    margin-bottom: 0.1rem;
+  }
+  .step-tag.action { color: var(--blue); }
+  .step-tag.db { color: #B8860B; }
+  .step-tag.respond { color: var(--green); }
+
+  /* Human needed */
+  .human-block {
+    border-left: 3px solid var(--amber);
+    padding: 0.65rem 0.85rem;
+    border-radius: 0 6px 6px 0;
+    background: var(--amber-light);
+    margin-top: 0.15rem;
+  }
+  .human-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 0.3rem;
+  }
+  .human-text {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--text);
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .page-header { padding: 1.5rem 1rem 1.25rem; }
+    .page-header h1 { font-size: 1.4rem; }
+    .summary-bar, .filters, .faq-list { padding-left: 1rem; padding-right: 1rem; }
+    .faq-card summary { grid-template-columns: 1.8rem 1fr auto; gap: 0.5rem; padding: 0.7rem 0.75rem; }
+    .rank-num { width: 1.8rem; height: 1.8rem; font-size: 0.7rem; }
+    .faq-detail { padding-left: 2.8rem; }
+    .bubble { max-width: 95%; }
+  }
+
+  .hidden { display: none !important; }
+
+  /* Web-first block */
+  .web-first-block {
+    border-left: 3px solid #0E7490;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0 6px 6px 0;
+    background: #ECFDF5;
+    margin-top: 0.15rem;
+  }
+  :root[data-theme="dark"] .web-first-block,
+  :root:not([data-theme="light"]) .web-first-block { background: #0C2D2A; border-left-color: #22D3EE; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .web-first-block { background: #0C2D2A; border-left-color: #22D3EE; }
+  }
+  .web-first-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #0E7490;
+    margin-bottom: 0.3rem;
+  }
+  :root[data-theme="dark"] .web-first-label,
+  :root:not([data-theme="light"]) .web-first-label { color: #22D3EE; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .web-first-label { color: #22D3EE; }
+  }
+  .web-first-text {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--text);
+    white-space: pre-line;
+  }
+
+  .fallback-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.85rem 0 0.5rem;
+  }
+  .fallback-divider::before,
+  .fallback-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    border-style: dashed;
+  }
+  .fallback-text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  /* Web-first badge */
+  .wf-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.12rem 0.45rem;
+    border-radius: 3px;
+    background: #ECFDF5;
+    color: #0E7490;
+  }
+  :root[data-theme="dark"] .wf-badge,
+  :root:not([data-theme="light"]) .wf-badge { background: #0C2D2A; color: #22D3EE; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .wf-badge { background: #0C2D2A; color: #22D3EE; }
+  }
+
+  /* Product match badge */
+  .pm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.12rem 0.45rem;
+    border-radius: 3px;
+    background: #F3E8FF;
+    color: #7C3AED;
+  }
+  :root[data-theme="dark"] .pm-badge,
+  :root:not([data-theme="light"]) .pm-badge {
+    background: #2D1F4E;
+    color: #A78BFA;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .pm-badge {
+      background: #2D1F4E;
+      color: #A78BFA;
+    }
+  }
+
+  /* Strategy section */
+  .strategy-section {
+    max-width: 820px;
+    margin: 0 auto 1.5rem;
+    padding: 0 1.5rem;
+  }
+  .strategy-card {
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .strategy-card summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    list-style: none;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    user-select: none;
+  }
+  .strategy-card summary::-webkit-details-marker { display: none; }
+  .strategy-card summary::marker { content: ''; }
+  .strategy-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: #F3E8FF;
+    color: #7C3AED;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+  :root[data-theme="dark"] .strategy-icon,
+  :root:not([data-theme="light"]) .strategy-icon {
+    background: #2D1F4E;
+    color: #A78BFA;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .strategy-icon {
+      background: #2D1F4E;
+      color: #A78BFA;
+    }
+  }
+  .strategy-affected {
+    margin-left: auto;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+  .strategy-body {
+    padding: 0 1rem 1rem;
+    border-top: 1px solid var(--border-light);
+  }
+  .strategy-body p {
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    margin: 0.75rem 0 0;
+  }
+  .strategy-body p:first-child { margin-top: 0.85rem; }
+  .strategy-body strong { color: var(--text); }
+
+  /* Layer diagram */
+  .layers {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 1rem 0 0.5rem;
+  }
+  .layer {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: 0.6rem;
+    align-items: start;
+    padding: 0.5rem 0;
+    position: relative;
+  }
+  .layer + .layer { border-top: 1px dashed var(--border-light); }
+  .layer-num {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .layer-num.nlp { background: #DBEAFE; color: #1D4ED8; }
+  .layer-num.alias { background: #F3E8FF; color: #7C3AED; }
+  .layer-num.trgm { background: #FEF3C7; color: #92400E; }
+  .layer-num.ilike { background: var(--surface-alt); color: var(--text-muted); }
+  :root[data-theme="dark"] .layer-num.nlp,
+  :root:not([data-theme="light"]) .layer-num.nlp { background: #1E2A4A; color: #60A5FA; }
+  :root[data-theme="dark"] .layer-num.alias,
+  :root:not([data-theme="light"]) .layer-num.alias { background: #2D1F4E; color: #A78BFA; }
+  :root[data-theme="dark"] .layer-num.trgm,
+  :root:not([data-theme="light"]) .layer-num.trgm { background: #3D2E0A; color: #FCD34D; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .layer-num.nlp { background: #1E2A4A; color: #60A5FA; }
+    :root:not([data-theme="light"]) .layer-num.alias { background: #2D1F4E; color: #A78BFA; }
+    :root:not([data-theme="light"]) .layer-num.trgm { background: #3D2E0A; color: #FCD34D; }
+  }
+  .layer-desc {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+  .layer-desc code {
+    font-size: 0.78rem;
+    background: var(--surface-alt);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    color: var(--text);
+  }
+  .layer-example {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 0.15rem;
+  }
+
+  /* Affected list */
+  .affected-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.75rem;
+  }
+  .affected-tag {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    background: var(--surface-alt);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chevron { transition: none; }
+    .faq-card { transition: none; }
+  }
+</style>
+
+<div class="page-header">
+  <h1>Top 30 — Preguntas Frecuentes de Clientes</h1>
+  <p class="subtitle">Análisis de <strong>1.739 conversaciones</strong> de WhatsApp · Mayo 2025 – Enero 2026</p>
+</div>
+
+<div class="summary-bar">
+  <div class="summary-chip">
+    <span class="dot dot-green"></span>
+    <span>Full Auto</span>
+    <span class="count">13</span>
+  </div>
+  <div class="summary-chip">
+    <span class="dot dot-blue"></span>
+    <span>Semi Auto</span>
+    <span class="count">14</span>
+  </div>
+  <div class="summary-chip">
+    <span class="dot dot-amber"></span>
+    <span>Humano</span>
+    <span class="count">3</span>
+  </div>
+  <div class="summary-chip" style="margin-left: auto;">
+    <span class="dot" style="background: #0E7490;"></span>
+    <span>Web First</span>
+    <span class="count">13</span>
+  </div>
+</div>
+
+<div class="filters">
+  <button class="filter-btn active" data-filter="all">Todas</button>
+  <button class="filter-btn" data-filter="full_auto">Full Auto</button>
+  <button class="filter-btn" data-filter="semi_auto">Semi Auto</button>
+  <button class="filter-btn" data-filter="needs_human">Humano</button>
+  <button class="filter-btn" data-filter="web_first">🌐 Web First</button>
+  <button class="filter-btn" data-filter="product_match">🔍 Product Match</button>
+</div>
+
+<div class="strategy-section">
+  <details class="strategy-card" open>
+    <summary>
+      <span class="strategy-icon">🔍</span>
+      Estrategia de identificación de productos
+      <span class="strategy-affected">Afecta 8 de 30 preguntas</span>
+    </summary>
+    <div class="strategy-body">
+      <p>Los clientes no usan SKU ni códigos. Dicen <strong>"olla tramontina grande"</strong>, <strong>"las sartenes antiadherentes"</strong> o <strong>"abrelatas"</strong>. El bot necesita encontrar el producto correcto en la base de datos a partir de texto libre.</p>
+
+      <p><strong>Matching en 4 capas</strong> — cada capa suma un score. El bot usa el mejor match o presenta opciones si hay varios resultados cercanos:</p>
+
+      <div class="layers">
+        <div class="layer">
+          <span class="layer-num nlp">Claude NLP</span>
+          <div>
+            <div class="layer-desc">Claude Haiku extrae del mensaje: <strong>producto</strong>, <strong>marca</strong>, <strong>medida</strong> y <strong>cantidad</strong>. Normaliza el texto antes de buscar.</div>
+            <div class="layer-example">"Quiero 12 cajas de la olla tramontina 24" → { query: "olla tramontina 24", qty: 12 }</div>
+          </div>
+        </div>
+        <div class="layer">
+          <span class="layer-num alias">Aliases</span>
+          <div>
+            <div class="layer-desc">Tabla <code>product_aliases</code> con nombres comunes curados: sinónimos, abreviaturas, marcas, categorías. Score más alto.</div>
+            <div class="layer-example">"abrelatas" → todos los Abrelatas · "cuch. asado" → Cuchillo Asado · "tramontina" → marca Tramontina</div>
+          </div>
+        </div>
+        <div class="layer">
+          <span class="layer-num trgm">Trigrama</span>
+          <div>
+            <div class="layer-desc">Búsqueda fuzzy con <code>pg_trgm</code> sobre <code>products.description</code>. Tolera errores de tipeo y coincidencias parciales.</div>
+            <div class="layer-example">"tramotina" → Tramontina (typo) · "sarten antia" → Sartén Antiadherente (parcial)</div>
+          </div>
+        </div>
+        <div class="layer">
+          <span class="layer-num ilike">Substring</span>
+          <div>
+            <div class="layer-desc">Fallback con <code>ILIKE</code> y match por código de producto. Último recurso para textos que no trigonean.</div>
+            <div class="layer-example">"nylon" → Espátula Nylon, Cucharón Nylon · "TA-2401" → match por código</div>
+          </div>
+        </div>
+      </div>
+
+      <p>Función SQL: <code>wa_product_match(texto)</code> → devuelve top 5 productos con score. Versión con precio: <code>wa_product_match_with_price(texto, customer_id)</code> → aplica descuento del cliente.</p>
+      <p>Si el score más alto es > 0.7 → usar directo. Si hay varios > 0.4 → presentar opciones. Si ninguno > 0.15 → pedir que aclare.</p>
+
+      <p style="margin-top: 0.85rem;"><strong>Preguntas que usan este matching:</strong></p>
+      <div class="affected-list">
+        <span class="affected-tag">#3 Stock de X</span>
+        <span class="affected-tag">#8 Hacer pedido</span>
+        <span class="affected-tag">#11 Precio de X</span>
+        <span class="affected-tag">#19 Consulta producto</span>
+        <span class="affected-tag">#22 Agregar al pedido</span>
+        <span class="affected-tag">#24 Marca X</span>
+        <span class="affected-tag">#26 Presupuesto</span>
+        <span class="affected-tag">#30 Cancelar/modificar</span>
+      </div>
+    </div>
+  </details>
+</div>
+
+<div class="faq-list" id="faqList">
+
+  <!-- #1 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">1</span>
+      <div class="faq-main">
+        <span class="faq-question">Pedir cotizador / lista de precios</span>
+        <div class="faq-meta">
+          <span class="cat-label">Precios / Lista</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">269</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Me pasas la lista de precios?"</div>
+        <div class="bubble">"Necesito el cotizador actualizado"</div>
+        <div class="bubble">"Hola, me mandas los precios?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">¡Hola! 👋 Te paso el enlace a nuestro cotizador online actualizado:
+🔗 [link al cotizador]
+
+Ahí podés ver todos los precios con tu descuento ya aplicado. Si necesitás la lista en PDF, avisame y te la envío por acá. 📋</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #2 -->
+  <details class="faq-card" data-level="semi_auto" data-web-first="true">
+    <summary>
+      <span class="rank-num">2</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Qué descuento tengo?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Descuentos</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">142</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Qué descuento manejo yo?"</div>
+        <div class="bubble">"Cuánto es mi bonificación?"</div>
+        <div class="bubble">"Che, qué porcentaje me hacen?"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Tu descuento lo podés ver directamente en el cotizador web, donde todos los precios ya aparecen con tu bonificación aplicada. 📋
+🔗 [link al cotizador]
+
+Ingresá con tu usuario y contraseña. Si no los tenés, avisame y te los envío.</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere atención por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Consulta DB</div>
+              <code>customers</code> → <code>discount_pct</code> y condiciones especiales del cliente
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Tu descuento es del {X}% sobre lista. Para pedidos mayores a ${monto}, aplica un {Y}% adicional."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #3 -->
+  <details class="faq-card" data-level="semi_auto" data-product-match="true" data-web-first="true">
+    <summary>
+      <span class="rank-num">3</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Tienen stock de X?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Stock</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+          <span class="pm-badge">🔍 Product Match</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">119</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Tienen la olla Tramontina 24cm?"</div>
+        <div class="bubble">"Hay stock del juego de cuchillos?"</div>
+        <div class="bubble">"Hola, consulta: tienen las sartenes antiadherentes?"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Podés ver el stock de todos nuestros productos en el cotizador web. Los que están disponibles aparecen con el botón "Agregar al carrito". 📦
+🔗 [link al cotizador]
+
+Ingresá, buscá el producto y si tiene stock podés hacer el pedido directo desde ahí. ¿Necesitás tu usuario?</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere atención por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Claude NLP</div>
+              Claude Haiku extrae: producto, marca, medida → <code>{ query: "olla tramontina 24" }</code>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">wa_product_match</div>
+              <code>wa_product_match('olla tramontina 24')</code> → aliases + trigrama + substring. Desambiguar si hay varios.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Sí, tenemos: {producto} — Stock: {N} un. — Tu precio: ${precio}. ¿Lo agrego a un pedido?"
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #4 -->
+  <details class="faq-card" data-level="semi_auto" data-web-first="true">
+    <summary>
+      <span class="rank-num">4</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Novedad de mi pedido?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Estado / Demora</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">66</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Alguna novedad del pedido?"</div>
+        <div class="bubble">"Cómo viene mi pedido?"</div>
+        <div class="bubble">"Quería saber si ya salió mi encargo"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Podés ver el estado de todos tus pedidos desde la web: 📦
+🔗 [link a mis pedidos]
+
+Entrá con tu usuario, en la sección "Mis Pedidos" ves el estado actualizado de cada uno. Si tenés número de seguimiento, aparece ahí también.</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere atención por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Consulta DB</div>
+              <code>orders</code> donde <code>status</code> ≠ 'delivered' → últimos pedidos del cliente
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Tu pedido #{nro} del {fecha} está en estado: {estado}. ¿Necesitás algo más?"
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #5 -->
+  <details class="faq-card" data-level="semi_auto" data-web-first="true">
+    <summary>
+      <span class="rank-num">5</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Cuándo sale / llega mi pedido?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Estado / Demora</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">46</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Cuándo sale la mercadería?"</div>
+        <div class="bubble">"Para cuándo llega mi pedido?"</div>
+        <div class="bubble">"Ya lo despacharon?"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Podés ver las fechas de despacho y seguimiento en la web: 📦
+🔗 [link a mis pedidos]
+
+En "Mis Pedidos" aparece la fecha programada y, cuando salga, el número de seguimiento del transporte.</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere atención por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Consulta DB</div>
+              <code>orders</code> → <code>shipping_date</code>, <code>estimated_delivery</code>, <code>tracking_number</code>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Tu pedido #{nro} sale el {fecha_despacho}. Llegada estimada: {fecha_entrega}. Te avisamos cuando despache."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #6 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">6</span>
+      <div class="faq-main">
+        <span class="faq-question">Pedir catálogo</span>
+        <div class="faq-meta">
+          <span class="cat-label">Catálogo</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">39</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Me pasan el catálogo?"</div>
+        <div class="bubble">"Tienen catálogo digital?"</div>
+        <div class="bubble">"Mandame el catálogo actualizado"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">¡Claro! Acá te paso nuestro catálogo digital actualizado: 📖
+🔗 [link al catálogo]
+
+También podés ver todos los productos en nuestra web: loekemeyer.com.ar
+Si buscás algo en particular, decime y te ayudo. 😊</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #7 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">7</span>
+      <div class="faq-main">
+        <span class="faq-question">Datos bancarios / CBU para transferencia</span>
+        <div class="faq-meta">
+          <span class="cat-label">Pago / CBU</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">35</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Me pasas el CBU?"</div>
+        <div class="bubble">"Datos para hacer la transferencia?"</div>
+        <div class="bubble">"Necesito los datos bancarios para pagar"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">📋 Datos para transferencia bancaria:
+
+🏦 Banco: {banco}
+👤 Titular: Loekemeyer S.A.
+🔢 CBU: {cbu}
+📝 CUIT: {cuit}
+Alias: {alias}
+
+Una vez hecha la transferencia, enviame el comprobante por acá así lo registramos. ✅</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #8 -->
+  <details class="faq-card" data-level="semi_auto" data-product-match="true" data-web-first="true">
+    <summary>
+      <span class="rank-num">8</span>
+      <div class="faq-main">
+        <span class="faq-question">Quiero hacer un pedido</span>
+        <div class="faq-meta">
+          <span class="cat-label">Hacer Pedido</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+          <span class="pm-badge">🔍 Product Match</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">31</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Quiero armar un pedido"</div>
+        <div class="bubble">"Necesito hacer un pedido nuevo"</div>
+        <div class="bubble">"12 cajas de cuchillo asado y 6 de espatula"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">¡Genial! Podés cargar tu pedido directamente desde nuestra web, es más rápido y cómodo: 🛒
+🔗 [link al cotizador]
+
+📝 Cómo hacerlo:
+1. Ingresá con tu usuario y contraseña
+2. Buscá los productos que necesitás
+3. Agregá las cantidades al carrito
+4. Confirmá el pedido
+
+Los precios ya tienen tu descuento aplicado. Si necesitás tu usuario y clave, avisame y te los envío. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere hacer el pedido por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Iniciar</div>
+              Crear borrador en <code>wa_order_draft</code> → estado 'building'. "Dale, contame qué necesitás."
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Claude NLP</div>
+              Claude Haiku parsea: <code>"12 cajas de cuchillo asado"</code> → <code>{ query: "cuchillo asado", qty: 12 }</code>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">wa_product_match_with_price</div>
+              Por cada item: aliases + trigrama + substring. Desambiguar si varios matches.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Confirmar y registrar</div>
+              Resumen con items, precios, total. Al confirmar → <code>submit_order_fast</code> → "✅ Pedido #{nro} confirmado."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #9 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">9</span>
+      <div class="faq-main">
+        <span class="faq-question">Confirmar fecha de retiro</span>
+        <div class="faq-meta">
+          <span class="cat-label">Retiro</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">25</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Cuándo puedo pasar a retirar?"</div>
+        <div class="bubble">"Qué horarios tienen para retiro?"</div>
+        <div class="bubble">"Puedo ir mañana a buscar mi pedido?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">📦 Retiro en depósito:
+
+📍 Dirección: {dirección del depósito}
+🕐 Horario: Lunes a Viernes de 8:00 a 16:00 hs
+📋 Presentarse con: DNI y número de pedido
+
+Cuando estés llegando, avisanos por acá así te tenemos todo listo. 👍</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #10 -->
+  <details class="faq-card" data-level="semi_auto">
+    <summary>
+      <span class="rank-num">10</span>
+      <div class="faq-main">
+        <span class="faq-question">Necesito contraseña / clave web</span>
+        <div class="faq-meta">
+          <span class="cat-label">Web / Registro</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">25</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"No me acuerdo la clave de la página"</div>
+        <div class="bubble">"Necesito acceder a la web, mi contraseña no funciona"</div>
+        <div class="bubble">"Cómo hago para entrar al cotizador online?"</div>
+      </div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo automático</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Identificar</div>
+              Verificar cliente por teléfono → obtener email registrado
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Acción</div>
+              Enviar enlace de restablecimiento de contraseña al email del cliente
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Te envié un enlace para restablecer tu contraseña al email {email_parcial}. Revisá tu casilla (y la carpeta de spam). Si no te llega, avisame."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #11 -->
+  <details class="faq-card" data-level="semi_auto" data-product-match="true" data-web-first="true">
+    <summary>
+      <span class="rank-num">11</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Cuánto sale X producto?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Precios / Lista</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+          <span class="pm-badge">🔍 Product Match</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">23</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Cuánto sale la batería Tramontina?"</div>
+        <div class="bubble">"Precio del set de cuchillos?"</div>
+        <div class="bubble">"A cuánto me queda la plancha con mi descuento?"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Podés consultar todos los precios con tu descuento aplicado en nuestro cotizador web: 💰
+🔗 [link al cotizador]
+
+📝 Cómo hacerlo:
+1. Ingresá con tu usuario y contraseña
+2. Buscá el producto por nombre o categoría
+3. El precio ya aparece con tu descuento aplicado
+
+También podés ver stock disponible en tiempo real. Si necesitás tu usuario y clave, avisame. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere consultar por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Claude NLP</div>
+              Claude Haiku extrae: <code>"batería tramontina"</code> → <code>{ query: "bateria tramontina" }</code>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">wa_product_match_with_price</div>
+              <code>wa_product_match_with_price('bateria tramontina', customer_id)</code> → alias "batería" matchea grupo Batería + trigrama "tramontina". Devuelve precio lista y precio con dto del cliente.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Desambiguar</div>
+              Si varios resultados: "Encontré: 1) Batería Tramontina 5 pzas $X 2) Batería Tramontina 7 pzas $Y. ¿Cuál?"
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "{Producto}: Precio lista ${lista} → Con tu dto ({X}%): <strong>${final}</strong>. Stock: {N} un."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #12 -->
+  <details class="faq-card" data-level="needs_human">
+    <summary>
+      <span class="rank-num">12</span>
+      <div class="faq-main">
+        <span class="faq-question">Quiero cambiar / devolver mercadería</span>
+        <div class="faq-meta">
+          <span class="cat-label">Cambio / Devolución</span>
+          <span class="level-pill level-human">Humano</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">22</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Necesito hacer un cambio de un producto"</div>
+        <div class="bubble">"Me llegó mal un artículo, quiero devolver"</div>
+        <div class="bubble">"Puedo cambiar unas ollas por otro modelo?"</div>
+      </div>
+      <div class="human-block">
+        <div class="human-label">Requiere intervención humana</div>
+        <div class="human-text">Cada caso de cambio/devolución requiere evaluación individual: verificar el estado del producto, motivo, plazo de garantía, y si aplica crédito, reemplazo o reintegro. El bot registra el reclamo y deriva al vendedor asignado.</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #13 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">13</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Hacen envíos a X zona?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Logística</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">21</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Hacen envíos al interior?"</div>
+        <div class="bubble">"Llegan a Mendoza?"</div>
+        <div class="bubble">"Cómo es el tema del flete?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">🚚 Sí, hacemos envíos a todo el país:
+
+• CABA y GBA: Entrega con transporte propio
+• Interior: Vía transporte acordado con el cliente
+• El costo del flete varía según destino y volumen
+
+Decime tu localidad y te doy más detalles. También podés retirar directo de nuestro depósito.</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #14 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">14</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Cuál es el pedido mínimo?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Condiciones</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">20</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Hay mínimo de compra?"</div>
+        <div class="bubble">"Cuánto es lo mínimo que puedo pedir?"</div>
+        <div class="bubble">"Tiene mínimo para hacer envío?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">El pedido mínimo es de ${monto_minimo} + IVA.
+
+Para envíos al interior, el mínimo se ajusta según la zona. Si querés, contame qué productos te interesan y te armo un presupuesto. 📦</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #15 -->
+  <details class="faq-card" data-level="semi_auto" data-web-first="true">
+    <summary>
+      <span class="rank-num">15</span>
+      <div class="faq-main">
+        <span class="faq-question">Necesito factura / remito</span>
+        <div class="faq-meta">
+          <span class="cat-label">Facturación</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">19</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Me mandas la factura?"</div>
+        <div class="bubble">"Necesito el remito del último pedido"</div>
+        <div class="bubble">"No me llegó la factura"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Podés descargar tus facturas y remitos directamente desde la web: 🧾
+🔗 [link a sección mis comprobantes]
+
+📝 Cómo hacerlo:
+1. Ingresá con tu usuario y contraseña
+2. Andá a "Mis Pedidos" o "Comprobantes"
+3. Buscá el pedido y hacé clic en "Descargar factura/remito"
+
+Están disponibles en PDF para imprimir o guardar. Si necesitás tu usuario, avisame. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere recibirla por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Consulta DB</div>
+              Buscar en <code>orders</code> los pedidos facturados del cliente → obtener nro. de factura/remito
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Acción</div>
+              Generar enlace de descarga del PDF o reenviar factura al email del cliente
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Te envié la factura #{nro} al email. También podés descargarla acá: {link}"
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #16 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">16</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Tienen financiación / cuotas?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Pago / CBU</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">18</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Se puede pagar en cuotas?"</div>
+        <div class="bubble">"Hacen financiación?"</div>
+        <div class="bubble">"Aceptan cheques?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">💳 Formas de pago disponibles:
+
+• Transferencia bancaria (con datos ya enviados)
+• Cheques (consultar condiciones con tu vendedor)
+• Contado efectivo
+• E-cheq
+
+Para financiación especial o cuotas, consultá con tu vendedor asignado que te arma la mejor opción. 📞</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #17 -->
+  <details class="faq-card" data-level="semi_auto">
+    <summary>
+      <span class="rank-num">17</span>
+      <div class="faq-main">
+        <span class="faq-question">Quiero hablar con mi vendedor</span>
+        <div class="faq-meta">
+          <span class="cat-label">Contacto Vendedor</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">17</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Pasame con mi vendedor"</div>
+        <div class="bubble">"Necesito hablar con Martín"</div>
+        <div class="bubble">"Quién me atiende a mí?"</div>
+      </div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo automático</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Consulta DB</div>
+              <code>customers</code> → <code>seller_id</code> → <code>whatsapp_vendedores</code> para obtener nombre y teléfono
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Notificar</div>
+              Enviar mensaje al vendedor vía <code>wa_outbox</code> avisando que el cliente necesita atención
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Tu vendedor es {nombre}. Ya le avisé que necesitás hablar. Te va a contactar a la brevedad. 📱"
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #18 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">18</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Cómo pago? Medios de pago</span>
+        <div class="faq-meta">
+          <span class="cat-label">Pago / CBU</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">16</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Qué medios de pago aceptan?"</div>
+        <div class="bubble">"Cómo hago para pagar?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">Nuestros medios de pago:
+💵 Efectivo
+🏦 Transferencia bancaria
+📝 Cheques (a convenir)
+📱 E-cheq
+
+¿Necesitás los datos para transferencia? Te los paso al toque.</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #19 -->
+  <details class="faq-card" data-level="semi_auto" data-product-match="true" data-web-first="true">
+    <summary>
+      <span class="rank-num">19</span>
+      <div class="faq-main">
+        <span class="faq-question">Consulta por producto específico</span>
+        <div class="faq-meta">
+          <span class="cat-label">Producto</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+          <span class="pm-badge">🔍 Product Match</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">15</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Qué modelos de cafeteras tienen?"</div>
+        <div class="bubble">"Tienen algo en línea Tramontina nueva?"</div>
+        <div class="bubble">"Qué opciones hay en sartenes de 28?"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Podés explorar todo nuestro catálogo con fotos, precios y stock desde la web: 🔎
+🔗 [link al catálogo web]
+
+📝 Cómo hacerlo:
+1. Ingresá con tu usuario y contraseña
+2. Usá el buscador o navegá por categoría/marca
+3. Filtrá por medida, marca o tipo de producto
+4. Cada producto muestra precio con tu descuento y disponibilidad
+
+Así podés comparar opciones tranquilo. Si necesitás tu usuario, avisame. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere consultar por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Claude NLP</div>
+              Claude Haiku extrae: categoría, marca, medida. Ej: <code>"sartenes de 28"</code> → <code>{ query: "sarten 28" }</code>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">wa_product_match_with_price</div>
+              <code>wa_product_match_with_price('sarten 28', customer_id)</code> → alias "sartenes" matchea grupo Sartén + trigrama "28" filtra por medida. Devuelve top 5 con stock > 0.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Tenemos estas opciones en sartenes 28cm:
+1) Sartén Antiadh. 28cm — ${precio}
+2) Sartén Tramontina 28cm — ${precio}
+¿Querés ver más opciones o agregar alguna al pedido?"
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #20 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">20</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Tienen novedades / lanzamientos?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Catálogo</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">14</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Qué novedades tienen?"</div>
+        <div class="bubble">"Hay algo nuevo en la línea?"</div>
+        <div class="bubble">"Cuáles son los últimos lanzamientos?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">🆕 ¡Tenemos novedades! Mirá nuestros últimos lanzamientos:
+🔗 [link a sección novedades]
+
+También podés ver las ofertas vigentes en nuestra web.
+¿Te interesa alguna categoría en particular? Contame y te mando info. 😊</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #21 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">21</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Cuál es su dirección / horario?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Institucional</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">13</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Cuál es la dirección?"</div>
+        <div class="bubble">"Qué horario atienden?"</div>
+        <div class="bubble">"Dónde están ubicados?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">📍 Loekemeyer S.A.
+📫 Dirección: {dirección completa}
+🕐 Horario de atención: Lunes a Viernes de 8:00 a 17:00 hs
+📞 Teléfono: {teléfono}
+🌐 Web: loekemeyer.com.ar
+
+📌 Google Maps: {link}</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #22 -->
+  <details class="faq-card" data-level="semi_auto" data-product-match="true" data-web-first="true">
+    <summary>
+      <span class="rank-num">22</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Puedo agregar algo al pedido?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Hacer Pedido</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+          <span class="pm-badge">🔍 Product Match</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">12</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Se puede agregar algo al pedido que hice?"</div>
+        <div class="bubble">"Quiero sumar unos items al pedido"</div>
+        <div class="bubble">"Agregame 3 cajas de espatulas al pedido de ayer"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Si tu pedido todavía no fue despachado, podés modificarlo desde la web: ✏️
+🔗 [link a mis pedidos]
+
+📝 Cómo hacerlo:
+1. Ingresá con tu usuario y contraseña
+2. Andá a "Mis Pedidos"
+3. Buscá el pedido y hacé clic en "Editar"
+4. Agregá o quitá los productos que necesites
+5. Confirmá los cambios
+
+Si el pedido ya fue despachado, no se puede modificar desde la web. Si necesitás tu usuario, avisame. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere modificarlo por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Consulta DB</div>
+              Verificar si el pedido está en estado editable (<code>status</code> = 'pending' o 'confirmed'). Si ya despachó → "No es posible modificarlo."
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Claude NLP</div>
+              Si el cliente ya dijo qué agregar: <code>"3 cajas de espatulas"</code> → <code>{ query: "espatulas", qty: 3 }</code>. Si no, preguntar.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">wa_product_match_with_price</div>
+              <code>wa_product_match_with_price('espatulas', customer_id)</code> → alias "espatulas" matchea grupo Espátula. Desambiguar si hay varias opciones.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Modificar y confirmar</div>
+              <code>edit_order_fast</code> → agregar items. "Listo, agregué 3 cajas de Espátula Nylon a tu pedido #{nro}. Nuevo total: ${total}."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #23 -->
+  <details class="faq-card" data-level="needs_human">
+    <summary>
+      <span class="rank-num">23</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Hay faltante en mi pedido?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Reclamo</span>
+          <span class="level-pill level-human">Humano</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">11</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Me falta mercadería en el pedido"</div>
+        <div class="bubble">"Revisé el pedido y faltan 2 cajas"</div>
+        <div class="bubble">"No me llegó todo lo que pedí"</div>
+      </div>
+      <div class="human-block">
+        <div class="human-label">Requiere intervención humana</div>
+        <div class="human-text">Requiere verificación contra el remito, revisión de depósito, y posible reenvío parcial. El bot registra el reclamo con detalle de lo faltante y notifica al vendedor y al sector de despacho.</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #24 -->
+  <details class="faq-card" data-level="semi_auto" data-product-match="true" data-web-first="true">
+    <summary>
+      <span class="rank-num">24</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Tienen X marca?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Catálogo</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+          <span class="pm-badge">🔍 Product Match</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">10</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Trabajan con Tramontina?"</div>
+        <div class="bubble">"Tienen productos de Oster?"</div>
+        <div class="bubble">"Venden la marca Hudson?"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Podés ver todas las marcas y productos disponibles en nuestro catálogo web: 🏷️
+🔗 [link al catálogo web]
+
+📝 Cómo hacerlo:
+1. Ingresá con tu usuario y contraseña
+2. Usá el filtro de "Marca" en el buscador
+3. Seleccioná la marca que te interesa
+4. Vas a ver todos los productos disponibles con precios y stock
+
+Si necesitás tu usuario, avisame. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere consultar por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Claude NLP</div>
+              Claude Haiku extrae la marca: <code>"tramontina"</code>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">wa_product_match</div>
+              <code>wa_product_match('tramontina')</code> → alias de tipo 'brand' matchea todos los productos Tramontina (scope 'group', filter_field = 'description'). Agrupar resultados por categoría.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Sí, trabajamos con Tramontina. Tenemos {N} productos en: Ollas, Sartenes, Cuchillos, Baterías. ¿Querés que te pase opciones de alguna categoría?"
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #25 -->
+  <details class="faq-card" data-level="needs_human">
+    <summary>
+      <span class="rank-num">25</span>
+      <div class="faq-main">
+        <span class="faq-question">Problema con mercadería recibida</span>
+        <div class="faq-meta">
+          <span class="cat-label">Reclamo</span>
+          <span class="level-pill level-human">Humano</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">9</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Me llegó un producto roto"</div>
+        <div class="bubble">"La mercadería vino con defecto"</div>
+        <div class="bubble">"Me mandaron un modelo equivocado"</div>
+      </div>
+      <div class="human-block">
+        <div class="human-label">Requiere intervención humana</div>
+        <div class="human-text">Necesita evaluación del daño (fotos), determinar si es responsabilidad del transporte o fábrica, gestionar garantía o reposición. El bot pide fotos del problema, registra el reclamo y lo escala al vendedor con toda la información.</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #26 -->
+  <details class="faq-card" data-level="semi_auto" data-product-match="true" data-web-first="true">
+    <summary>
+      <span class="rank-num">26</span>
+      <div class="faq-main">
+        <span class="faq-question">Necesito presupuesto formal</span>
+        <div class="faq-meta">
+          <span class="cat-label">Precios / Lista</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+          <span class="pm-badge">🔍 Product Match</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">9</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Me arman un presupuesto?"</div>
+        <div class="bubble">"Necesito una cotización formal por mail"</div>
+        <div class="bubble">"Preciso un presupuesto de 20 ollas y 10 sartenes"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Podés armar tu presupuesto directamente desde la web y descargarlo en PDF: 📄
+🔗 [link al cotizador]
+
+📝 Cómo hacerlo:
+1. Ingresá con tu usuario y contraseña
+2. Agregá los productos y cantidades al carrito
+3. Antes de confirmar, hacé clic en "Descargar presupuesto"
+4. Se genera un PDF formal con tus precios y descuento
+
+El presupuesto queda guardado para cuando quieras confirmarlo como pedido. Si necesitás tu usuario, avisame. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere armarlo por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Recopilar</div>
+              Bot: "Decime los productos y cantidades." Si ya listó items, Claude Haiku los parsea directamente.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">wa_product_match_with_price</div>
+              Por cada item → <code>wa_product_match_with_price(query, customer_id)</code>. Desambiguar si hay múltiples matches. Mismo flujo iterativo que hacer pedido (#8).
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Generar y enviar</div>
+              Armar resumen con precios + dto → generar PDF → enviar por WA + email. "Acá tenés tu presupuesto. Validez: {N} días."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #27 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">27</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Cuándo abren inscripción?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Registro</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">8</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Cuándo puedo inscribirme como mayorista?"</div>
+        <div class="bubble">"Está abierta la inscripción?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">📋 La inscripción para nuevos clientes mayoristas está abierta de forma permanente.
+
+Para registrarte necesitás:
+• CUIT
+• Constancia de inscripción AFIP
+• Datos de contacto comercial
+
+Envianos la documentación por acá o al email ventas@loekemeyer.com.ar y te damos de alta. 🤝</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #28 -->
+  <details class="faq-card" data-level="semi_auto" data-web-first="true">
+    <summary>
+      <span class="rank-num">28</span>
+      <div class="faq-main">
+        <span class="faq-question">Quiero ser cliente mayorista</span>
+        <div class="faq-meta">
+          <span class="cat-label">Registro</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">8</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Cómo hago para comprar por mayor?"</div>
+        <div class="bubble">"Quiero abrir una cuenta mayorista"</div>
+        <div class="bubble">"Me interesa ser cliente de ustedes"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">¡Qué bueno que te interese! Podés registrarte como cliente mayorista directamente desde nuestra web: 🤝
+🔗 [link al formulario de registro]
+
+📝 Cómo hacerlo:
+1. Ingresá al formulario de registro
+2. Completá los datos de tu empresa: nombre, CUIT, rubro
+3. Cargá la constancia de inscripción AFIP
+4. Enviá la solicitud
+
+Un vendedor te va a contactar en 24hs para completar tu alta y asignarte las condiciones comerciales. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere registrarse por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Recopilar</div>
+              Bot pide: nombre de la empresa, CUIT, rubro, ubicación, email
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Registrar</div>
+              Guardar solicitud en tabla de prospectos / notificar al equipo comercial
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              "Registré tu solicitud. Un vendedor te va a contactar en las próximas 24hs para completar tu alta. 🤝"
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #29 -->
+  <details class="faq-card" data-level="full_auto">
+    <summary>
+      <span class="rank-num">29</span>
+      <div class="faq-main">
+        <span class="faq-question">¿Aceptan Mercado Pago?</span>
+        <div class="faq-meta">
+          <span class="cat-label">Pago / CBU</span>
+          <span class="level-pill level-full">Full Auto</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">7</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Puedo pagar por Mercado Pago?"</div>
+        <div class="bubble">"Aceptan MercadoPago?"</div>
+      </div>
+      <div class="response-block">
+        <div class="response-label">Respuesta del bot</div>
+        <div class="response-text">Por el momento no aceptamos Mercado Pago como medio de pago.
+
+Nuestras opciones son:
+💵 Efectivo
+🏦 Transferencia bancaria
+📝 Cheques / E-cheq
+
+¿Necesitás los datos bancarios para transferir?</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- #30 -->
+  <details class="faq-card" data-level="semi_auto" data-product-match="true" data-web-first="true">
+    <summary>
+      <span class="rank-num">30</span>
+      <div class="faq-main">
+        <span class="faq-question">Quiero cancelar / modificar pedido</span>
+        <div class="faq-meta">
+          <span class="cat-label">Hacer Pedido</span>
+          <span class="level-pill level-semi">Semi Auto</span>
+          <span class="wf-badge">🌐 Web First</span>
+          <span class="pm-badge">🔍 Product Match</span>
+        </div>
+      </div>
+      <div class="faq-freq">
+        <span class="freq-num">7</span>
+        <span class="freq-label">msgs</span>
+      </div>
+    </summary>
+    <div class="faq-detail">
+      <div class="examples-label">Ejemplos reales de clientes</div>
+      <div class="example-bubbles">
+        <div class="bubble">"Quiero cancelar el pedido que hice"</div>
+        <div class="bubble">"Se puede anular?"</div>
+        <div class="bubble">"Necesito cambiar las cantidades del pedido"</div>
+      </div>
+      <div class="web-first-block">
+        <div class="web-first-label">🌐 Respuesta inicial — Derivar a la web</div>
+        <div class="web-first-text">Si tu pedido todavía no fue despachado, podés cancelarlo o modificarlo desde la web: ❌
+🔗 [link a mis pedidos]
+
+📝 Cómo hacerlo:
+1. Ingresá con tu usuario y contraseña
+2. Andá a "Mis Pedidos"
+3. Buscá el pedido pendiente
+4. Hacé clic en "Editar" para modificar o "Cancelar" para anular
+
+Si el pedido ya está en preparación o tránsito, contactá a tu vendedor. Si necesitás tu usuario, avisame. 😊</div>
+      </div>
+      <div class="fallback-divider"><span class="fallback-text">Si el cliente prefiere gestionarlo por chat</span></div>
+      <div class="flow-block">
+        <div class="flow-label">Flujo semi auto</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-dot db"></div>
+            <div class="step-content db">
+              <div class="step-tag db">Consulta DB</div>
+              <code>orders</code> → verificar <code>status</code>: si está 'pending'/'confirmed' se puede cancelar; si ya se preparó/despachó, no
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot"></div>
+            <div class="step-content action">
+              <div class="step-tag action">Evaluar</div>
+              Cancelable → pedir confirmación al cliente. No cancelable → informar que ya está en preparación/tránsito.
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-dot respond"></div>
+            <div class="step-content respond">
+              <div class="step-tag respond">Responder</div>
+              Si cancelable: "Tu pedido #{nro} fue cancelado correctamente." / Si no: "Tu pedido ya está en {estado}, no es posible cancelarlo. ¿Querés hablar con tu vendedor?"
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+</div>
+
+<script>
+  // Filter functionality
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const filter = btn.dataset.filter;
+      document.querySelectorAll('.faq-card').forEach(card => {
+        if (filter === 'all') {
+          card.classList.remove('hidden');
+        } else if (filter === 'product_match') {
+          card.classList.toggle('hidden', card.dataset.productMatch !== 'true');
+        } else if (filter === 'web_first') {
+          card.classList.toggle('hidden', card.dataset.webFirst !== 'true');
+        } else {
+          card.classList.toggle('hidden', card.dataset.level !== filter);
+        }
+      });
+    });
+  });
+</script>
