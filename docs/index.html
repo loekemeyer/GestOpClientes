@@ -121,6 +121,7 @@ const SB_KEY = "sb_publishable_mVX5MnjwM770cNjgiL6yLw_LDNl9pML";
 const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
 let currentRole = null;
+const testPhone = "5491100000000"; // Teléfono simulado para pruebas
 
 // --- Auth ---
 async function sha256(text) {
@@ -240,34 +241,26 @@ async function sendMessage() {
   chatSend.disabled = true;
   showTyping();
 
-  // TODO: conectar al bot real via edge function
-  // Por ahora simula respuesta local
-  await new Promise(r => setTimeout(r, 800 + Math.random() * 1200));
-  hideTyping();
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { phone: testPhone, text },
+    });
 
-  const reply = simulateReply(text);
-  addBotMsg(reply);
+    hideTyping();
+
+    if (error) {
+      addBotMsg("❌ Error al conectar con el bot: " + (error.message || "desconocido"));
+    } else {
+      addBotMsg(data.reply || "Sin respuesta");
+      if (data.customer) document.getElementById("chatStatus").textContent = "Conectado — " + data.customer;
+    }
+  } catch (err) {
+    hideTyping();
+    addBotMsg("❌ Error de conexión: " + err.message);
+  }
+
   chatSend.disabled = false;
   chatInput.focus();
-}
-
-function simulateReply(text) {
-  const lower = text.toLowerCase().trim();
-  if (/pedido|estado|seguimiento|envío|envio/.test(lower))
-    return "📦 Para consultar tus pedidos necesito conectarme al bot real. Por ahora esto es solo la interfaz de prueba.\n\n_Próximamente: conexión al webhook._";
-  if (/nuevo|pedir|quiero|necesito|cajas/.test(lower))
-    return "🛒 Entendí que querés hacer un pedido. Cuando conectemos el bot, vas a poder decirme los productos y armo el pedido.\n\n_Próximamente: conexión al webhook._";
-  if (/retir|pasar a buscar|recoger/.test(lower))
-    return "🚚 Consulta de retiro registrada. El bot real va a chequear tus pedidos programados.\n\n_Próximamente: conexión al webhook._";
-  if (/hola|buenas|buen día|buenos/.test(lower))
-    return "¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta";
-  if (/ayuda|menú|menu|opciones/.test(lower))
-    return "Podés preguntarme por:\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta";
-  if (/cancelar/.test(lower))
-    return "❌ Pedido en borrador cancelado (simulación).\n\n_Próximamente: conexión al webhook._";
-  if (/gracias|genial|dale|ok/.test(lower))
-    return "¡De nada! Si necesitás algo más, escribime. 😊";
-  return "Entendido. Cuando conectemos el bot real, voy a poder procesar tu consulta con toda la info de tu cuenta.\n\n_Esto es una simulación — próximamente: conexión al webhook._";
 }
 
 chatInput.addEventListener("keydown", e => { if (e.key === "Enter" && !chatSend.disabled) sendMessage(); });
@@ -278,6 +271,6 @@ function clearChat() {
   addBotMsg("¡Hola! Soy el asistente de Loekemeyer. ¿En qué te puedo ayudar?\n\n📦 Estado de tus pedidos\n🛒 Hacer un pedido nuevo\n🚚 Saber si podés pasar a retirar\n💬 Cualquier otra consulta");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.1.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.2.0</div>
 </body>
 </html>
