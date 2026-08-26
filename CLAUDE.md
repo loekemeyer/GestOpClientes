@@ -108,6 +108,7 @@ Todo el acceso a datos va por RPCs `security definer`, no por queries directos.
 
 ## Reglas
 
+- NUNCA modificar bases de datos, tablas, funciones, policies ni cualquier otro recurso de proyectos hermanos (Virgilio, PaginaLK, Costos, Planify) sin avisar explícitamente al usuario que el cambio es en OTRO proyecto y obtener confirmación. Documentar cualquier cambio cross-project necesario en el SQL migration correspondiente de este repo como comentario, para que el usuario lo aplique manualmente.
 - NUNCA hardcodear anon key ni service role key en el código fuente
 - NUNCA enviar datos sensibles del cliente a Claude (solo lo necesario)
 - Siempre responder 200 a Meta (incluso en error interno) para no perder webhook
