@@ -34,7 +34,7 @@ comment on column wa_faq.requires_product_match is
 
 -- #2 — ¿Qué descuento tengo? (descuentos_promociones)
 update wa_faq set
-  web_first_response = E'Podés consultar tus descuentos y precios finales directamente en la web: 💰\n🔗 loekemeyer.com → "Pedidos Mayorista"\n\n📝 Cómo hacerlo:\n1. Ingresá con tu CUIT y contraseña\n2. Los precios que ves ya tienen tu descuento por volumen aplicado\n3. Al finalizar el pedido, se suma el 2% extra por cotizador/web\n\nAsí podés ver tus precios reales al instante. Si necesitás tu clave, avisame. 😊',
+  web_first_response = E'Podés consultar tus descuentos y precios finales directamente en la web: 💰\n🔗 loekemeyer.com → "Pedidos Mayorista"\n\n📝 Cómo hacerlo:\n1. Ingresá con tu CUIT y contraseña\n2. Los precios que ves ya tienen tu descuento por volumen aplicado\n3. Al finalizar el pedido, se suma el 2% extra por compra web\n\nAsí podés ver tus precios reales al instante. Si necesitás tu clave, avisame. 😊',
   fallback_label = 'Si el cliente prefiere consultar por chat'
 where category = 'descuentos_promociones'
   and subcategory is null;
@@ -68,7 +68,7 @@ where category = 'hacer_modificar_pedido'
 
 -- #11 — ¿Cuánto sale X? (precios_lista, consulta_precio_articulo)
 update wa_faq set
-  web_first_response = E'Podés consultar todos los precios con tu descuento aplicado en nuestro cotizador web: 💰\n🔗 loekemeyer.com → "Pedidos Mayorista"\n\n📝 Cómo hacerlo:\n1. Ingresá con tu CUIT y contraseña\n2. Buscá el producto por nombre o categoría\n3. El precio ya aparece con tu descuento aplicado\n\nTambién podés ver stock disponible en tiempo real. Si necesitás tu usuario y clave, avisame. 😊',
+  web_first_response = E'Podés consultar todos los precios con tu descuento aplicado en nuestra página web: 💰\n🔗 loekemeyer.com → "Pedidos Mayorista"\n\n📝 Cómo hacerlo:\n1. Ingresá con tu CUIT y contraseña\n2. Buscá el producto por nombre o categoría\n3. El precio ya aparece con tu descuento aplicado\n\nTambién podés ver stock disponible en tiempo real. Si necesitás tu usuario y clave, avisame. 😊',
   fallback_label = 'Si el cliente prefiere consultar por chat',
   requires_product_match = true
 where category = 'precios_lista'

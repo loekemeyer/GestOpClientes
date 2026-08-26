@@ -106,7 +106,7 @@ insert into wa_faq (
   'semi_auto',
   'Quiero hacer un pedido / pasar un pedido',
   ARRAY['hacer pedido', 'pasar pedido', 'nuevo pedido', 'quiero pedir', 'armar pedido', 'enviar pedido', 'orden de compra', 'cargar pedido', 'te paso pedido', 'quiero comprar', 'hacer un pedido'],
-  'Podés hacer tu pedido de 3 formas:\n1️⃣ *Web*: Ingresá a loekemeyer.com con tu CUIT y contraseña\n2️⃣ *Cotizador*: Completá el Excel y envialo por acá o a ventas@loekemeyer.com\n3️⃣ *Por acá*: Decime los códigos y cantidades en cajas\n\nLa demora de entrega es de 7 a 15 días. La mercadería viaja solo con remito y la factura se envía por mail.',
+  'Podés hacer tu pedido de 2 formas:\n1️⃣ *Página Web*: Ingresá a loekemeyer.com con tu CUIT y contraseña\n2️⃣ *Por acá*: Decime los códigos y cantidades en cajas\n\nLa demora de entrega es de 7 a 15 días. La mercadería viaja solo con remito y la factura se envía por mail.',
   E'Te confirmamos la recepción del pedido. La demora de entrega es de 7 a 15 días. Viaja solo con remito y la factura se envía por mail.',
   true,
   'order_create',
@@ -217,14 +217,14 @@ insert into wa_faq (
   'semi_auto',
   '¿Qué descuento tengo? ¿Hay promociones?',
   ARRAY['descuento', 'promoción', 'promocion', 'oferta', 'bonificación', 'bonificacion', 'que descuento tengo', 'cuanto me hacen', 'hay promo', 'cyber', 'hot sale'],
-  'Tus descuentos son:\n📦 *Por volumen*: [X]% (según tu categoría)\n💻 *Por cotizador/web*: 2% adicional\n💰 *Por pago*:\n  • Contado (0-14 días): 25%\n  • 30 días: 20%\n  • 60 días: 10%\n  • 90 días: 5%\n\nEstoy consultando tu descuento por volumen específico...',
-  'Tus descuentos: por volumen (el tuyo) + 2% por cotizador/web + por pago (Contado 25% pagando de 0 a 14 días de la factura; baja según el plazo).',
+  'Tus descuentos son:\n📦 *Por volumen*: [X]% (según tu categoría)\n💻 *Por compra web*: 2% adicional\n💰 *Por pago*:\n  • Contado (0-14 días): 25%\n  • 30 días: 20%\n  • 60 días: 10%\n  • 90 días: 5%\n\nEstoy consultando tu descuento por volumen específico...',
+  'Tus descuentos: por volumen (el tuyo) + 2% por compra web + por pago (Contado 25% pagando de 0 a 14 días de la factura; baja según el plazo).',
   true,
   'customer_discount',
   75,
   18,
   8.04,
-  'Los descuentos por pago son fijos. El de volumen varía por cliente (buscar en customers). El 2% por cotizador/web es universal.'
+  'Los descuentos por pago son fijos. El de volumen varía por cliente (buscar en customers). El 2% por compra web es universal.'
 ),
 
 -- ────────────────────────────────────────────────────────────
@@ -273,18 +273,18 @@ insert into wa_faq (
 (
   'precios_lista',
   'Precios / lista',
-  'enviar_cotizador',
+  'consultar_precios',
   'full_auto',
-  '¿Me pasás la lista de precios / el cotizador?',
-  ARRAY['lista de precios', 'cotizador', 'precios', 'cotización', 'cotizacion', 'precio', 'cuanto sale', 'cuánto sale', 'pasame la lista', 'enviar cotizador', 'cotizador actualizado', 'lista actualizada', 'lista vigente'],
-  'Te enviamos la lista de precios actualizada. También podés ver los precios ingresando a loekemeyer.com con tu CUIT — ahí ves los precios con tus descuentos aplicados.\n\n🔗 loekemeyer.com → "Pedidos Mayorista"\n\nEl cotizador incluye un 2% adicional de descuento por su uso.',
+  '¿Me pasás la lista de precios?',
+  ARRAY['lista de precios', 'cotizador', 'precios', 'cotización', 'cotizacion', 'precio', 'cuanto sale', 'cuánto sale', 'pasame la lista', 'lista actualizada', 'lista vigente', 'pagina web precios'],
+  'Podés ver los precios ingresando a nuestra página web loekemeyer.com con tu CUIT — ahí ves los precios con tus descuentos aplicados.\n\n🔗 loekemeyer.com → "Pedidos Mayorista"\n\nComprar por la web incluye un 2% adicional de descuento.',
   E'Estimados clientes,\n\nCon el objetivo de mejorar su experiencia de compra, desarrollamos una nueva plataforma online para que puedan enviarnos sus pedidos de forma más ágil y sencilla.\n\nA través de Loekemeyer.com podrán gestionar su reposición con mayor facilidad, acceder a nuevos productos, consultar su historial de compras desde 2020 en adelante y repetir pedidos en un solo paso, sugerencias de compras por IA, entre otras funcionalidades.\n\nPara acceder, ingresen a Loekemeyer.com, hagan clic en "Pedidos Mayorista" e inicien sesión con su CUIT y contraseña detallada:\n\n*Tu Contraseña es ------- *\n\nQuedamos a disposición para cualquier consulta.\n\nSaludos cordiales,\nEquipo Loekemeyer',
   false,
   null,
   72,
   12,
   5.36,
-  'Respuesta fija + adjuntar cotizador PDF si es posible. Redirigir a web.'
+  'Respuesta fija. Redirigir a la página web.'
 ),
 
 (
@@ -294,7 +294,7 @@ insert into wa_faq (
   'semi_auto',
   '¿Cuánto sale el artículo [código]?',
   ARRAY['cuanto sale', 'precio del', 'precio de', 'cuánto cuesta', 'cuanto cuesta', 'valor del', 'precio artículo', 'precio articulo'],
-  'Estoy consultando el precio del artículo que me pedís. Los precios del cotizador son sin IVA. Al total se le aplica tu descuento por volumen + 2% por cotizador + descuento por plazo de pago.',
+  'Estoy consultando el precio del artículo que me pedís. Los precios de la web son sin IVA. Al total se le aplica tu descuento por volumen + 2% por compra web + descuento por plazo de pago.',
   null,
   true,
   'product_price',
@@ -311,7 +311,7 @@ insert into wa_faq (
   'full_auto',
   '¿Hubo aumento? ¿Sigue vigente la lista?',
   ARRAY['aumento', 'aumentó', 'subió', 'subio', 'sigue vigente', 'lista nueva', 'precios nuevos', 'actualizaron precios'],
-  'La lista de precios vigente es la última que te enviamos. Por el momento no tenemos aviso de aumento. Si necesitás el cotizador actualizado, te lo reenvío.',
+  'La lista de precios vigente es la que está en la página web. Por el momento no tenemos aviso de aumento. Ingresá a loekemeyer.com para ver los precios actualizados.',
   null,
   false,
   null,
