@@ -80,6 +80,19 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 5. Ejecutar acción (consulta pedido / nuevo pedido / conversacional)
 6. Responder vía Meta API
 
+## Categorización de preguntas (Clasificación interna)
+
+Toda pregunta de cliente entra en UNA de estas 4 categorías. Aplica tanto a FAQs catalogadas como a nuevas preguntas:
+
+| Categoría | Definición | Ejemplo | Implementación |
+|-----------|-----------|---------|-----------------|
+| **AUTO** | Respuesta estática, copy-paste sin cambios | "¿Cuáles son los horarios?" → "L-V 9-18, Sábado 10-14" | Plantilla en `wa_faq.bot_response` |
+| **SEMIAUTO** | Plantilla + datos de Supabase (lookup sin IA) | "¿Cuándo llega mi pedido?" → Buscar en `order_tracking` y completar fecha | `handleFaqLookup` con RPC (`order_status`, `customer_discount`, `product_price`, etc.) |
+| **INTELIGENCIA** | Requiere Claude (parsing, clasificación, matching) | "3 cajas de abrelatas rojos" → IA identifica producto, puede haber múltiples; preguntar cuál | Intent detection (`detectIntent`) + `handleNewOrder`, `handleGeneral` |
+| **HUMANO** | Requiere aprobación/revisión de un vendedor | Aprobación de cliente nuevo después de toma de datos → enviar a vendedor | Escalación automática (`automation_level: "needs_human"`) o bandera `status: "pending"` en `wa_prospect_leads` |
+
+**Regla de oro**: Minimizar IA (SEMIAUTO > AUTO > INTELIGENCIA > HUMANO) → solo gastar tokens cuando no hay otra opción.
+
 ## Testing
 
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
