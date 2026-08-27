@@ -43,7 +43,7 @@ test_faq 10 "¿Donde está mi factura?" "factura se envía"
 test_faq 10 "no llegó factura" "pasame tu CUIT"
 test_faq 15 "¿Como pago?" "medios de pago"
 test_faq 15 "transferencia bancaria" "Credicoop"
-test_faq 15 "¿Tienen cuotas?" "descuento"
+test_faq 15 "datos para transferir" "CBU"
 test_faq 21 "¿Cual es el mínimo?" "\$500"
 test_faq 21 "mínimo de compra" "300"
 

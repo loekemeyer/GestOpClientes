@@ -26,10 +26,10 @@ Phone: 1166574113
 FAQ #10: "¿Donde está mi factura?" ... ✅ PASS
 FAQ #10: "no llegó factura" ... ✅ PASS
 FAQ #15: "¿Como pago?" ... ✅ PASS
-FAQ #15: "¿Tienen cuotas?" ... ✅ PASS
+FAQ #15: "datos para transferir" ... ✅ PASS
 FAQ #21: "¿Cual es el mínimo?" ... ✅ PASS
 FAQ #21: "mínimo de compra" ... ✅ PASS
-📊 Results: 7 passed, 0 failed
+📊 Results: 6 passed, 0 failed
 🎉 All tests passed!
 ```
 
