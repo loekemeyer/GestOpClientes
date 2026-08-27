@@ -19,7 +19,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const SECRET = "8dctbyZWNKfIq88ZKRjb_j_udAgdULGAAMXEFpsA5ww";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const TEMPLATE = "pedido_facturado_sale";   // nombre del template en Meta (crear+aprobar)
+const TEMPLATE = "pedido_facturado_sale";        // aviso normal (3 params: fecha, NP, monto)
+const TEMPLATE_ECHEQ = "pedido_facturado_echeq"; // aviso e-check (4 params: fecha, NP, monto, días)
 
 // ⚠ MODO PRUEBA — mientras este número esté seteado, TODO aviso se redirige SOLO acá y
 // NUNCA llega a un WhatsApp de cliente/empresa. Para salir a producción (mandar al cliente
@@ -67,6 +68,23 @@ Deno.serve(async (req) => {
   if (!np || !cc) return json({ skipped: "falta_np_o_cliente" }, 200);
   if (!Number.isFinite(total) || total <= 0) return json({ skipped: "sin_monto" }, 200);
 
+  // 0) Método de pago elegido (cruce por cod_cliente + fecha contra orders de LK).
+  //    Si fue e-check (90/120 días) el aviso lleva una nota extra (template distinto).
+  let esEcheq = false;
+  let diasPlazo: number | null = null;
+  try {
+    const pmRes = await rest("rpc/bot_pago_por_cliente_fecha", {
+      method: "POST",
+      body: JSON.stringify({ p_cod_cliente: cc, p_fecha: fechaSalida || null }),
+    });
+    const pm = pmRes.ok ? await pmRes.json() : [];
+    if (Array.isArray(pm) && pm.length) {
+      esEcheq = !!pm[0].es_echeq;
+      diasPlazo = pm[0].dias_plazo != null ? Number(pm[0].dias_plazo) : null;
+    }
+  } catch { /* sin dato de pago → aviso normal */ }
+  const useEcheq = esEcheq && (diasPlazo === 90 || diasPlazo === 120);
+
   // 1) Resolver WhatsApp del cliente (primario). Fallback a wa_clientes_telefono.
   let phone = "";
   const waRes = await rest(
@@ -95,7 +113,7 @@ Deno.serve(async (req) => {
   const dedup = await rest("bot_facturado_avisos", {
     method: "POST",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ np, cod_cliente: cc, total }),
+    body: JSON.stringify({ np, cod_cliente: cc, total, fecha_salida: fechaSalida || null }),
   });
   if (dedup.status === 409) return json({ skipped: "ya_avisado", np }, 200);
   if (!dedup.ok) return json({ error: "dedup_fallo", detail: (await dedup.text()).slice(0, 300) }, 500);
@@ -106,8 +124,11 @@ Deno.serve(async (req) => {
     headers: { Prefer: "return=representation" },
     body: JSON.stringify({
       phone: destPhone,
-      template_name: TEMPLATE,
-      template_params: { "1": fmtFecha(fechaSalida), "2": np, "3": fmtMonto(total) },
+      // e-check → template con nota extra ("hacé el e-check ahora, no a los 75 días").
+      template_name: useEcheq ? TEMPLATE_ECHEQ : TEMPLATE,
+      template_params: useEcheq
+        ? { "1": fmtFecha(fechaSalida), "2": np, "3": fmtMonto(total), "4": String(diasPlazo) }
+        : { "1": fmtFecha(fechaSalida), "2": np, "3": fmtMonto(total) },
       status: "pending",
     }),
   });
@@ -116,6 +137,7 @@ Deno.serve(async (req) => {
   return json({
     enqueued: true, outbox_id: insBody?.[0]?.id ?? true,
     phone: destPhone, cliente_phone: phone || null,
-    test_mode: !!TEST_REDIRECT_PHONE, np, monto: fmtMonto(total),
+    test_mode: !!TEST_REDIRECT_PHONE, echeq: useEcheq, dias_plazo: diasPlazo,
+    np, monto: fmtMonto(total),
   }, 200);
 });
