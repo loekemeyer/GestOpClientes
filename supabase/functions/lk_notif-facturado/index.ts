@@ -21,6 +21,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TEMPLATE = "pedido_facturado_sale";   // nombre del template en Meta (crear+aprobar)
 
+// ⚠ MODO PRUEBA — mientras este número esté seteado, TODO aviso se redirige SOLO acá y
+// NUNCA llega a un WhatsApp de cliente/empresa. Para salir a producción (mandar al cliente
+// real): poner "" (cadena vacía). No borres esto sin confirmación explícita.
+const TEST_REDIRECT_PHONE = "5491162521635";
+
 function rest(path: string, init: RequestInit = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
@@ -76,12 +81,15 @@ Deno.serve(async (req) => {
     const altRows = altRes.ok ? await altRes.json() : [];
     if (Array.isArray(altRows) && altRows.length) phone = canonPhone(altRows[0].telefono);
   }
-  if (!phone) return json({ skipped: "sin_telefono", cod_cliente: cc }, 200);
+  // Destino: en MODO PRUEBA todo se redirige al teléfono de prueba (nunca al cliente);
+  // en producción (TEST_REDIRECT_PHONE = "") va al WhatsApp real del cliente.
+  const destPhone = TEST_REDIRECT_PHONE || phone;
+  if (!destPhone) return json({ skipped: "sin_telefono", cod_cliente: cc }, 200);
 
   // 2) Blacklist / opt-out
-  const blRes = await rest(`wa_blacklist?select=id&phone=eq.${encodeURIComponent(phone)}&limit=1`);
+  const blRes = await rest(`wa_blacklist?select=id&phone=eq.${encodeURIComponent(destPhone)}&limit=1`);
   const blRows = blRes.ok ? await blRes.json() : [];
-  if (Array.isArray(blRows) && blRows.length) return json({ skipped: "blacklist", phone }, 200);
+  if (Array.isArray(blRows) && blRows.length) return json({ skipped: "blacklist", phone: destPhone }, 200);
 
   // 3) Dedup por NP (una sola vez). 409 = ya avisado.
   const dedup = await rest("bot_facturado_avisos", {
@@ -97,7 +105,7 @@ Deno.serve(async (req) => {
     method: "POST",
     headers: { Prefer: "return=representation" },
     body: JSON.stringify({
-      phone,
+      phone: destPhone,
       template_name: TEMPLATE,
       template_params: { "1": fmtFecha(fechaSalida), "2": np, "3": fmtMonto(total) },
       status: "pending",
@@ -105,5 +113,9 @@ Deno.serve(async (req) => {
   });
   const insBody = await ins.json();
   if (!ins.ok) return json({ error: "outbox_fallo", detail: insBody }, 500);
-  return json({ enqueued: true, outbox_id: insBody?.[0]?.id ?? true, phone, np, monto: fmtMonto(total) }, 200);
+  return json({
+    enqueued: true, outbox_id: insBody?.[0]?.id ?? true,
+    phone: destPhone, cliente_phone: phone || null,
+    test_mode: !!TEST_REDIRECT_PHONE, np, monto: fmtMonto(total),
+  }, 200);
 });

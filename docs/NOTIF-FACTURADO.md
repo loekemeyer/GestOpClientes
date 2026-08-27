@@ -56,6 +56,14 @@ Operadora tilda ✓ facturar  →  INSERT en Facturacion_NP (proyecto Virgilio)
 3. **Cliente con WhatsApp vinculado** en `bot_customer_whatsapps` (o `wa_clientes_telefono`).
    Hoy hay pocos vinculados.
 
+## 🔒 MODO PRUEBA (activo)
+
+`lk_notif-facturado` tiene `TEST_REDIRECT_PHONE = "5491162521635"`: **TODO** aviso se
+redirige SOLO a ese número (el teléfono de prueba), **nunca** a un WhatsApp de cliente
+o de la empresa. Para salir a producción (mandar al cliente real), poner la constante
+en `""`. La respuesta de la función incluye `test_mode: true` mientras está activo.
+⚠ Aun así, no sale nada hasta que el template esté aprobado y estén los secrets del flush.
+
 ## Nota de arquitectura
 
 Coexisten dos webhooks en LK: `whatsapp-webhook` (v148, el maduro/vivo) y
