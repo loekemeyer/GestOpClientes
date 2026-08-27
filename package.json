@@ -1,0 +1,28 @@
+{
+  "name": "gestopclientes-bot",
+  "version": "0.8.0",
+  "description": "BotWA-LK: WhatsApp Bot para Loekemeyer",
+  "type": "module",
+  "scripts": {
+    "dev": "supabase functions serve lk_whatsapp-webhook --env-file .env.local",
+    "dev:test": "supabase functions serve lk_chat-test --env-file .env.local",
+    "test:faq": "bash tests/faq-tests.sh",
+    "test:faq:local": "bash tests/faq-tests.sh http://localhost:54321/functions/v1/lk_chat-test 1166574113",
+    "db:up": "supabase db push",
+    "db:down": "supabase db reset",
+    "migrations:list": "ls -la sql/",
+    "logs:webhook": "supabase functions get-logs lk_whatsapp-webhook",
+    "logs:test": "supabase functions get-logs lk_chat-test"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "supabase",
+    "edge-functions",
+    "loekemeyer"
+  ],
+  "author": "Loekemeyer",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
