@@ -93,6 +93,85 @@ Toda pregunta de cliente entra en UNA de estas 4 categorías. Aplica tanto a FAQ
 
 **Regla de oro**: Minimizar IA (SEMIAUTO > AUTO > INTELIGENCIA > HUMANO) → solo gastar tokens cuando no hay otra opción.
 
+## Mapa de implementación
+
+### Edge Functions
+
+| Función | Archivo | Qué hace |
+|---------|---------|----------|
+| `lk_whatsapp-webhook` | `supabase/functions/lk_whatsapp-webhook/index.ts` | Webhook producción Meta. Recibe POST, identifica cliente, detecta intent, responde vía WA API. Usa `matchFAQ` (viejo, keywords en `claude.ts`) |
+| `lk_chat-test` | `supabase/functions/lk_chat-test/index.ts` | Endpoint de test (dashboard). Misma lógica pero sin enviar a WA. Usa `wa_faq_match` RPC (nuevo, trigram). También expone: stats, config rate limit, blacklist CRUD |
+
+### Shared modules (`supabase/functions/_shared/`)
+
+| Archivo | Exports principales |
+|---------|-------------------|
+| `wa-api.ts` | `canonPhone`, `waPost`, `sendText`, `sendTemplate`, `markRead`, `parseIncoming` |
+| `claude.ts` | `claudeMessage`, `detectIntent` (Haiku), `conversationalReply` (Sonnet), `matchFAQ` (keywords legacy) |
+| `supabase.ts` | `supabase` (client PaginaLK), `getSetting`, `getIsisClient` (client ISIS para facturas) |
+
+### Handlers en `lk_chat-test/index.ts`
+
+| Handler | Intent / trigger | Categoría | Qué hace |
+|---------|-----------------|-----------|----------|
+| `handleFaq` | Pre-intent (trigram match) | AUTO/SEMIAUTO | Busca en `wa_faq` vía RPC `wa_faq_match`. Si score ≥ 0.3 responde sin gastar tokens |
+| `handleFaqLookup` | FAQ con `requires_db_lookup` | SEMIAUTO | Lookup real: `order_status`, `customer_discount`, `product_price`, `product_stock`, `order_modify` |
+| `handleLinking` | Cliente no identificado | — | Pide CUIT/código, busca en `customers`. Si "soy nuevo" → crea lead en `wa_prospect_leads` |
+| `handleAltaStep` | Lead en curso | HUMANO | Alta paso a paso (13 campos + pregunta extra). Status final: `complete` → vendedor revisa |
+| `handleOrderQuery` | `consulta_pedido` | SEMIAUTO | Últimos 5 pedidos (90 días) + tracking |
+| `handleNewOrder` | `nuevo_pedido` | INTELIGENCIA | Parsea productos con Sonnet → `wa_product_match` → draft en `wa_order_draft` → confirmar → `bot_submit_order` |
+| `handlePickup` | `retiro` | SEMIAUTO | Busca pedidos programados en `order_tracking` |
+| `handleCancel` | `cancelar` | SEMIAUTO | Cancela borrador en `wa_order_draft` (status → expired) |
+| `handleInvoiceQuery` | `consulta_factura` | INTELIGENCIA | Parsea con Haiku → busca en ISIS vía RPC `buscar_factura` → formatea resultados |
+| `handleGeneral` | `otro` / fallback | INTELIGENCIA | Respuesta conversacional con Sonnet |
+| `handleStats` | `action: "stats"` | Admin | Costo tokens mes/semana/sesión desde `bot_token_usage` |
+| `handleConfigGet/Save` | `action: "config_*"` | Admin | Lee/guarda rate limit en `app_settings` |
+| `handleBlacklist*` | `action: "blacklist_*"` | Admin | CRUD `wa_blacklist` |
+
+### Funciones SQL (RPCs)
+
+| RPC | Archivo SQL | Qué hace |
+|-----|-------------|----------|
+| `wa_identify_customer` | `sql/010_*` | Identifica cliente por teléfono (normaliza variantes) |
+| `wa_product_match` | `sql/008_*` | Búsqueda inteligente: aliases → trigrama → ILIKE |
+| `wa_faq_match` | `sql/007_*` + actualizaciones | Matchea texto contra FAQs por trigram similarity |
+| `wa_check_rate_limit` | `sql/012_*` | Rate limit por teléfono (msgs/hora) |
+| `bot_submit_order` | PaginaLK (externo) | Crea pedido desde borrador WA |
+| `buscar_factura` | ISIS (externo) | Busca comprobantes en sistema de facturación |
+
+### Tablas propias del bot
+
+| Tabla | Archivo SQL | Propósito |
+|-------|-------------|-----------|
+| `customer_phones` | `sql/001_*` | Vincula teléfono WA ↔ customer (legacy, reemplazada por `bot_customer_whatsapps`) |
+| `bot_customer_whatsapps` | — | Vinculación teléfono ↔ customer (actual) |
+| `wa_outbox` | `sql/002_*` | Cola de mensajes salientes (patrón Virgilio) |
+| `wa_order_draft` | `sql/003_*` | Borrador de pedido en curso (status: building → confirming → submitted/expired) |
+| `wa_conversations` | `sql/004_*` | Log de mensajes in/out para auditoría |
+| `bot_token_usage` | — | Log de tokens/costo por llamada Claude API |
+| `wa_faq` | `sql/007_*` + 009-031 | FAQs con categoría, automation_level, bot_response, triggers |
+| `product_aliases` | `sql/008_*` | Aliases de productos para matching (pg_trgm) |
+| `wa_blacklist` | `sql/012_*` | Teléfonos bloqueados |
+| `wa_prospect_leads` | `sql/013_*` | Leads de clientes nuevos (alta paso a paso) |
+| `app_settings` | — | Config key/value (rate limits, API keys, ISIS credentials) |
+
+### Conexiones externas
+
+| Sistema | Cómo conecta | Para qué |
+|---------|-------------|----------|
+| **Meta WA API** | `graph.facebook.com/v21.0` vía `wa-api.ts` | Enviar/recibir mensajes, templates, mark read |
+| **Claude API** | `api.anthropic.com/v1/messages` vía `claude.ts` | Intent detection (Haiku), parsing (Haiku), respuestas (Sonnet) |
+| **ISIS Supabase** | Client separado vía `getIsisClient()` | Búsqueda de facturas/comprobantes (`buscar_factura`) |
+| **PaginaLK Supabase** | Client principal (`supabase`) | Todo lo demás (clientes, pedidos, FAQs, config) |
+
+### Templates WhatsApp (pendiente creación en Meta)
+
+| Nombre | Variables | Uso previsto |
+|--------|-----------|-------------|
+| `pedido_facturado_sale` | fecha, nro_pedido, total_iva, importe_contado | Notificar despacho + datos de pago |
+| `pedido_facturado_echeq` | fecha, nro_pedido, total_iva, importe_contado, dias_echeq | Despacho con pago e-cheq |
+| `pedido_recordatorio_25` | nro_pedido, importe_contado, fecha_vencimiento | Recordatorio descuento 25% contado |
+
 ## Testing
 
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
