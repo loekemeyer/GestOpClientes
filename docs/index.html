@@ -114,6 +114,60 @@
     .cost-panel .cost-tok { color: #64748b; font-size: 0.6rem; font-family: 'SF Mono', 'Menlo', monospace; }
     .cost-panel .cost-divider { border-top: 1px solid rgba(255,255,255,0.05); margin: 0.3rem 0; }
 
+    /* Templates page */
+    .tpl-page { flex: 1; padding: 2rem; overflow-y: auto; }
+    .tpl-page h2 { font-size: 1.3rem; margin-bottom: 1.5rem; }
+    .tpl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 1100px; }
+    @media (max-width: 900px) { .tpl-grid { grid-template-columns: 1fr; } }
+    .tpl-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; cursor: pointer; transition: all 0.15s; }
+    .tpl-card:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .tpl-card.selected { border-color: var(--wa-green); box-shadow: 0 0 0 2px rgba(37,211,102,0.2); }
+    .tpl-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .tpl-name { font-weight: 700; font-size: 0.95rem; }
+    .tpl-badge { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 10px; font-weight: 600; }
+    .tpl-badge.approved { background: #dcfce7; color: #166534; }
+    .tpl-badge.pending { background: #fef3c7; color: #92400e; }
+    .tpl-badge.rejected { background: #fee2e2; color: #991b1b; }
+    .tpl-meta { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .tpl-body { font-size: 0.85rem; background: #f8f9fa; padding: 0.6rem; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .tpl-body .param { background: #dbeafe; color: #1e40af; padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 600; font-size: 0.8rem; }
+    .tpl-components { margin-top: 0.5rem; font-size: 0.78rem; color: var(--muted); }
+    .tpl-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+    .tpl-loading { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+
+    /* Template detail / test panel */
+    .tpl-detail { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; max-width: 1100px; margin-top: 1.5rem; }
+    .tpl-detail h3 { font-size: 0.95rem; margin-bottom: 1rem; }
+    .tpl-detail-preview { background: var(--wa-bg); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+    .tpl-detail-preview .wa-bubble { background: var(--wa-in); padding: 0.7rem; border-radius: 8px; max-width: 320px; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .tpl-detail-preview .wa-bubble .header-text { font-weight: 700; margin-bottom: 0.3rem; }
+    .tpl-detail-preview .wa-bubble .footer-text { font-size: 0.75rem; color: var(--muted); margin-top: 0.4rem; }
+    .tpl-detail-preview .wa-bubble .btn-row { margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+    .tpl-detail-preview .wa-bubble .btn-row a { display: block; text-align: center; color: var(--primary); font-size: 0.85rem; padding: 0.3rem 0; text-decoration: none; }
+    .tpl-params-form { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+    .tpl-params-form label { font-size: 0.82rem; font-weight: 600; }
+    .tpl-params-form input { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; outline: none; }
+    .tpl-params-form input:focus { border-color: var(--primary); }
+    .tpl-test-row { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
+    .tpl-test-row input { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; outline: none; width: 220px; }
+    .tpl-test-row input:focus { border-color: var(--primary); }
+
+    /* Outbox section */
+    .outbox-section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; max-width: 1100px; margin-top: 1.5rem; }
+    .outbox-section h3 { font-size: 0.95rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .outbox-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .outbox-table th { text-align: left; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; padding: 0.4rem 0.5rem; border-bottom: 2px solid var(--border); }
+    .outbox-table td { padding: 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .outbox-table tr:last-child td { border-bottom: none; }
+    .outbox-status { font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 10px; font-weight: 600; }
+    .outbox-status.pending { background: #fef3c7; color: #92400e; }
+    .outbox-status.sent { background: #dcfce7; color: #166534; }
+    .outbox-status.failed { background: #fee2e2; color: #991b1b; }
+    .outbox-filter-row { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; }
+    .outbox-filter-btn { padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.78rem; cursor: pointer; background: var(--card); transition: all 0.15s; }
+    .outbox-filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .outbox-filter-btn:hover { border-color: var(--primary); }
+
     /* Config page */
     .config-page { flex: 1; padding: 2rem; overflow-y: auto; }
     .config-page h2 { font-size: 1.3rem; margin-bottom: 1.5rem; }
@@ -167,6 +221,7 @@
   <nav class="sidebar">
     <h3>🤖 GestOp</h3>
     <div class="active" id="navChat" onclick="showPage('chat')" style="cursor:pointer">💬 Chat Bot</div>
+    <div id="navTemplates" onclick="showPage('templates')" style="cursor:pointer">📋 Templates WA</div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
@@ -233,6 +288,49 @@
           </label>
         </div>
         <div class="ai-status on" id="rlStatus">🛡️ Rate limit activo</div>
+      </div>
+    </div>
+
+    <!-- Page: Templates WA -->
+    <div class="page" id="pageTemplates">
+      <div class="tpl-page">
+        <h2>📋 Templates WhatsApp</h2>
+
+        <!-- Template list -->
+        <div id="tplListContainer">
+          <div class="tpl-loading">Cargando templates...</div>
+        </div>
+
+        <!-- Template detail (hidden until selecting one) -->
+        <div class="tpl-detail" id="tplDetail" style="display:none;">
+          <h3>📱 Preview: <span id="tplDetailName"></span></h3>
+          <div class="tpl-detail-preview">
+            <div class="wa-bubble" id="tplPreviewBubble"></div>
+          </div>
+          <div id="tplParamsContainer"></div>
+          <div class="tpl-test-row">
+            <input type="text" id="tplTestPhone" placeholder="Teléfono destino (ej: 5491112345678)">
+            <button class="config-btn primary" id="tplSendBtn" onclick="sendTestTemplate()">📤 Enviar template</button>
+            <span class="config-status" id="tplSendStatus"></span>
+          </div>
+          <div style="font-size:0.73rem;color:var(--muted);margin-top:0.5rem;">⚠️ Envía un mensaje real vía Meta API al teléfono indicado. Solo funciona con templates aprobados.</div>
+        </div>
+
+        <!-- Outbox viewer -->
+        <div class="outbox-section">
+          <h3>📤 Outbox <button class="config-btn primary small" onclick="loadOutbox()" style="margin-left:auto;">🔄 Refrescar</button>
+            <button class="config-btn primary small" onclick="flushOutbox()" style="margin-left:0.3rem;">▶ Flush</button>
+            <span class="config-status" id="outboxFlushStatus"></span>
+          </h3>
+          <div class="outbox-filter-row">
+            <button class="outbox-filter-btn active" onclick="filterOutbox('pending', this)">Pendientes</button>
+            <button class="outbox-filter-btn" onclick="filterOutbox('sent', this)">Enviados</button>
+            <button class="outbox-filter-btn" onclick="filterOutbox('failed', this)">Fallidos</button>
+          </div>
+          <div id="outboxTableContainer">
+            <div class="tpl-empty">—</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -373,10 +471,13 @@ sbAuth.auth.onAuthStateChange((event) => {
 // --- Page navigation ---
 function showPage(page) {
   document.getElementById("pageChat").classList.toggle("active", page === "chat");
+  document.getElementById("pageTemplates").classList.toggle("active", page === "templates");
   document.getElementById("pageConfig").classList.toggle("active", page === "config");
   document.getElementById("navChat").classList.toggle("active", page === "chat");
+  document.getElementById("navTemplates").classList.toggle("active", page === "templates");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   if (page === "config") loadConfigPage();
+  if (page === "templates") loadTemplatesPage();
 }
 
 // --- Chat ---
@@ -654,6 +755,277 @@ async function removeFromBlacklist(id) {
   } catch (e) { /* retry on next load */ }
 }
 
+// --- Templates ---
+let cachedTemplates = [];
+let selectedTemplate = null;
+let templatesLoaded = false;
+let currentOutboxFilter = "pending";
+
+async function loadTemplatesPage() {
+  if (!templatesLoaded) {
+    await loadTemplatesList();
+    templatesLoaded = true;
+  }
+  loadOutbox();
+}
+
+async function loadTemplatesList() {
+  const container = document.getElementById("tplListContainer");
+  container.innerHTML = '<div class="tpl-loading">⏳ Cargando templates de Meta...</div>';
+
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "templates_list" },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+
+    cachedTemplates = data?.templates || [];
+
+    if (!cachedTemplates.length) {
+      container.innerHTML = '<div class="tpl-empty">No se encontraron templates aprobados en la cuenta de Meta</div>';
+      return;
+    }
+
+    let html = '<div class="tpl-grid">';
+    for (const t of cachedTemplates) {
+      const bodyComp = t.components?.find(c => c.type === "BODY");
+      const bodyText = bodyComp?.text || "(sin texto)";
+      const statusCls = (t.status || "").toLowerCase();
+      const lang = t.language || "—";
+      const cat = t.category || "—";
+
+      // Highlight {{N}} params
+      const bodyHtml = bodyText.replace(/\{\{(\d+)\}\}/g, '<span class="param">{{$1}}</span>');
+
+      html += `
+        <div class="tpl-card" onclick="selectTemplate('${t.name}')" id="tplCard_${t.name}">
+          <div class="tpl-card-header">
+            <span class="tpl-name">${t.name}</span>
+            <span class="tpl-badge ${statusCls}">${t.status || "?"}</span>
+          </div>
+          <div class="tpl-meta">${cat} · ${lang}</div>
+          <div class="tpl-body">${bodyHtml}</div>
+          ${t.components?.filter(c => c.buttons?.length).map(c =>
+            '<div class="tpl-components">🔘 ' + c.buttons.map(b => b.text).join(", ") + '</div>'
+          ).join("") || ""}
+        </div>`;
+    }
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="tpl-empty" style="color:var(--danger)">❌ Error: ${e.message}</div>`;
+  }
+}
+
+function selectTemplate(name) {
+  const t = cachedTemplates.find(x => x.name === name);
+  if (!t) return;
+  selectedTemplate = t;
+
+  // Update card selection
+  document.querySelectorAll(".tpl-card").forEach(c => c.classList.remove("selected"));
+  const card = document.getElementById("tplCard_" + name);
+  if (card) card.classList.add("selected");
+
+  // Show detail panel
+  const detail = document.getElementById("tplDetail");
+  detail.style.display = "block";
+  document.getElementById("tplDetailName").textContent = name;
+
+  // Build preview bubble
+  const bubble = document.getElementById("tplPreviewBubble");
+  let html = "";
+  for (const comp of (t.components || [])) {
+    if (comp.type === "HEADER" && comp.text) {
+      html += `<div class="header-text">${comp.text}</div>`;
+    }
+    if (comp.type === "BODY" && comp.text) {
+      const text = comp.text.replace(/\{\{(\d+)\}\}/g, '<span class="param">{{$1}}</span>');
+      html += text;
+    }
+    if (comp.type === "FOOTER" && comp.text) {
+      html += `<div class="footer-text">${comp.text}</div>`;
+    }
+    if (comp.buttons?.length) {
+      html += '<div class="btn-row">';
+      for (const b of comp.buttons) {
+        html += `<a href="#">${b.text || "Botón"}</a>`;
+      }
+      html += '</div>';
+    }
+  }
+  bubble.innerHTML = html || "(template vacío)";
+
+  // Build params form
+  const paramsContainer = document.getElementById("tplParamsContainer");
+  const bodyComp = t.components?.find(c => c.type === "BODY");
+  const bodyText = bodyComp?.text || "";
+  const paramMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+
+  if (paramMatches.length) {
+    let formHtml = '<div class="tpl-params-form">';
+    formHtml += '<label>Parámetros del template:</label>';
+    for (const m of paramMatches) {
+      const num = m.replace(/[{}]/g, "");
+      formHtml += `<input type="text" id="tplParam_${num}" placeholder="Valor para ${m}" oninput="updatePreview()">`;
+    }
+    formHtml += '</div>';
+    paramsContainer.innerHTML = formHtml;
+  } else {
+    paramsContainer.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.8rem;">Este template no tiene parámetros variables.</div>';
+  }
+  document.getElementById("tplSendStatus").textContent = "";
+}
+
+function updatePreview() {
+  if (!selectedTemplate) return;
+  const bodyComp = selectedTemplate.components?.find(c => c.type === "BODY");
+  if (!bodyComp?.text) return;
+
+  let text = bodyComp.text;
+  const paramMatches = text.match(/\{\{(\d+)\}\}/g) || [];
+  for (const m of paramMatches) {
+    const num = m.replace(/[{}]/g, "");
+    const input = document.getElementById("tplParam_" + num);
+    const val = input?.value || m;
+    text = text.replace(m, val);
+  }
+
+  const bubble = document.getElementById("tplPreviewBubble");
+  let html = "";
+  for (const comp of (selectedTemplate.components || [])) {
+    if (comp.type === "HEADER" && comp.text) html += `<div class="header-text">${comp.text}</div>`;
+    if (comp.type === "BODY") html += text.replace(/\n/g, "<br>");
+    if (comp.type === "FOOTER" && comp.text) html += `<div class="footer-text">${comp.text}</div>`;
+    if (comp.buttons?.length) {
+      html += '<div class="btn-row">';
+      for (const b of comp.buttons) html += `<a href="#">${b.text || "Botón"}</a>`;
+      html += '</div>';
+    }
+  }
+  bubble.innerHTML = html;
+}
+
+async function sendTestTemplate() {
+  const phone = document.getElementById("tplTestPhone").value.trim();
+  const st = document.getElementById("tplSendStatus");
+  if (!phone) { st.textContent = "Ingresá un teléfono"; st.className = "config-status err"; return; }
+  if (!selectedTemplate) { st.textContent = "Seleccioná un template"; st.className = "config-status err"; return; }
+
+  st.textContent = "Enviando...";
+  st.className = "config-status";
+
+  // Build components from form params
+  const bodyComp = selectedTemplate.components?.find(c => c.type === "BODY");
+  const bodyText = bodyComp?.text || "";
+  const paramMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+  let components = undefined;
+
+  if (paramMatches.length) {
+    const params = paramMatches.map(m => {
+      const num = m.replace(/[{}]/g, "");
+      const input = document.getElementById("tplParam_" + num);
+      return { type: "text", text: input?.value || "" };
+    });
+    components = [{ type: "body", parameters: params }];
+  }
+
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: {
+        action: "template_send",
+        phone,
+        template_name: selectedTemplate.name,
+        language: selectedTemplate.language || "es_AR",
+        components,
+      },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    st.textContent = "✓ Enviado a " + (data.to || phone);
+    st.className = "config-status ok";
+  } catch (e) {
+    st.textContent = "✗ " + e.message;
+    st.className = "config-status err";
+  }
+  setTimeout(() => { st.textContent = ""; }, 5000);
+}
+
+// --- Outbox ---
+async function loadOutbox() {
+  const container = document.getElementById("outboxTableContainer");
+  container.innerHTML = '<div class="tpl-loading">Cargando...</div>';
+
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "outbox_list", status: currentOutboxFilter, limit: 50 },
+    });
+    if (error) throw error;
+
+    const items = data?.items || [];
+    if (!items.length) {
+      container.innerHTML = `<div class="tpl-empty">Sin mensajes ${currentOutboxFilter}</div>`;
+      return;
+    }
+
+    let html = '<table class="outbox-table"><thead><tr><th>ID</th><th>Teléfono</th><th>Tipo</th><th>Contenido</th><th>Estado</th><th>Intentos</th><th>Fecha</th><th>Error</th></tr></thead><tbody>';
+    for (const row of items) {
+      const tipo = row.template_name ? `📋 ${row.template_name}` : "💬 Texto";
+      const contenido = row.template_name
+        ? (row.template_params ? JSON.stringify(row.template_params) : "—")
+        : (row.body ? (row.body.length > 60 ? row.body.slice(0, 57) + "..." : row.body) : "—");
+      const statusCls = row.status || "pending";
+      const fecha = row.created_at ? new Date(row.created_at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "";
+      const sentAt = row.sent_at ? new Date(row.sent_at).toLocaleString("es-AR", { timeStyle: "short" }) : "";
+      const errorText = row.error ? `<span style="color:var(--danger);font-size:0.73rem">${row.error.slice(0, 50)}</span>` : "—";
+
+      html += `<tr>
+        <td style="font-family:monospace;font-size:0.78rem;">${row.id}</td>
+        <td style="font-family:monospace;font-size:0.78rem;">${row.phone}</td>
+        <td style="font-size:0.78rem;">${tipo}</td>
+        <td style="font-size:0.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${contenido}">${contenido}</td>
+        <td><span class="outbox-status ${statusCls}">${row.status}</span>${sentAt ? ` ${sentAt}` : ""}</td>
+        <td style="text-align:center;font-size:0.78rem;">${row.attempts}/${row.max_attempts}</td>
+        <td style="font-size:0.73rem;color:var(--muted);">${fecha}</td>
+        <td>${errorText}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="tpl-empty" style="color:var(--danger)">❌ ${e.message}</div>`;
+  }
+}
+
+function filterOutbox(status, btn) {
+  currentOutboxFilter = status;
+  document.querySelectorAll(".outbox-filter-btn").forEach(b => b.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  loadOutbox();
+}
+
+async function flushOutbox() {
+  const st = document.getElementById("outboxFlushStatus");
+  st.textContent = "Procesando...";
+  st.className = "config-status";
+
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "outbox_flush" },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    st.textContent = `✓ ${data.flushed || 0} enviados, ${data.failed || 0} fallidos`;
+    st.className = "config-status ok";
+    loadOutbox(); // Refresh
+  } catch (e) {
+    st.textContent = "✗ " + e.message;
+    st.className = "config-status err";
+  }
+  setTimeout(() => { st.textContent = ""; }, 5000);
+}
+
 // --- Costs (admin only) ---
 function fmtCost(v) {
   if (v == null || v === 0) return "$0.00";
@@ -684,6 +1056,6 @@ async function refreshCosts() {
   } catch (e) { /* silent */ }
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.4</div>
 </body>
 </html>
