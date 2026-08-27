@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase, getSetting } from "../_shared/supabase.ts";
-import { canonPhone } from "../_shared/wa-api.ts";
+import { canonPhone, sendTemplate, sendText as waSendText, getTemplates } from "../_shared/wa-api.ts";
 import { detectIntent, conversationalReply } from "../_shared/claude.ts";
 
 const CORS = {
@@ -43,6 +43,26 @@ serve(async (req) => {
     // ── Blacklist remove ──
     if (body.action === "blacklist_remove") {
       return await handleBlacklistRemove(body.id);
+    }
+
+    // ── Templates: listar templates aprobados de Meta ──
+    if (body.action === "templates_list") {
+      return await handleTemplatesList(body.status);
+    }
+
+    // ── Templates: enviar template a un teléfono ──
+    if (body.action === "template_send") {
+      return await handleTemplateSend(body);
+    }
+
+    // ── Outbox: listar mensajes pendientes ──
+    if (body.action === "outbox_list") {
+      return await handleOutboxList(body.status, body.limit);
+    }
+
+    // ── Outbox: flush — enviar pendientes ──
+    if (body.action === "outbox_flush") {
+      return await handleOutboxFlush();
     }
 
     // ── Chat endpoint ──
@@ -930,6 +950,254 @@ async function lookupOrderModify(
   }
 
   return `Tu pedido NP-${latest.id} aún puede modificarse. ¿Qué cambios necesitás?\n📝 Indicame:\n• Artículos que quieres agregar/quitar\n• Cantidades\n\nUn vendedor va a confirmar los cambios.`;
+}
+
+// ── Template & Outbox handlers ──
+
+async function handleTemplatesList(statusFilter?: string) {
+  const wabaId = Deno.env.get("META_BUSINESS_ACCOUNT_ID")
+    ?? (await getSetting("wa_business_account_id"))
+    ?? "";
+  const waToken = Deno.env.get("WA_TOKEN")
+    ?? Deno.env.get("META_ACCESS_TOKEN")
+    ?? (await getSetting("wa_token"))
+    ?? "";
+
+  if (!wabaId) return json({ error: "META_BUSINESS_ACCOUNT_ID no configurado" }, 400);
+  if (!waToken) return json({ error: "WA_TOKEN no configurado" }, 400);
+
+  const { data, error } = await getTemplates(wabaId, waToken, statusFilter ?? "APPROVED");
+
+  if (error) return json({ error }, 500);
+
+  // Resumir cada template para no devolver demasiado
+  // deno-lint-ignore no-explicit-any
+  const templates = data.map((t: any) => ({
+    name: t.name,
+    status: t.status,
+    category: t.category,
+    language: t.language,
+    // Extraer componentes con tipo y texto/formato
+    // deno-lint-ignore no-explicit-any
+    components: (t.components ?? []).map((c: any) => ({
+      type: c.type,
+      format: c.format,
+      text: c.text,
+      // deno-lint-ignore no-explicit-any
+      parameters: c.example?.body_text?.[0] ?? c.example?.header_text ?? [],
+      // deno-lint-ignore no-explicit-any
+      buttons: c.buttons?.map((b: any) => ({ type: b.type, text: b.text, url: b.url })),
+    })),
+  }));
+
+  return json({ templates, count: templates.length });
+}
+
+async function handleTemplateSend(body: Record<string, unknown>) {
+  const { phone, template_name, language, components } = body as {
+    phone?: string;
+    template_name?: string;
+    language?: string;
+    components?: Record<string, unknown>[];
+  };
+
+  if (!phone || !template_name) {
+    return json({ error: "phone y template_name requeridos" }, 400);
+  }
+
+  const phoneNumberId = Deno.env.get("META_PHONE_NUMBER_ID")
+    ?? (await getSetting("wa_phone_number_id"))
+    ?? "";
+  const waToken = Deno.env.get("WA_TOKEN")
+    ?? Deno.env.get("META_ACCESS_TOKEN")
+    ?? (await getSetting("wa_token"))
+    ?? "";
+
+  if (!phoneNumberId) return json({ error: "META_PHONE_NUMBER_ID no configurado" }, 400);
+  if (!waToken) return json({ error: "WA_TOKEN no configurado" }, 400);
+
+  const to = phone.startsWith("54") ? phone : canonPhone(phone);
+  const lang = (language as string) ?? "es_AR";
+
+  const result = await sendTemplate(phoneNumberId, waToken, to, template_name, lang, components);
+
+  // Log en wa_conversations
+  const customerId = await resolveCustomerId(to);
+  supabase.from("wa_conversations").insert({
+    phone: to,
+    direction: "out",
+    body: `[template: ${template_name}]`,
+    msg_type: "template",
+    customer_id: customerId,
+    intent: "template_test",
+  }).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
+
+  return json({ ok: true, result, template_name, to, language: lang });
+}
+
+async function handleOutboxList(statusFilter?: string, limit?: number) {
+  const queryStatus = statusFilter ?? "pending";
+  const queryLimit = Math.min(limit ?? 50, 200);
+
+  const { data: items, error } = await supabase
+    .from("wa_outbox")
+    .select("id, phone, body, template_name, template_params, status, attempts, max_attempts, created_at, sent_at, error, customer_id")
+    .eq("status", queryStatus)
+    .order("created_at", { ascending: true })
+    .limit(queryLimit);
+
+  if (error) return json({ error: error.message }, 500);
+  return json({ items: items ?? [], count: (items ?? []).length });
+}
+
+async function handleOutboxFlush() {
+  const phoneNumberId = Deno.env.get("META_PHONE_NUMBER_ID")
+    ?? (await getSetting("wa_phone_number_id"))
+    ?? "";
+  const waToken = Deno.env.get("WA_TOKEN")
+    ?? Deno.env.get("META_ACCESS_TOKEN")
+    ?? (await getSetting("wa_token"))
+    ?? "";
+
+  if (!phoneNumberId || !waToken) {
+    return json({ error: "META_PHONE_NUMBER_ID o WA_TOKEN no configurados" }, 400);
+  }
+
+  // Traer pendientes (max 20 por flush para no saturar)
+  const { data: pending, error } = await supabase
+    .from("wa_outbox")
+    .select("*")
+    .eq("status", "pending")
+    .lt("attempts", 3) // respetar max_attempts
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  if (error) return json({ error: error.message }, 500);
+  if (!pending?.length) return json({ flushed: 0, message: "No hay mensajes pendientes" });
+
+  let sent = 0;
+  let failed = 0;
+  const results: { id: number; status: string; error?: string }[] = [];
+
+  for (const row of pending) {
+    try {
+      // deno-lint-ignore no-explicit-any
+      let result: Record<string, unknown>;
+
+      if (row.template_name) {
+        // Template message — armar components de template_params
+        const components = buildTemplateComponents(row.template_name, row.template_params);
+        result = await sendTemplate(phoneNumberId, waToken, row.phone, row.template_name, "es_AR", components);
+      } else if (row.body) {
+        // Texto plano
+        result = await waSendText(phoneNumberId, waToken, row.phone, row.body);
+      } else {
+        // Sin body ni template — marcar como fallido
+        await supabase.from("wa_outbox")
+          .update({ status: "failed", error: "Sin body ni template_name", attempts: row.attempts + 1 })
+          .eq("id", row.id);
+        failed++;
+        results.push({ id: row.id, status: "failed", error: "Sin body ni template_name" });
+        continue;
+      }
+
+      // deno-lint-ignore no-explicit-any
+      const metaError = (result as any)?.error;
+      if (metaError) {
+        const errMsg = metaError.message ?? JSON.stringify(metaError);
+        const newAttempts = row.attempts + 1;
+        const newStatus = newAttempts >= (row.max_attempts ?? 3) ? "failed" : "pending";
+        await supabase.from("wa_outbox")
+          .update({ status: newStatus, error: errMsg, attempts: newAttempts })
+          .eq("id", row.id);
+        failed++;
+        results.push({ id: row.id, status: newStatus, error: errMsg });
+      } else {
+        await supabase.from("wa_outbox")
+          .update({ status: "sent", sent_at: new Date().toISOString(), attempts: row.attempts + 1 })
+          .eq("id", row.id);
+        sent++;
+        results.push({ id: row.id, status: "sent" });
+
+        // Log en wa_conversations
+        supabase.from("wa_conversations").insert({
+          phone: row.phone,
+          direction: "out",
+          body: row.template_name ? `[template: ${row.template_name}]` : row.body,
+          msg_type: row.template_name ? "template" : "text",
+          customer_id: row.customer_id,
+          intent: row.template_name ? `outbox_template` : "outbox_text",
+        }).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const newAttempts = row.attempts + 1;
+      await supabase.from("wa_outbox")
+        .update({ status: newAttempts >= (row.max_attempts ?? 3) ? "failed" : "pending", error: errMsg, attempts: newAttempts })
+        .eq("id", row.id);
+      failed++;
+      results.push({ id: row.id, status: "failed", error: errMsg });
+    }
+  }
+
+  return json({ flushed: sent, failed, total: pending.length, results });
+}
+
+/** Arma components[] para Meta API según template y params. */
+function buildTemplateComponents(
+  templateName: string,
+  params: Record<string, unknown> | null,
+): Record<string, unknown>[] | undefined {
+  if (!params) return undefined;
+
+  // Mapear cada template conocido a su estructura de components
+  switch (templateName) {
+    case "pedido_programado": {
+      // Params: { order_id, fecha }
+      return [{
+        type: "body",
+        parameters: [
+          { type: "text", text: String(params.order_id ?? "") },
+          { type: "text", text: String(params.fecha ?? "") },
+        ],
+      }];
+    }
+    case "pedido_entregado": {
+      // Params: { order_id }
+      return [{
+        type: "body",
+        parameters: [
+          { type: "text", text: String(params.order_id ?? "") },
+        ],
+      }];
+    }
+    case "reactivacion_cliente": {
+      // Params: { name, days }
+      return [{
+        type: "body",
+        parameters: [
+          { type: "text", text: String(params.name ?? "") },
+          { type: "text", text: String(params.days ?? "") },
+        ],
+      }];
+    }
+    default: {
+      // Template genérico: convertir params a array de text parameters
+      const values = Object.values(params);
+      if (!values.length) return undefined;
+      return [{
+        type: "body",
+        parameters: values.map((v) => ({ type: "text", text: String(v) })),
+      }];
+    }
+  }
+}
+
+/** Resuelve customer_id desde teléfono (helper para logs). */
+async function resolveCustomerId(phone: string): Promise<string | null> {
+  const { data } = await supabase
+    .rpc("wa_identify_customer", { p_phone: phone });
+  return data?.[0]?.customer_id ?? null;
 }
 
 async function handleGeneral(

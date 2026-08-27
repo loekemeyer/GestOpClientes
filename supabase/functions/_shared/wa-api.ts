@@ -74,6 +74,24 @@ export async function sendTemplate(
   });
 }
 
+/** Lista message templates aprobados de la WABA. */
+export async function getTemplates(
+  wabaId: string,
+  token: string,
+  status?: string,
+): Promise<{ data: Record<string, unknown>[]; error?: string }> {
+  const params = new URLSearchParams({ limit: "100" });
+  if (status) params.set("status", status);
+
+  const url = `${META_API}/${wabaId}/message_templates?${params}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const json = await res.json();
+  if (json.error) return { data: [], error: json.error.message ?? JSON.stringify(json.error) };
+  return { data: json.data ?? [] };
+}
+
 /** Marca mensaje como leído. */
 export async function markRead(
   phoneNumberId: string,

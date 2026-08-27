@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase, getSetting } from "../_shared/supabase.ts";
-import { canonPhone, parseIncoming, sendText, markRead } from "../_shared/wa-api.ts";
+import { canonPhone, parseIncoming, sendText, sendTemplate, markRead } from "../_shared/wa-api.ts";
 import { detectIntent, conversationalReply, matchFAQ } from "../_shared/claude.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WA_VERIFY_TOKEN") ?? "";
@@ -21,6 +21,12 @@ serve(async (req) => {
 
     // --- POST: mensaje entrante ---
     const body = await req.json();
+
+    // --- Flush outbox (llamado por pg_cron cada 2 min) ---
+    if (body.action === "flush") {
+      return await handleFlush();
+    }
+
     const msg = parseIncoming(body);
     if (!msg || !msg.text) return ok();
 
@@ -477,4 +483,129 @@ No inventes información sobre pedidos ni precios.`;
   return conversationalReply(apiKey, system, [
     { role: "user", content: text },
   ]);
+}
+
+// ── Outbox flush (llamado por pg_cron cada 2 min) ──
+
+async function handleFlush(): Promise<Response> {
+  const phoneNumberId = Deno.env.get("META_PHONE_NUMBER_ID")
+    ?? (await getSetting("wa_phone_number_id"))
+    ?? "";
+  const waToken = Deno.env.get("WA_TOKEN")
+    ?? (await getSetting("wa_token"))
+    ?? "";
+
+  if (!phoneNumberId || !waToken) {
+    console.error("flush: META_PHONE_NUMBER_ID o WA_TOKEN no configurados");
+    return ok();
+  }
+
+  const { data: pending, error } = await supabase
+    .from("wa_outbox")
+    .select("*")
+    .eq("status", "pending")
+    .lt("attempts", 3)
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  if (error || !pending?.length) return ok();
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const row of pending) {
+    try {
+      let result: Record<string, unknown>;
+
+      if (row.template_name) {
+        const components = buildTemplateComponents(row.template_name, row.template_params);
+        result = await sendTemplate(phoneNumberId, waToken, row.phone, row.template_name, "es_AR", components);
+      } else if (row.body) {
+        result = await sendText(phoneNumberId, waToken, row.phone, row.body);
+      } else {
+        await supabase.from("wa_outbox")
+          .update({ status: "failed", error: "Sin body ni template_name", attempts: row.attempts + 1 })
+          .eq("id", row.id);
+        failed++;
+        continue;
+      }
+
+      // deno-lint-ignore no-explicit-any
+      const metaError = (result as any)?.error;
+      if (metaError) {
+        const errMsg = metaError.message ?? JSON.stringify(metaError);
+        const newAttempts = row.attempts + 1;
+        await supabase.from("wa_outbox")
+          .update({ status: newAttempts >= (row.max_attempts ?? 3) ? "failed" : "pending", error: errMsg, attempts: newAttempts })
+          .eq("id", row.id);
+        failed++;
+      } else {
+        await supabase.from("wa_outbox")
+          .update({ status: "sent", sent_at: new Date().toISOString(), attempts: row.attempts + 1 })
+          .eq("id", row.id);
+        sent++;
+
+        // Log en wa_conversations
+        supabase.from("wa_conversations").insert({
+          phone: row.phone,
+          direction: "out",
+          body: row.template_name ? `[template: ${row.template_name}]` : row.body,
+          msg_type: row.template_name ? "template" : "text",
+          customer_id: row.customer_id,
+        }).then(() => {}).catch((e: unknown) => console.error("flush conv log err:", e));
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const newAttempts = row.attempts + 1;
+      await supabase.from("wa_outbox")
+        .update({ status: newAttempts >= (row.max_attempts ?? 3) ? "failed" : "pending", error: errMsg, attempts: newAttempts })
+        .eq("id", row.id);
+      failed++;
+    }
+  }
+
+  console.log(`flush: ${sent} sent, ${failed} failed, ${pending.length} total`);
+  return ok();
+}
+
+/** Arma components[] para Meta API según template y params. */
+function buildTemplateComponents(
+  templateName: string,
+  params: Record<string, unknown> | null,
+): Record<string, unknown>[] | undefined {
+  if (!params) return undefined;
+
+  switch (templateName) {
+    case "pedido_programado":
+      return [{
+        type: "body",
+        parameters: [
+          { type: "text", text: String(params.order_id ?? "") },
+          { type: "text", text: String(params.fecha ?? "") },
+        ],
+      }];
+    case "pedido_entregado":
+      return [{
+        type: "body",
+        parameters: [
+          { type: "text", text: String(params.order_id ?? "") },
+        ],
+      }];
+    case "reactivacion_cliente":
+      return [{
+        type: "body",
+        parameters: [
+          { type: "text", text: String(params.name ?? "") },
+          { type: "text", text: String(params.days ?? "") },
+        ],
+      }];
+    default: {
+      const values = Object.values(params);
+      if (!values.length) return undefined;
+      return [{
+        type: "body",
+        parameters: values.map((v) => ({ type: "text", text: String(v) })),
+      }];
+    }
+  }
 }
