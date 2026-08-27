@@ -1,7 +1,7 @@
--- Actualiza respuesta de FAQ "Pedir catálogo"
--- Aplicar en proyecto PaginaLK (kwkclwhmoygunqmlegrg)
--- Solicitado en sesión Mel 27/8 — nuevo copy para catálogo con URL
+-- Actualiza FAQ #19 "Pedir catálogo"
+-- ID=19, category=catalogo_novedades
+-- Aplicar en PaginaLK (kwkclwhmoygunqmlegrg)
 
 UPDATE wa_faq
-SET bot_response = E'📘 El catálogo está disponible en loekemeyer.com\n\nPodés descargarlo directamente desde la página web, en la sección inferior.\n\n¿Te lo enviamos por acá también si preferís?'
-WHERE category = 'catalogo_novedades';
+SET bot_response = E'Claro! Podés ver todos los productos en nuestra web, explorar el catalogo y novedades con fotos, usá el buscador o navegá por categoría:\n\n🔗 https://loekemeyer.com/\n\nSi buscás algo en particular, decime y te ayudo. 😊'
+WHERE id = 19;
