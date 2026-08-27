@@ -64,6 +64,37 @@ o de la empresa. Para salir a producción (mandar al cliente real), poner la con
 en `""`. La respuesta de la función incluye `test_mode: true` mientras está activo.
 ⚠ Aun así, no sale nada hasta que el template esté aprobado y estén los secrets del flush.
 
+## Variante e-check (en el mismo aviso "mañana sale")
+
+Si el pedido se pagó con **e-check (90 o 120 días)**, el aviso agrega una nota: recordar
+que el e-check se hace **ahora** (anticipado / contra entrega), no a los 75 días.
+
+- El método de pago se resuelve con `bot_pago_por_cliente_fecha(cod_cliente, fecha)` — cruce
+  por `customer_code` + fecha contra `orders` de LK (el NP de Virgilio no comparte numeración).
+- `lk_notif-facturado` elige el template: normal (`pedido_facturado_sale`) o e-check
+  (`pedido_facturado_echeq`, con un 4º param = días 90/120).
+
+## Recordatorio a 10 días — 25% (pago contado)
+
+A los **10 días** de que sale el pedido (`fecha_salida`), se avisa que se está por vencer el
+plazo del **25% contado** (vence a los 14 días). Para **todos** los clientes con aviso de
+facturado. Función `bot_encolar_recordatorios_25()` (SQL) corrida por **pg_cron diario**
+(`bot-recordatorio-25`, 09:00 ART); dedup por `recordatorio_25_at`. Encola template
+`pedido_recordatorio_25`.
+
+## Templates de Meta a crear (3) — es_AR, categoría Utility
+
+| Template | Params (body, en orden) | Uso |
+|----------|--------------------------|-----|
+| `pedido_facturado_sale`  | {{1}} fecha DD/MM/AAAA · {{2}} N° pedido · {{3}} monto | aviso normal |
+| `pedido_facturado_echeq` | {{1}} fecha · {{2}} N° pedido · {{3}} monto · {{4}} días (90/120) | aviso e-check |
+| `pedido_recordatorio_25` | {{1}} N° pedido · {{2}} fecha límite DD/MM/AAAA | recordatorio 25% |
+
+Textos sugeridos (ajustables en Meta):
+- **sale:** `¡Hola! Mañana {{1}} sale tu pedido N° {{2}} por un total de {{3}} (IVA incluido). ¡Gracias! — Loekemeyer`
+- **echeq:** `¡Hola! Mañana {{1}} sale tu pedido N° {{2}} por {{3}} (IVA incl.). Elegiste pago a {{4}} días con e-check: recordá que el e-check se hace ahora (anticipado/contra entrega), no a los 75 días. — Loekemeyer`
+- **recordatorio_25:** `¡Hola! Te recordamos que tu pedido N° {{1}} sigue a tiempo para el 25% de descuento pagando de contado. El plazo vence el {{2}}. — Loekemeyer`
+
 ## Nota de arquitectura
 
 Coexisten dos webhooks en LK: `whatsapp-webhook` (v148, el maduro/vivo) y
