@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase, getSetting } from "../_shared/supabase.ts";
 import { canonPhone, parseIncoming, sendText, markRead } from "../_shared/wa-api.ts";
-import { detectIntent, conversationalReply } from "../_shared/claude.ts";
+import { detectIntent, conversationalReply, matchFAQ } from "../_shared/claude.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WA_VERIFY_TOKEN") ?? "";
 
@@ -61,36 +61,51 @@ serve(async (req) => {
       // --- Flujo vinculación ---
       reply = await handleLinking(phone, msg.text, anthropicKey);
     } else {
-      // --- Detectar intent ---
-      const { intent } = await detectIntent(anthropicKey, msg.text);
+      // --- Intentar matchear FAQ primero (zero-token) ---
+      const faqMatch = await matchFAQ(msg.text);
+      if (faqMatch) {
+        reply = faqMatch.response;
+        // Log como FAQ
+        await supabase
+          .from("wa_conversations")
+          .update({ intent: `faq_${faqMatch.id}` })
+          .eq("wa_msg_id", msg.msgId);
+      } else {
+        // --- Detectar intent con Haiku ---
+        const { intent } = await detectIntent(anthropicKey, msg.text);
 
-      // Log intent
-      await supabase
-        .from("wa_conversations")
-        .update({ intent })
-        .eq("wa_msg_id", msg.msgId);
+        // Log intent
+        await supabase
+          .from("wa_conversations")
+          .update({ intent })
+          .eq("wa_msg_id", msg.msgId);
 
-      switch (intent) {
-        case "consulta_pedido":
-          reply = await handleOrderQuery(customerRow);
-          break;
-        case "nuevo_pedido":
-          reply = await handleNewOrder(phone, customerRow, msg.text, anthropicKey);
-          break;
-        case "retiro":
-          reply = await handlePickup(customerRow);
-          break;
-        case "cancelar":
-          reply = await handleCancel(phone);
-          break;
-        case "ayuda":
-          reply = menuText(customerRow.business_name);
-          break;
-        case "opt_out":
-          reply = await handleOptOut(phone);
-          break;
-        default:
-          reply = await handleGeneral(customerRow, msg.text, anthropicKey);
+        switch (intent) {
+          case "consulta_pedido":
+            reply = await handleOrderQuery(customerRow);
+            break;
+          case "nuevo_pedido":
+            reply = await handleNewOrder(phone, customerRow, msg.text, anthropicKey);
+            break;
+          case "retiro":
+            reply = await handlePickup(customerRow);
+            break;
+          case "cancelar":
+            reply = await handleCancel(phone);
+            break;
+          case "ayuda":
+            reply = menuText(customerRow.business_name);
+            break;
+          case "opt_out":
+            reply = await handleOptOut(phone);
+            break;
+          case "faq":
+            // Fallback conversacional si Haiku detecta FAQ pero keywords no match
+            reply = await handleGeneral(customerRow, msg.text, anthropicKey);
+            break;
+          default:
+            reply = await handleGeneral(customerRow, msg.text, anthropicKey);
+        }
       }
     }
 

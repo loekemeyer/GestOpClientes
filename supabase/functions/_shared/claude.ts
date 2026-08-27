@@ -109,3 +109,47 @@ export async function conversationalReply(
     temperature: 0.3,
   });
 }
+
+/** Busca FAQ por keywords. Devuelve respuesta o null si no hay match. */
+export async function matchFAQ(userMessage: string): Promise<{ id: number; response: string } | null> {
+  // Keywords por FAQ - basado en análisis de 1,739 consultas reales
+  const faqKeywords: Record<number, string[]> = {
+    11: ["precio", "precios", "lista", "cotizador", "cotización", "me pasas", "me pasan"],
+    15: ["pago", "pagar", "transferencia", "cheque", "cbu", "datos", "banco", "credicoop", "alias"],
+    19: ["catalogo", "catálogo", "producto", "novedades", "fotos"],
+    20: ["comprobante", "factura", "recibo", "donde", "dónde", "enviar"],
+    21: ["minimo", "mínimo", "compra", "monto"],
+  };
+
+  const lowerMsg = userMessage.toLowerCase();
+
+  // Buscar el FAQ con más coincidencias de keywords
+  let bestMatch: { faq_id: number; score: number } | null = null;
+
+  for (const [faqId, keywords] of Object.entries(faqKeywords)) {
+    const score = keywords.filter(kw => lowerMsg.includes(kw)).length;
+    if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+      bestMatch = { faq_id: parseInt(faqId), score };
+    }
+  }
+
+  if (!bestMatch) return null;
+
+  // Obtener respuesta de la FAQ desde Supabase
+  const { data } = await supabase
+    .from("wa_faq")
+    .select("bot_response")
+    .eq("id", bestMatch.faq_id)
+    .eq("is_active", true)
+    .eq("automation_level", "full_auto")
+    .maybeSingle();
+
+  if (data?.bot_response) {
+    return {
+      id: bestMatch.faq_id,
+      response: data.bot_response,
+    };
+  }
+
+  return null;
+}
