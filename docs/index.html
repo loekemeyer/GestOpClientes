@@ -88,12 +88,60 @@
     .chat-messages .typing span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
 
-    .chat-input { display: flex; gap: 0.5rem; padding: 0.6rem; background: #f0f2f5; }
+    .chat-input { display: flex; gap: 0.5rem; padding: 0.6rem; background: #f0f2f5; position: relative; }
     .chat-input input { flex: 1; padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 20px; font-size: 0.9rem; outline: none; }
     .chat-input input:focus { border-color: var(--primary); }
     .chat-input button { width: 42px; height: 42px; border-radius: 50%; border: none; background: var(--wa-green); color: #fff; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
     .chat-input button:hover { background: #1da851; }
     .chat-input button:disabled { background: #ccc; cursor: default; }
+    .chat-input .tpl-btn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 1.2rem; width: 38px; height: 38px; }
+    .chat-input .tpl-btn:hover { background: #e8e8e8; color: var(--text); }
+    .chat-input .tpl-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* Template bubble in chat */
+    .msg.template-bubble { background: var(--wa-in); float: left; border-top-left-radius: 0; padding: 0; overflow: hidden; max-width: 320px; }
+    .msg.template-bubble .tpl-label { background: #075e54; color: #fff; font-size: 0.65rem; padding: 0.2rem 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .msg.template-bubble .tpl-content { padding: 0.6rem 0.7rem; }
+    .msg.template-bubble .tpl-content .tpl-header { font-weight: 700; margin-bottom: 0.3rem; }
+    .msg.template-bubble .tpl-content .tpl-body-text { font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; }
+    .msg.template-bubble .tpl-content .tpl-footer { font-size: 0.72rem; color: var(--muted); margin-top: 0.4rem; }
+    .msg.template-bubble .tpl-buttons { border-top: 1px solid var(--border); }
+    .msg.template-bubble .tpl-buttons a { display: block; text-align: center; color: var(--primary); font-size: 0.85rem; padding: 0.5rem; text-decoration: none; border-bottom: 1px solid var(--border); }
+    .msg.template-bubble .tpl-buttons a:last-child { border-bottom: none; }
+
+    /* Template picker dropdown */
+    .tpl-picker { display: none; position: absolute; bottom: 100%; left: 0; right: 60px; background: var(--card); border: 1px solid var(--border); border-radius: 12px 12px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,0.12); max-height: 380px; overflow-y: auto; z-index: 100; }
+    .tpl-picker.open { display: block; }
+    .tpl-picker-header { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--card); z-index: 1; }
+    .tpl-picker-header span { font-weight: 700; font-size: 0.85rem; }
+    .tpl-picker-header button { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: var(--muted); }
+    .tpl-picker-list { padding: 0.3rem; }
+    .tpl-picker-item { padding: 0.6rem 0.8rem; border-radius: 8px; cursor: pointer; transition: background 0.1s; }
+    .tpl-picker-item:hover { background: #f0fdf4; }
+    .tpl-picker-item .tpi-name { font-weight: 600; font-size: 0.85rem; }
+    .tpl-picker-item .tpi-body { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tpl-picker-item .tpi-badge { font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 8px; background: #dcfce7; color: #166534; margin-left: 0.4rem; }
+    .tpl-picker-empty { text-align: center; padding: 2rem; color: var(--muted); font-size: 0.85rem; }
+    .tpl-picker-loading { text-align: center; padding: 2rem; color: var(--muted); font-size: 0.85rem; }
+
+    /* Template param form in chat (above input) */
+    .tpl-compose { display: none; background: var(--card); border-top: 1px solid var(--border); padding: 0.8rem 1rem; }
+    .tpl-compose.open { display: block; }
+    .tpl-compose-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+    .tpl-compose-header .name { font-weight: 700; font-size: 0.85rem; }
+    .tpl-compose-header button { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--muted); padding: 0.2rem 0.4rem; }
+    .tpl-compose-preview { background: var(--wa-bg); padding: 0.6rem; border-radius: 8px; margin-bottom: 0.6rem; }
+    .tpl-compose-preview .mini-bubble { background: var(--wa-in); padding: 0.5rem 0.6rem; border-radius: 6px; font-size: 0.82rem; line-height: 1.4; max-width: 280px; white-space: pre-wrap; box-shadow: 0 1px 1px rgba(0,0,0,0.06); }
+    .tpl-compose-preview .mini-bubble .param-hl { background: #dbeafe; color: #1e40af; padding: 0 0.2rem; border-radius: 2px; font-weight: 600; }
+    .tpl-compose-params { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .tpl-compose-params input { flex: 1; min-width: 120px; padding: 0.35rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; outline: none; }
+    .tpl-compose-params input:focus { border-color: var(--primary); }
+    .tpl-compose-send { display: flex; gap: 0.5rem; align-items: center; }
+    .tpl-compose-send button { padding: 0.4rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600; }
+    .tpl-compose-send .send-tpl { background: var(--wa-green); color: #fff; }
+    .tpl-compose-send .send-tpl:hover { background: #1da851; }
+    .tpl-compose-send .cancel-tpl { background: #f3f4f6; color: var(--muted); }
+    .tpl-compose-send .status-text { font-size: 0.78rem; }
 
     /* Start screen */
     .start-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 1.2rem; padding: 2rem; }
@@ -255,7 +303,37 @@
           <button class="clear-btn" onclick="resetSession()">🔄 Reiniciar</button>
         </div>
         <div class="chat-messages" id="chatMessages"></div>
+
+        <!-- Template compose form (above chat input) -->
+        <div class="tpl-compose" id="tplCompose">
+          <div class="tpl-compose-header">
+            <span class="name" id="tplComposeName">📋 template_name</span>
+            <button onclick="cancelTplCompose()" title="Cerrar">✕</button>
+          </div>
+          <div class="tpl-compose-preview">
+            <div class="mini-bubble" id="tplComposePreview">Cargando...</div>
+          </div>
+          <div class="tpl-compose-params" id="tplComposeParams"></div>
+          <div class="tpl-compose-send">
+            <button class="send-tpl" onclick="sendTplFromChat()">📤 Enviar template</button>
+            <button class="cancel-tpl" onclick="cancelTplCompose()">Cancelar</button>
+            <span class="status-text" id="tplComposeStatus"></span>
+          </div>
+        </div>
+
         <div class="chat-input">
+          <!-- Template picker dropdown (positioned above) -->
+          <div class="tpl-picker" id="tplPicker">
+            <div class="tpl-picker-header">
+              <span>📋 Templates disponibles</span>
+              <button onclick="toggleTplPicker()">✕</button>
+            </div>
+            <div class="tpl-picker-list" id="tplPickerList">
+              <div class="tpl-picker-loading">Cargando...</div>
+            </div>
+          </div>
+
+          <button class="tpl-btn" id="tplBtn" onclick="toggleTplPicker()" title="Enviar template">📋</button>
           <input type="text" id="chatInput" placeholder="Escribí un mensaje..." autocomplete="off">
           <button id="chatSend" onclick="sendMessage()">➤</button>
         </div>
@@ -1055,7 +1133,244 @@ async function refreshCosts() {
     document.getElementById("costMonthTok").textContent = fmtTok(data.month?.input_tokens, data.month?.output_tokens);
   } catch (e) { /* silent */ }
 }
+
+// ==========================================
+// Templates in Chat
+// ==========================================
+let chatTplSelected = null; // template seleccionado para enviar en el chat
+
+// Cargar templates al iniciar app (no solo cuando se va al tab)
+async function loadTemplatesForChat() {
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "templates_list" },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    cachedTemplates = data?.templates || [];
+    templatesLoaded = true;
+    renderPickerList();
+  } catch (e) {
+    cachedTemplates = [];
+    renderPickerList();
+  }
+}
+
+function renderPickerList() {
+  const list = document.getElementById("tplPickerList");
+  const approved = cachedTemplates.filter(t => (t.status || "").toUpperCase() === "APPROVED");
+
+  if (!approved.length) {
+    list.innerHTML = '<div class="tpl-picker-empty">Sin templates aprobados</div>';
+    return;
+  }
+
+  let html = "";
+  for (const t of approved) {
+    const bodyComp = t.components?.find(c => c.type === "BODY");
+    const bodySnippet = bodyComp?.text || "(sin texto)";
+    const paramCount = (bodySnippet.match(/\{\{\d+\}\}/g) || []).length;
+    html += `<div class="tpl-picker-item" onclick="selectTplForChat('${t.name}')">
+      <div style="display:flex;align-items:center;">
+        <span class="tpi-name">${t.name}</span>
+        ${paramCount ? `<span class="tpi-badge">${paramCount} param${paramCount > 1 ? "s" : ""}</span>` : ""}
+      </div>
+      <div class="tpi-body">${bodySnippet}</div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+function toggleTplPicker() {
+  const picker = document.getElementById("tplPicker");
+  const btn = document.getElementById("tplBtn");
+  const isOpen = picker.classList.contains("open");
+
+  if (isOpen) {
+    picker.classList.remove("open");
+    btn.classList.remove("active");
+  } else {
+    // Close compose if open
+    cancelTplCompose();
+    // Load templates if not loaded yet
+    if (!cachedTemplates.length && !templatesLoaded) loadTemplatesForChat();
+    picker.classList.add("open");
+    btn.classList.add("active");
+  }
+}
+
+function selectTplForChat(name) {
+  const t = cachedTemplates.find(x => x.name === name);
+  if (!t) return;
+  chatTplSelected = t;
+
+  // Close picker
+  document.getElementById("tplPicker").classList.remove("open");
+  document.getElementById("tplBtn").classList.remove("active");
+
+  // Open compose form
+  document.getElementById("tplComposeName").textContent = "📋 " + t.name;
+  const compose = document.getElementById("tplCompose");
+  compose.classList.add("open");
+
+  // Build param inputs
+  const bodyComp = t.components?.find(c => c.type === "BODY");
+  const bodyText = bodyComp?.text || "";
+  const paramMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+  const paramsDiv = document.getElementById("tplComposeParams");
+
+  if (paramMatches.length) {
+    paramsDiv.innerHTML = paramMatches.map(m => {
+      const num = m.replace(/[{}]/g, "");
+      return `<input type="text" id="tplCParam_${num}" placeholder="Parámetro ${m}" oninput="updateComposePreview()">`;
+    }).join("");
+  } else {
+    paramsDiv.innerHTML = "";
+  }
+
+  document.getElementById("tplComposeStatus").textContent = "";
+  updateComposePreview();
+}
+
+function updateComposePreview() {
+  if (!chatTplSelected) return;
+  const bodyComp = chatTplSelected.components?.find(c => c.type === "BODY");
+  if (!bodyComp?.text) {
+    document.getElementById("tplComposePreview").textContent = "(sin texto)";
+    return;
+  }
+
+  let text = bodyComp.text;
+  const paramMatches = text.match(/\{\{(\d+)\}\}/g) || [];
+  for (const m of paramMatches) {
+    const num = m.replace(/[{}]/g, "");
+    const input = document.getElementById("tplCParam_" + num);
+    const val = input?.value || m;
+    text = text.replace(m, val === m ? `<span class="param-hl">${m}</span>` : val);
+  }
+
+  let html = "";
+  for (const comp of (chatTplSelected.components || [])) {
+    if (comp.type === "HEADER" && comp.text) html += `<strong>${comp.text}</strong>\n`;
+    if (comp.type === "BODY") html += text;
+    if (comp.type === "FOOTER" && comp.text) html += `\n<em style="font-size:0.72rem;color:var(--muted);">${comp.text}</em>`;
+  }
+  document.getElementById("tplComposePreview").innerHTML = html || "(vacío)";
+}
+
+function cancelTplCompose() {
+  chatTplSelected = null;
+  document.getElementById("tplCompose").classList.remove("open");
+  document.getElementById("tplComposeStatus").textContent = "";
+}
+
+async function sendTplFromChat() {
+  if (!chatTplSelected) return;
+  if (!testPhone) {
+    document.getElementById("tplComposeStatus").textContent = "⚠️ Iniciá una sesión primero";
+    return;
+  }
+
+  const st = document.getElementById("tplComposeStatus");
+  st.textContent = "Enviando...";
+
+  // Gather params
+  const bodyComp = chatTplSelected.components?.find(c => c.type === "BODY");
+  const bodyText = bodyComp?.text || "";
+  const paramMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+  let components = undefined;
+  const paramValues = [];
+
+  if (paramMatches.length) {
+    const params = paramMatches.map(m => {
+      const num = m.replace(/[{}]/g, "");
+      const input = document.getElementById("tplCParam_" + num);
+      const val = input?.value || "";
+      paramValues.push(val);
+      return { type: "text", text: val };
+    });
+    components = [{ type: "body", parameters: params }];
+  }
+
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: {
+        action: "template_send",
+        phone: testPhone,
+        template_name: chatTplSelected.name,
+        language: chatTplSelected.language || "es_AR",
+        components,
+      },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+
+    // Render template bubble in chat
+    addTemplateMsg(chatTplSelected, paramValues, "out");
+
+    st.textContent = "✓ Enviado";
+    setTimeout(() => cancelTplCompose(), 1200);
+    if (currentRole === "admin") refreshCosts();
+  } catch (e) {
+    st.textContent = "✗ " + e.message;
+  }
+}
+
+function addTemplateMsg(template, paramValues, direction) {
+  const div = document.createElement("div");
+  div.className = "msg template-bubble";
+  if (direction === "out") {
+    div.style.cssText = "float:right; border-top-right-radius:0; border-top-left-radius:8px; background:var(--wa-out);";
+  }
+
+  let html = `<div class="tpl-label">📋 Template: ${template.name}</div>`;
+  html += '<div class="tpl-content">';
+
+  for (const comp of (template.components || [])) {
+    if (comp.type === "HEADER" && comp.text) {
+      html += `<div class="tpl-header">${comp.text}</div>`;
+    }
+    if (comp.type === "BODY" && comp.text) {
+      let text = comp.text;
+      const matches = text.match(/\{\{(\d+)\}\}/g) || [];
+      matches.forEach((m, i) => {
+        const val = paramValues[i] || m;
+        text = text.replace(m, `<strong>${val}</strong>`);
+      });
+      html += `<div class="tpl-body-text">${text}</div>`;
+    }
+    if (comp.type === "FOOTER" && comp.text) {
+      html += `<div class="tpl-footer">${comp.text}</div>`;
+    }
+  }
+
+  // Buttons
+  const btnComp = template.components?.find(c => c.buttons?.length);
+  if (btnComp) {
+    html += '<div class="tpl-buttons">';
+    for (const b of btnComp.buttons) {
+      html += `<a href="#">${b.text || "Botón"}</a>`;
+    }
+    html += '</div>';
+  }
+
+  html += `</div>`;
+  div.innerHTML = html;
+
+  chatMessages.appendChild(div);
+  const clear = document.createElement("div");
+  clear.style.clear = "both";
+  chatMessages.appendChild(clear);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Cargar templates al iniciar app
+const _origShowApp = showApp;
+showApp = function() {
+  _origShowApp();
+  if (!templatesLoaded) loadTemplatesForChat();
+};
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.5</div>
 </body>
 </html>
