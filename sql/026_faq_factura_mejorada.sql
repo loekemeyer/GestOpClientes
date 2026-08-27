@@ -3,5 +3,7 @@
 -- Aplica en PaginaLK (kwkclwhmoygunqmlegrg)
 
 UPDATE wa_faq
-SET bot_response = E'Podés descargar tus facturas y remitos directamente desde la web: 🧾\n🔗 loekemeyer.com → "Mis Pedidos" → "Comprobantes"\n\nSi necesitás tu usuario, avisame. 😊\n\nLa factura se envía por mail el día que sale tu pedido (revisá la carpeta de spam). La mercadería viaja solo con remito.\n\nSi no te llegó, pasame tu CUIT o N° de pedido y la reenviamos. 📧'
+SET
+  web_first_response = E'Podés descargar tus facturas y remitos directamente desde la web: 🧾\n🔗 loekemeyer.com → "Mis Pedidos" → "Comprobantes"\n\nSi necesitás tu usuario, avisame. 😊',
+  bot_response = E'La factura se envía por mail el día que sale tu pedido (revisá la carpeta de spam). La mercadería viaja solo con remito.\n\nSi no te llegó, pasame tu CUIT o N° de pedido y la reenviamos. 📧'
 WHERE id = 10;
