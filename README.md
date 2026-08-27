@@ -7,7 +7,7 @@ Bot conversacional WhatsApp para gestión de clientes mayoristas de Loekemeyer H
 | Feature                      | Estado     |
 |------------------------------|------------|
 | Consulta estado de pedido    | 🔲 pendiente |
-| Notificaciones proactivas    | 🔲 pendiente |
+| Notificaciones proactivas    | 🟡 en curso — aviso "mañana sale tu pedido por $XXX" al facturar (falta template Meta) |
 | Recepción de pedidos por WA  | 🔲 pendiente |
 | Reactivación clientes inactivos | 🔲 pendiente |
 | IA conversacional general    | 🔲 pendiente |
