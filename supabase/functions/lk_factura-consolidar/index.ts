@@ -56,10 +56,9 @@ function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
-// Formato moneda AR: 683480.25 -> "$683.480" (redondeado, miles con punto, sin decimales)
+// Formato moneda AR: 153355.46 -> "$153.355,46" (miles con punto, coma decimal, 2 decimales)
 function fmtARS(n: number): string {
-  const r = Math.round(n);
-  return "$" + r.toLocaleString("es-AR");
+  return "$" + n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // Lee facturas vía RPC public.wa_factura_grupo (los schemas isis_* no están
