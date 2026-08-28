@@ -6,11 +6,13 @@
 -- public (expuesto) y es SECURITY DEFINER, por lo que alcanza esos schemas.
 -- Lo usa la edge function lk_factura-consolidar (PaginaLK) vía el puente ISIS.
 
+-- Nota: si ya existe una versión previa con menos columnas, hacer primero
+--   drop function if exists public.wa_factura_grupo(text, text, date);
 create or replace function public.wa_factura_grupo(
   p_schema text, p_cuit text, p_fecha date
 ) returns table(
   id bigint, comprobante_id text, numero text, total numeric,
-  storage_path text, contraparte_nombre text
+  storage_path text, contraparte_nombre text, confianza text, totales_ok boolean
 )
 language plpgsql
 security definer
@@ -21,7 +23,7 @@ begin
     raise exception 'schema no permitido: %', p_schema;
   end if;
   return query execute format(
-    'select id, comprobante_id, numero, total, storage_path, contraparte_nombre
+    'select id, comprobante_id, numero, total, storage_path, contraparte_nombre, confianza, totales_ok
        from %I.documentos
       where familia = ''factura_venta''
         and contraparte_cuit = $1
