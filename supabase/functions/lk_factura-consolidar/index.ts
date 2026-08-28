@@ -147,35 +147,72 @@ serve(async (req) => {
 
     const estado = multisource ? "held_multisource" : (confiable ? "complete" : "held_revision");
 
-    // Plan del mensaje: qué plantilla, qué params, qué documento (header). NO se envía acá.
-    // Escala de descuentos (config: wa_descuentos_escala). Orden fijo del cuerpo de la plantilla:
-    //   crédito: contado 25%, 15-30d 20%, 31-45d 15%, 46-60d 10%  |  e-cheq: 90d 5%, 120d 0%
-    let escala = [0.25, 0.20, 0.15, 0.10, 0.05, 0.00];
+    // Plan del mensaje: 3 plantillas según MÉTODO DE PAGO del cliente. NO se envía acá.
+    // Descuentos por método (config: wa_descuentos_metodo). Contado = 25% (referencia).
+    const DTO_DEFAULT: Record<string, number> = {
+      contado: 0.25, credito_15_30: 0.20, credito_31_45: 0.15,
+      credito_46_60: 0.10, echeq_90: 0.05, echeq_120: 0.00, no_decidido: 0.25,
+    };
+    let DTO = DTO_DEFAULT;
     try {
-      const cfg = await getSetting("wa_descuentos_escala");
-      if (cfg) { const arr = JSON.parse(cfg); if (Array.isArray(arr) && arr.length === 6) escala = arr.map(Number); }
+      const cfg = await getSetting("wa_descuentos_metodo");
+      if (cfg) DTO = { ...DTO_DEFAULT, ...JSON.parse(cfg) };
     } catch { /* usa default */ }
-    const montos = escala.map((d) => total_sum * (1 - d));        // montos por tramo
-    const montosFmt = montos.map((m) => fmtARS(m));
 
-    const tplUnica = (await getSetting("wa_tpl_factura_unica")) || "pedido_armado_factura_unica";
-    const tplMultiple = (await getSetting("wa_tpl_facturas_multiples")) || "pedido_armado_facturas_multiples";
-    const esMultiple = facturas.length > 1;
+    // Método del grupo: primero no nulo de las facturas (deberían coincidir por pedido).
+    // deno-lint-ignore no-explicit-any
+    const metodos = facturas.map((f: any) => f.metodo).filter(Boolean);
+    const metodo = (metodos[0] as string) ?? "no_decidido";
+    const dto = DTO[metodo] ?? 0.25;
+
+    const montoContado = total_sum * 0.75;               // pago al contado (25% off)
+    const montoCliente = total_sum * (1 - dto);          // con el descuento de su método
+    const ahorroVsContado = montoCliente - montoContado; // cuánto MÁS ahorraría pagando contado
+
+    // Categoría -> plantilla:
+    //   contado / no_decidido -> P1 (contado o sin definir)
+    //   credito_*             -> P2 (crédito)
+    //   echeq_*               -> P3 (e-cheq)
+    let grupo: "contado" | "credito" | "echeq";
+    if (metodo.startsWith("credito")) grupo = "credito";
+    else if (metodo.startsWith("echeq")) grupo = "echeq";
+    else grupo = "contado";
+
+    const tplContado = (await getSetting("wa_tpl_contado")) || "pedido_contado";
+    const tplCredito = (await getSetting("wa_tpl_credito")) || "pedido_credito";
+    const tplEcheq   = (await getSetting("wa_tpl_echeq"))   || "pedido_echeq";
+
+    // Params posicionales por plantilla (todos formateados $ARS, 2 decimales):
+    //   P1 contado/sindef: {{1}} total c/IVA, {{2}} monto contado (25% off)
+    //   P2 crédito:        {{1}} total c/IVA, {{2}} monto con su descuento, {{3}} DIFERENCIA vs contado
+    //   P3 e-cheq:         {{1}} total c/IVA, {{2}} monto con su e-cheq,    {{3}} monto contado (absoluto)
+    let template: string, params: string[];
+    if (grupo === "credito") {
+      template = tplCredito;
+      params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(ahorroVsContado)];
+    } else if (grupo === "echeq") {
+      template = tplEcheq;
+      params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(montoContado)];
+    } else {
+      template = tplContado;
+      params = [fmtARS(total_sum), fmtARS(montoContado)];
+    }
+
     const mensaje = {
-      // n_facturas == 1 -> plantilla única (header = PDF de 1 página)
-      // n_facturas  > 1 -> plantilla múltiple (header = PDF combinado)
-      template: esMultiple ? tplMultiple : tplUnica,
+      template,
       language: "es_AR",
-      // Params posicionales:
-      //   única:    {{1}} total, {{2..7}} montos escala (contado,20,15,10,5,0)
-      //   múltiple: {{1}} total, {{2}} cantidad, {{3..8}} montos escala
-      params: esMultiple
-        ? [fmtARS(total_sum), String(facturas.length), ...montosFmt]
-        : [fmtARS(total_sum), ...montosFmt],
+      metodo,
+      grupo,
+      params,
       document: { link: pdf_signed_url, filename: `factura_${cuitDigits}_${fecha}.pdf` },
       total_fmt: fmtARS(total_sum),
-      // desglose legible de la escala
-      descuentos: escala.map((d, i) => ({ off: `${Math.round(d * 100)}%`, monto: montosFmt[i] })),
+      desglose: {
+        total_civa: fmtARS(total_sum),
+        dto_cliente: `${Math.round(dto * 100)}%`,
+        monto_cliente: fmtARS(montoCliente),
+        monto_contado: fmtARS(montoContado),
+        ahorro_vs_contado: fmtARS(ahorroVsContado),
+      },
       to: cust?.whatsapp ?? null,
     };
 
