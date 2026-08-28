@@ -53,6 +53,46 @@ async function metaWabaId(): Promise<string> {
     ?? (await getSetting("wa_business_account_id")) ?? "";
 }
 
+/** Resuelve el número emisor (phone_number_id). Si no está configurado,
+ *  lo busca en la WABA vía Meta y lo cachea en app_settings. */
+async function resolveSender(token: string): Promise<string> {
+  const configured = await metaPhoneNumberId();
+  if (configured) return configured;
+
+  const wabaId = await metaWabaId();
+  if (!wabaId) return "";
+
+  const res = await fetch(`${META_API}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.error) {
+    console.error("phone_numbers error:", JSON.stringify(data.error));
+    return "";
+  }
+  const first = data.data?.[0];
+  if (first?.id) {
+    await supabase.from("app_settings").upsert({ key: "wa_phone_number_id", value: String(first.id) }, { onConflict: "key" });
+    console.log(`resolveSender: cacheado phone_number_id=${first.id} (${first.display_phone_number ?? ""})`);
+    return String(first.id);
+  }
+  return "";
+}
+
+async function handlePhoneNumbers() {
+  const token = await metaToken();
+  const wabaId = await metaWabaId();
+  if (!token) return json({ error: "WA_TOKEN no configurado" }, 400);
+  if (!wabaId) return json({ error: "WABA ID no configurado" }, 400);
+
+  const res = await fetch(`${META_API}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.error) return json({ error: data.error.message ?? JSON.stringify(data.error) }, 500);
+  return json({ numbers: data.data ?? [] });
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -68,6 +108,7 @@ serve(async (req) => {
 
     if (body.action === "templates_list") return await handleTemplatesList(body.status);
     if (body.action === "template_send") return await handleTemplateSend(body);
+    if (body.action === "phone_numbers") return await handlePhoneNumbers();
 
     return json({ error: "action desconocida" }, 400);
   } catch (err) {
@@ -118,10 +159,10 @@ async function handleTemplateSend(body: Record<string, unknown>) {
   };
   if (!phone || !template_name) return json({ error: "phone y template_name requeridos" }, 400);
 
-  const phoneNumberId = await metaPhoneNumberId();
   const token = await metaToken();
-  if (!phoneNumberId) return json({ error: "WA_PHONE_NUMBER_ID no configurado" }, 400);
   if (!token) return json({ error: "WA_TOKEN no configurado" }, 400);
+  const phoneNumberId = await resolveSender(token);
+  if (!phoneNumberId) return json({ error: "No se pudo resolver el número emisor (phone_number_id) de la WABA" }, 400);
 
   const to = canonPhone(String(phone));
   const lang = (language as string) || "es_AR";
