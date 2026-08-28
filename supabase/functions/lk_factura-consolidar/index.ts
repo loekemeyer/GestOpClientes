@@ -149,8 +149,16 @@ serve(async (req) => {
     const estado = multisource ? "held_multisource" : (confiable ? "complete" : "held_revision");
 
     // Plan del mensaje: qué plantilla, qué params, qué documento (header). NO se envía acá.
-    const pct = Number(await getSetting("wa_contado_pct")) || 0.25;   // 25% contado por defecto
-    const contado = total_sum * (1 - pct);
+    // Escala de descuentos (config: wa_descuentos_escala). Orden fijo del cuerpo de la plantilla:
+    //   crédito: contado 25%, 15-30d 20%, 31-45d 15%, 46-60d 10%  |  e-cheq: 90d 5%, 120d 0%
+    let escala = [0.25, 0.20, 0.15, 0.10, 0.05, 0.00];
+    try {
+      const cfg = await getSetting("wa_descuentos_escala");
+      if (cfg) { const arr = JSON.parse(cfg); if (Array.isArray(arr) && arr.length === 6) escala = arr.map(Number); }
+    } catch { /* usa default */ }
+    const montos = escala.map((d) => total_sum * (1 - d));        // montos por tramo
+    const montosFmt = montos.map((m) => fmtARS(m));
+
     const tplUnica = (await getSetting("wa_tpl_factura_unica")) || "pedido_armado_factura_unica";
     const tplMultiple = (await getSetting("wa_tpl_facturas_multiples")) || "pedido_armado_facturas_multiples";
     const esMultiple = facturas.length > 1;
@@ -160,14 +168,15 @@ serve(async (req) => {
       template: esMultiple ? tplMultiple : tplUnica,
       language: "es_AR",
       // Params posicionales:
-      //   única:    {{1}} total c/IVA, {{2}} contado
-      //   múltiple: {{1}} total c/IVA, {{2}} cantidad facturas, {{3}} contado
+      //   única:    {{1}} total, {{2..7}} montos escala (contado,20,15,10,5,0)
+      //   múltiple: {{1}} total, {{2}} cantidad, {{3..8}} montos escala
       params: esMultiple
-        ? [fmtARS(total_sum), String(facturas.length), fmtARS(contado)]
-        : [fmtARS(total_sum), fmtARS(contado)],
+        ? [fmtARS(total_sum), String(facturas.length), ...montosFmt]
+        : [fmtARS(total_sum), ...montosFmt],
       document: { link: pdf_signed_url, filename: `factura_${cuitDigits}_${fecha}.pdf` },
       total_fmt: fmtARS(total_sum),
-      contado, contado_fmt: fmtARS(contado),
+      // desglose legible de la escala
+      descuentos: escala.map((d, i) => ({ off: `${Math.round(d * 100)}%`, monto: montosFmt[i] })),
       to: cust?.whatsapp ?? null,
     };
 
