@@ -13,6 +13,13 @@ usar según el método del cliente y la cantidad de facturas del pedido.
 | **Pie de página** (opcional) | `Loekemeyer Mayorista` |
 | **Botones** | ninguno |
 
+Datos de pago (texto FIJO al final de las 6, no variable):
+```
+Datos para el pago:
+Alias: loeke.srl
+CBU: 1910027855002702387450
+```
+
 Notas para que Meta apruebe sin rechazo:
 - El **nombre** va en minúsculas con guión bajo (los de abajo, exactos — coinciden con `app_settings`).
 - En el formulario, el encabezado Documento pide un PDF de muestra: subí cualquiera.
@@ -30,6 +37,10 @@ Notas para que Meta apruebe sin rechazo:
 Total de tu factura (con IVA): {{1}}
 
 Pagando al contado (25% de descuento) abonás: {{2}}
+
+Datos para el pago:
+Alias: loeke.srl
+CBU: 1910027855002702387450
 ```
 Ejemplos: `{{1}}`=`$470.498,88` · `{{2}}`=`$352.874,16`
 
@@ -42,6 +53,10 @@ Total de tu factura (con IVA): {{1}}
 Con tu pago a {{2}} días abonás: {{3}}
 
 Pagando al contado ahorrarías {{4}} más.
+
+Datos para el pago:
+Alias: loeke.srl
+CBU: 1910027855002702387450
 ```
 `{{2}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60`.
 Ejemplos: `{{1}}`=`$743.418,34` · `{{2}}`=`31 a 45` · `{{3}}`=`$631.905,59` · `{{4}}`=`$74.341,83`
@@ -56,6 +71,10 @@ Con tu pago por e-cheq abonás: {{2}}
 Recordá enviar el e-cheq de manera anticipada.
 
 Si pagás al contado abonás {{3}} (25% de descuento).
+
+Datos para el pago:
+Alias: loeke.srl
+CBU: 1910027855002702387450
 ```
 Ejemplos: `{{1}}`=`$1.587.098,44` · `{{2}}`=`$1.507.743,52` · `{{3}}`=`$1.190.323,83`
 
@@ -75,6 +94,10 @@ Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
 Detalle por factura: {{3}}
 
 Pagando al contado (25% de descuento) abonás: {{4}}
+
+Datos para el pago:
+Alias: loeke.srl
+CBU: 1910027855002702387450
 ```
 Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$375.000,00`
 
@@ -89,6 +112,10 @@ Detalle por factura: {{3}}
 Con tu pago a {{4}} días abonás: {{5}}
 
 Pagando al contado ahorrarías {{6}} más.
+
+Datos para el pago:
+Alias: loeke.srl
+CBU: 1910027855002702387450
 ```
 `{{4}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60`.
 Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`31 a 45` · `{{5}}`=`$425.000,00` · `{{6}}`=`$50.000,00`
@@ -105,6 +132,10 @@ Con tu pago por e-cheq abonás: {{4}}
 Recordá enviar el e-cheq de manera anticipada.
 
 Si pagás al contado abonás {{5}} (25% de descuento).
+
+Datos para el pago:
+Alias: loeke.srl
+CBU: 1910027855002702387450
 ```
 Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$475.000,00` · `{{5}}`=`$375.000,00`
 
