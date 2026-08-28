@@ -56,6 +56,12 @@ function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
+// Formato moneda AR: 683480.25 -> "$683.480" (redondeado, miles con punto, sin decimales)
+function fmtARS(n: number): string {
+  const r = Math.round(n);
+  return "$" + r.toLocaleString("es-AR");
+}
+
 // Lee facturas vía RPC public.wa_factura_grupo (los schemas isis_* no están
 // expuestos en PostgREST; el RPC es SECURITY DEFINER y los alcanza).
 // deno-lint-ignore no-explicit-any
@@ -135,7 +141,35 @@ serve(async (req) => {
     const signed = await gp.storage.from(bucket).createSignedUrl(out_path, 60 * 60 * 24 * 7);
     const pdf_signed_url = signed.data?.signedUrl ?? null;
 
-    const estado = multisource ? "held_multisource" : "complete";
+    // Candado de calidad: solo confiable si TODAS las facturas parsearon bien.
+    // deno-lint-ignore no-explicit-any
+    const confiable = facturas.every((f: any) =>
+      (f.confianza ?? "alta") === "alta" && f.totales_ok !== false);
+
+    const estado = multisource ? "held_multisource" : (confiable ? "complete" : "held_revision");
+
+    // Plan del mensaje: qué plantilla, qué params, qué documento (header). NO se envía acá.
+    const pct = Number(await getSetting("wa_contado_pct")) || 0.25;   // 25% contado por defecto
+    const contado = total_sum * (1 - pct);
+    const tplUnica = (await getSetting("wa_tpl_factura_unica")) || "pedido_armado_factura_unica";
+    const tplMultiple = (await getSetting("wa_tpl_facturas_multiples")) || "pedido_armado_facturas_multiples";
+    const esMultiple = facturas.length > 1;
+    const mensaje = {
+      // n_facturas == 1 -> plantilla única (header = PDF de 1 página)
+      // n_facturas  > 1 -> plantilla múltiple (header = PDF combinado)
+      template: esMultiple ? tplMultiple : tplUnica,
+      language: "es_AR",
+      // Params posicionales:
+      //   única:    {{1}} total c/IVA, {{2}} contado
+      //   múltiple: {{1}} total c/IVA, {{2}} cantidad facturas, {{3}} contado
+      params: esMultiple
+        ? [fmtARS(total_sum), String(facturas.length), fmtARS(contado)]
+        : [fmtARS(total_sum), fmtARS(contado)],
+      document: { link: pdf_signed_url, filename: `factura_${cuitDigits}_${fecha}.pdf` },
+      total_fmt: fmtARS(total_sum),
+      contado, contado_fmt: fmtARS(contado),
+      to: cust?.whatsapp ?? null,
+    };
 
     // 6. Registrar en wa_factura_consolidada (idempotente por source+cuit+fecha). NO envía.
     const { error: upErr } = await paginalk.from("wa_factura_consolidada").upsert({
@@ -148,6 +182,8 @@ serve(async (req) => {
         errores: errores.length ? errores : undefined,
         whatsapp: cust?.whatsapp ?? null,
         pdf_signed_url,
+        confiable,
+        mensaje,
         generated_at: new Date().toISOString(),
       },
       updated_at: new Date().toISOString(),
@@ -166,8 +202,10 @@ serve(async (req) => {
       pages: merged.getPageCount(),
       pdf_path: `${bucket}/${out_path}`,
       pdf_signed_url,
+      confiable,
+      mensaje,
       cliente: cust ? { cod_cliente: cust.cod_cliente, business_name: cust.business_name, whatsapp: cust.whatsapp } : { business_name: nombre, matched: false },
-      nota: "SIN ENVÍO (etapa consolidación). El cliente se matcheó por CUIT.",
+      nota: "SIN ENVÍO (etapa consolidación). El plan de mensaje queda listo para el sender.",
     });
   } catch (err) {
     console.error("lk_factura-consolidar error:", err);
