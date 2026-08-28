@@ -147,7 +147,7 @@ serve(async (req) => {
 
     const estado = multisource ? "held_multisource" : (confiable ? "complete" : "held_revision");
 
-    // Plan del mensaje: 3 plantillas según MÉTODO DE PAGO del cliente. NO se envía acá.
+    // Plan del mensaje: plantilla según MÉTODO DE PAGO + si hay 1 o varias facturas. NO se envía.
     // Descuentos por método (config: wa_descuentos_metodo). Contado = 25% (referencia).
     const DTO_DEFAULT: Record<string, number> = {
       contado: 0.25, credito_15_30: 0.20, credito_31_45: 0.15,
@@ -169,33 +169,56 @@ serve(async (req) => {
     const montoCliente = total_sum * (1 - dto);          // con el descuento de su método
     const ahorroVsContado = montoCliente - montoContado; // cuánto MÁS ahorraría pagando contado
 
-    // Categoría -> plantilla:
-    //   contado / no_decidido -> P1 (contado o sin definir)
-    //   credito_*             -> P2 (crédito)
-    //   echeq_*               -> P3 (e-cheq)
+    // Categoría -> grupo de plantilla:
+    //   contado / no_decidido -> contado (o sin definir)
+    //   credito_*             -> credito
+    //   echeq_*               -> echeq
     let grupo: "contado" | "credito" | "echeq";
     if (metodo.startsWith("credito")) grupo = "credito";
     else if (metodo.startsWith("echeq")) grupo = "echeq";
     else grupo = "contado";
 
-    const tplContado = (await getSetting("wa_tpl_contado")) || "pedido_contado";
-    const tplCredito = (await getSetting("wa_tpl_credito")) || "pedido_credito";
-    const tplEcheq   = (await getSetting("wa_tpl_echeq"))   || "pedido_echeq";
+    const esMultiple = facturas.length > 1;
+    // Lista de importes individuales para el cuerpo de la plantilla múltiple ({{3}}).
+    // deno-lint-ignore no-explicit-any
+    const listaFacturas = facturas.map((f: any) => fmtARS(Number(f.total || 0))).join(" ");
 
-    // Params posicionales por plantilla (todos formateados $ARS, 2 decimales):
-    //   P1 contado/sindef: {{1}} total c/IVA, {{2}} monto contado (25% off)
-    //   P2 crédito:        {{1}} total c/IVA, {{2}} monto con su descuento, {{3}} DIFERENCIA vs contado
-    //   P3 e-cheq:         {{1}} total c/IVA, {{2}} monto con su e-cheq,    {{3}} monto contado (absoluto)
-    let template: string, params: string[];
-    if (grupo === "credito") {
-      template = tplCredito;
-      params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(ahorroVsContado)];
-    } else if (grupo === "echeq") {
-      template = tplEcheq;
-      params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(montoContado)];
+    // Nombres de plantilla (single / múltiple) por config, con defaults.
+    const TPL: Record<string, { single: string; multi: string }> = {
+      contado: {
+        single: (await getSetting("wa_tpl_contado")) || "pedido_contado",
+        multi:  (await getSetting("wa_tpl_contado_multiple")) || "pedido_contado_multiple",
+      },
+      credito: {
+        single: (await getSetting("wa_tpl_credito")) || "pedido_credito",
+        multi:  (await getSetting("wa_tpl_credito_multiple")) || "pedido_credito_multiple",
+      },
+      echeq: {
+        single: (await getSetting("wa_tpl_echeq")) || "pedido_echeq",
+        multi:  (await getSetting("wa_tpl_echeq_multiple")) || "pedido_echeq_multiple",
+      },
+    };
+    const template = esMultiple ? TPL[grupo].multi : TPL[grupo].single;
+
+    // Params posicionales (todos $ARS, 2 decimales salvo {{2}} cantidad y {{3}} lista):
+    //  SINGLE (1 factura):
+    //   contado: {{1}} total, {{2}} contado
+    //   credito: {{1}} total, {{2}} su_descuento, {{3}} DIFERENCIA vs contado
+    //   echeq:   {{1}} total, {{2}} su_echeq,     {{3}} contado (absoluto)
+    //  MÚLTIPLE (>1): inserta {{2}} cantidad y {{3}} lista de importes; corre el resto:
+    //   contado: {{1}} total, {{2}} cant, {{3}} lista, {{4}} contado
+    //   credito: {{1}} total, {{2}} cant, {{3}} lista, {{4}} su_descuento, {{5}} DIFERENCIA
+    //   echeq:   {{1}} total, {{2}} cant, {{3}} lista, {{4}} su_echeq,     {{5}} contado
+    let params: string[];
+    if (!esMultiple) {
+      if (grupo === "credito") params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(ahorroVsContado)];
+      else if (grupo === "echeq") params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(montoContado)];
+      else params = [fmtARS(total_sum), fmtARS(montoContado)];
     } else {
-      template = tplContado;
-      params = [fmtARS(total_sum), fmtARS(montoContado)];
+      const base = [fmtARS(total_sum), String(facturas.length), listaFacturas];
+      if (grupo === "credito") params = [...base, fmtARS(montoCliente), fmtARS(ahorroVsContado)];
+      else if (grupo === "echeq") params = [...base, fmtARS(montoCliente), fmtARS(montoContado)];
+      else params = [...base, fmtARS(montoContado)];
     }
 
     const mensaje = {
@@ -203,7 +226,10 @@ serve(async (req) => {
       language: "es_AR",
       metodo,
       grupo,
+      n_facturas: facturas.length,
+      multiple: esMultiple,
       params,
+      lista_facturas: listaFacturas,
       document: { link: pdf_signed_url, filename: `factura_${cuitDigits}_${fecha}.pdf` },
       total_fmt: fmtARS(total_sum),
       desglose: {

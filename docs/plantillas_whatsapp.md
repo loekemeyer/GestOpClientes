@@ -1,0 +1,134 @@
+# Plantillas WhatsApp — Tutorial de carga en Meta Business (WhatsApp Manager)
+
+6 plantillas: 3 métodos de pago × (1 factura | varias facturas). El bot elige sola cuál
+usar según el método del cliente y la cantidad de facturas del pedido.
+
+## Campos comunes (para las 6)
+
+| Campo | Valor |
+|--|--|
+| **Categoría** | Utilidad (Utility) |
+| **Idioma** | Español (ARG) |
+| **Encabezado** | Media → **Documento** (al enviar, el bot adjunta el PDF de la factura o el combinado) |
+| **Pie de página** (opcional) | `Loekemeyer Mayorista` |
+| **Botones** | ninguno |
+
+Notas para que Meta apruebe sin rechazo:
+- El **nombre** va en minúsculas con guión bajo (los de abajo, exactos — coinciden con `app_settings`).
+- En el formulario, el encabezado Documento pide un PDF de muestra: subí cualquiera.
+- Meta pide **valores de ejemplo** para cada `{{n}}`: usá los que están abajo.
+- Formato de importes: `$` + miles con punto + coma decimal + 2 decimales (ej. `$153.355,46`). El bot ya lo arma así.
+
+---
+
+## A) Una sola factura
+
+### 1 · `pedido_contado`  (contado + clientes que no definieron)
+```
+¡Hola! Tu pedido está listo y estará con vos a la brevedad.
+
+Total de tu factura (con IVA): {{1}}
+
+Pagando al contado (25% de descuento) abonás: {{2}}
+```
+Ejemplos: `{{1}}`=`$470.498,88` · `{{2}}`=`$352.874,16`
+
+### 2 · `pedido_credito`  (plazos de crédito)
+```
+¡Hola! Tu pedido está listo y estará con vos a la brevedad.
+
+Total de tu factura (con IVA): {{1}}
+
+Con el descuento de tu forma de pago abonás: {{2}}
+
+Pagando al contado ahorrarías {{3}} más.
+```
+Ejemplos: `{{1}}`=`$743.418,34` · `{{2}}`=`$631.905,59` · `{{3}}`=`$74.341,83`
+
+### 3 · `pedido_echeq`  (e-cheq)
+```
+¡Hola! Tu pedido está listo y estará con vos a la brevedad.
+
+Total de tu factura (con IVA): {{1}}
+
+Con tu pago por e-cheq abonás: {{2}}
+Recordá enviar el e-cheq de manera anticipada.
+
+Si pagás al contado abonás {{3}} (25% de descuento).
+```
+Ejemplos: `{{1}}`=`$1.587.098,44` · `{{2}}`=`$1.507.743,52` · `{{3}}`=`$1.190.323,83`
+
+---
+
+## B) Varias facturas (pedido dividido)
+
+`{{2}}` = cantidad de facturas · `{{3}}` = importes individuales separados por espacio
+(ej. `$153.355,46 $200.100,00 $99.999,99`). Los descuentos corren un lugar.
+
+### 4 · `pedido_contado_multiple`
+```
+¡Hola! Tu pedido está listo y estará con vos a la brevedad.
+
+Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
+
+Detalle por factura: {{3}}
+
+Pagando al contado (25% de descuento) abonás: {{4}}
+```
+Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$375.000,00`
+
+### 5 · `pedido_credito_multiple`
+```
+¡Hola! Tu pedido está listo y estará con vos a la brevedad.
+
+Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
+
+Detalle por factura: {{3}}
+
+Con el descuento de tu forma de pago abonás: {{4}}
+
+Pagando al contado ahorrarías {{5}} más.
+```
+Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$425.000,00` · `{{5}}`=`$50.000,00`
+
+### 6 · `pedido_echeq_multiple`
+```
+¡Hola! Tu pedido está listo y estará con vos a la brevedad.
+
+Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
+
+Detalle por factura: {{3}}
+
+Con tu pago por e-cheq abonás: {{4}}
+Recordá enviar el e-cheq de manera anticipada.
+
+Si pagás al contado abonás {{5}} (25% de descuento).
+```
+Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$475.000,00` · `{{5}}`=`$375.000,00`
+
+---
+
+## Cómo el bot elige y llena (referencia técnica)
+
+`supabase/functions/lk_factura-consolidar` decide:
+- **Grupo por método** (`wa_metodo_norm` sobre `condicion_venta` de la factura):
+  contado / no_decidido → contado · credito_* → credito · echeq_* → echeq.
+- **Single vs múltiple**: según cantidad de facturas del pedido.
+- **Descuentos** (`wa_descuentos_metodo`, default): contado 25%, 15-30d 20%, 31-45d 15%,
+  46-60d 10%, e-cheq 90d 5%, e-cheq 120d 0%. `no_decidido` se muestra como contado.
+
+Diferencia deliberada: en **crédito** el último valor es *la diferencia* (lo que ahorraría
+de más pagando contado); en **e-cheq** es el *monto contado absoluto*.
+
+Nombres configurables en `app_settings` (PaginaLK): `wa_tpl_contado`, `wa_tpl_credito`,
+`wa_tpl_echeq`, `wa_tpl_contado_multiple`, `wa_tpl_credito_multiple`, `wa_tpl_echeq_multiple`.
+
+## Límite de caracteres
+El cuerpo de una plantilla WhatsApp admite hasta **1024 caracteres**. En la versión múltiple,
+`{{3}}` (lista de importes) crece con la cantidad de facturas; con muchas facturas muy grandes
+podría acercarse al límite. Es improbable, pero si un pedido tiene >20 facturas conviene
+acortar el formato de la lista.
+
+## Estado
+Plantillas listas para cargar. El bot ya las selecciona y completa (deploy v8), **sin envío**:
+todo el pipeline queda dormant hasta empezar los testeos con mensajes reales.
