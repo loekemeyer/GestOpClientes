@@ -68,7 +68,7 @@ Ejemplos: `{{1}}`=`$743.418,34` · `{{2}}`=`31 a 45` · `{{3}}`=`$631.905,59` ·
 Total de tu factura (con IVA): {{1}}
 
 Con tu pago por e-cheq abonás: {{2}}
-Recordá enviar el e-cheq de manera anticipada.
+Recordá enviar el e-cheq al momento de recibir el pedido.
 
 Pagando al contado ahorrarías {{3}}.
 
@@ -129,7 +129,7 @@ Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
 Detalle por factura: {{3}}
 
 Con tu pago por e-cheq abonás: {{4}}
-Recordá enviar el e-cheq de manera anticipada.
+Recordá enviar el e-cheq al momento de recibir el pedido.
 
 Pagando al contado ahorrarías {{5}}.
 
