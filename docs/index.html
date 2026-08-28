@@ -167,6 +167,7 @@
   <nav class="sidebar">
     <h3>🤖 GestOp</h3>
     <div class="active" id="navChat" onclick="showPage('chat')" style="cursor:pointer">💬 Chat Bot</div>
+    <div id="navTemplates" onclick="showPage('templates')" style="cursor:pointer">📋 Plantillas WA</div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
@@ -233,6 +234,41 @@
           </label>
         </div>
         <div class="ai-status on" id="rlStatus">🛡️ Rate limit activo</div>
+      </div>
+    </div>
+
+    <!-- Page: Plantillas WA -->
+    <div class="page" id="pageTemplates">
+      <div class="config-page">
+        <h2>📋 Plantillas WhatsApp</h2>
+        <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem;">
+          Plantillas aprobadas en Meta. Elegí una, completá los parámetros y enviala a un número de prueba
+          (no requiere vincular el número al bot).
+        </p>
+
+        <div class="config-section">
+          <h3>Plantillas de Meta</h3>
+          <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem;">
+            <button class="config-btn primary" onclick="loadTemplates()">🔄 Cargar plantillas</button>
+            <span class="config-status" id="tplLoadStatus"></span>
+          </div>
+          <div id="tplList"><div class="bl-empty">Tocá "Cargar plantillas" para traerlas de Meta.</div></div>
+        </div>
+
+        <div class="config-section" id="tplComposeSection" style="display:none;">
+          <h3>Enviar prueba — <span id="tplComposeName" style="color:var(--primary);"></span></h3>
+          <div id="tplPreview" style="background:#f0fdf4;border-radius:8px;padding:0.8rem;margin-bottom:0.9rem;white-space:pre-wrap;font-size:0.88rem;line-height:1.5;"></div>
+          <div class="config-row">
+            <label>Teléfono destino:</label>
+            <input type="text" id="tplPhone" placeholder="Ej: 5491112345678" style="min-width:220px;">
+          </div>
+          <div id="tplParams"></div>
+          <div style="margin-top:0.8rem;display:flex;align-items:center;gap:0.6rem;">
+            <button class="config-btn primary" onclick="sendTemplateTest()">📤 Enviar prueba</button>
+            <button class="config-btn" onclick="closeTemplateCompose()">Cancelar</button>
+            <span class="config-status" id="tplSendStatus"></span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -373,8 +409,10 @@ sbAuth.auth.onAuthStateChange((event) => {
 // --- Page navigation ---
 function showPage(page) {
   document.getElementById("pageChat").classList.toggle("active", page === "chat");
+  document.getElementById("pageTemplates").classList.toggle("active", page === "templates");
   document.getElementById("pageConfig").classList.toggle("active", page === "config");
   document.getElementById("navChat").classList.toggle("active", page === "chat");
+  document.getElementById("navTemplates").classList.toggle("active", page === "templates");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   if (page === "config") loadConfigPage();
 }
@@ -683,7 +721,131 @@ async function refreshCosts() {
     document.getElementById("costMonthTok").textContent = fmtTok(data.month?.input_tokens, data.month?.output_tokens);
   } catch (e) { /* silent */ }
 }
+
+// --- Plantillas WhatsApp ---
+let tplCache = [];
+let tplCurrent = null;
+
+function tplBody(t) {
+  const c = (t.components || []).find((x) => (x.type || "").toUpperCase() === "BODY");
+  return c?.text || "";
+}
+function tplHeader(t) {
+  const c = (t.components || []).find((x) => (x.type || "").toUpperCase() === "HEADER");
+  return (c && (c.format || "").toUpperCase() === "TEXT") ? (c.text || "") : "";
+}
+function tplFooter(t) {
+  const c = (t.components || []).find((x) => (x.type || "").toUpperCase() === "FOOTER");
+  return c?.text || "";
+}
+function tplParamCount(t) {
+  const nums = (tplBody(t).match(/\{\{\s*(\d+)\s*\}\}/g) || []).map((m) => parseInt(m.replace(/\D/g, ""), 10));
+  return nums.length ? Math.max(...nums) : 0;
+}
+function esc(s) {
+  return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function loadTemplates() {
+  const status = document.getElementById("tplLoadStatus");
+  status.textContent = "Cargando...";
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "templates_list", status: "APPROVED" },
+    });
+    if (error || data?.error) {
+      status.textContent = "⚠️ " + (data?.error || error.message || "Error");
+      return;
+    }
+    tplCache = data.templates || [];
+    status.textContent = tplCache.length + " plantilla(s)";
+    renderTemplateList();
+  } catch (e) {
+    status.textContent = "⚠️ " + e.message;
+  }
+}
+
+function renderTemplateList() {
+  const box = document.getElementById("tplList");
+  if (!tplCache.length) {
+    box.innerHTML = '<div class="bl-empty">No hay plantillas aprobadas.</div>';
+    return;
+  }
+  box.innerHTML = tplCache.map((t, i) => {
+    const n = tplParamCount(t);
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:0.7rem 0.9rem;margin-bottom:0.6rem;cursor:pointer;" onclick="openTemplateCompose(${i})">
+      <div style="font-weight:600;">${esc(t.name)} <span style="font-size:0.7rem;color:var(--muted);font-weight:400;">${esc(t.language || "")} · ${esc(t.category || "")}</span></div>
+      <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(tplBody(t))}</div>
+      <div style="font-size:0.72rem;color:var(--primary);margin-top:0.25rem;">${n} parámetro(s)</div>
+    </div>`;
+  }).join("");
+}
+
+function openTemplateCompose(i) {
+  tplCurrent = tplCache[i];
+  document.getElementById("tplComposeName").textContent = tplCurrent.name;
+  document.getElementById("tplComposeSection").style.display = "";
+  document.getElementById("tplSendStatus").textContent = "";
+  const n = tplParamCount(tplCurrent);
+  const params = document.getElementById("tplParams");
+  let html = "";
+  for (let k = 1; k <= n; k++) {
+    html += `<div class="config-row"><label>Parámetro {{${k}}}:</label><input type="text" class="tpl-param" data-idx="${k}" oninput="renderTemplatePreview()" style="min-width:220px;"></div>`;
+  }
+  params.innerHTML = html || '<div style="font-size:0.82rem;color:var(--muted);">Sin parámetros — plantilla estática.</div>';
+  renderTemplatePreview();
+  document.getElementById("tplComposeSection").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function renderTemplatePreview() {
+  if (!tplCurrent) return;
+  const vals = Array.from(document.querySelectorAll(".tpl-param")).map((el) => el.value);
+  let body = tplBody(tplCurrent);
+  body = body.replace(/\{\{\s*(\d+)\s*\}\}/g, (m, d) => {
+    const v = vals[parseInt(d, 10) - 1];
+    return v ? v : "{{" + d + "}}";
+  });
+  const parts = [];
+  const h = tplHeader(tplCurrent);
+  const f = tplFooter(tplCurrent);
+  if (h) parts.push("*" + esc(h) + "*");
+  parts.push(esc(body));
+  if (f) parts.push('<span style="color:var(--muted);font-size:0.8rem;">' + esc(f) + "</span>");
+  document.getElementById("tplPreview").innerHTML = parts.join("\n\n");
+}
+
+function closeTemplateCompose() {
+  tplCurrent = null;
+  document.getElementById("tplComposeSection").style.display = "none";
+}
+
+async function sendTemplateTest() {
+  if (!tplCurrent) return;
+  const status = document.getElementById("tplSendStatus");
+  const phone = document.getElementById("tplPhone").value.trim();
+  if (!phone) { status.textContent = "⚠️ Falta teléfono"; return; }
+  const params = Array.from(document.querySelectorAll(".tpl-param")).map((el) => el.value);
+  status.textContent = "Enviando...";
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: {
+        action: "template_send",
+        phone,
+        template_name: tplCurrent.name,
+        language: tplCurrent.language || "es_AR",
+        params,
+      },
+    });
+    if (error || data?.ok === false || data?.error) {
+      status.textContent = "⚠️ " + (data?.error || error?.message || "Error");
+      return;
+    }
+    status.textContent = "✅ Enviado a " + (data.to || phone);
+  } catch (e) {
+    status.textContent = "⚠️ " + e.message;
+  }
+}
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.3.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.4.0</div>
 </body>
 </html>
