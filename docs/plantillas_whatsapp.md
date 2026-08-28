@@ -82,8 +82,8 @@ Ejemplos: `{{1}}`=`$1.587.098,44` · `{{2}}`=`$1.507.743,52` · `{{3}}`=`$317.41
 
 ## B) Varias facturas (pedido dividido)
 
-`{{2}}` = cantidad de facturas · `{{3}}` = importes individuales separados por espacio
-(ej. `$153.355,46 $200.100,00 $99.999,99`). Los descuentos corren un lugar.
+`{{2}}` = cantidad de facturas · `{{3}}` = importes individuales separados por ` / `
+(ej. `$153.355,46 / $200.100,00 / $99.999,99`). Los descuentos corren un lugar.
 
 ### 4 · `pedido_contado_multiple`
 ```
@@ -99,7 +99,7 @@ Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$375.000,00`
+Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 / $200.100,00 / $146.544,54` · `{{4}}`=`$375.000,00`
 
 ### 5 · `pedido_credito_multiple`
 ```
@@ -118,7 +118,7 @@ Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
 `{{4}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60`.
-Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`31 a 45` · `{{5}}`=`$425.000,00` · `{{6}}`=`$50.000,00`
+Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 / $200.100,00 / $146.544,54` · `{{4}}`=`31 a 45` · `{{5}}`=`$425.000,00` · `{{6}}`=`$50.000,00`
 
 ### 6 · `pedido_echeq_multiple`
 ```
@@ -137,7 +137,7 @@ Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$475.000,00` · `{{5}}`=`$100.000,00`
+Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 / $200.100,00 / $146.544,54` · `{{4}}`=`$475.000,00` · `{{5}}`=`$100.000,00`
 
 ---
 
@@ -156,6 +156,16 @@ muestran el monto a pagar al contado.
 
 Nombres configurables en `app_settings` (PaginaLK): `wa_tpl_contado`, `wa_tpl_credito`,
 `wa_tpl_echeq`, `wa_tpl_contado_multiple`, `wa_tpl_credito_multiple`, `wa_tpl_echeq_multiple`.
+
+**Chequeo de método mixto**: si en un grupo de facturas no todas tienen el mismo método,
+el bot marca `metodo_mixto: true` y pone `estado='held_metodo_mixto'` (no procede al envío
+hasta revisión). Las 6 usan el separador ` / ` para la lista de importes `{{3}}`.
+
+**Gatillo (dormant)**: `sql/gp_trigger_grupo_listo.sql` (GP) crea el trigger
+`wa_np_facturado_trg` sobre `Facturacion_NP` que, al facturarse la última NP de un grupo
+(cliente+destino+día, según `wa_np_snapshot`), encola el grupo en `wa_grupo_listo`. Se crea
+**DESACTIVADO**; encender con `alter table "Facturacion_NP" enable trigger wa_np_facturado_trg;`
+cuando se prenda el bot. No envía: solo detecta y encola.
 
 ## Límite de caracteres (confirmado con docs de Meta / BSPs)
 - **Cuerpo (body): 1024 caracteres.** Los `{{n}}` cuentan como 1 char en la definición, pero

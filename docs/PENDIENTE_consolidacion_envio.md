@@ -28,9 +28,21 @@ Cuando se facture la **última NP** de un grupo `listo`:
 3. Elegir la plantilla WA correspondiente (ver `supabase/functions/lk_factura-consolidar`)
    y **enviar un solo mensaje** al cliente con el PDF combinado.
 
-Disparador natural: el evento "última NP del grupo pasa a facturada". Hoy la lógica de
-consolidación existe on-demand en `lk_factura-consolidar` (genera el plan del mensaje SIN
-enviar). Falta: (a) el gatillo automático sobre grupo `listo`, (b) el sender real a Meta.
+Disparador natural: el evento "última NP del grupo pasa a facturada".
+
+**(a) Gatillo — YA ARMADO pero DESACTIVADO** (`sql/gp_trigger_grupo_listo.sql`): el trigger
+`wa_np_facturado_trg` sobre `Facturacion_NP` detecta cuando se factura la última NP de un
+grupo (cliente+destino+día) y lo encola en `wa_grupo_listo`. Encender con
+`alter table "Facturacion_NP" enable trigger wa_np_facturado_trg;`. No envía, solo encola.
+
+**(b) Sender real a Meta — FALTA.** Un worker que lea `wa_grupo_listo` (enviado=false),
+llame a `lk_factura-consolidar` para armar el PDF combinado + plan de mensaje, y despache
+la plantilla vía Meta Cloud API al teléfono del cliente. Este es el único paso que
+realmente envía; se conecta recién cuando se decida prender el bot.
+
+Nota: `lk_factura-consolidar` hoy agrupa por cuit+fecha (no por destino). Para el caso raro
+de dos pedidos del mismo cliente/día a destinos distintos, el sender deberá pasarle el
+subconjunto de NPs/facturas del grupo, o agregar filtro por destino a la función.
 
 ## Punteros de código
 - `sql/gp_vista_np_factura.sql`, `sql/gp_wa_np_snapshot.sql`, `sql/gp_cron_wa_np_snapshot.sql`

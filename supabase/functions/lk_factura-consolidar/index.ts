@@ -145,7 +145,17 @@ serve(async (req) => {
     const confiable = facturas.every((f: any) =>
       (f.confianza ?? "alta") === "alta" && f.totales_ok !== false);
 
-    const estado = multisource ? "held_multisource" : (confiable ? "complete" : "held_revision");
+    // Chequeo: todas las facturas del grupo deberían tener el MISMO método de pago.
+    // deno-lint-ignore no-explicit-any
+    const metodos = facturas.map((f: any) => f.metodo).filter(Boolean);
+    const metodosDistintos = Array.from(new Set(metodos));
+    const metodoMixto = metodosDistintos.length > 1;
+
+    const estado = multisource
+      ? "held_multisource"
+      : metodoMixto
+      ? "held_metodo_mixto"
+      : (confiable ? "complete" : "held_revision");
 
     // Plan del mensaje: plantilla según MÉTODO DE PAGO + si hay 1 o varias facturas. NO se envía.
     // Descuentos por método (config: wa_descuentos_metodo). Contado = 25% (referencia).
@@ -160,8 +170,6 @@ serve(async (req) => {
     } catch { /* usa default */ }
 
     // Método del grupo: primero no nulo de las facturas (deberían coincidir por pedido).
-    // deno-lint-ignore no-explicit-any
-    const metodos = facturas.map((f: any) => f.metodo).filter(Boolean);
     const metodo = (metodos[0] as string) ?? "no_decidido";
     const dto = DTO[metodo] ?? 0.25;
 
@@ -187,7 +195,7 @@ serve(async (req) => {
     const esMultiple = facturas.length > 1;
     // Lista de importes individuales para el cuerpo de la plantilla múltiple ({{3}}).
     // deno-lint-ignore no-explicit-any
-    const listaFacturas = facturas.map((f: any) => fmtARS(Number(f.total || 0))).join(" ");
+    const listaFacturas = facturas.map((f: any) => fmtARS(Number(f.total || 0))).join(" / ");
 
     // Nombres de plantilla (single / múltiple) por config, con defaults.
     const TPL: Record<string, { single: string; multi: string }> = {
@@ -236,6 +244,8 @@ serve(async (req) => {
       n_facturas: facturas.length,
       multiple: esMultiple,
       plazo: plazoLabel || null,
+      metodo_mixto: metodoMixto,
+      metodos_distintos: metodosDistintos,
       params,
       lista_facturas: listaFacturas,
       document: { link: pdf_signed_url, filename: `factura_${cuitDigits}_${fecha}.pdf` },
