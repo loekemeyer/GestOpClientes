@@ -209,21 +209,22 @@ serve(async (req) => {
     // Params posicionales (todos $ARS, 2 decimales salvo {{2}} cantidad, {{3}} lista, plazo):
     //  SINGLE (1 factura):
     //   contado: {{1}} total, {{2}} contado
-    //   credito: {{1}} total, {{2}} PLAZO (15 a 30 / 31 a 45 / 46 a 60), {{3}} su_descuento, {{4}} DIFERENCIA
-    //   echeq:   {{1}} total, {{2}} su_echeq, {{3}} contado (absoluto)
+    //   credito: {{1}} total, {{2}} PLAZO (15 a 30 / 31 a 45 / 46 a 60), {{3}} su_descuento, {{4}} DIFERENCIA vs contado
+    //   echeq:   {{1}} total, {{2}} su_echeq, {{3}} DIFERENCIA vs contado
     //  MÚLTIPLE (>1): inserta {{2}} cantidad y {{3}} lista de importes; corre el resto:
     //   contado: {{1}} total, {{2}} cant, {{3}} lista, {{4}} contado
     //   credito: {{1}} total, {{2}} cant, {{3}} lista, {{4}} PLAZO, {{5}} su_descuento, {{6}} DIFERENCIA
-    //   echeq:   {{1}} total, {{2}} cant, {{3}} lista, {{4}} su_echeq, {{5}} contado
+    //   echeq:   {{1}} total, {{2}} cant, {{3}} lista, {{4}} su_echeq, {{5}} DIFERENCIA
+    // Todas muestran "Pagando al contado ahorrarías X más" == ahorroVsContado.
     let params: string[];
     if (!esMultiple) {
       if (grupo === "credito") params = [fmtARS(total_sum), plazoLabel, fmtARS(montoCliente), fmtARS(ahorroVsContado)];
-      else if (grupo === "echeq") params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(montoContado)];
+      else if (grupo === "echeq") params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(ahorroVsContado)];
       else params = [fmtARS(total_sum), fmtARS(montoContado)];
     } else {
       const base = [fmtARS(total_sum), String(facturas.length), listaFacturas];
       if (grupo === "credito") params = [...base, plazoLabel, fmtARS(montoCliente), fmtARS(ahorroVsContado)];
-      else if (grupo === "echeq") params = [...base, fmtARS(montoCliente), fmtARS(montoContado)];
+      else if (grupo === "echeq") params = [...base, fmtARS(montoCliente), fmtARS(ahorroVsContado)];
       else params = [...base, fmtARS(montoContado)];
     }
 

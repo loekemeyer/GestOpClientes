@@ -52,7 +52,7 @@ Total de tu factura (con IVA): {{1}}
 
 Con tu pago a {{2}} días abonás: {{3}}
 
-Pagando al contado ahorrarías {{4}} más.
+Pagando al contado ahorrarías {{4}}.
 
 Datos para el pago:
 Alias: loeke.srl
@@ -70,13 +70,13 @@ Total de tu factura (con IVA): {{1}}
 Con tu pago por e-cheq abonás: {{2}}
 Recordá enviar el e-cheq de manera anticipada.
 
-Si pagás al contado abonás {{3}} (25% de descuento).
+Pagando al contado ahorrarías {{3}}.
 
 Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-Ejemplos: `{{1}}`=`$1.587.098,44` · `{{2}}`=`$1.507.743,52` · `{{3}}`=`$1.190.323,83`
+Ejemplos: `{{1}}`=`$1.587.098,44` · `{{2}}`=`$1.507.743,52` · `{{3}}`=`$317.419,69`
 
 ---
 
@@ -111,7 +111,7 @@ Detalle por factura: {{3}}
 
 Con tu pago a {{4}} días abonás: {{5}}
 
-Pagando al contado ahorrarías {{6}} más.
+Pagando al contado ahorrarías {{6}}.
 
 Datos para el pago:
 Alias: loeke.srl
@@ -131,13 +131,13 @@ Detalle por factura: {{3}}
 Con tu pago por e-cheq abonás: {{4}}
 Recordá enviar el e-cheq de manera anticipada.
 
-Si pagás al contado abonás {{5}} (25% de descuento).
+Pagando al contado ahorrarías {{5}}.
 
 Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$475.000,00` · `{{5}}`=`$375.000,00`
+Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$475.000,00` · `{{5}}`=`$100.000,00`
 
 ---
 
@@ -150,8 +150,9 @@ Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,
 - **Descuentos** (`wa_descuentos_metodo`, default): contado 25%, 15-30d 20%, 31-45d 15%,
   46-60d 10%, e-cheq 90d 5%, e-cheq 120d 0%. `no_decidido` se muestra como contado.
 
-Diferencia deliberada: en **crédito** el último valor es *la diferencia* (lo que ahorraría
-de más pagando contado); en **e-cheq** es el *monto contado absoluto*.
+Crédito y e-cheq muestran ambos **la diferencia** (`ahorroVsContado` = lo que ahorraría
+pagando al contado), con la línea "Pagando al contado ahorrarías X." Contado/sin definir
+muestran el monto a pagar al contado.
 
 Nombres configurables en `app_settings` (PaginaLK): `wa_tpl_contado`, `wa_tpl_credito`,
 `wa_tpl_echeq`, `wa_tpl_contado_multiple`, `wa_tpl_credito_multiple`, `wa_tpl_echeq_multiple`.
