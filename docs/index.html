@@ -750,7 +750,7 @@ async function loadTemplates() {
   const status = document.getElementById("tplLoadStatus");
   status.textContent = "Cargando...";
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+    const { data, error } = await sb.functions.invoke("lk_templates", {
       body: { action: "templates_list", status: "APPROVED" },
     });
     if (error || data?.error) {
@@ -827,7 +827,7 @@ async function sendTemplateTest() {
   const params = Array.from(document.querySelectorAll(".tpl-param")).map((el) => el.value);
   status.textContent = "Enviando...";
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+    const { data, error } = await sb.functions.invoke("lk_templates", {
       body: {
         action: "template_send",
         phone,

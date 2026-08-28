@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase, getSetting } from "../_shared/supabase.ts";
-import { canonPhone, getTemplates, sendTemplate } from "../_shared/wa-api.ts";
+import { canonPhone } from "../_shared/wa-api.ts";
 import { detectIntent, conversationalReply } from "../_shared/claude.ts";
 
 const CORS = {
@@ -43,16 +43,6 @@ serve(async (req) => {
     // ── Blacklist remove ──
     if (body.action === "blacklist_remove") {
       return await handleBlacklistRemove(body.id);
-    }
-
-    // ── Templates WA: listar plantillas aprobadas de Meta ──
-    if (body.action === "templates_list") {
-      return await handleTemplatesList(body.status);
-    }
-
-    // ── Templates WA: enviar plantilla a un teléfono (test) ──
-    if (body.action === "template_send") {
-      return await handleTemplateSend(body);
     }
 
     // ── Chat endpoint ──
@@ -192,111 +182,6 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
-}
-
-// ── Config Meta (secrets env → fallback app_settings) ──
-
-async function metaToken(): Promise<string> {
-  return Deno.env.get("WA_TOKEN")
-    ?? Deno.env.get("META_ACCESS_TOKEN")
-    ?? (await getSetting("wa_token"))
-    ?? "";
-}
-
-async function metaPhoneNumberId(): Promise<string> {
-  return Deno.env.get("WA_PHONE_NUMBER_ID")
-    ?? Deno.env.get("META_PHONE_NUMBER_ID")
-    ?? (await getSetting("wa_phone_number_id"))
-    ?? "";
-}
-
-async function metaWabaId(): Promise<string> {
-  return Deno.env.get("WA_BUSINESS_ACCOUNT_ID")
-    ?? Deno.env.get("META_BUSINESS_ACCOUNT_ID")
-    ?? (await getSetting("wa_business_account_id"))
-    ?? "";
-}
-
-// ── Templates WA handlers ──
-
-async function handleTemplatesList(statusFilter?: string) {
-  const wabaId = await metaWabaId();
-  const token = await metaToken();
-
-  if (!wabaId) {
-    return json({ error: "WABA ID no configurado (WA_BUSINESS_ACCOUNT_ID o app_settings.wa_business_account_id)" }, 400);
-  }
-  if (!token) return json({ error: "WA_TOKEN no configurado" }, 400);
-
-  const { data, error } = await getTemplates(wabaId, token, statusFilter ?? "APPROVED");
-  if (error) return json({ error }, 500);
-
-  // deno-lint-ignore no-explicit-any
-  const templates = data.map((t: any) => ({
-    name: t.name,
-    status: t.status,
-    category: t.category,
-    language: t.language,
-    // deno-lint-ignore no-explicit-any
-    components: (t.components ?? []).map((c: any) => ({
-      type: c.type,
-      format: c.format,
-      text: c.text,
-      example: c.example ?? null,
-      // deno-lint-ignore no-explicit-any
-      buttons: c.buttons?.map((b: any) => ({ type: b.type, text: b.text, url: b.url })) ?? null,
-    })),
-  }));
-
-  return json({ templates, count: templates.length });
-}
-
-async function handleTemplateSend(body: Record<string, unknown>) {
-  const { phone, template_name, language, params } = body as {
-    phone?: string;
-    template_name?: string;
-    language?: string;
-    params?: unknown[];
-  };
-
-  if (!phone || !template_name) {
-    return json({ error: "phone y template_name requeridos" }, 400);
-  }
-
-  const phoneNumberId = await metaPhoneNumberId();
-  const token = await metaToken();
-  if (!phoneNumberId) return json({ error: "WA_PHONE_NUMBER_ID no configurado" }, 400);
-  if (!token) return json({ error: "WA_TOKEN no configurado" }, 400);
-
-  const to = canonPhone(String(phone));
-  const lang = (language as string) || "es_AR";
-
-  // Armar components body a partir de params (posicionales {{1}}, {{2}}, ...)
-  const values = Array.isArray(params) ? params : [];
-  const components = values.length
-    ? [{
-        type: "body",
-        parameters: values.map((v) => ({ type: "text", text: String(v ?? "") })),
-      }]
-    : undefined;
-
-  const result = await sendTemplate(phoneNumberId, token, to, template_name, lang, components);
-
-  // deno-lint-ignore no-explicit-any
-  const metaError = (result as any)?.error;
-
-  // Log en wa_conversations (fire and forget)
-  if (!metaError) {
-    supabase.from("wa_conversations").insert([
-      { phone: to, direction: "out", body: `[template: ${template_name}]`, msg_type: "template", customer_id: null, intent: "template_test" },
-    ]).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
-  }
-
-  if (metaError) {
-    const errMsg = metaError.message ?? JSON.stringify(metaError);
-    return json({ ok: false, error: errMsg, to, template_name }, 502);
-  }
-  return json({ ok: true, to, template_name, language: lang, result });
 }
 
 function menuText(nombre?: string): string {
