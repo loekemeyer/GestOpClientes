@@ -39,11 +39,12 @@ Ejemplos: `{{1}}`=`$470.498,88` · `{{2}}`=`$352.874,16`
 
 Total de tu factura (con IVA): {{1}}
 
-Con el descuento de tu forma de pago abonás: {{2}}
+Con tu pago a {{2}} días abonás: {{3}}
 
-Pagando al contado ahorrarías {{3}} más.
+Pagando al contado ahorrarías {{4}} más.
 ```
-Ejemplos: `{{1}}`=`$743.418,34` · `{{2}}`=`$631.905,59` · `{{3}}`=`$74.341,83`
+`{{2}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60`.
+Ejemplos: `{{1}}`=`$743.418,34` · `{{2}}`=`31 a 45` · `{{3}}`=`$631.905,59` · `{{4}}`=`$74.341,83`
 
 ### 3 · `pedido_echeq`  (e-cheq)
 ```
@@ -85,11 +86,12 @@ Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
 
 Detalle por factura: {{3}}
 
-Con el descuento de tu forma de pago abonás: {{4}}
+Con tu pago a {{4}} días abonás: {{5}}
 
-Pagando al contado ahorrarías {{5}} más.
+Pagando al contado ahorrarías {{6}} más.
 ```
-Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`$425.000,00` · `{{5}}`=`$50.000,00`
+`{{4}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60`.
+Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 $200.100,00 $146.544,54` · `{{4}}`=`31 a 45` · `{{5}}`=`$425.000,00` · `{{6}}`=`$50.000,00`
 
 ### 6 · `pedido_echeq_multiple`
 ```
@@ -123,11 +125,15 @@ de más pagando contado); en **e-cheq** es el *monto contado absoluto*.
 Nombres configurables en `app_settings` (PaginaLK): `wa_tpl_contado`, `wa_tpl_credito`,
 `wa_tpl_echeq`, `wa_tpl_contado_multiple`, `wa_tpl_credito_multiple`, `wa_tpl_echeq_multiple`.
 
-## Límite de caracteres
-El cuerpo de una plantilla WhatsApp admite hasta **1024 caracteres**. En la versión múltiple,
-`{{3}}` (lista de importes) crece con la cantidad de facturas; con muchas facturas muy grandes
-podría acercarse al límite. Es improbable, pero si un pedido tiene >20 facturas conviene
-acortar el formato de la lista.
+## Límite de caracteres (confirmado con docs de Meta / BSPs)
+- **Cuerpo (body): 1024 caracteres.** Los `{{n}}` cuentan como 1 char en la definición, pero
+  **al enviar, el cuerpo ya con los valores sustituidos tampoco puede pasar de 1024**.
+- **Encabezado (texto): 60** · **Pie de página: 60** · **Botón: 25** (no usamos texto en header/footer variable).
+
+Peor caso = crédito múltiple: texto fijo ~200 + valores ~50 + lista `{{3}}` ≈ 14 chars por
+factura. Para no pasar 1024: `14 × N ≤ ~770` → caben **~55 facturas** en un mismo pedido.
+Un pedido real se parte en 2-6, así que no hay riesgo práctico. Si algún día un pedido tuviera
+decenas de facturas, acortar el formato de la lista `{{3}}`.
 
 ## Estado
 Plantillas listas para cargar. El bot ya las selecciona y completa (deploy v8), **sin envío**:
