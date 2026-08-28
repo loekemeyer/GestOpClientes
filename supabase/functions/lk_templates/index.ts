@@ -79,6 +79,7 @@ serve(async (req) => {
 async function handleTemplatesList(statusFilter?: string) {
   const wabaId = await metaWabaId();
   const token = await metaToken();
+  console.log(`templates_list: wabaId=${wabaId ? "len" + wabaId.length : "MISSING"} token=${token ? "len" + token.length : "MISSING"}`);
   if (!wabaId) return json({ error: "WABA ID no configurado (WA_BUSINESS_ACCOUNT_ID o app_settings.wa_business_account_id)" }, 400);
   if (!token) return json({ error: "WA_TOKEN no configurado" }, 400);
 
