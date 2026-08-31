@@ -1082,26 +1082,21 @@ function renderMetaTemplate(name, params) {
 
 function waPreviewHtml(m, nFacturas, source) {
   m = m || {};
-  const d = m.desglose || {};
   const bucket = source === "ch" ? "isis-ch" : "isis-lk";
   const doc = (nFacturas || 1) > 1
     ? `<div class="wa-doc">📎 factura_combinada.pdf · ${nFacturas} facturas (${bucket})</div>`
     : `<div class="wa-doc">📎 factura.pdf (${bucket})</div>`;
-  // Cuerpo REAL de Meta (refleja ediciones en Meta); si no hay cache, reconstrucción local.
+  // SOLO lo que Meta enviaría: header (documento) + cuerpo REAL de la plantilla de Meta.
   const metaBody = renderMetaTemplate(m.template, m.params);
   const cuerpo = metaBody
-    ? `<div>${metaBody}</div><div class="wa-tpl-tag">✅ cuerpo real de la plantilla de Meta</div>`
-    : `<div style="white-space:pre-wrap;">${esc(m.texto_legible || "")}</div><div class="wa-tpl-tag">⚠️ reconstrucción local (cargá las plantillas de Meta para ver el cuerpo real)</div>`;
-  const desglose = `<table class="desglose">
-    <tr><td>Total facturado (c/IVA)</td><td>${esc(d.total_civa || "")}</td></tr>
-    <tr><td>Descuento del cliente</td><td>${esc(d.dto_cliente || "")}</td></tr>
-    <tr><td>Monto a pagar</td><td>${esc(d.monto_cliente || "")}</td></tr>
-    <tr class="hi"><td>Ahorro pagando al contado</td><td>${esc(d.ahorro_vs_contado || "")}</td></tr>
-  </table>`;
-  return `${doc}${cuerpo}${desglose}` +
-    `<div class="wa-tpl-tag">plantilla: ${esc(m.template || "")} · params: [${(m.params || []).map(esc).join(", ")}]</div>`;
+    ? `<div>${metaBody}</div>`
+    : `<div style="white-space:pre-wrap;">${esc(m.texto_legible || "")}</div>`;
+  const tag = metaBody
+    ? `<div class="wa-tpl-tag">✅ cuerpo real de tu plantilla de Meta · ${esc(m.template || "")}</div>`
+    : `<div class="wa-tpl-tag">⚠️ no pude leer la plantilla de Meta — reconstrucción local · ${esc(m.template || "")}</div>`;
+  return `${doc}${cuerpo}${tag}`;
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.2</div>
 </body>
 </html>
