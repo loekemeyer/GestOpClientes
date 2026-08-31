@@ -1,5 +1,7 @@
 # BotWA-LK — Instrucciones para Claude Code
 
+> **Antes que nada**: leer `CONSTITUCION.md` — límites innegociables de todas las sesiones, el bot y los scripts. Si algo acá contradice la constitución, gana la constitución.
+
 ## Configuraciones y comandos especiales
 
 **Estado central:** `config-claude.json` — toggles y comandos que afectan CUALQUIER chat.
@@ -134,7 +136,7 @@ git checkout -B mi-branch origin/main
 | **Backend SQL** | `sql/*.sql` | Cualquier sesión (numerar secuencialmente, verificar último número en main) |
 | **Edge Functions** | `supabase/functions/**` | Solo sesiones que trabajan en lógica del bot |
 | **Frontend** | `docs/index.html` | Solo sesiones que trabajan en el dashboard |
-| **Config proyecto** | `CLAUDE.md`, `.claude/`, `config-claude.json` | Con cuidado — leer antes de escribir |
+| **Config proyecto** | `CLAUDE.md`, `CONSTITUCION.md`, `.claude/`, `config-claude.json` | Con cuidado — leer antes de escribir |
 
 ### Qué NO hacer
 - **NO mergear una branch vieja** que borra archivos que no tocaste — verificar con `git diff --stat origin/main..mi-branch` antes de mergear
