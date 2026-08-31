@@ -995,6 +995,10 @@ async function notifEmit(cuit) {
         notifAppend("⚠️ <b>Multi-fuente (LK + Chef)</b> para el mismo CUIT/día — el bot lo <b>retiene</b> (held), no manda aviso.", "in");
       } else if (chk.estado === "held_metodo_mixto") {
         notifAppend("⚠️ <b>Método de pago mixto</b> en el grupo — el bot lo <b>retiene</b> (held), no manda aviso.", "in");
+      } else if (chk.estado === "held_tpl_no_aprobada") {
+        const st = chk.mensaje && chk.mensaje.tpl_status ? chk.mensaje.tpl_status : "no aprobada";
+        notifAppend(`🚫 <b>Plantilla <code>${esc((chk.mensaje && chk.mensaje.template) || "")}</code> no aprobada en Meta</b> (estado: ${esc(st)}) → el pipeline <b>BLOQUEA el envío</b> (Meta la rechazaría). Así se vería el mensaje una vez aprobada:`, "in");
+        if (chk.mensaje) notifAppend(waPreviewHtml(chk.mensaje, chk.n_facturas || 1, d.source), "in");
       } else if (chk.mensaje) {
         notifAppend(waPreviewHtml(chk.mensaje, chk.n_facturas || 1, d.source), "in");
       } else {
@@ -1037,13 +1041,18 @@ function renderNotifGroups(items) {
   }
   box.innerHTML = items.map((g) => {
     const pct = Math.min(100, Math.round((g.np_facturados / g.np_esperados) * 100));
-    const done = !!g.aviso;
+    const aviso = g.aviso;
+    const done = !!aviso;
+    const held = done && aviso.estado && aviso.estado.indexOf("held") === 0;
+    const HELD_LBL = { held_tpl_no_aprobada: "🚫 Bloqueado: plantilla no aprobada", held_multisource: "⚠️ Retenido: multi-fuente", held_metodo_mixto: "⚠️ Retenido: método mixto" };
     const btn = g.np_facturados < g.np_esperados
       ? `<button class="config-btn primary small" style="width:100%;margin-top:0.4rem;" onclick="notifEmit('${g.cuit}')">📄 Emitir factura (${g.np_facturados + 1}/${g.np_esperados})</button>`
       : (done
-        ? `<div style="font-size:0.72rem;color:var(--success);font-weight:600;margin-top:0.3rem;text-align:center;">✅ Aviso entregado al módulo</div>`
+        ? (held
+          ? `<div style="font-size:0.72rem;color:var(--danger);font-weight:600;margin-top:0.3rem;text-align:center;">${esc(HELD_LBL[aviso.estado] || "retenido")}</div>`
+          : `<div style="font-size:0.72rem;color:var(--success);font-weight:600;margin-top:0.3rem;text-align:center;">✅ Aviso entregado al módulo</div>`)
         : `<div style="font-size:0.72rem;color:var(--warning);font-weight:600;margin-top:0.3rem;text-align:center;">⏳ Procesando…</div>`);
-    return `<div class="ngroup ${done ? 'done' : ''}">
+    return `<div class="ngroup ${done && !held ? 'done' : ''}">
       <div class="ngroup-head">
         <span class="metodo-badge ${grupoDe(g.metodo)}">${esc(METODO_LABEL[g.metodo] || g.metodo)}</span>
         <span class="ngroup-cuit">${esc(SRC_LABEL[g.source] || g.source)} · ${esc(g.cuit)}</span>
@@ -1097,6 +1106,6 @@ function waPreviewHtml(m, nFacturas, source) {
   return `${doc}${cuerpo}${tag}`;
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.3</div>
 </body>
 </html>

@@ -48,6 +48,31 @@ function fmtARS(n: number): string {
   return "$" + Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// ── Estado de aprobación de la plantilla en Meta (no enviar si no está APPROVED) ──
+const META_API = "https://graph.facebook.com/v21.0";
+async function metaToken(): Promise<string> {
+  return Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? Deno.env.get("WA_TOKEN") ?? (await getSetting("wa_token")) ?? "";
+}
+async function metaWaba(): Promise<string> {
+  return Deno.env.get("WA_BUSINESS_ACCOUNT_ID") ?? (await getSetting("wa_business_account_id")) ?? "";
+}
+let _tplStatus: Record<string, string> | null = null;
+async function tplStatus(name: string): Promise<string | null> {
+  if (!_tplStatus) {
+    _tplStatus = {};
+    try {
+      const token = await metaToken(), waba = await metaWaba();
+      if (token && waba) {
+        const res = await fetch(`${META_API}/${waba}/message_templates?limit=200`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        // deno-lint-ignore no-explicit-any
+        for (const t of (data.data ?? [])) _tplStatus[t.name] = t.status;
+      }
+    } catch { /* si no se puede verificar, no bloquea */ }
+  }
+  return _tplStatus[name] ?? null;
+}
+
 // ── Lógica de descuento/plantilla (guía docs/plantillas_whatsapp.md) ──
 const DTO_DEFAULT: Record<string, number> = {
   contado: 0.25, credito_15_30: 0.20, credito_31_45: 0.15, credito_46_60: 0.10, echeq_90: 0.05, echeq_120: 0.00, no_decidido: 0.25,
@@ -170,10 +195,17 @@ serve(async (req) => {
     const metodo = (facturas[0]?.metodo as string) || metodoCtrl || "no_decidido";
 
     let estado = "delivered";
-    let mensaje: unknown = null;
+    // deno-lint-ignore no-explicit-any
+    let mensaje: any = null;
     if (multisource) estado = "held_multisource";
     else if (metodoMixto) estado = "held_metodo_mixto";
-    else mensaje = armarMensaje(metodo, facturas);
+    else {
+      mensaje = armarMensaje(metodo, facturas);
+      // No enviar con plantilla no aprobada por Meta (Meta la rechazaría).
+      const st = await tplStatus(mensaje.template);
+      mensaje.tpl_status = st;
+      if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
+    }
 
     const total_sum = facturas.reduce((s: number, f: Record<string, unknown>) => s + Number(f.total || 0), 0);
 
