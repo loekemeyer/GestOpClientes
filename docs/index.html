@@ -604,31 +604,38 @@
               Configurá qué modelos de IA puede usar el agente. El marcado como
               <b>⭐ default</b> es el que usa para responder.
             </p>
-            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--warning);border-radius:0 6px 6px 0;padding:0.7rem 0.9rem;font-size:0.78rem;color:var(--muted);margin-bottom:1.1rem;">
-              🔒 <b>Las API keys no se cargan acá.</b> Se cargan una vez en
-              <b>Supabase → Edge Functions → Secrets</b> con el nombre que pongas
-              en <b>Secret</b> (ej: <code>ANTHROPIC_API_KEY</code>). Acá solo
-              configurás qué modelo usa el agente. La key nunca toca la base ni el navegador.
+            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--success);border-radius:0 6px 6px 0;padding:0.7rem 0.9rem;font-size:0.78rem;color:var(--muted);margin-bottom:1.1rem;">
+              🔒 Pegá la API key acá. Se <b>valida y se guarda cifrada del lado del servidor</b>
+              (tabla bloqueada, RLS solo-server). No queda accesible desde el navegador ni se
+              vuelve a mostrar: solo verás <b>····1234</b>.
             </div>
 
             <div class="consulta-form" style="margin-bottom:1.2rem;border:1px dashed var(--border);border-radius:8px;padding:0.9rem;">
-              <div class="md-col-label">Agregar modelo</div>
+              <div class="md-col-label">Conectar un modelo</div>
               <div class="row">
-                <select id="modProveedor" style="min-width:130px;">
-                  <option value="anthropic">Anthropic</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="google">Google</option>
-                  <option value="otro">Otro</option>
-                </select>
-                <input type="text" id="modLabel" placeholder="Nombre visible (ej: GPT-4o)" style="flex:1;min-width:160px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
-              </div>
-              <div class="row">
-                <input type="text" id="modModelId" placeholder="model id (ej: gpt-4o, claude-sonnet-4-6)" style="flex:1;min-width:160px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
-                <input type="text" id="modSecretRef" placeholder="Secret (ej: OPENAI_API_KEY)" style="flex:1;min-width:140px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
-              </div>
-              <div class="row">
-                <button class="config-btn primary small" onclick="addModelo()">+ Agregar</button>
+                <input type="password" id="modKey" placeholder="Pegá la API key (ej: sk-ant-... / sk-... / AIza...)" autocomplete="off" style="flex:1;min-width:220px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;font-family:ui-monospace,monospace;">
+                <button class="config-btn primary small" id="modCheckBtn" onclick="checkModelo()">Chequear</button>
                 <span class="config-status" id="modAddStatus"></span>
+              </div>
+
+              <!-- Confirmación tras chequear -->
+              <div id="modConfirm" style="display:none;margin-top:0.8rem;padding-top:0.8rem;border-top:1px solid var(--border);">
+                <div class="consulta-meta" style="margin-bottom:0.5rem;">
+                  ✅ Key válida — proveedor detectado: <b id="modProvDetected"></b>
+                </div>
+                <div class="row">
+                  <label style="font-size:0.8rem;color:var(--muted);min-width:70px;">Modelo:</label>
+                  <select id="modModelSel" style="flex:1;min-width:180px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;" onchange="onModelPicked()"></select>
+                </div>
+                <div class="row" style="margin-top:0.4rem;">
+                  <label style="font-size:0.8rem;color:var(--muted);min-width:70px;">Nombre:</label>
+                  <input type="text" id="modLabel" placeholder="Nombre visible" style="flex:1;min-width:180px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+                </div>
+                <div class="row" style="margin-top:0.5rem;">
+                  <button class="config-btn primary small" onclick="saveModelo()">💾 Guardar modelo</button>
+                  <button class="config-btn small" onclick="cancelModelo()">Cancelar</button>
+                  <span class="config-status" id="modSaveStatus"></span>
+                </div>
               </div>
             </div>
 
@@ -1343,7 +1350,7 @@ async function loadModelos() {
   cont.innerHTML = '<div class="bl-empty">Cargando...</div>';
   try {
     const { data } = await sb.from("wa_agente_modelos")
-      .select("id, proveedor, label, model_id, secret_ref, activo, es_default, notas")
+      .select("id, proveedor, label, model_id, secret_ref, key_source, key_last4, activo, es_default, notas")
       .order("es_default", { ascending: false })
       .order("created_at", { ascending: true });
     const items = data || [];
@@ -1362,44 +1369,90 @@ function renderModelo(m) {
   const act = m.activo
     ? '<span class="cat-pill permiso">activo</span>'
     : '<span class="cat-pill pendiente">inactivo</span>';
+  const keyInfo = m.key_source === "db"
+    ? '🔑 key: <code>····' + esc(m.key_last4 || "????") + '</code>'
+    : '🔑 <code>' + esc(m.secret_ref || "—") + '</code> (Secrets)';
   return '<div class="consulta-card' + (m.activo ? '' : ' answered') + '">' +
     '<div class="consulta-q">' + esc(m.label) + ' ' + def + ' ' + act + '</div>' +
     '<div class="consulta-meta">' +
       '🏷️ ' + (PROV_LABEL[m.proveedor] || esc(m.proveedor)) +
       ' · 🧠 <code>' + esc(m.model_id) + '</code>' +
-      ' · 🔑 Secret: <code>' + esc(m.secret_ref) + '</code>' +
+      ' · ' + keyInfo +
     '</div>' +
     (m.notas ? '<div class="consulta-meta">' + esc(m.notas) + '</div>' : '') +
     '<div class="row" style="margin-top:0.5rem;">' +
       '<button class="config-btn small" onclick="toggleModeloActivo(' + m.id + ',' + (m.activo ? 'false' : 'true') + ')">' +
         (m.activo ? 'Desactivar' : 'Activar') + '</button>' +
-      '<button class="config-btn danger small" onclick="deleteModelo(' + m.id + ',' + m.es_default + ')">🗑️ Eliminar</button>' +
+      '<button class="config-btn danger small" onclick="deleteModelo(' + m.id + ')">🗑️ Eliminar</button>' +
       '<span class="config-status" id="modSt-' + m.id + '"></span>' +
     '</div>' +
   '</div>';
 }
 
-async function addModelo() {
-  const proveedor = document.getElementById("modProveedor").value;
-  const label = document.getElementById("modLabel").value.trim();
-  const model_id = document.getElementById("modModelId").value.trim();
-  const secret_ref = document.getElementById("modSecretRef").value.trim();
+// Flujo: pegar key → Chequear (valida + detecta + lista modelos) → confirmar → Guardar.
+// La key vive solo en esta variable durante el flujo; se descarta al guardar/cancelar.
+let _modPendingKey = null;
+let _modPendingProv = null;
+
+async function checkModelo() {
+  const key = document.getElementById("modKey").value.trim();
   const st = document.getElementById("modAddStatus");
-  if (!label || !model_id || !secret_ref) {
-    st.textContent = "Completá label, model id y secret"; st.className = "config-status err"; return;
-  }
-  st.textContent = "Agregando..."; st.className = "config-status";
+  if (!key) { st.textContent = "Pegá la key"; st.className = "config-status err"; return; }
+  st.textContent = "Chequeando..."; st.className = "config-status";
+  document.getElementById("modCheckBtn").disabled = true;
   try {
-    const { error } = await sb.from("wa_agente_modelos")
-      .insert({ proveedor, label, model_id, secret_ref, activo: true, es_default: false });
-    if (error) throw error;
-    document.getElementById("modLabel").value = "";
-    document.getElementById("modModelId").value = "";
-    document.getElementById("modSecretRef").value = "";
-    st.textContent = "✓ Agregado"; st.className = "config-status ok";
+    const { data, error } = await sb.functions.invoke("lk_agente-modelos", {
+      body: { action: "check", api_key: key },
+    });
+    if (error || !data || data.error) throw new Error((data && data.error) || "error");
+    _modPendingKey = key;
+    _modPendingProv = data.proveedor;
+    document.getElementById("modProvDetected").textContent = (PROV_LABEL[data.proveedor] || data.proveedor);
+    const sel = document.getElementById("modModelSel");
+    sel.innerHTML = (data.models || []).map(id => '<option value="' + id + '">' + id + '</option>').join("");
+    onModelPicked();
+    document.getElementById("modConfirm").style.display = "block";
+    st.textContent = "✓ válida"; st.className = "config-status ok";
+  } catch (e) {
+    st.textContent = "✗ " + (e.message || "Key inválida"); st.className = "config-status err";
+  }
+  document.getElementById("modCheckBtn").disabled = false;
+  setTimeout(() => { st.textContent = ""; }, 4000);
+}
+
+function onModelPicked() {
+  const sel = document.getElementById("modModelSel");
+  const lbl = document.getElementById("modLabel");
+  if (sel.value && (!lbl.value || lbl.dataset.auto === "1")) {
+    lbl.value = sel.value;
+    lbl.dataset.auto = "1";
+  }
+}
+
+function cancelModelo() {
+  _modPendingKey = null; _modPendingProv = null;
+  document.getElementById("modKey").value = "";
+  document.getElementById("modLabel").value = "";
+  document.getElementById("modLabel").dataset.auto = "";
+  document.getElementById("modConfirm").style.display = "none";
+}
+
+async function saveModelo() {
+  const st = document.getElementById("modSaveStatus");
+  if (!_modPendingKey) { st.textContent = "Chequeá la key primero"; st.className = "config-status err"; return; }
+  const model_id = document.getElementById("modModelSel").value;
+  const label = document.getElementById("modLabel").value.trim() || model_id;
+  st.textContent = "Guardando..."; st.className = "config-status";
+  try {
+    const { data, error } = await sb.functions.invoke("lk_agente-modelos", {
+      body: { action: "save", api_key: _modPendingKey, proveedor: _modPendingProv, model_id, label },
+    });
+    if (error || !data || data.error) throw new Error((data && data.error) || "error");
+    st.textContent = "✓ Guardado"; st.className = "config-status ok";
+    cancelModelo();
     loadModelos();
-  } catch (e) { st.textContent = "✗ Error"; st.className = "config-status err"; }
-  setTimeout(() => { st.textContent = ""; }, 3000);
+  } catch (e) { st.textContent = "✗ " + (e.message || "Error"); st.className = "config-status err"; }
+  setTimeout(() => { st.textContent = ""; }, 4000);
 }
 
 async function setDefaultModelo(id) {
@@ -1418,13 +1471,18 @@ async function toggleModeloActivo(id, val) {
   } catch (e) { /* silent */ }
 }
 
-async function deleteModelo(id, esDefault) {
-  if (esDefault) { alert("No podés eliminar el modelo default. Primero marcá otro como default."); return; }
-  if (!confirm("¿Eliminar este modelo?")) return;
+async function deleteModelo(id) {
+  if (!confirm("¿Eliminar este modelo? (también se borra su API key guardada)")) return;
+  const st = document.getElementById("modSt-" + id);
   try {
-    await sb.from("wa_agente_modelos").delete().eq("id", id);
+    const { data, error } = await sb.functions.invoke("lk_agente-modelos", {
+      body: { action: "delete", id },
+    });
+    if (error || !data || data.error) throw new Error((data && data.error) || "error");
     loadModelos();
-  } catch (e) { /* silent */ }
+  } catch (e) {
+    if (st) { st.textContent = "✗ " + (e.message || "Error"); st.className = "config-status err"; }
+  }
 }
 
 // --- Blacklist ---
@@ -2233,6 +2291,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.2</div>
 </body>
 </html>
