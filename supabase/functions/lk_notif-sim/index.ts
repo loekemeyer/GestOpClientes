@@ -232,27 +232,30 @@ serve(async (req) => {
       return json({ ok: true, cuit, fecha: today(), metodo, source, np_esperados: np, dest_phone: dest.phone, emits, check: lastCheck });
     }
 
-    // ── real_sweep: enviar los pedidos REALES completos de hoy al número de redirección (Thomy) ──
+    // ── real_sweep: flush del backlog de HOY — recorre los cuits facturados del día y dispara
+    // el camino real de lk_factura-check (agrupa por cuit del día → manda a Thomy). Mismo
+    // resultado que llega solo por el trigger a medida que impactan las facturas. ──
     if (action === "real_sweep") {
-      const { data: groups } = await g.rpc("wa_envio_grupos_pendientes");
+      const { data: cuits } = await g.rpc("wa_cuits_facturados_dia", { p_fecha: today() });
       const results = [];
-      for (const gr of (groups ?? [])) {
+      for (const c of (cuits ?? [])) {
         let r;
         try {
           const res = await fetch(`${SB_URL}/functions/v1/lk_factura-check`, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mode: "grupo", ...gr }),
+            body: JSON.stringify({ source: c.source, cuit: c.cuit, fecha: today() }),
           });
           r = await res.json();
         } catch (e) { r = { error: String(e) }; }
-        results.push({ group_key: gr.group_key, cod_cliente: gr.cod_cliente, dia: gr.dia, n_facturas: gr.n_facturas, metodos: gr.metodos, ...r });
+        results.push({ cuit: c.cuit, source: c.source, ...r });
       }
-      const est = (r: Record<string, unknown>) => String(r.estado || r.skipped || (r.error ? "error" : "")) ;
+      const est = (r: Record<string, unknown>) => String(r.estado || r.skipped || (r.error ? "error" : (r.already ? "ya_enviado" : ""))) ;
       const summary = {
         total: results.length,
         enviados: results.filter((r) => est(r) === "sent_whatsapp").length,
         retenidos: results.filter((r) => est(r).startsWith("held")).length,
         ya_enviados: results.filter((r) => est(r) === "ya_enviado").length,
+        sin_facturas: results.filter((r) => r.complete === false).length,
         errores: results.filter((r) => est(r) === "error" || est(r) === "error_envio").length,
       };
       return json({ ok: true, summary, results });

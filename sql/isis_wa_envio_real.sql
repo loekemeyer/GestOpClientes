@@ -1,11 +1,29 @@
--- ISIS (hrxfctzncixxqmpfhskv) — Envío REAL de avisos de facturación (grupos reales linkeados).
--- Ya aplicado en ISIS. Usa el linkeo NP↔factura del viernes (vista_np_factura).
+-- ISIS (hrxfctzncixxqmpfhskv) — Envío REAL de avisos de facturación. Ya aplicado en ISIS.
 --
--- wa_envio_grupos_pendientes(): arma los grupos reales COMPLETOS (todas las NPs del grupo
--- cod|destino|día con su factura+PDF matcheado) listos para enviar. Lo consume el driver
--- lk_notif-sim (acción real_sweep), que llama a lk_factura-check en modo 'grupo'.
--- El envío real va SÓLO al número de redirección (app_settings.wa_real_redirect_to) y sólo
--- el día app_settings.wa_real_redirect_date (evento acotado). Nunca al cliente.
+-- Modelo vigente (event-driven, anclado al DÍA):
+--   Cada factura real que impacta (isis_*.documentos) dispara el trigger wa_factura_notificar,
+--   que llama a lk_factura-check {source,cuit,fecha}. lk_factura-check.handleRealRedirect agrupa
+--   TODAS las facturas del día de ese cuit (wa_factura_grupo), combina los PDFs reales y entrega
+--   SÓLO al número de redirección (app_settings.wa_real_redirect_to) y sólo el día
+--   app_settings.wa_real_redirect_date (evento acotado). Nunca al cliente. Idempotente por
+--   (cuit, día) en wa_shadow_log. Ancla = día del armado ≈ día de la factura (mismo día, ~96%).
+--
+-- wa_cuits_facturados_dia(fecha): enumera los cuits reales con factura ese día. Lo usa el
+--   driver lk_notif-sim (acción real_sweep) para "flushear" el backlog del día disparando el
+--   mismo camino real por cada cuit.
+-- wa_envio_grupos_pendientes(): (legacy) grupos reales completos por el linkeo NP↔factura
+--   (vista_np_factura, por neto). Se conserva como referencia; el flujo vigente es por día.
+
+create or replace function public.wa_cuits_facturados_dia(p_fecha date)
+returns table(source text, cuit text) language sql security definer set search_path to 'public' as $$
+  select 'lk'::text, contraparte_cuit from isis_lk.documentos
+    where familia='factura_venta' and fecha=p_fecha and contraparte_cuit is not null and contraparte_cuit not like '30999%'
+    group by contraparte_cuit
+  union
+  select 'ch'::text, contraparte_cuit from isis_ch.documentos
+    where familia='factura_venta' and fecha=p_fecha and contraparte_cuit is not null and contraparte_cuit not like '30999%'
+    group by contraparte_cuit;
+$$;
 
 create or replace function public.wa_envio_grupos_pendientes()
 returns table(group_key text, empresa text, cod_cliente text, destino text, dia date, razon_social text,
