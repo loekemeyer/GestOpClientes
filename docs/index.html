@@ -196,6 +196,7 @@
     <div id="navTemplates" onclick="showPage('templates')" style="cursor:pointer">📋 Plantillas WA</div>
     <div id="navNotif" onclick="showPage('notif')" style="cursor:pointer">🔔 Avisos automáticos</div>
     <div id="navFuego" onclick="showPage('fuego')" style="cursor:pointer">🔥 Prueba de fuego</div>
+    <div id="navConv" onclick="showPage('conv')" style="cursor:pointer">💬 Conversaciones</div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
@@ -407,6 +408,48 @@
       </div>
     </div>
 
+    <!-- Page: Conversaciones (atención humana / traspaso del bot) -->
+    <div class="page" id="pageConv">
+      <div style="display:flex;gap:0.8rem;height:calc(100vh - 130px);min-height:480px;">
+        <!-- Lista de conversaciones -->
+        <div style="width:290px;min-width:250px;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+          <div style="padding:0.6rem 0.7rem;background:#075e54;color:#fff;display:flex;align-items:center;justify-content:space-between;">
+            <b>💬 Conversaciones</b>
+            <span style="display:flex;gap:0.3rem;">
+              <button class="config-btn small" style="padding:0.2rem 0.4rem;" title="Mensaje entrante de prueba" onclick="convSeed()">＋demo</button>
+              <button class="config-btn small" style="padding:0.2rem 0.4rem;" onclick="convRefresh()">⟳</button>
+            </span>
+          </div>
+          <div id="convList" style="flex:1;overflow-y:auto;"></div>
+        </div>
+        <!-- Hilo + composición -->
+        <div style="flex:1;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+          <div id="convHeader" style="padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
+            <div id="convTitle" style="font-weight:600;">Elegí una conversación</div>
+            <div id="convActions" style="display:none;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.75rem;cursor:pointer;">
+                <input type="checkbox" id="convHuman" onchange="convToggleHuman(this.checked)"> 🤝 Modo humano (pausa bot)
+              </label>
+              <select id="convEstado" onchange="convSetEstado(this.value)" style="padding:0.25rem 0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.75rem;">
+                <option value="abierto">🟢 Abierto</option>
+                <option value="pendiente">🟡 Pendiente</option>
+                <option value="resuelto">✅ Resuelto</option>
+              </select>
+            </div>
+          </div>
+          <div id="convWindow" style="display:none;padding:0.35rem 0.8rem;font-size:0.72rem;text-align:center;"></div>
+          <div id="convThread" style="flex:1;overflow-y:auto;padding:0.8rem;background:#e5ddd5;">
+            <div class="bl-empty" style="font-size:0.85rem;color:#555;text-align:center;margin-top:2rem;">Seleccioná un chat de la izquierda para ver el historial y responder.</div>
+          </div>
+          <div id="convCanned" style="display:none;gap:0.3rem;flex-wrap:wrap;padding:0.4rem 0.8rem 0;"></div>
+          <div id="convComposer" style="display:none;padding:0.6rem 0.8rem;border-top:1px solid var(--border);gap:0.5rem;align-items:flex-end;">
+            <textarea id="convInput" rows="1" placeholder="Escribí una respuesta…" style="flex:1;resize:none;padding:0.5rem;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:inherit;"></textarea>
+            <button class="config-btn primary small" id="convSendBtn" onclick="convSend()">Enviar ➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Page: Panel de Control -->
     <div class="page" id="pageConfig">
       <div class="config-page">
@@ -547,15 +590,18 @@ function showPage(page) {
   document.getElementById("pageTemplates").classList.toggle("active", page === "templates");
   document.getElementById("pageNotif").classList.toggle("active", page === "notif");
   document.getElementById("pageFuego").classList.toggle("active", page === "fuego");
+  document.getElementById("pageConv").classList.toggle("active", page === "conv");
   document.getElementById("pageConfig").classList.toggle("active", page === "config");
   document.getElementById("navChat").classList.toggle("active", page === "chat");
   document.getElementById("navTemplates").classList.toggle("active", page === "templates");
   document.getElementById("navNotif").classList.toggle("active", page === "notif");
   document.getElementById("navFuego").classList.toggle("active", page === "fuego");
+  document.getElementById("navConv").classList.toggle("active", page === "conv");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   if (page === "config") loadConfigPage();
   if (page === "notif") loadNotif();
   if (page === "fuego") loadFuego();
+  if (page === "conv") loadConversaciones();
 }
 
 // --- Chat ---
@@ -1356,7 +1402,142 @@ async function fuegoRealSweep() {
     fuegoAppend(`📤 <b>Barrido real</b>: ${s.enviados || 0} enviados a la redirección, ${s.retenidos || 0} retenidos (plantilla pendiente/mixto), ${s.errores || 0} errores.`, "stage");
   } catch (e) { out.innerHTML = '<span style="color:var(--danger);">⚠️ ' + esc(e.message) + "</span>"; }
 }
+
+// ══════════════ Conversaciones (atención humana / traspaso del bot) ══════════════
+let convCurrent = null;
+const CANNED = [
+  "¡Hola! ¿En qué te puedo ayudar?",
+  "Dame un momento y lo reviso 🙌",
+  "Tu pedido está en preparación, sale a la brevedad.",
+  "¡Gracias por escribirnos! Cualquier cosa quedamos a disposición.",
+];
+async function convCall(body) {
+  const { data, error } = await sb.functions.invoke("lk_conversaciones", { body });
+  if (error) throw new Error(error.message || "error");
+  if (data && data.error) { const e = new Error(data.error); e.note = data.note; throw e; }
+  return data;
+}
+function convTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts), now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay ? d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+}
+function loadConversaciones() { convRefresh(); }
+
+async function convRefresh() {
+  try {
+    const d = await convCall({ action: "list" });
+    convRenderList(d.items || []);
+  } catch (e) { document.getElementById("convList").innerHTML = '<div class="bl-empty" style="padding:1rem;font-size:0.8rem;">⚠️ ' + esc(e.message) + "</div>"; }
+}
+
+const EST_DOT = { abierto: "🟢", pendiente: "🟡", resuelto: "✅" };
+function convRenderList(items) {
+  const box = document.getElementById("convList");
+  if (!items.length) {
+    box.innerHTML = '<div class="bl-empty" style="padding:1rem;font-size:0.8rem;">Sin conversaciones. Tocá <b>＋demo</b> para simular un mensaje entrante.</div>';
+    return;
+  }
+  box.innerHTML = items.map((c) => {
+    const active = c.phone === convCurrent ? "background:#f0f0f0;" : "";
+    const unread = c.unread > 0 ? `<span style="background:#25d366;color:#fff;border-radius:10px;font-size:0.65rem;padding:0 0.4rem;">${c.unread}</span>` : "";
+    const icon = c.modo_humano ? "🤝" : "🤖";
+    const win = c.ventana_abierta ? "" : '<span title="ventana 24h cerrada" style="opacity:0.5;">⏱️</span>';
+    const pre = (c.last_dir === "out" ? "vos: " : "") + (c.last_body || "");
+    return `<div onclick="convOpen('${esc(c.phone)}')" style="padding:0.55rem 0.7rem;border-bottom:1px solid var(--border);cursor:pointer;${active}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;">
+        <b style="font-size:0.82rem;">${EST_DOT[c.estado] || ""} +${esc(c.phone)}</b>
+        <span style="font-size:0.68rem;color:#888;">${convTime(c.last_at)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;margin-top:0.15rem;">
+        <span style="font-size:0.74rem;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">${icon} ${esc(pre)}</span>
+        <span style="display:flex;gap:0.25rem;align-items:center;">${win}${unread}</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function convOpen(phone) {
+  convCurrent = phone;
+  document.getElementById("convTitle").textContent = "+" + phone;
+  document.getElementById("convActions").style.display = "flex";
+  document.getElementById("convComposer").style.display = "flex";
+  document.getElementById("convCanned").style.display = "flex";
+  try {
+    const d = await convCall({ action: "thread", phone });
+    convRenderThread(d.messages || []);
+    const ctrl = d.control || {};
+    document.getElementById("convHuman").checked = !!ctrl.modo_humano;
+    document.getElementById("convEstado").value = ctrl.estado || "abierto";
+    // Ventana 24h
+    const lastIn = (d.messages || []).filter((m) => m.direction === "in").slice(-1)[0];
+    const abierta = lastIn && (Date.now() - new Date(lastIn.created_at).getTime()) < 24 * 3600 * 1000;
+    const wb = document.getElementById("convWindow");
+    wb.style.display = "block";
+    wb.style.background = abierta ? "#dcfce7" : "#fee2e2";
+    wb.style.color = abierta ? "#15803d" : "#b91c1c";
+    wb.innerHTML = abierta ? "🟢 Ventana de 24 hs abierta — podés responder texto libre."
+      : "🔴 Ventana de 24 hs cerrada — sólo plantilla aprobada (texto libre bloqueado).";
+    document.getElementById("convSendBtn").disabled = !abierta;
+    document.getElementById("convInput").disabled = !abierta;
+    // Canned
+    document.getElementById("convCanned").innerHTML = CANNED.map((t) =>
+      `<button class="config-btn small" style="padding:0.2rem 0.45rem;font-size:0.7rem;" onclick="convCanned(${JSON.stringify(t).replace(/"/g, "&quot;")})">${esc(t.length > 24 ? t.slice(0, 24) + "…" : t)}</button>`).join("");
+    await convCall({ action: "mark_read", phone });
+    convRefresh();
+  } catch (e) { alert("No se pudo abrir: " + e.message); }
+}
+
+function convRenderThread(messages) {
+  const box = document.getElementById("convThread");
+  if (!messages.length) { box.innerHTML = '<div class="bl-empty" style="text-align:center;color:#555;margin-top:2rem;">Sin mensajes.</div>'; return; }
+  box.innerHTML = messages.map((m) => {
+    const out = m.direction === "out";
+    const bg = out ? "#dcf8c6" : "#fff";
+    const al = out ? "margin-left:auto;" : "";
+    return `<div style="max-width:75%;${al}background:${bg};border-radius:8px;padding:0.4rem 0.6rem;margin-bottom:0.4rem;box-shadow:0 1px 1px rgba(0,0,0,0.1);">
+      <div style="font-size:0.85rem;white-space:pre-wrap;word-break:break-word;">${esc(m.body || "")}</div>
+      <div style="font-size:0.62rem;color:#888;text-align:right;margin-top:0.15rem;">${convTime(m.created_at)}${out ? " ✓" : ""}</div>
+    </div>`;
+  }).join("");
+  box.scrollTop = box.scrollHeight;
+}
+
+function convCanned(t) { const i = document.getElementById("convInput"); i.value = t; i.focus(); }
+
+async function convSend() {
+  if (!convCurrent) return;
+  const input = document.getElementById("convInput");
+  const body = input.value.trim();
+  if (!body) return;
+  const btn = document.getElementById("convSendBtn");
+  btn.disabled = true;
+  try {
+    await convCall({ action: "send", phone: convCurrent, body });
+    input.value = "";
+    await convOpen(convCurrent);
+  } catch (e) {
+    alert("No se pudo enviar: " + e.message + (e.note ? "\n\n" + e.note : ""));
+  } finally { btn.disabled = false; }
+}
+
+async function convToggleHuman(on) {
+  if (!convCurrent) return;
+  try { await convCall({ action: "toggle_human", phone: convCurrent, on }); convRefresh(); }
+  catch (e) { alert("Error: " + e.message); }
+}
+async function convSetEstado(estado) {
+  if (!convCurrent) return;
+  try { await convCall({ action: "set_estado", phone: convCurrent, estado }); convRefresh(); }
+  catch (e) { alert("Error: " + e.message); }
+}
+async function convSeed() {
+  try { const d = await convCall({ action: "seed_demo" }); await convRefresh(); convOpen(d.phone); }
+  catch (e) { alert("Error: " + e.message); }
+}
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.8.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.9.0</div>
 </body>
 </html>
