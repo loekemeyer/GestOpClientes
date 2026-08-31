@@ -300,10 +300,10 @@ async function handleGrupo(body: any) {
   return json({ mode: "grupo", group_key: gk, estado, n_facturas: facturas.length, template: mensaje?.template ?? null, envio, redirect_to: redirect });
 }
 
-// ── Camino REAL event-driven: cada factura que impacta hoy → agrupa las facturas del día
-// de ese cliente (cuit) y entrega al número de redirección (Thomy). Ancla = día del armado
-// (mismo día de la factura). Off por defecto; se activa sólo con wa_real_redirect_* = HOY +
-// lista blanca. Idempotente por (cuit, día); reenvía sólo si crece la cantidad de facturas.
+// ── Camino REAL event-driven: cada factura que impacta hoy → identifica factura↔NP y agrupa
+// las facturas del día del cliente POR DIRECCIÓN (cliente+destino = una entrega). Envía una
+// entrega por dirección al número de redirección (Thomy). Ancla = día. Off salvo config de
+// HOY + lista blanca. Idempotente por (cuit, destino, día); reenvía sólo si crece la cantidad.
 // deno-lint-ignore no-explicit-any
 async function handleRealRedirect(g: any, cuit: string, fecha: string) {
   const redirect = (await getSetting("wa_real_redirect_to")) || "";
@@ -314,61 +314,63 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
   const wl = await whitelist();
   if (!wl.includes(redirect)) return json({ skipped: "redirect_no_whitelist", cuit });
 
-  const { data: fLk } = await g.rpc("wa_factura_grupo", { p_schema: "isis_lk", p_cuit: cuit, p_fecha: fecha });
-  const { data: fCh } = await g.rpc("wa_factura_grupo", { p_schema: "isis_ch", p_cuit: cuit, p_fecha: fecha });
-  const facturasLk = fLk ?? [], facturasCh = fCh ?? [];
-  const multisource = facturasLk.length > 0 && facturasCh.length > 0;
-  const facturas = facturasLk.length ? facturasLk : facturasCh;
-  const srcUsado = facturasLk.length ? "lk" : "ch";
-  if (!facturas.length) return json({ complete: false, cuit, note: "sin facturas hoy" });
+  // Grupos del día por DIRECCIÓN (factura→NP→dirección, vía vista_np_factura).
+  const { data: grupos } = await g.rpc("wa_grupos_dia_cuit", { p_cuit: cuit, p_fecha: fecha });
+  if (!grupos || !grupos.length) return json({ pendiente: true, cuit, note: "sin facturas matcheadas a NP/dirección hoy" });
 
-  const gk = `real|${cuit}|${fecha}`;
-  const { data: prev } = await paginalk.from("wa_shadow_log").select("estado,n_facturas").eq("group_key", gk).maybeSingle();
-  if (prev && prev.estado === "sent_whatsapp" && (prev.n_facturas ?? 0) >= facturas.length) {
-    return json({ ok: true, already: true, cuit, n_facturas: prev.n_facturas });
-  }
+  const out = [];
+  for (const gr of grupos) {
+    const destino = gr.destino || "(s/dir)";
+    const source = gr.empresa === "chef" ? "ch" : "lk";
+    const totales = (gr.totales ?? []) as number[];
+    const metodos = (gr.metodos ?? []) as string[];
+    // LK y CH nunca van juntas: el grupo ya viene separado por empresa (bucket distinto).
+    const gk = `real|${cuit}|${gr.empresa}|${destino}|${fecha}`;
 
-  const metodos = Array.from(new Set(facturas.map((f: Record<string, unknown>) => f.metodo).filter(Boolean)));
-  const metodoMixto = metodos.length > 1;
-  const metodo = (facturas[0]?.metodo as string) || "no_decidido";
-  const razon = (facturas[0]?.contraparte_nombre as string) || "Cliente";
+    const { data: prev } = await paginalk.from("wa_shadow_log").select("estado,n_facturas").eq("group_key", gk).maybeSingle();
+    if (prev && prev.estado === "sent_whatsapp" && (prev.n_facturas ?? 0) >= totales.length) { out.push({ destino, skipped: "ya_enviado" }); continue; }
 
-  let estado = "delivered";
-  // deno-lint-ignore no-explicit-any
-  let mensaje: any = null;
-  if (multisource) estado = "held_multisource";
-  else if (metodoMixto) estado = "held_metodo_mixto";
-  else {
-    mensaje = armarMensaje(metodo, facturas);
-    const st = await tplStatus(mensaje.template);
-    mensaje.tpl_status = st;
-    if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
-    mensaje.real_group = { cuit, razon_social: razon, comprobantes: facturas.map((f: Record<string, unknown>) => f.comprobante_id) };
-  }
-
-  let pdf = null;
-  if (mensaje && !multisource && !metodoMixto) {
-    pdf = await combinarPdfs(g, srcUsado, cuit, fecha);
-    mensaje.pdf_combinado = pdf ? { path: pdf.path, n: pdf.n, ok: !!pdf.url } : null;
-  }
-
-  let envio = null;
-  if (estado === "delivered") {
-    envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null);
-    estado = envio.ok ? "sent_whatsapp" : "error_envio";
-    mensaje.envio = { to: redirect, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
-    if (estado === "sent_whatsapp") {
-      try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", cuit, source: srcUsado, detalle: { real: true, redirect: true, n_facturas: facturas.length } }); } catch (_e) { /* log best-effort */ }
+    const facturas = totales.map((t) => ({ total: t }));
+    const metodoMixto = metodos.length > 1;
+    const metodo = metodos[0] || "no_decidido";
+    let estado = "delivered";
+    // deno-lint-ignore no-explicit-any
+    let mensaje: any = null;
+    if (metodoMixto) estado = "held_metodo_mixto";
+    else {
+      mensaje = armarMensaje(metodo, facturas);
+      const st = await tplStatus(mensaje.template);
+      mensaje.tpl_status = st;
+      if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
+      mensaje.real_group = { cuit, destino, cod_cliente: gr.cod_cliente ?? null, razon_social: gr.razon_social ?? null, comprobantes: gr.comprobantes ?? [] };
     }
+
+    let pdf = null;
+    if (mensaje && !metodoMixto) {
+      pdf = await combinarPaths(g, source, (gr.storage_paths ?? []) as string[], gk.replace(/[^0-9a-zA-Z]+/g, "_"));
+      mensaje.pdf_combinado = pdf ? { path: pdf.path, n: pdf.n, ok: !!pdf.url } : null;
+    }
+
+    let envio = null;
+    if (estado === "delivered") {
+      envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null);
+      estado = envio.ok ? "sent_whatsapp" : "error_envio";
+      mensaje.envio = { to: redirect, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
+      if (estado === "sent_whatsapp") {
+        try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", cuit, source, detalle: { destino, n_facturas: facturas.length, real: true, redirect: true } }); } catch (_e) { /* best-effort */ }
+      }
+    }
+
+    const total_sum = totales.reduce((s, t) => s + Number(t || 0), 0);
+    await paginalk.from("wa_shadow_log").upsert({
+      group_key: gk, empresa: gr.empresa ?? source, cod_cliente: gr.cod_cliente ?? null, dia: fecha,
+      n_facturas: facturas.length, estado, wamid: envio?.wamid ?? null, total_sum, redirect_to: redirect, mensaje,
+    }, { onConflict: "group_key" });
+
+    out.push({ destino, estado, n_facturas: facturas.length, template: mensaje?.template ?? null });
   }
 
-  const total_sum = facturas.reduce((s: number, f: Record<string, unknown>) => s + Number(f.total || 0), 0);
-  await paginalk.from("wa_shadow_log").upsert({
-    group_key: gk, empresa: srcUsado === "ch" ? "chef" : "lk", cod_cliente: null, dia: fecha,
-    n_facturas: facturas.length, estado, wamid: envio?.wamid ?? null, total_sum, redirect_to: redirect, mensaje,
-  }, { onConflict: "group_key" });
-
-  return json({ ok: true, real: true, cuit, estado, n_facturas: facturas.length, template: mensaje?.template ?? null, envio, redirect_to: redirect });
+  return json({ ok: true, real: true, cuit, grupos: out });
 }
 
 serve(async (req) => {

@@ -25,6 +25,36 @@ returns table(source text, cuit text) language sql security definer set search_p
     group by contraparte_cuit;
 $$;
 
+-- Agrupa las facturas del día de un cliente (cuit) por EMPRESA + DIRECCIÓN (una entrega por
+-- grupo). Regla: LK y CH NUNCA van juntas; un cliente puede tener pedidos a distintas
+-- direcciones el mismo día (cada dirección = un mensaje). Usa el linkeo factura→NP→dirección
+-- (vista_np_factura). Lo consume lk_factura-check.handleRealRedirect.
+create or replace function public.wa_grupos_dia_cuit(p_cuit text, p_fecha date)
+returns table(empresa text, destino text, cod_cliente text, razon_social text, n_facturas int,
+  comprobantes text[], storage_paths text[], totales numeric[], metodos text[])
+language sql stable security definer set search_path to 'public' as $$
+  with cods as (
+    select distinct contraparte_codigo cod from public.comprobantes_venta
+    where contraparte_cuit = p_cuit and contraparte_codigo is not null
+  ),
+  base as (
+    select v.np, v.empresa, v.cod_cliente,
+      public.wa_destino_norm(v.sucursal_entrega, v.direccion) destino,
+      v.razon_social, v.comprobante_id, v.storage_path, v.factura_total, v.doc_id,
+      (select d.condicion_venta from isis_lk.documentos d where d.id=v.doc_id and v.empresa='lk'
+       union all select d.condicion_venta from isis_ch.documentos d where d.id=v.doc_id and v.empresa='chef' limit 1) cond
+    from public.vista_np_factura v
+    where v.cod_cliente in (select cod from cods) and v.doc_fecha = p_fecha
+      and v.doc_id is not null and v.storage_path is not null
+  )
+  select empresa, destino, max(cod_cliente), max(razon_social), count(*)::int,
+    array_agg(comprobante_id order by comprobante_id),
+    array_agg(storage_path order by comprobante_id),
+    array_agg(factura_total order by comprobante_id),
+    array_agg(distinct public.wa_metodo_norm(cond))
+  from base group by empresa, destino;
+$$;
+
 create or replace function public.wa_envio_grupos_pendientes()
 returns table(group_key text, empresa text, cod_cliente text, destino text, dia date, razon_social text,
   n_facturas int, comprobantes text[], storage_paths text[], totales numeric[], metodos text[])
