@@ -393,6 +393,17 @@
           <button class="config-btn primary small" onclick="fuegoAddContact()">➕ Agregar contacto</button>
         </div>
         <div id="fuegoContacts"><div class="bl-empty" style="font-size:0.8rem;">Sin contactos.</div></div>
+
+        <div style="margin-top:0.9rem;border-top:1px solid var(--border);padding-top:0.6rem;">
+          <h4 style="margin:0 0 0.3rem;">📤 Barrido real de hoy</h4>
+          <div class="notif-hint" style="border-left-color:#b45309;">
+            Envía los <b>pedidos reales facturados de hoy</b> (grupos completos con PDF linkeado) al
+            número de <b>redirección de hoy</b>, tal cual saldrían al cliente — pero <b>no</b> se envía
+            a ningún cliente. Idempotente (no repite). <b>Se apaga solo mañana.</b>
+          </div>
+          <button class="config-btn small" style="width:100%;" onclick="fuegoRealSweep()">📤 Enviar pedidos reales de hoy → redirección</button>
+          <div id="fuegoSweepOut" style="font-size:0.74rem;margin-top:0.4rem;line-height:1.5;"></div>
+        </div>
       </div>
     </div>
 
@@ -1324,7 +1335,28 @@ async function fuegoWaitAviso(cuit) {
   try { const st = await notifCall({ action: "sim_state" }); return (st.items || []).find((x) => x.cuit === cuit) || null; }
   catch (e) { return null; }
 }
+
+// Barrido real: envía los pedidos reales completos de hoy al número de redirección (whitelist).
+async function fuegoRealSweep() {
+  if (!confirm("¿Enviar los pedidos REALES completos de hoy al número de redirección?\n\nSe manda por WhatsApp real SOLO a ese número (nunca al cliente). Idempotente.")) return;
+  const out = document.getElementById("fuegoSweepOut");
+  out.innerHTML = "⏳ Procesando…";
+  try {
+    const d = await notifCall({ action: "real_sweep" });
+    const s = d.summary || {};
+    const EST = { sent_whatsapp: "✅ enviado", error_envio: "❌ error", held_tpl_no_aprobada: "🚫 plantilla pendiente",
+      held_metodo_mixto: "⚠️ método mixto", ya_enviado: "↩︎ ya enviado", fuera_de_fecha: "⏱️ fuera de fecha",
+      sin_redirect: "sin redirección", redirect_no_whitelist: "🚫 redirección no autorizada" };
+    const rows = (d.results || []).map((r) => {
+      const key = r.estado || r.skipped || (r.error ? "error" : "?");
+      const lbl = EST[key] || key;
+      return `<div>• <b>${esc(r.cod_cliente || "")}</b> (${r.n_facturas || 0} fac) — ${esc(lbl)}${r.template ? " · " + esc(r.template) : ""}</div>`;
+    }).join("");
+    out.innerHTML = `<div style="font-weight:600;margin-bottom:0.2rem;">${s.enviados || 0} enviados · ${s.retenidos || 0} retenidos · ${s.ya_enviados || 0} ya enviados · ${s.errores || 0} errores (de ${s.total || 0})</div>${rows}`;
+    fuegoAppend(`📤 <b>Barrido real</b>: ${s.enviados || 0} enviados a la redirección, ${s.retenidos || 0} retenidos (plantilla pendiente/mixto), ${s.errores || 0} errores.`, "stage");
+  } catch (e) { out.innerHTML = '<span style="color:var(--danger);">⚠️ ' + esc(e.message) + "</span>"; }
+}
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.8.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.8.1</div>
 </body>
 </html>

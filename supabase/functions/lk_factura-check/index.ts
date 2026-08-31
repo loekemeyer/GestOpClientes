@@ -109,6 +109,34 @@ async function combinarPdfs(g: any, srcUsado: string, cuit: string, fecha: strin
   return { path: outPath, url: signed?.signedUrl ?? null, n: ok };
 }
 
+// ── Combinación REAL por lista explícita de paths (grupos reales linkeados) ──
+// deno-lint-ignore no-explicit-any
+async function combinarPaths(g: any, source: string, paths: string[], outName: string) {
+  const bucket = source === "ch" ? "isis-ch" : "isis-lk";
+  const list = (paths ?? []).filter(Boolean);
+  if (!list.length) return null;
+  const merged = await PDFDocument.create();
+  let ok = 0;
+  for (const p of list) {
+    try {
+      const dl = await g.storage.from(bucket).download(p);
+      if (dl.error || !dl.data) continue;
+      const buf = new Uint8Array(await dl.data.arrayBuffer());
+      const src = await PDFDocument.load(buf);
+      const pages = await merged.copyPages(src, src.getPageIndices());
+      pages.forEach((pg: unknown) => merged.addPage(pg as never));
+      ok++;
+    } catch { /* omite ilegible */ }
+  }
+  if (!ok) return null;
+  const bytes = await merged.save();
+  const outPath = `shadow/${outName}.pdf`;
+  const up = await g.storage.from(bucket).upload(outPath, bytes, { contentType: "application/pdf", upsert: true });
+  if (up.error) return { path: outPath, url: null, n: ok, error: up.error.message };
+  const { data: signed } = await g.storage.from(bucket).createSignedUrl(outPath, 3600);
+  return { path: outPath, url: signed?.signedUrl ?? null, n: ok };
+}
+
 // ── Envío REAL por WhatsApp (Meta Cloud API) con header documento + cuerpo plantilla ──
 async function waPhoneId(): Promise<string> {
   return Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? (await getSetting("wa_phone_number_id")) ?? "";
@@ -205,11 +233,76 @@ function armarMensaje(metodo: string, facturas: any[]) {
   };
 }
 
+// ── Modo GRUPO: envío REAL redirigido de un grupo real ya linkeado (NP↔factura) ──
+// Recibe el grupo completo (comprobantes/paths/totales/metodos) y lo entrega SÓLO al número
+// de redirección (Thomy) — nunca al cliente. Guardas: config de redirección + fecha de HOY +
+// número en la lista blanca. Idempotente por group_key (wa_shadow_log). No toca datos de cliente.
+// deno-lint-ignore no-explicit-any
+async function handleGrupo(body: any) {
+  const redirect = (await getSetting("wa_real_redirect_to")) || "";
+  const rDate = (await getSetting("wa_real_redirect_date")) || "";
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (!redirect) return json({ mode: "grupo", skipped: "sin_redirect" });
+  if (rDate !== hoy) return json({ mode: "grupo", skipped: "fuera_de_fecha", rDate, hoy });
+  const wl = await whitelist();
+  if (!wl.includes(redirect)) return json({ mode: "grupo", skipped: "redirect_no_whitelist" });
+
+  const gk = String(body.group_key ?? "");
+  if (!gk) return json({ mode: "grupo", error: "group_key requerido" }, 400);
+  const { data: prev } = await paginalk.from("wa_shadow_log").select("estado,n_facturas").eq("group_key", gk).maybeSingle();
+  const totales = (body.totales ?? []).map((t: unknown) => Number(t) || 0);
+  if (prev && prev.estado === "sent_whatsapp" && (prev.n_facturas ?? 0) >= totales.length) {
+    return json({ mode: "grupo", group_key: gk, skipped: "ya_enviado" });
+  }
+
+  const empresa = String(body.empresa ?? "lk");
+  const source = empresa === "chef" ? "ch" : "lk";
+  const metodos = (body.metodos ?? []) as string[];
+  const facturas = totales.map((t: number) => ({ total: t }));
+  const metodoMixto = metodos.length > 1;
+  const metodo = metodos[0] || "no_decidido";
+
+  let estado = "delivered";
+  // deno-lint-ignore no-explicit-any
+  let mensaje: any = null;
+  if (metodoMixto) estado = "held_metodo_mixto";
+  else {
+    mensaje = armarMensaje(metodo, facturas);
+    const st = await tplStatus(mensaje.template);
+    mensaje.tpl_status = st;
+    if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
+    mensaje.real_group = { group_key: gk, cod_cliente: body.cod_cliente ?? null, comprobantes: body.comprobantes ?? [] };
+  }
+
+  const g = await gp();
+  let pdf = null;
+  if (mensaje && !metodoMixto) {
+    pdf = await combinarPaths(g, source, (body.storage_paths ?? []) as string[], gk.replace(/[^0-9a-zA-Z]+/g, "_"));
+    mensaje.pdf_combinado = pdf ? { path: pdf.path, n: pdf.n, ok: !!pdf.url } : null;
+  }
+
+  let envio = null;
+  if (estado === "delivered") {
+    envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null);
+    estado = envio.ok ? "sent_whatsapp" : "error_envio";
+    mensaje.envio = { to: redirect, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
+  }
+
+  const total_sum = totales.reduce((s: number, t: number) => s + t, 0);
+  await paginalk.from("wa_shadow_log").upsert({
+    group_key: gk, empresa, cod_cliente: body.cod_cliente ?? null, dia: body.dia ?? null,
+    n_facturas: facturas.length, estado, wamid: envio?.wamid ?? null, total_sum, redirect_to: redirect, mensaje,
+  }, { onConflict: "group_key" });
+
+  return json({ mode: "grupo", group_key: gk, estado, n_facturas: facturas.length, template: mensaje?.template ?? null, envio, redirect_to: redirect });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method === "GET") return new Response("ok");
   try {
     const body = await req.json().catch(() => ({}));
+    if (body.mode === "grupo") return await handleGrupo(body);
     const source = (body.source as string) || "lk";
     const cuit = String(body.cuit ?? "");
     const fecha = String(body.fecha ?? "");

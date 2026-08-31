@@ -232,6 +232,32 @@ serve(async (req) => {
       return json({ ok: true, cuit, fecha: today(), metodo, source, np_esperados: np, dest_phone: dest.phone, emits, check: lastCheck });
     }
 
+    // ── real_sweep: enviar los pedidos REALES completos de hoy al número de redirección (Thomy) ──
+    if (action === "real_sweep") {
+      const { data: groups } = await g.rpc("wa_envio_grupos_pendientes");
+      const results = [];
+      for (const gr of (groups ?? [])) {
+        let r;
+        try {
+          const res = await fetch(`${SB_URL}/functions/v1/lk_factura-check`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "grupo", ...gr }),
+          });
+          r = await res.json();
+        } catch (e) { r = { error: String(e) }; }
+        results.push({ group_key: gr.group_key, cod_cliente: gr.cod_cliente, dia: gr.dia, n_facturas: gr.n_facturas, metodos: gr.metodos, ...r });
+      }
+      const est = (r: Record<string, unknown>) => String(r.estado || r.skipped || (r.error ? "error" : "")) ;
+      const summary = {
+        total: results.length,
+        enviados: results.filter((r) => est(r) === "sent_whatsapp").length,
+        retenidos: results.filter((r) => est(r).startsWith("held")).length,
+        ya_enviados: results.filter((r) => est(r) === "ya_enviado").length,
+        errores: results.filter((r) => est(r) === "error" || est(r) === "error_envio").length,
+      };
+      return json({ ok: true, summary, results });
+    }
+
     // ── sim_state: recorrido de cada pedido + mensaje entregado ──
     if (action === "sim_state") {
       const { data: controls } = await g.from("wa_sim_control").select("*").eq("fecha", today()).order("created_at", { ascending: false }).limit(30);
