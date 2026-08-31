@@ -990,27 +990,54 @@ async function notifEmit(cuit) {
       `<br><span style="font-size:0.71rem;">PDF → <code>${bucket}</code> · fila en <code>${d.source === "ch" ? "isis_ch" : "isis_lk"}.documentos</code></span>`, "out");
     const chk = d.check || {};
     if (d.disparo) {
-      notifAppend('🔔 <code>lk_factura-check</code>: grupo COMPLETO → arma el aviso consolidado', "trigger");
-      if (chk.estado === "held_multisource") {
-        notifAppend("⚠️ <b>Multi-fuente (LK + Chef)</b> para el mismo CUIT/día — el bot lo <b>retiene</b> (held), no manda aviso.", "in");
-      } else if (chk.estado === "held_metodo_mixto") {
-        notifAppend("⚠️ <b>Método de pago mixto</b> en el grupo — el bot lo <b>retiene</b> (held), no manda aviso.", "in");
-      } else if (chk.estado === "held_tpl_no_aprobada") {
-        const st = chk.mensaje && chk.mensaje.tpl_status ? chk.mensaje.tpl_status : "no aprobada";
-        notifAppend(`🚫 <b>Plantilla <code>${esc((chk.mensaje && chk.mensaje.template) || "")}</code> no aprobada en Meta</b> (estado: ${esc(st)}) → el pipeline <b>BLOQUEA el envío</b> (Meta la rechazaría). Así se vería el mensaje una vez aprobada:`, "in");
-        if (chk.mensaje) notifAppend(waPreviewHtml(chk.mensaje, chk.n_facturas || 1, d.source), "in");
-      } else if (chk.mensaje) {
-        notifAppend(waPreviewHtml(chk.mensaje, chk.n_facturas || 1, d.source), "in");
-      } else {
-        const st = await notifCall({ action: "sim_state" });
-        const g = (st.items || []).find((x) => x.cuit === cuit);
-        if (g && g.aviso && g.aviso.mensaje) notifAppend(waPreviewHtml(g.aviso.mensaje, g.aviso.n_facturas, g.source), "in");
-      }
+      notifAppend('🔔 <code>lk_factura-check</code>: grupo COMPLETO → arma el aviso', "trigger");
+      // La entrega es asíncrona (el trigger puede ganar el claim): esperamos a que el
+      // aviso aparezca en el inbox y recién ahí mostramos la burbuja.
+      const g = await waitForAviso(cuit);
+      let av = g && g.aviso ? g.aviso : null;
+      const src = (g && g.source) || d.source;
+      if (!av && (chk.mensaje || chk.estado)) av = { estado: chk.estado || "delivered", mensaje: chk.mensaje, n_facturas: chk.n_facturas };
+      if (av) renderAvisoMsg(av, src);
+      else notifAppend("⏳ El aviso se está procesando (entrega asíncrona). Se actualiza en unos segundos — o tocá el pedido de nuevo.", "system");
     } else {
       notifAppend(`⏳ Falta ${d.faltan} NP(s) por facturar para completar el pedido…`, "system");
     }
     await notifRefresh();
   } catch (err) { notifAppend("⚠️ " + esc(err.message), "system"); }
+}
+
+// Espera (poll) a que lk_factura-check entregue el aviso al inbox.
+async function waitForAviso(cuit) {
+  for (let i = 0; i < 8; i++) {
+    try {
+      const st = await notifCall({ action: "sim_state" });
+      const g = (st.items || []).find((x) => x.cuit === cuit);
+      if (g && g.aviso) return g;
+    } catch (e) { /* retry */ }
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  try {
+    const st = await notifCall({ action: "sim_state" });
+    return (st.items || []).find((x) => x.cuit === cuit) || null;
+  } catch (e) { return null; }
+}
+
+// Muestra la burbuja del aviso según su estado (entregado / retenido / bloqueado).
+function renderAvisoMsg(av, source) {
+  const est = av.estado;
+  if (est === "held_multisource") {
+    notifAppend("⚠️ <b>Multi-fuente (LK + Chef)</b> para el mismo CUIT/día — el bot lo <b>retiene</b> (held), no manda aviso.", "in");
+  } else if (est === "held_metodo_mixto") {
+    notifAppend("⚠️ <b>Método de pago mixto</b> en el grupo — el bot lo <b>retiene</b> (held), no manda aviso.", "in");
+  } else if (est === "held_tpl_no_aprobada") {
+    const m = av.mensaje || {};
+    notifAppend(`🚫 <b>Plantilla <code>${esc(m.template || "")}</code> no aprobada en Meta</b> (estado: ${esc(m.tpl_status || "no aprobada")}) → el pipeline <b>BLOQUEA el envío</b> (Meta la rechazaría). Así se vería el mensaje una vez aprobada:`, "in");
+    if (av.mensaje) notifAppend(waPreviewHtml(av.mensaje, av.n_facturas || 1, source), "in");
+  } else if (av.mensaje) {
+    notifAppend(waPreviewHtml(av.mensaje, av.n_facturas || 1, source), "in");
+  } else {
+    notifAppend("⏳ Aviso registrado pero sin cuerpo — revisá el estado del grupo.", "system");
+  }
 }
 
 async function notifReset() {
@@ -1106,6 +1133,6 @@ function waPreviewHtml(m, nFacturas, source) {
   return `${doc}${cuerpo}${tag}`;
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.4</div>
 </body>
 </html>
