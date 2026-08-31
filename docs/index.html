@@ -149,6 +149,8 @@
     /* Avisos automáticos (simulador facturación, estilo chat) */
     .notif-hint { font-size: 0.75rem; color: var(--muted); line-height: 1.4; margin-bottom: 1rem; }
     .notif-hint code { background: #f1f5f9; padding: 0 3px; border-radius: 3px; font-size: 0.72rem; }
+    .tpl-tag { font-size: 0.62rem; color: var(--primary); font-family: monospace; opacity: 0.75; }
+    #notifMessages .msg.stage { background: #eef2ff; color: #3730a3; float: none; max-width: 92%; margin: 0.3rem auto; text-align: center; font-size: 0.76rem; border-radius: 6px; }
     .metodo-badge { display: inline-block; font-size: 0.66rem; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 20px; white-space: nowrap; }
     .metodo-badge.contado { background: #dcfce7; color: #15803d; }
     .metodo-badge.credito { background: #fef9c3; color: #a16207; }
@@ -309,35 +311,35 @@
           <button class="clear-btn" onclick="notifReset()">🗑️ Limpiar</button>
         </div>
         <div class="chat-messages" id="notifMessages"></div>
-        <div class="chat-input" style="flex-wrap:wrap; gap:0.5rem; justify-content:center;">
-          <button class="config-btn primary small" onclick="notifNew()">🆕 Simular pedido</button>
-          <select id="notifMetodo" style="padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
-            <option value="">Método: al azar</option>
-            <option value="contado">Contado</option>
-            <option value="credito_15_30">Crédito 15-30d</option>
-            <option value="credito_31_45">Crédito 31-45d</option>
-            <option value="credito_46_60">Crédito 46-60d</option>
-            <option value="echeq_90">E-check 90d</option>
-            <option value="echeq_120">E-check 120d</option>
-          </select>
-          <select id="notifN" style="padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
-            <option value="">Facturas: al azar</option>
-            <option value="1">1 factura</option>
-            <option value="2">2 facturas</option>
-            <option value="3">3 facturas</option>
-            <option value="4">4 facturas</option>
-          </select>
+        <div class="chat-input" style="flex-direction:column; align-items:stretch; gap:0.5rem; padding:0.6rem 0.8rem;">
+          <div style="font-size:0.72rem;color:var(--muted);text-align:center;">Simular pedido por modelo de plantilla:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:center;">
+            <button class="config-btn small" onclick="notifNew('contado',1)">Contado ×1 <span class="tpl-tag">_s</span></button>
+            <button class="config-btn small" onclick="notifNew('contado',3)">Contado ×3 <span class="tpl-tag">_p</span></button>
+            <button class="config-btn small" onclick="notifNew('credito_31_45',1)">Crédito ×1 <span class="tpl-tag">_s</span></button>
+            <button class="config-btn small" onclick="notifNew('credito_31_45',3)">Crédito ×3 <span class="tpl-tag">_p</span></button>
+            <button class="config-btn small" onclick="notifNew('echeq_90',1)">E-check ×1 <span class="tpl-tag">_s</span></button>
+            <button class="config-btn small" onclick="notifNew('echeq_90',3)">E-check ×3 <span class="tpl-tag">_p</span></button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center;align-items:center;">
+            <button class="config-btn primary small" onclick="notifNew()">🎲 Al azar</button>
+            <select id="notifSource" style="padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;">
+              <option value="lk">Fuente: LK</option>
+              <option value="ch">Fuente: Chef</option>
+            </select>
+          </div>
         </div>
       </div>
 
       <div class="control-panel" id="notifPanel">
         <h4>🧪 Pedidos en curso</h4>
         <div class="notif-hint">
-          Cada factura simulada sube un PDF al bucket <code>isis-lk</code> e inserta una fila en
-          <code>isis_lk.documentos</code> (marcada de prueba). El <b>trigger real</b> arma el aviso cuando
-          impactan todas. <b>No se envía WhatsApp.</b>
+          Recorrido REAL: el pedido entra en la <b>PPP</b>, cada factura sube su PDF al bucket
+          <code>isis-lk</code>/<code>isis-ch</code> + <code>documentos</code>, y las NPs impactan en
+          <code>Facturacion_NP</code>. El <b>trigger real</b> detecta el grupo completo y
+          <code>lk_factura-check</code> arma el aviso. <b>Desvío a este módulo — no se envía WhatsApp.</b>
         </div>
-        <div id="notifGroups"><div class="bl-empty" style="font-size:0.8rem;">Sin pedidos. Tocá "Simular pedido".</div></div>
+        <div id="notifGroups"><div class="bl-empty" style="font-size:0.8rem;">Sin pedidos. Tocá un modelo arriba.</div></div>
       </div>
     </div>
 
@@ -944,11 +946,14 @@ function notifAppend(html, cls) {
   box.scrollTop = box.scrollHeight;
 }
 
+const SRC_LABEL = { lk: "LK", ch: "Chef" };
+
 function notifIntro() {
-  notifAppend('👋 Simulador de <b>avisos automáticos por facturación</b>.<br>' +
-    'Tocá <b>Simular pedido</b> (opcional: elegí método y cantidad) y después <b>Emitir factura</b> por cada una. ' +
-    'Cada factura sube un PDF a <code>isis-lk</code> e inserta una fila de prueba en <code>isis_lk.documentos</code>. ' +
-    'Cuando impactan todas, el <b>trigger real</b> arma el aviso consolidado. <b>No se envía WhatsApp.</b>', "system");
+  notifAppend('👋 Simulador <b>end-to-end</b> del pipeline de facturación (idéntico a producción).<br>' +
+    'Tocá un <b>modelo de plantilla</b> arriba → se crea un pedido de prueba en la <b>PPP</b>. Después <b>Emitir factura</b> por cada NP: ' +
+    'sube el PDF al bucket (<code>isis-lk</code>/<code>isis-ch</code>) + <code>documentos</code>, factura la NP en <code>Facturacion_NP</code>, ' +
+    'y el <b>trigger real</b> + <code>lk_factura-check</code> arman el aviso cuando el grupo está completo. ' +
+    '<b>El aviso llega acá, no a WhatsApp.</b> Al terminar, "Limpiar" borra todos los datos de prueba.', "system");
 }
 
 function loadNotif() {
@@ -957,18 +962,17 @@ function loadNotif() {
   notifRefresh();
 }
 
-async function notifNew() {
-  const metodo = document.getElementById("notifMetodo").value;
-  const n = document.getElementById("notifN").value;
-  const body = { action: "sim_new" };
+async function notifNew(metodo, n) {
+  const body = { action: "sim_new", source: document.getElementById("notifSource").value || "lk" };
   if (metodo) body.metodo = metodo;
-  if (n) body.np_esperados = parseInt(n, 10);
+  if (n) body.np_esperados = n;
   try {
     const d = await notifCall(body);
     const s = d.sim;
-    notifAppend(`🆕 <b>Pedido simulado</b> — ${esc(s.business_name)} ` +
-      `<span class="metodo-badge ${grupoDe(s.metodo)}">${esc(METODO_LABEL[s.metodo] || s.metodo)}</span>` +
-      `<br><span style="font-size:0.72rem;color:#6b7280;">CUIT ${esc(s.cuit)} · espera ${s.np_esperados} factura(s)</span>`, "system");
+    notifAppend(`🆕 <b>Pedido en la PPP</b> — ${esc(s.business_name)} ` +
+      `<span class="metodo-badge ${grupoDe(s.metodo)}">${esc(METODO_LABEL[s.metodo] || s.metodo)}</span> ` +
+      `<span class="tpl-tag">${esc(SRC_LABEL[s.source] || s.source)}</span>` +
+      `<br><span style="font-size:0.72rem;color:#6b7280;">CUIT ${esc(s.cuit)} · ${s.np_esperados} NP(s): ${(s.nps || []).join(", ")}</span>`, "system");
     await notifRefresh();
   } catch (e) { notifAppend("⚠️ " + esc(e.message), "system"); }
 }
@@ -978,33 +982,40 @@ async function notifEmit(cuit) {
     const d = await notifCall({ action: "sim_emit", cuit });
     if (d.note) { await notifRefresh(); return; }
     const e = d.emitted;
-    notifAppend(`📄 Factura <b>${esc(e.comprobante)}</b> — ${esc(e.total_fmt)}` +
-      `<br><span style="font-size:0.71rem;">impactó en <code>isis_lk.documentos</code> · PDF → <code>isis-lk/${esc(e.storage_path)}</code></span>`, "out");
+    const bucket = d.source === "ch" ? "isis-ch" : "isis-lk";
+    notifAppend(`🏭 NP <b>${esc(d.np)}</b> facturada → <code>Facturacion_NP</code> (trigger de grupo completo)`, "stage");
+    notifAppend(`🧾 Factura <b>${esc(e.comprobante)}</b> — ${esc(e.total_fmt)}` +
+      `<br><span style="font-size:0.71rem;">PDF → <code>${bucket}</code> · fila en <code>${d.source === "ch" ? "isis_ch" : "isis_lk"}.documentos</code></span>`, "out");
+    const chk = d.check || {};
     if (d.disparo) {
-      notifAppend('🔔 Trigger <b>wa_sim_documentos_trg</b> disparado — impactaron todas las facturas del pedido', "trigger");
-      const st = await notifCall({ action: "sim_state" });
-      const g = (st.items || []).find((x) => x.cuit === cuit);
-      if (g && g.estado === "held_metodo_mixto") {
-        notifAppend("⚠️ <b>Método mixto</b> en el grupo — el bot lo retiene para revisión (estado <code>held_metodo_mixto</code>), no manda aviso.", "in");
-      } else if (g && g.mensaje) {
-        notifAppend(waPreviewHtml(g), "in");
+      notifAppend('🔔 <code>lk_factura-check</code>: grupo COMPLETO → arma el aviso consolidado', "trigger");
+      if (chk.estado === "held_multisource") {
+        notifAppend("⚠️ <b>Multi-fuente (LK + Chef)</b> para el mismo CUIT/día — el bot lo <b>retiene</b> (held), no manda aviso.", "in");
+      } else if (chk.estado === "held_metodo_mixto") {
+        notifAppend("⚠️ <b>Método de pago mixto</b> en el grupo — el bot lo <b>retiene</b> (held), no manda aviso.", "in");
+      } else if (chk.mensaje) {
+        notifAppend(waPreviewHtml(chk.mensaje, chk.n_facturas || 1, d.source), "in");
+      } else {
+        const st = await notifCall({ action: "sim_state" });
+        const g = (st.items || []).find((x) => x.cuit === cuit);
+        if (g && g.aviso && g.aviso.mensaje) notifAppend(waPreviewHtml(g.aviso.mensaje, g.aviso.n_facturas, g.source), "in");
       }
     } else {
-      notifAppend(`⏳ Falta ${d.faltan} factura(s) para completar el pedido…`, "system");
+      notifAppend(`⏳ Falta ${d.faltan} NP(s) por facturar para completar el pedido…`, "system");
     }
     await notifRefresh();
   } catch (err) { notifAppend("⚠️ " + esc(err.message), "system"); }
 }
 
 async function notifReset() {
-  if (!confirm("¿Borrar todas las facturas de prueba (documentos + PDFs en ISIS) y limpiar el chat?")) return;
+  if (!confirm("¿Borrar TODOS los datos de prueba (pedido PPP, facturas, documentos, PDFs) y limpiar el chat?")) return;
   try {
     const d = await notifCall({ action: "sim_reset" });
-    document.getElementById("notifMessages").innerHTML = "";
-    document.getElementById("notifMessages").dataset.init = "";
+    const box = document.getElementById("notifMessages");
+    box.innerHTML = ""; box.dataset.init = "";
     notifIntro();
-    notifAppend(`🧹 Limpiado — ${d.borradas || 0} PDF(s) y las facturas de prueba borradas de ISIS.`, "system");
-    document.getElementById("notifMessages").dataset.init = "1";
+    notifAppend(`🧹 Limpiado — ${d.docs || 0} fila(s) y ${d.pdfs || 0} PDF(s) de prueba borrados de ISIS + inbox.`, "system");
+    box.dataset.init = "1";
     await notifRefresh();
   } catch (e) { notifAppend("⚠️ " + esc(e.message), "system"); }
 }
@@ -1019,33 +1030,36 @@ async function notifRefresh() {
 function renderNotifGroups(items) {
   const box = document.getElementById("notifGroups");
   if (!items.length) {
-    box.innerHTML = '<div class="bl-empty" style="font-size:0.8rem;">Sin pedidos. Tocá "Simular pedido".</div>';
+    box.innerHTML = '<div class="bl-empty" style="font-size:0.8rem;">Sin pedidos. Tocá un modelo arriba.</div>';
     return;
   }
   box.innerHTML = items.map((g) => {
     const pct = Math.min(100, Math.round((g.np_facturados / g.np_esperados) * 100));
-    const done = g.disparado;
-    const btn = !done
+    const done = !!g.aviso;
+    const btn = g.np_facturados < g.np_esperados
       ? `<button class="config-btn primary small" style="width:100%;margin-top:0.4rem;" onclick="notifEmit('${g.cuit}')">📄 Emitir factura (${g.np_facturados + 1}/${g.np_esperados})</button>`
-      : `<div style="font-size:0.72rem;color:var(--success);font-weight:600;margin-top:0.3rem;text-align:center;">✅ Aviso disparado</div>`;
+      : (done
+        ? `<div style="font-size:0.72rem;color:var(--success);font-weight:600;margin-top:0.3rem;text-align:center;">✅ Aviso entregado al módulo</div>`
+        : `<div style="font-size:0.72rem;color:var(--warning);font-weight:600;margin-top:0.3rem;text-align:center;">⏳ Procesando…</div>`);
     return `<div class="ngroup ${done ? 'done' : ''}">
       <div class="ngroup-head">
         <span class="metodo-badge ${grupoDe(g.metodo)}">${esc(METODO_LABEL[g.metodo] || g.metodo)}</span>
-        <span class="ngroup-cuit">${esc(g.cuit)}</span>
+        <span class="ngroup-cuit">${esc(SRC_LABEL[g.source] || g.source)} · ${esc(g.cuit)}</span>
       </div>
       <div class="sim-bar ${done ? '' : 'waiting'}"><span style="width:${pct}%"></span></div>
-      <div class="ngroup-prog">${g.np_facturados}/${g.np_esperados} facturas emitidas</div>
+      <div class="ngroup-prog">${g.np_facturados}/${g.np_esperados} NPs facturadas</div>
       ${btn}
     </div>`;
   }).join("");
 }
 
-function waPreviewHtml(g) {
-  const m = g.mensaje || {};
+function waPreviewHtml(m, nFacturas, source) {
+  m = m || {};
   const d = m.desglose || {};
-  const doc = g.np_facturados > 1
-    ? `<div class="wa-doc">📎 factura_combinada.pdf · ${g.np_facturados} facturas</div>`
-    : `<div class="wa-doc">📎 factura.pdf</div>`;
+  const bucket = source === "ch" ? "isis-ch" : "isis-lk";
+  const doc = (nFacturas || 1) > 1
+    ? `<div class="wa-doc">📎 factura_combinada.pdf · ${nFacturas} facturas (${bucket})</div>`
+    : `<div class="wa-doc">📎 factura.pdf (${bucket})</div>`;
   const desglose = `<table class="desglose">
     <tr><td>Total facturado (c/IVA)</td><td>${esc(d.total_civa || "")}</td></tr>
     <tr><td>Descuento del cliente</td><td>${esc(d.dto_cliente || "")}</td></tr>
@@ -1056,6 +1070,6 @@ function waPreviewHtml(g) {
     `<div class="wa-tpl-tag">plantilla: ${esc(m.template || "")} · params: [${(m.params || []).map(esc).join(", ")}]</div>`;
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.6.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.0</div>
 </body>
 </html>
