@@ -231,7 +231,7 @@
     <div id="navFuego" onclick="showPage('fuego')" style="cursor:pointer">🔥 Prueba de fuego</div>
     <div id="navConv" onclick="showPage('conv')" style="cursor:pointer">💬 Conversaciones</div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
-    <div id="navAgente" onclick="showPage('agente')" style="cursor:pointer">🧠 Configuración del agente</div>
+    <div id="navAgente" onclick="showPage('agente')" style="cursor:pointer;display:none;">🧠 Configuración del agente</div>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
       <div class="cost-title">💰 Costos IA</div>
@@ -482,7 +482,10 @@
       <div class="config-page">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;flex-wrap:wrap;">
           <h2 style="margin:0;">🧠 Configuración del agente</h2>
-          <span class="hint" id="agenteUpdated" style="color:var(--muted);font-size:0.75rem;"></span>
+          <div style="display:flex;align-items:center;gap:0.6rem;">
+            <span class="hint" id="agenteUpdated" style="color:var(--muted);font-size:0.75rem;"></span>
+            <button class="config-btn small" onclick="toggleAgenteHistory()">🕘 Historial</button>
+          </div>
         </div>
         <p style="color:var(--muted);font-size:0.86rem;margin:0.4rem 0 1.2rem;">
           Documento rector del agente IA (categoría <b>INTELIGENCIA</b>). Lo que
@@ -494,6 +497,16 @@
           <div class="subtab active" id="stObjetivo" onclick="showAgenteTab('objetivo')">🎯 Objetivo</div>
           <div class="subtab" id="stLimites" onclick="showAgenteTab('limites')">🔒 Limitaciones y Permisos</div>
           <div class="subtab" id="stConsultas" onclick="showAgenteTab('consultas')">❓ Consultas <span id="consultasBadge" class="cat-pill pendiente" style="display:none;"></span></div>
+          <div class="subtab" id="stEval" onclick="showAgenteTab('eval')">🧪 Evaluación</div>
+        </div>
+
+        <!-- Historial de versiones (documento completo) -->
+        <div class="config-section" id="agenteHistory" style="display:none;max-width:none;">
+          <h3>🕘 Historial de versiones</h3>
+          <p style="font-size:0.78rem;color:var(--muted);margin-bottom:0.8rem;">
+            Cada guardado (edición manual o ajuste desde una consulta) queda versionado. Podés restaurar cualquiera.
+          </p>
+          <div id="agenteHistoryList"><div class="bl-empty">Cargando...</div></div>
         </div>
 
         <!-- Sub: Objetivo -->
@@ -557,6 +570,28 @@
               <button class="config-btn small" onclick="loadConsultas()">⟳ Actualizar</button>
             </div>
             <div id="consultasContainer"><div class="bl-empty">Cargando...</div></div>
+          </div>
+        </div>
+
+        <!-- Sub: Evaluación -->
+        <div class="subpanel" id="panelEval">
+          <div class="config-section" style="max-width:none;">
+            <h3>🧪 Preguntas de evaluación</h3>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;">
+              Batería de casos para probar el comportamiento del agente después de
+              editar el documento rector. Cada caso: la <b>pregunta</b> del cliente y
+              la <b>nota esperada</b> (qué debería hacer el agente).
+            </p>
+            <div class="consulta-form" style="margin-bottom:1.2rem;border:1px dashed var(--border);border-radius:8px;padding:0.9rem;">
+              <div class="md-col-label">Nueva pregunta</div>
+              <textarea id="evalNewPregunta" placeholder="Pregunta / mensaje del cliente..."></textarea>
+              <textarea id="evalNewNota" placeholder="Nota esperada: qué debería hacer el agente..."></textarea>
+              <div class="row">
+                <button class="config-btn primary small" onclick="addEval()">+ Agregar caso</button>
+                <span class="config-status" id="evalAddStatus"></span>
+              </div>
+            </div>
+            <div id="evalContainer"><div class="bl-empty">Cargando...</div></div>
           </div>
         </div>
       </div>
@@ -636,7 +671,9 @@ function showApp() {
   document.getElementById("app").classList.add("active");
   document.getElementById("userRole").textContent = currentRole === "admin" ? "🔑 Admin" : "👤 Vendedor";
   document.getElementById("userEmail").textContent = currentEmail || "";
-  if (currentRole === "admin") {
+  const isAdmin = currentRole === "admin";
+  document.getElementById("navAgente").style.display = isAdmin ? "block" : "none";
+  if (isAdmin) {
     if (!sessionStart) sessionStart = new Date().toISOString();
     document.getElementById("costPanel").style.display = "block";
     refreshCosts();
@@ -655,6 +692,7 @@ sbAuth.auth.onAuthStateChange((event) => {
 
 // --- Page navigation ---
 function showPage(page) {
+  if (page === "agente" && currentRole !== "admin") return; // solo admin
   document.getElementById("pageChat").classList.toggle("active", page === "chat");
   document.getElementById("pageDash").classList.toggle("active", page === "dash");
   document.getElementById("pageFuego").classList.toggle("active", page === "fuego");
@@ -941,9 +979,11 @@ function renderMdLite(md) {
 
 async function loadAgentePage() {
   try {
-    const { data } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "agente_get" },
-    });
+    const { data } = await sb
+      .from("wa_agente_config")
+      .select("contenido, updated_at, updated_by")
+      .eq("id", 1)
+      .maybeSingle();
     agenteMd = (data && data.contenido) || "";
     document.getElementById("mdObjetivo").value = mdGetSection(agenteMd, AG_OBJETIVO);
     document.getElementById("mdLimites").value = mdGetSection(agenteMd, AG_LIMITES);
@@ -958,15 +998,99 @@ async function loadAgentePage() {
     document.getElementById("agenteUpdated").textContent = "Error al cargar";
   }
   loadConsultas();
+  loadEvals();
 }
 
 function showAgenteTab(tab) {
-  const map = { objetivo: "Objetivo", limites: "Limites", consultas: "Consultas" };
+  const map = { objetivo: "Objetivo", limites: "Limites", consultas: "Consultas", eval: "Eval" };
   for (const [k, cap] of Object.entries(map)) {
     document.getElementById("st" + cap).classList.toggle("active", k === tab);
     document.getElementById("panel" + cap).classList.toggle("active", k === tab);
   }
   if (tab === "consultas") loadConsultas();
+  if (tab === "eval") loadEvals();
+}
+
+// Guarda el documento completo + versiona en historial. Refresca editores.
+async function saveConfigRaw(md, motivo) {
+  const by = currentEmail || "admin";
+  const ts = new Date().toISOString();
+  const { error } = await sb
+    .from("wa_agente_config")
+    .update({ contenido: md, updated_at: ts, updated_by: by })
+    .eq("id", 1);
+  if (error) throw error;
+  await sb.from("wa_agente_config_history").insert({ contenido: md, motivo, updated_by: by });
+  agenteMd = md;
+  document.getElementById("mdObjetivo").value = mdGetSection(md, AG_OBJETIVO);
+  document.getElementById("mdLimites").value = mdGetSection(md, AG_LIMITES);
+  renderAgentePreview("objetivo");
+  renderAgentePreview("limites");
+  document.getElementById("agenteUpdated").textContent =
+    "Última edición: " + new Date(ts).toLocaleString("es-AR") + " · " + by;
+}
+
+// Inserta un bullet al final del bloque de un heading (## o ###) por coincidencia de texto.
+function mdAppendBullet(md, headingMatch, bullet) {
+  const lines = md.split("\n");
+  const idx = lines.findIndex(l => /^#{1,6}\s+/.test(l) && l.toLowerCase().includes(headingMatch.toLowerCase()));
+  const clean = "- " + bullet.trim();
+  if (idx === -1) return md.replace(/\s*$/, "") + "\n" + clean + "\n";
+  const level = lines[idx].match(/^#+/)[0].length;
+  let end = lines.length;
+  for (let i = idx + 1; i < lines.length; i++) {
+    const m = lines[i].match(/^(#{1,6})\s+/);
+    if (m && m[1].length <= level) { end = i; break; }
+  }
+  let ins = end;
+  while (ins > idx + 1 && lines[ins - 1].trim() === "") ins--;
+  lines.splice(ins, 0, clean);
+  return lines.join("\n");
+}
+
+// --- Historial ---
+let agenteHistoryOpen = false;
+async function toggleAgenteHistory() {
+  agenteHistoryOpen = !agenteHistoryOpen;
+  const box = document.getElementById("agenteHistory");
+  box.style.display = agenteHistoryOpen ? "block" : "none";
+  if (agenteHistoryOpen) loadAgenteHistory();
+}
+
+async function loadAgenteHistory() {
+  const cont = document.getElementById("agenteHistoryList");
+  cont.innerHTML = '<div class="bl-empty">Cargando...</div>';
+  try {
+    const { data } = await sb
+      .from("wa_agente_config_history")
+      .select("id, motivo, updated_by, created_at")
+      .order("created_at", { ascending: false })
+      .limit(25);
+    const items = data || [];
+    if (!items.length) { cont.innerHTML = '<div class="bl-empty">Sin versiones guardadas todavía</div>'; return; }
+    const motLabel = { edicion: "✏️ Edición", consulta: "❓ Consulta", restauracion: "↩️ Restauración", seed: "🌱 Inicial" };
+    cont.innerHTML = '<table class="bl-table"><thead><tr><th>Fecha</th><th>Motivo</th><th>Por</th><th></th></tr></thead><tbody>' +
+      items.map(h =>
+        '<tr>' +
+        '<td style="font-size:0.78rem;">' + new Date(h.created_at).toLocaleString("es-AR") + '</td>' +
+        '<td style="font-size:0.8rem;">' + (motLabel[h.motivo] || esc(h.motivo || "—")) + '</td>' +
+        '<td style="font-size:0.78rem;color:var(--muted);">' + esc(h.updated_by || "—") + '</td>' +
+        '<td><button class="config-btn small" onclick="restoreAgenteVersion(' + h.id + ')">Restaurar</button></td>' +
+        '</tr>'
+      ).join("") + '</tbody></table>';
+  } catch (e) {
+    cont.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+  }
+}
+
+async function restoreAgenteVersion(id) {
+  if (!confirm("¿Restaurar esta versión del documento? Se guarda como una nueva versión.")) return;
+  try {
+    const { data } = await sb.from("wa_agente_config_history").select("contenido").eq("id", id).maybeSingle();
+    if (!data) return;
+    await saveConfigRaw(data.contenido, "restauracion");
+    loadAgenteHistory();
+  } catch (e) { alert("Error al restaurar"); }
 }
 
 function renderAgentePreview(which) {
@@ -983,15 +1107,10 @@ async function saveAgenteSection(which) {
   const body = document.getElementById(isObj ? "mdObjetivo" : "mdLimites").value;
   const st = document.getElementById(isObj ? "objetivoStatus" : "limitesStatus");
   st.textContent = "Guardando..."; st.className = "config-status";
-  agenteMd = mdSetSection(agenteMd, title, body);
+  const nuevo = mdSetSection(agenteMd, title, body);
   try {
-    const { error } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "agente_save", contenido: agenteMd, updated_by: currentEmail || "admin" },
-    });
-    if (error) throw error;
+    await saveConfigRaw(nuevo, "edicion");
     st.textContent = "✓ Guardado"; st.className = "config-status ok";
-    const f = new Date().toLocaleString("es-AR");
-    document.getElementById("agenteUpdated").textContent = "Última edición: " + f + " · " + (currentEmail || "admin");
   } catch (e) {
     st.textContent = "✗ Error"; st.className = "config-status err";
   }
@@ -1003,10 +1122,12 @@ async function loadConsultas() {
   const estado = document.getElementById("consultasFiltro").value;
   container.innerHTML = '<div class="bl-empty">Cargando...</div>';
   try {
-    const { data } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "agente_consultas_list", estado: estado || undefined },
-    });
-    const items = (data && data.items) || [];
+    let q = sb.from("wa_agente_consultas")
+      .select("id, pregunta, contexto, origen, categoria, respuesta, estado, created_at, answered_at, answered_by")
+      .order("created_at", { ascending: false });
+    if (estado) q = q.eq("estado", estado);
+    const { data } = await q;
+    const items = data || [];
     // Badge de pendientes
     const pend = items.filter(i => i.estado === "pendiente").length;
     const badge = document.getElementById("consultasBadge");
@@ -1059,16 +1180,26 @@ function renderConsulta(c) {
     '</div>';
 }
 
+// Mapa categoría → heading destino en el documento rector.
+const CAT_HEADING = { objetivo: "Objetivo", limite: "Limitaciones (no", permiso: "Permisos (puede" };
+
 async function answerConsulta(id) {
   const respuesta = document.getElementById("ans-" + id).value.trim();
   const categoria = document.getElementById("cat-" + id).value;
   const st = document.getElementById("cst-" + id);
   if (!respuesta) { st.textContent = "Escribí una respuesta"; st.className = "config-status err"; return; }
+  if (!categoria) { st.textContent = "Elegí una categoría"; st.className = "config-status err"; return; }
   st.textContent = "Guardando..."; st.className = "config-status";
   try {
-    const { error } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "agente_consulta_answer", id, respuesta, categoria: categoria || undefined, answered_by: currentEmail || "admin" },
-    });
+    // 1) Aplicar la respuesta como regla en la sección correspondiente del documento.
+    const { data: cfg } = await sb.from("wa_agente_config").select("contenido").eq("id", 1).maybeSingle();
+    const md = mdAppendBullet((cfg && cfg.contenido) || agenteMd || "", CAT_HEADING[categoria], respuesta);
+    await saveConfigRaw(md, "consulta");
+    // 2) Marcar la consulta como respondida + categorizada.
+    const { error } = await sb.from("wa_agente_consultas").update({
+      respuesta, categoria, estado: "respondida",
+      answered_at: new Date().toISOString(), answered_by: currentEmail || "admin",
+    }).eq("id", id);
     if (error) throw error;
     loadConsultas();
   } catch (e) {
@@ -1079,10 +1210,85 @@ async function answerConsulta(id) {
 async function deleteConsulta(id) {
   if (!confirm("¿Descartar esta consulta?")) return;
   try {
-    await sb.functions.invoke("lk_chat-test", {
-      body: { action: "agente_consulta_delete", id },
-    });
+    await sb.from("wa_agente_consultas").update({ estado: "descartada" }).eq("id", id);
     loadConsultas();
+  } catch (e) { /* silent */ }
+}
+
+// --- Evaluación ---
+async function loadEvals() {
+  const cont = document.getElementById("evalContainer");
+  cont.innerHTML = '<div class="bl-empty">Cargando...</div>';
+  try {
+    const { data } = await sb.from("wa_agente_evals")
+      .select("id, pregunta, nota_esperada, activo, updated_at")
+      .order("created_at", { ascending: true });
+    const items = data || [];
+    if (!items.length) { cont.innerHTML = '<div class="bl-empty">Sin preguntas de evaluación</div>'; return; }
+    cont.innerHTML = items.map(renderEval).join("");
+  } catch (e) {
+    cont.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+  }
+}
+
+function renderEval(e) {
+  const val = s => (s || "").replace(/</g, "&lt;");
+  return '<div class="consulta-card' + (e.activo ? '' : ' answered') + '" id="eval-' + e.id + '">' +
+    '<div class="consulta-form" style="margin-top:0;">' +
+      '<div class="md-col-label">Pregunta</div>' +
+      '<textarea id="evalP-' + e.id + '">' + val(e.pregunta) + '</textarea>' +
+      '<div class="md-col-label">Nota esperada</div>' +
+      '<textarea id="evalN-' + e.id + '">' + val(e.nota_esperada) + '</textarea>' +
+      '<div class="row">' +
+        '<label style="font-size:0.8rem;display:flex;align-items:center;gap:0.3rem;">' +
+          '<input type="checkbox" id="evalA-' + e.id + '"' + (e.activo ? ' checked' : '') + '> Activo</label>' +
+        '<button class="config-btn primary small" onclick="saveEval(' + e.id + ')">💾 Guardar</button>' +
+        '<button class="config-btn danger small" onclick="deleteEval(' + e.id + ')">🗑️ Eliminar</button>' +
+        '<span class="config-status" id="evalSt-' + e.id + '"></span>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+async function addEval() {
+  const pregunta = document.getElementById("evalNewPregunta").value.trim();
+  const nota = document.getElementById("evalNewNota").value.trim();
+  const st = document.getElementById("evalAddStatus");
+  if (!pregunta) { st.textContent = "Escribí una pregunta"; st.className = "config-status err"; return; }
+  st.textContent = "Agregando..."; st.className = "config-status";
+  try {
+    const { error } = await sb.from("wa_agente_evals").insert({ pregunta, nota_esperada: nota || null });
+    if (error) throw error;
+    document.getElementById("evalNewPregunta").value = "";
+    document.getElementById("evalNewNota").value = "";
+    st.textContent = "✓ Agregado"; st.className = "config-status ok";
+    loadEvals();
+  } catch (e) { st.textContent = "✗ Error"; st.className = "config-status err"; }
+  setTimeout(() => { st.textContent = ""; }, 3000);
+}
+
+async function saveEval(id) {
+  const pregunta = document.getElementById("evalP-" + id).value.trim();
+  const nota = document.getElementById("evalN-" + id).value.trim();
+  const activo = document.getElementById("evalA-" + id).checked;
+  const st = document.getElementById("evalSt-" + id);
+  if (!pregunta) { st.textContent = "Falta pregunta"; st.className = "config-status err"; return; }
+  st.textContent = "Guardando..."; st.className = "config-status";
+  try {
+    const { error } = await sb.from("wa_agente_evals")
+      .update({ pregunta, nota_esperada: nota || null, activo, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+    st.textContent = "✓"; st.className = "config-status ok";
+  } catch (e) { st.textContent = "✗ Error"; st.className = "config-status err"; }
+  setTimeout(() => { st.textContent = ""; }, 2500);
+}
+
+async function deleteEval(id) {
+  if (!confirm("¿Eliminar esta pregunta de evaluación?")) return;
+  try {
+    await sb.from("wa_agente_evals").delete().eq("id", id);
+    loadEvals();
   } catch (e) { /* silent */ }
 }
 
@@ -1892,6 +2098,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.11.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.0</div>
 </body>
 </html>
