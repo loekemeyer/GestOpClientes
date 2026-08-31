@@ -105,7 +105,8 @@ serve(async (req) => {
       if (fErr) return json({ error: "factura_np: " + fErr.message }, 500);
 
       // 2) PDF al bucket + documento parseado (isis_*.documentos)
-      const numero = String(99001 + idx).padStart(8, "0");
+      // numero ÚNICO por pedido (deriva del CUIT) → comprobante_id no colisiona entre pedidos.
+      const numero = (cuit.slice(5) + (idx + 1)).padStart(8, "0");
       const path = `sim/${cuit}/${numero}.pdf`;
       const up = await g.storage.from(bucketDe(source)).upload(path, PDF_BYTES, { contentType: "application/pdf", upsert: true });
       if (up.error) return json({ error: "upload PDF: " + up.error.message }, 500);

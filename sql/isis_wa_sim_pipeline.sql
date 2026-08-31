@@ -67,7 +67,7 @@ begin
   return jsonb_build_object('cuit',p_cuit,'cod',v_cod,'direccion',v_dir,'tanda',v_tanda,'nps',v_nps);
 end $$;
 
--- ── Driver: facturar una NP (dispara el trigger real de grupo completo) ──
+-- ── Driver: facturar una NP (dispara el trigger real de grupo completo). Idempotente. ──
 create or replace function public.wa_sim_factura_np(p_cuit text, p_np text)
 returns void language plpgsql security definer set search_path to 'public' as $$
 declare v_cod text; v_tanda text;
@@ -75,7 +75,8 @@ begin
   if p_cuit not like '30999%' or p_np not like '9990%' then raise exception 'solo datos de simulacion'; end if;
   select cod_cliente, tanda into v_cod, v_tanda from public.wa_sim_control where cuit=p_cuit and fecha=current_date;
   insert into public."Facturacion_NP"(np,tanda,cod_cliente,razon_social,fecha_salida,facturado_at,m3)
-  values (p_np,coalesce(v_tanda,'SIM'),v_cod,'CLIENTE SIMULACIÓN',current_date,now(),1.0);
+  select p_np,coalesce(v_tanda,'SIM'),v_cod,'CLIENTE SIMULACIÓN',current_date,now(),1.0
+  where not exists (select 1 from public."Facturacion_NP" f where f.np = p_np);
 end $$;
 
 -- ── Driver: insertar documento (factura parseada) en isis_lk / isis_ch ──
