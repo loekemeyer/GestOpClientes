@@ -959,6 +959,7 @@ function notifIntro() {
 function loadNotif() {
   const box = document.getElementById("notifMessages");
   if (!box.dataset.init) { box.dataset.init = "1"; notifIntro(); }
+  ensureMetaTemplates();
   notifRefresh();
 }
 
@@ -979,6 +980,7 @@ async function notifNew(metodo, n) {
 
 async function notifEmit(cuit) {
   try {
+    await ensureMetaTemplates();
     const d = await notifCall({ action: "sim_emit", cuit });
     if (d.note) { await notifRefresh(); return; }
     const e = d.emitted;
@@ -1053,6 +1055,31 @@ function renderNotifGroups(items) {
   }).join("");
 }
 
+// Cache de plantillas de Meta (TODOS los estados) para renderizar el cuerpo REAL.
+let metaTplCache = null;
+async function ensureMetaTemplates(force) {
+  if (metaTplCache && !force) return;
+  try {
+    const { data } = await sb.functions.invoke("lk_templates", { body: { action: "templates_list", status: "" } });
+    if (data && data.templates) metaTplCache = data.templates;
+  } catch (e) { /* sin cache → fallback a reconstrucción */ }
+}
+// Renderiza el cuerpo VIVO de la plantilla de Meta con los params sustituidos.
+function renderMetaTemplate(name, params) {
+  const t = (metaTplCache || []).find((x) => x.name === name);
+  if (!t) return null;
+  let body = (tplBody(t) || "").replace(/\{\{\s*(\d+)\s*\}\}/g, (mm, dd) => {
+    const v = (params || [])[parseInt(dd, 10) - 1];
+    return v != null ? v : mm;
+  });
+  const h = tplHeader(t), f = tplFooter(t);
+  const parts = [];
+  if (h) parts.push("<b>" + esc(h) + "</b>");
+  parts.push(esc(body).replace(/\n/g, "<br>"));
+  if (f) parts.push('<span style="color:var(--muted);font-size:0.8rem;">' + esc(f) + "</span>");
+  return parts.join("<br><br>");
+}
+
 function waPreviewHtml(m, nFacturas, source) {
   m = m || {};
   const d = m.desglose || {};
@@ -1060,16 +1087,21 @@ function waPreviewHtml(m, nFacturas, source) {
   const doc = (nFacturas || 1) > 1
     ? `<div class="wa-doc">📎 factura_combinada.pdf · ${nFacturas} facturas (${bucket})</div>`
     : `<div class="wa-doc">📎 factura.pdf (${bucket})</div>`;
+  // Cuerpo REAL de Meta (refleja ediciones en Meta); si no hay cache, reconstrucción local.
+  const metaBody = renderMetaTemplate(m.template, m.params);
+  const cuerpo = metaBody
+    ? `<div>${metaBody}</div><div class="wa-tpl-tag">✅ cuerpo real de la plantilla de Meta</div>`
+    : `<div style="white-space:pre-wrap;">${esc(m.texto_legible || "")}</div><div class="wa-tpl-tag">⚠️ reconstrucción local (cargá las plantillas de Meta para ver el cuerpo real)</div>`;
   const desglose = `<table class="desglose">
     <tr><td>Total facturado (c/IVA)</td><td>${esc(d.total_civa || "")}</td></tr>
     <tr><td>Descuento del cliente</td><td>${esc(d.dto_cliente || "")}</td></tr>
     <tr><td>Monto a pagar</td><td>${esc(d.monto_cliente || "")}</td></tr>
     <tr class="hi"><td>Ahorro pagando al contado</td><td>${esc(d.ahorro_vs_contado || "")}</td></tr>
   </table>`;
-  return `${doc}<div style="white-space:pre-wrap;">${esc(m.texto_legible || "")}</div>${desglose}` +
+  return `${doc}${cuerpo}${desglose}` +
     `<div class="wa-tpl-tag">plantilla: ${esc(m.template || "")} · params: [${(m.params || []).map(esc).join(", ")}]</div>`;
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.1</div>
 </body>
 </html>
