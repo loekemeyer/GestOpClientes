@@ -45,10 +45,11 @@ const PLAZO: Record<string, string> = {
 };
 const METODOS = ["contado", "credito_15_30", "credito_31_45", "credito_46_60", "echeq_90", "echeq_120"];
 
+// Nombres reales aprobados en Meta (cuenta N8N Loekemeyer): _s = single, _p = plural.
 const TPL: Record<string, { single: string; multi: string }> = {
-  contado: { single: "pedido_contado", multi: "pedido_contado_multiple" },
-  credito: { single: "pedido_credito", multi: "pedido_credito_multiple" },
-  echeq:   { single: "pedido_echeq",   multi: "pedido_echeq_multiple" },
+  contado: { single: "pedido_contado_s", multi: "pedido_contado_p" },
+  credito: { single: "pedido_credito_s", multi: "pedido_credito_p" },
+  echeq:   { single: "pedido_echeq_s",   multi: "pedido_echeq_p" },
 };
 
 function grupoDe(metodo: string): "contado" | "credito" | "echeq" {
@@ -249,7 +250,7 @@ serve(async (req) => {
     }
 
     if (action === "sim_send") {
-      // "Enviar" simulado: las plantillas de Meta NO están aprobadas todavía → no se envía nada real.
+      // "Enviar" simulado: no se envía WhatsApp real desde el simulador (solo marca el estado).
       const sim_id = body.sim_id as string;
       if (!sim_id) return json({ error: "sim_id requerido" }, 400);
       const { data: row } = await supabase.from("wa_sim_facturas").select("estado").eq("sim_id", sim_id).maybeSingle();
@@ -261,7 +262,7 @@ serve(async (req) => {
       if (error) return json({ error: error.message }, 500);
       return json({
         ok: true, sim: upd,
-        nota: "SIMULACIÓN: la plantilla de WhatsApp no está aprobada en Meta, no se envió ningún mensaje real.",
+        nota: "SIMULACIÓN: el simulador no envía WhatsApp real, sólo marca el aviso como enviado.",
       });
     }
 

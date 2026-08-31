@@ -54,11 +54,13 @@ async function metaPhoneNumberId(): Promise<string> {
     ?? Deno.env.get("LK_WA_PHONE_ID")
     ?? (await getSetting("wa_phone_number_id")) ?? "";
 }
-async function metaWabaId(): Promise<string> {
+// Sólo secrets explícitos. El fallback a app_settings.wa_business_account_id se
+// aplica DESPUÉS de intentar derivar del número vinculado (ese valor puede ser viejo).
+function metaWabaIdEnv(): string {
   return Deno.env.get("WA_BUSINESS_ACCOUNT_ID")
     ?? Deno.env.get("META_BUSINESS_ACCOUNT_ID")
     ?? Deno.env.get("WHATSAPP_BUSINESS_ACCOUNT_ID")
-    ?? (await getSetting("wa_business_account_id")) ?? "";
+    ?? "";
 }
 
 // Deriva el WABA id a partir del phone_number_id (cuando no está seteado o quedó viejo).
@@ -104,16 +106,21 @@ async function handleTemplatesList(statusFilter?: string) {
   const token = await metaToken();
   if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
 
-  // WABA id: seteado, o derivado del phone_number_id actual (número vinculado hoy).
-  let wabaId = await metaWabaId();
+  // WABA id — prioridad: secret explícito → DERIVADO del número vinculado (N8N) →
+  // app_settings (último recurso; ese valor puede haber quedado del WABA viejo).
   const phoneNumberId = await metaPhoneNumberId();
-  let wabaSource = wabaId ? "config" : "";
+  let wabaId = metaWabaIdEnv();
+  let wabaSource = wabaId ? "secret" : "";
   if (!wabaId) {
     wabaId = await wabaFromPhone(phoneNumberId, token);
-    wabaSource = "derivado_del_numero";
+    if (wabaId) wabaSource = "derivado_del_numero";
   }
   if (!wabaId) {
-    return json({ ok: false, error: "No se pudo determinar el WABA. Falta WA_BUSINESS_ACCOUNT_ID o WHATSAPP_PHONE_NUMBER_ID válido." }, 200);
+    wabaId = (await getSetting("wa_business_account_id")) ?? "";
+    if (wabaId) wabaSource = "app_settings";
+  }
+  if (!wabaId) {
+    return json({ ok: false, error: "No se pudo determinar el WABA. Falta WHATSAPP_PHONE_NUMBER_ID válido o WA_BUSINESS_ACCOUNT_ID." }, 200);
   }
 
   const params = new URLSearchParams({ limit: "100" });
