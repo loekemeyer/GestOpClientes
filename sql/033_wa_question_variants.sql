@@ -1,23 +1,17 @@
 -- ============================================================
--- 033_wa_question_variants.sql
+-- 033_wa_question_variants.sql (FIXED)
 -- Mapeo de variaciones de preguntas para clustering automático
--- Agrupa múltiples formas de hacer la misma pregunta
--- Aplica en PaginaLK (kwkclwhmoygunqmlegrg)
+-- Solo usa FAQs que existen en wa_faq
 -- ============================================================
-
--- ────────────────────────────────────────────────────────────
--- TABLA: wa_question_group
--- Grupos de preguntas relacionadas (clustering)
--- ────────────────────────────────────────────────────────────
 
 create table if not exists wa_question_group (
   id                  bigint generated always as identity primary key,
   faq_id              bigint not null references wa_faq(id) on delete cascade,
-  group_name          text not null,                  -- nombre legible del grupo (ej: 'estado_pedido')
-  group_label         text not null,                  -- etiqueta para el usuario (ej: 'Estado / Seguimiento del pedido')
-  primary_question    text not null,                  -- pregunta principal/canónica del grupo
-  category_intent     text not null,                  -- intent para NLP (ej: 'order_status', 'new_order')
-  description         text,                           -- descripción interna del tipo de pregunta
+  group_name          text not null,
+  group_label         text not null,
+  primary_question    text not null,
+  category_intent     text not null,
+  description         text,
   is_active           boolean not null default true,
   created_at          timestamptz default now(),
   updated_at          timestamptz default now()
@@ -27,7 +21,6 @@ create index idx_wa_question_group_faq on wa_question_group(faq_id);
 create index idx_wa_question_group_intent on wa_question_group(category_intent);
 create index idx_wa_question_group_active on wa_question_group(is_active);
 
--- Trigger updated_at
 create or replace function trg_wa_question_group_updated()
 returns trigger as $$
 begin
@@ -40,20 +33,15 @@ create trigger wa_question_group_updated
   before update on wa_question_group
   for each row execute function trg_wa_question_group_updated();
 
--- ────────────────────────────────────────────────────────────
--- TABLA: wa_question_variant
--- Variaciones de la misma pregunta (sinónimos/paráfrasis)
--- ────────────────────────────────────────────────────────────
-
 create table if not exists wa_question_variant (
   id                  bigint generated always as identity primary key,
   group_id            bigint not null references wa_question_group(id) on delete cascade,
-  variant_text        text not null unique,            -- la variación de la pregunta exacta
-  normalized_text     text not null,                   -- versión normalizada (lowercase, sin acentos)
-  source              text,                            -- origen: 'client_chat', 'qa_research', 'manual', 'ml_extracted'
-  confidence_score    numeric(3,2) default 0.90,       -- qué tan seguro estamos de la variación (0-1)
+  variant_text        text not null unique,
+  normalized_text     text not null,
+  source              text,
+  confidence_score    numeric(3,2) default 0.90,
   is_active           boolean not null default true,
-  frequency_count     int default 0,                   -- cuántas veces se detectó en chats
+  frequency_count     int default 0,
   created_at          timestamptz default now(),
   updated_at          timestamptz default now()
 );
@@ -62,7 +50,6 @@ create index idx_wa_question_variant_group on wa_question_variant(group_id);
 create index idx_wa_question_variant_active on wa_question_variant(is_active);
 create index idx_wa_question_variant_normalized on wa_question_variant(normalized_text);
 
--- Trigger updated_at
 create or replace function trg_wa_question_variant_updated()
 returns trigger as $$
 begin
@@ -75,20 +62,15 @@ create trigger wa_question_variant_updated
   before update on wa_question_variant
   for each row execute function trg_wa_question_variant_updated();
 
--- ────────────────────────────────────────────────────────────
--- TABLA: wa_intent_response
--- Respuestas predefinidas por intent (para deduplicar)
--- ────────────────────────────────────────────────────────────
-
 create table if not exists wa_intent_response (
   id                  bigint generated always as identity primary key,
-  intent              text not null unique,            -- ej: 'order_status', 'new_order'
-  intent_label        text not null,                   -- ej: 'Consultar estado del pedido'
-  standard_response   text not null,                   -- respuesta estándar para este intent
-  follow_up_options   text[] default '{}',             -- opciones de seguimiento (JSON)
-  requires_context    boolean default false,           -- necesita contexto del cliente (customer_id)
-  db_lookups          text[] default '{}',             -- lookups necesarios: ['order_status', 'customer_discount']
-  automation_level    text default 'semi_auto',        -- auto/semi_auto/inteligencia/humano
+  intent              text not null unique,
+  intent_label        text not null,
+  standard_response   text not null,
+  follow_up_options   text[] default '{}',
+  requires_context    boolean default false,
+  db_lookups          text[] default '{}',
+  automation_level    text default 'semi_auto',
   is_active           boolean not null default true,
   notes               text,
   created_at          timestamptz default now(),
@@ -98,7 +80,6 @@ create table if not exists wa_intent_response (
 create index idx_wa_intent_response_active on wa_intent_response(is_active);
 create index idx_wa_intent_response_automation on wa_intent_response(automation_level);
 
--- Trigger updated_at
 create or replace function trg_wa_intent_response_updated()
 returns trigger as $$
 begin
@@ -111,89 +92,68 @@ create trigger wa_intent_response_updated
   before update on wa_intent_response
   for each row execute function trg_wa_intent_response_updated();
 
--- ────────────────────────────────────────────────────────────
--- SEED DATA: Agrupaciones de preguntas
--- ────────────────────────────────────────────────────────────
-
+-- SEED: Solo FAQs que existen (1-15, 17, 19-21, 31-40)
 insert into wa_question_group (
   faq_id, group_name, group_label, primary_question,
   category_intent, description
 ) values
 
--- Cluster 1: ESTADO DEL PEDIDO (agrupa preguntas sobre estado/seguimiento/cuándo llega)
 (1, 'order_status_cluster', 'Estado y seguimiento del pedido',
  '¿En qué estado está mi pedido? ¿Cuándo llega?',
  'order_status', 'Preguntas sobre el estado actual, seguimiento y fecha estimada de entrega'),
 
--- Cluster 2: HACER NUEVO PEDIDO
 (2, 'new_order_cluster', 'Hacer nuevo pedido',
  'Quiero hacer un pedido / pasar un pedido',
  'new_order', 'Preguntas para iniciar un nuevo pedido o pasar datos de productos'),
 
--- Cluster 3: RETIRO EN DEPÓSITO
 (3, 'pickup_cluster', 'Retiro en depósito',
  '¿Dónde y cuándo retiro mi pedido?',
  'pickup_location', 'Preguntas sobre dónde retirar y horarios de atención'),
 
--- Cluster 4: REGISTRO Y ACCESO WEB
 (5, 'customer_onboarding_cluster', 'Alta de cliente y acceso web',
  'Quiero darme de alta / No puedo acceder a la web',
  'customer_registration', 'Preguntas de nuevos clientes y problemas de acceso'),
 
--- Cluster 5: DESCUENTOS Y PROMOCIONES
 (7, 'discounts_cluster', 'Descuentos y condiciones comerciales',
  '¿Qué descuentos tengo? ¿Hay promociones?',
  'customer_discount', 'Consultas sobre bonificaciones, descuentos por volumen/pago/web'),
 
--- Cluster 6: PRECIOS Y LISTA
 (10, 'pricing_cluster', 'Consultas de precios y listas',
  '¿Cuánto cuesta? ¿Me pasás la lista de precios?',
  'pricing_inquiry', 'Preguntas sobre precios, cotizaciones, lista actualizada'),
 
--- Cluster 7: STOCK Y DISPONIBILIDAD
 (13, 'inventory_cluster', 'Stock y disponibilidad de productos',
  '¿Tienen stock de X?',
  'inventory_check', 'Consultas sobre disponibilidad de productos específicos'),
 
--- Cluster 8: FORMAS DE PAGO Y CBU
 (14, 'payment_methods_cluster', 'Formas de pago y datos bancarios',
  '¿Cuáles son los datos para pagar? ¿Qué formas de pago aceptan?',
  'payment_info', 'Preguntas sobre métodos de pago, CBU, transferencias'),
 
--- Cluster 9: PROBLEMAS Y DEVOLUCIONES
 (15, 'complaint_cluster', 'Reclamos, devoluciones y problemas',
  'Tengo un problema con un producto / Necesito devolver',
  'complaint', 'Reportes de defectos, faltantes, daños, devoluciones'),
 
--- Cluster 10: URGENCIAS
-(16, 'urgency_cluster', 'Urgencias de retiro y entrega',
+(9, 'billing_cluster', 'Facturas, remitos y comprobantes',
+ 'No me llegó la factura / Necesito el comprobante',
+ 'billing_documents', 'Solicitudes de facturas, remitos, comprobantes de pago'),
+
+(17, 'urgency_cluster', 'Urgencias de retiro y entrega',
  '¿Puedo pasar hoy? ¿Necesito urgente?',
  'urgency_request', 'Solicitudes urgentes de retiro o entrega anticipada'),
 
--- Cluster 11: CONTACTO CON VENDEDOR
-(23, 'seller_contact_cluster', 'Contacto con vendedor asignado',
+(19, 'seller_contact_cluster', 'Contacto con vendedor asignado',
  'Quiero hablar con mi vendedor',
  'seller_contact', 'Solicitudes de comunicación con vendedor asignado'),
 
--- Cluster 12: CONSULTAS DE PRODUCTOS
-(24, 'product_inquiry_cluster', 'Consultas sobre productos específicos',
+(20, 'product_inquiry_cluster', 'Consultas sobre productos específicos',
  '¿Qué modelos tienen? ¿Trabajan con X marca?',
- 'product_search', 'Preguntas sobre modelos, marcas, categorías de productos'),
-
--- Cluster 13: FACTURAS Y COMPROBANTES
-(9, 'billing_cluster', 'Facturas, remitos y comprobantes',
- 'No me llegó la factura / Necesito el comprobante',
- 'billing_documents', 'Solicitudes de facturas, remitos, comprobantes de pago');
-
--- ────────────────────────────────────────────────────────────
--- SEED DATA: Variaciones de preguntas por cluster
--- ────────────────────────────────────────────────────────────
+ 'product_search', 'Preguntas sobre modelos, marcas, categorías de productos');
 
 insert into wa_question_variant (
   group_id, variant_text, normalized_text, source, confidence_score, frequency_count
 ) values
 
--- CLUSTER 1: Order Status (13 variaciones)
 (1, '¿Cuándo llega mi pedido?', 'cuando llega mi pedido', 'client_chat', 0.99, 45),
 (1, '¿En qué estado está mi pedido?', 'en que estado esta mi pedido', 'client_chat', 0.98, 38),
 (1, '¿Alguna novedad de mi entrega?', 'alguna novedad de mi entrega', 'client_chat', 0.95, 12),
@@ -208,7 +168,6 @@ insert into wa_question_variant (
 (1, '¿Ya salió mi pedido?', 'ya salio mi pedido', 'client_chat', 0.94, 9),
 (1, '¿Mi pedido está programado?', 'mi pedido esta programado', 'client_chat', 0.92, 6),
 
--- CLUSTER 2: New Order (11 variaciones)
 (2, 'Quiero hacer un pedido', 'quiero hacer un pedido', 'client_chat', 0.99, 52),
 (2, 'Necesito pasar un pedido', 'necesito pasar un pedido', 'client_chat', 0.98, 28),
 (2, 'Quiero pedir', 'quiero pedir', 'client_chat', 0.97, 31),
@@ -221,7 +180,6 @@ insert into wa_question_variant (
 (2, '¿Me ayudas a hacer un pedido?', 'me ayudas a hacer un pedido', 'client_chat', 0.89, 2),
 (2, 'Tengo cantidades para consultar', 'tengo cantidades para consultar', 'client_chat', 0.88, 2),
 
--- CLUSTER 3: Pickup Location (8 variaciones)
 (3, '¿Dónde retiro mi pedido?', 'donde retiro mi pedido', 'client_chat', 0.99, 35),
 (3, '¿Cuál es la dirección del depósito?', 'cual es la direccion del deposito', 'client_chat', 0.97, 22),
 (3, '¿Horarios de retiro?', 'horarios de retiro', 'client_chat', 0.96, 18),
@@ -231,7 +189,6 @@ insert into wa_question_variant (
 (3, '¿Para cuándo puedo programar el retiro?', 'para cuando puedo programar el retiro', 'client_chat', 0.91, 6),
 (3, 'Información del lugar de retiro', 'informacion del lugar de retiro', 'client_chat', 0.90, 4),
 
--- CLUSTER 4: Customer Onboarding (9 variaciones)
 (4, 'Quiero darme de alta', 'quiero darme de alta', 'client_chat', 0.99, 28),
 (4, 'Soy cliente nuevo', 'soy cliente nuevo', 'client_chat', 0.98, 19),
 (4, '¿Cómo me registro?', 'como me registro', 'client_chat', 0.97, 14),
@@ -242,7 +199,6 @@ insert into wa_question_variant (
 (4, 'Necesito resetear mi clave', 'necesito resetear mi clave', 'client_chat', 0.92, 4),
 (4, '¿Cómo entro a loekemeyer.com?', 'como entro a loekemeyer.com', 'client_chat', 0.91, 3),
 
--- CLUSTER 5: Discounts (10 variaciones)
 (5, '¿Qué descuento tengo?', 'que descuento tengo', 'client_chat', 0.99, 42),
 (5, '¿Hay promociones?', 'hay promociones', 'client_chat', 0.97, 28),
 (5, '¿Cuánto me hacen de descuento?', 'cuanto me hacen de descuento', 'client_chat', 0.96, 18),
@@ -254,7 +210,6 @@ insert into wa_question_variant (
 (5, '¿Hay ofertas?', 'hay ofertas', 'client_chat', 0.90, 4),
 (5, '¿Descuentos por cliente frecuente?', 'descuentos por cliente frecuente', 'client_chat', 0.88, 2),
 
--- CLUSTER 6: Pricing (12 variaciones)
 (6, '¿Me pasás la lista de precios?', 'me pasas la lista de precios', 'client_chat', 0.99, 48),
 (6, '¿Cuánto cuesta esto?', 'cuanto cuesta esto', 'client_chat', 0.98, 35),
 (6, '¿Cuánto vale?', 'cuanto vale', 'client_chat', 0.97, 22),
@@ -268,7 +223,6 @@ insert into wa_question_variant (
 (6, 'Mandame precios', 'mandame precios', 'client_chat', 0.89, 3),
 (6, '¿Precio actual de...?', 'precio actual de', 'client_chat', 0.88, 2),
 
--- CLUSTER 7: Inventory (8 variaciones)
 (7, '¿Tienen stock de X?', 'tienen stock de x', 'client_chat', 0.99, 32),
 (7, '¿Hay disponible?', 'hay disponible', 'client_chat', 0.97, 19),
 (7, '¿Quedan unidades?', 'quedan unidades', 'client_chat', 0.96, 14),
@@ -278,7 +232,6 @@ insert into wa_question_variant (
 (7, '¿Sin stock?', 'sin stock', 'client_chat', 0.92, 5),
 (7, '¿Cuándo hay stock?', 'cuando hay stock', 'client_chat', 0.91, 3),
 
--- CLUSTER 8: Payment Methods (10 variaciones)
 (8, '¿Cuáles son los datos para transferir?', 'cuales son los datos para transferir', 'client_chat', 0.99, 38),
 (8, '¿CBU de Loekemeyer?', 'cbu de loekemeyer', 'client_chat', 0.98, 22),
 (8, '¿Formas de pago que aceptan?', 'formas de pago que aceptan', 'client_chat', 0.97, 18),
@@ -290,7 +243,6 @@ insert into wa_question_variant (
 (8, '¿Financiación?', 'financiacion', 'client_chat', 0.91, 8),
 (8, '¿Cheques?', 'cheques', 'client_chat', 0.90, 4),
 
--- CLUSTER 9: Complaints (9 variaciones)
 (9, 'Tengo un problema con un producto', 'tengo un problema con un producto', 'client_chat', 0.99, 28),
 (9, 'Necesito devolver', 'necesito devolver', 'client_chat', 0.98, 18),
 (9, 'Llegó defectuoso', 'llego defectuoso', 'client_chat', 0.97, 14),
@@ -301,7 +253,6 @@ insert into wa_question_variant (
 (9, 'No funciona', 'no funciona', 'client_chat', 0.92, 4),
 (9, 'Mal estado', 'mal estado', 'client_chat', 0.91, 3),
 
--- CLUSTER 10: Urgency (7 variaciones)
 (10, '¿Puedo pasar hoy?', 'puedo pasar hoy', 'client_chat', 0.99, 18),
 (10, 'Necesito urgente', 'necesito urgente', 'client_chat', 0.98, 14),
 (10, '¿Retiro urgente?', 'retiro urgente', 'client_chat', 0.97, 11),
@@ -310,7 +261,6 @@ insert into wa_question_variant (
 (10, 'Lo antes posible', 'lo antes posible', 'client_chat', 0.94, 5),
 (10, '¿Pueden adelantar?', 'pueden adelantar', 'client_chat', 0.93, 4),
 
--- CLUSTER 11: Seller Contact (6 variaciones)
 (11, 'Quiero hablar con mi vendedor', 'quiero hablar con mi vendedor', 'client_chat', 0.99, 22),
 (11, '¿Quién es mi vendedor?', 'quien es mi vendedor', 'client_chat', 0.98, 15),
 (11, 'Pasame con mi asesor', 'pasame con mi asesor', 'client_chat', 0.97, 10),
@@ -318,7 +268,6 @@ insert into wa_question_variant (
 (11, 'Necesito hablar con ventas', 'necesito hablar con ventas', 'client_chat', 0.95, 6),
 (11, '¿Datos del vendedor?', 'datos del vendedor', 'client_chat', 0.94, 4),
 
--- CLUSTER 12: Product Inquiry (10 variaciones)
 (12, '¿Qué modelos tienen?', 'que modelos tienen', 'client_chat', 0.99, 32),
 (12, '¿Trabajan con X marca?', 'trabajan con x marca', 'client_chat', 0.98, 24),
 (12, '¿Qué opciones hay de...?', 'que opciones hay de', 'client_chat', 0.97, 18),
@@ -330,7 +279,6 @@ insert into wa_question_variant (
 (12, '¿Medidas de...?', 'medidas de', 'client_chat', 0.91, 4),
 (12, 'Catálogo de X', 'catalogo de x', 'client_chat', 0.90, 3),
 
--- CLUSTER 13: Billing (8 variaciones)
 (13, 'No me llegó la factura', 'no me llego la factura', 'client_chat', 0.99, 26),
 (13, 'Necesito el comprobante', 'necesito el comprobante', 'client_chat', 0.98, 18),
 (13, '¿Dónde está mi factura?', 'donde esta mi factura', 'client_chat', 0.97, 14),
@@ -339,10 +287,6 @@ insert into wa_question_variant (
 (13, '¿Nota de crédito?', 'nota de credito', 'client_chat', 0.94, 6),
 (13, 'Factura electronica', 'factura electronica', 'client_chat', 0.93, 4),
 (13, '¿Comprobante de pago?', 'comprobante de pago', 'client_chat', 0.92, 3);
-
--- ────────────────────────────────────────────────────────────
--- SEED DATA: Intent Responses (deduplicadas)
--- ────────────────────────────────────────────────────────────
 
 insert into wa_intent_response (
   intent, intent_label, standard_response, requires_context,
@@ -401,10 +345,6 @@ insert into wa_intent_response (
  'La factura se envía por mail el día que sale el pedido (revisá spam). ¿Necesitás reenvío?',
  true, ARRAY['invoice_resend'], 'auto');
 
--- ────────────────────────────────────────────────────────────
--- FUNCIÓN HELPER: Encontrar grupo de pregunta por variación
--- ────────────────────────────────────────────────────────────
-
 create or replace function wa_find_question_group(p_question_text text)
 returns table (
   group_id            bigint,
@@ -435,7 +375,7 @@ begin
     where qv.is_active = true and qg.is_active = true and ir.is_active = true
     and (
       lower(qv.variant_text) = v_normalized
-      or lower(qv.normalized_text) % lower(p_question_text)  -- fuzzy matching
+      or lower(qv.normalized_text) % lower(p_question_text)
     )
     order by
       case when lower(qv.variant_text) = v_normalized then 0 else 1 end,
@@ -445,23 +385,14 @@ begin
 end;
 $$ language plpgsql stable security definer;
 
-comment on function wa_find_question_group(text) is
-  'Busca un grupo de pregunta por variación. Devuelve el grupo + intent + respuesta estándar.';
-
--- ────────────────────────────────────────────────────────────
--- RLS
--- ────────────────────────────────────────────────────────────
-
 alter table wa_question_group enable row level security;
 alter table wa_question_variant enable row level security;
 alter table wa_intent_response enable row level security;
 
--- Políticas de lectura para anon (el bot)
 create policy "anon_read" on wa_question_group for select using (is_active = true);
 create policy "anon_read" on wa_question_variant for select using (is_active = true);
 create policy "anon_read" on wa_intent_response for select using (is_active = true);
 
--- Política service_role completa
 create policy "service_role_all" on wa_question_group for all using (auth.role() = 'service_role');
 create policy "service_role_all" on wa_question_variant for all using (auth.role() = 'service_role');
 create policy "service_role_all" on wa_intent_response for all using (auth.role() = 'service_role');
