@@ -498,6 +498,7 @@
           <div class="subtab" id="stLimites" onclick="showAgenteTab('limites')">🔒 Limitaciones y Permisos</div>
           <div class="subtab" id="stConsultas" onclick="showAgenteTab('consultas')">❓ Consultas <span id="consultasBadge" class="cat-pill pendiente" style="display:none;"></span></div>
           <div class="subtab" id="stEval" onclick="showAgenteTab('eval')">🧪 Evaluación</div>
+          <div class="subtab" id="stModelos" onclick="showAgenteTab('modelos')">🤖 Modelos</div>
         </div>
 
         <!-- Historial de versiones (documento completo) -->
@@ -592,6 +593,46 @@
               </div>
             </div>
             <div id="evalContainer"><div class="bl-empty">Cargando...</div></div>
+          </div>
+        </div>
+
+        <!-- Sub: Modelos -->
+        <div class="subpanel" id="panelModelos">
+          <div class="config-section" style="max-width:none;">
+            <h3>🤖 Modelos conectados al agente</h3>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.6rem;">
+              Configurá qué modelos de IA puede usar el agente. El marcado como
+              <b>⭐ default</b> es el que usa para responder.
+            </p>
+            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--warning);border-radius:0 6px 6px 0;padding:0.7rem 0.9rem;font-size:0.78rem;color:var(--muted);margin-bottom:1.1rem;">
+              🔒 <b>Las API keys no se cargan acá.</b> Se cargan una vez en
+              <b>Supabase → Edge Functions → Secrets</b> con el nombre que pongas
+              en <b>Secret</b> (ej: <code>ANTHROPIC_API_KEY</code>). Acá solo
+              configurás qué modelo usa el agente. La key nunca toca la base ni el navegador.
+            </div>
+
+            <div class="consulta-form" style="margin-bottom:1.2rem;border:1px dashed var(--border);border-radius:8px;padding:0.9rem;">
+              <div class="md-col-label">Agregar modelo</div>
+              <div class="row">
+                <select id="modProveedor" style="min-width:130px;">
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="google">Google</option>
+                  <option value="otro">Otro</option>
+                </select>
+                <input type="text" id="modLabel" placeholder="Nombre visible (ej: GPT-4o)" style="flex:1;min-width:160px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+              </div>
+              <div class="row">
+                <input type="text" id="modModelId" placeholder="model id (ej: gpt-4o, claude-sonnet-4-6)" style="flex:1;min-width:160px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+                <input type="text" id="modSecretRef" placeholder="Secret (ej: OPENAI_API_KEY)" style="flex:1;min-width:140px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+              </div>
+              <div class="row">
+                <button class="config-btn primary small" onclick="addModelo()">+ Agregar</button>
+                <span class="config-status" id="modAddStatus"></span>
+              </div>
+            </div>
+
+            <div id="modelosContainer"><div class="bl-empty">Cargando...</div></div>
           </div>
         </div>
       </div>
@@ -999,16 +1040,18 @@ async function loadAgentePage() {
   }
   loadConsultas();
   loadEvals();
+  loadModelos();
 }
 
 function showAgenteTab(tab) {
-  const map = { objetivo: "Objetivo", limites: "Limites", consultas: "Consultas", eval: "Eval" };
+  const map = { objetivo: "Objetivo", limites: "Limites", consultas: "Consultas", eval: "Eval", modelos: "Modelos" };
   for (const [k, cap] of Object.entries(map)) {
     document.getElementById("st" + cap).classList.toggle("active", k === tab);
     document.getElementById("panel" + cap).classList.toggle("active", k === tab);
   }
   if (tab === "consultas") loadConsultas();
   if (tab === "eval") loadEvals();
+  if (tab === "modelos") loadModelos();
 }
 
 // Guarda el documento completo + versiona en historial. Refresca editores.
@@ -1289,6 +1332,98 @@ async function deleteEval(id) {
   try {
     await sb.from("wa_agente_evals").delete().eq("id", id);
     loadEvals();
+  } catch (e) { /* silent */ }
+}
+
+// --- Modelos ---
+const PROV_LABEL = { anthropic: "Anthropic", openai: "OpenAI", google: "Google", otro: "Otro" };
+
+async function loadModelos() {
+  const cont = document.getElementById("modelosContainer");
+  cont.innerHTML = '<div class="bl-empty">Cargando...</div>';
+  try {
+    const { data } = await sb.from("wa_agente_modelos")
+      .select("id, proveedor, label, model_id, secret_ref, activo, es_default, notas")
+      .order("es_default", { ascending: false })
+      .order("created_at", { ascending: true });
+    const items = data || [];
+    if (!items.length) { cont.innerHTML = '<div class="bl-empty">Sin modelos configurados</div>'; return; }
+    cont.innerHTML = items.map(renderModelo).join("");
+  } catch (e) {
+    cont.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+  }
+}
+
+function renderModelo(m) {
+  const esc = s => (s || "").replace(/</g, "&lt;");
+  const def = m.es_default
+    ? '<span class="cat-pill objetivo">⭐ default</span>'
+    : '<button class="config-btn small" onclick="setDefaultModelo(' + m.id + ')">Hacer default</button>';
+  const act = m.activo
+    ? '<span class="cat-pill permiso">activo</span>'
+    : '<span class="cat-pill pendiente">inactivo</span>';
+  return '<div class="consulta-card' + (m.activo ? '' : ' answered') + '">' +
+    '<div class="consulta-q">' + esc(m.label) + ' ' + def + ' ' + act + '</div>' +
+    '<div class="consulta-meta">' +
+      '🏷️ ' + (PROV_LABEL[m.proveedor] || esc(m.proveedor)) +
+      ' · 🧠 <code>' + esc(m.model_id) + '</code>' +
+      ' · 🔑 Secret: <code>' + esc(m.secret_ref) + '</code>' +
+    '</div>' +
+    (m.notas ? '<div class="consulta-meta">' + esc(m.notas) + '</div>' : '') +
+    '<div class="row" style="margin-top:0.5rem;">' +
+      '<button class="config-btn small" onclick="toggleModeloActivo(' + m.id + ',' + (m.activo ? 'false' : 'true') + ')">' +
+        (m.activo ? 'Desactivar' : 'Activar') + '</button>' +
+      '<button class="config-btn danger small" onclick="deleteModelo(' + m.id + ',' + m.es_default + ')">🗑️ Eliminar</button>' +
+      '<span class="config-status" id="modSt-' + m.id + '"></span>' +
+    '</div>' +
+  '</div>';
+}
+
+async function addModelo() {
+  const proveedor = document.getElementById("modProveedor").value;
+  const label = document.getElementById("modLabel").value.trim();
+  const model_id = document.getElementById("modModelId").value.trim();
+  const secret_ref = document.getElementById("modSecretRef").value.trim();
+  const st = document.getElementById("modAddStatus");
+  if (!label || !model_id || !secret_ref) {
+    st.textContent = "Completá label, model id y secret"; st.className = "config-status err"; return;
+  }
+  st.textContent = "Agregando..."; st.className = "config-status";
+  try {
+    const { error } = await sb.from("wa_agente_modelos")
+      .insert({ proveedor, label, model_id, secret_ref, activo: true, es_default: false });
+    if (error) throw error;
+    document.getElementById("modLabel").value = "";
+    document.getElementById("modModelId").value = "";
+    document.getElementById("modSecretRef").value = "";
+    st.textContent = "✓ Agregado"; st.className = "config-status ok";
+    loadModelos();
+  } catch (e) { st.textContent = "✗ Error"; st.className = "config-status err"; }
+  setTimeout(() => { st.textContent = ""; }, 3000);
+}
+
+async function setDefaultModelo(id) {
+  try {
+    // Primero limpiar el default actual (solo puede haber uno), después setear el nuevo.
+    await sb.from("wa_agente_modelos").update({ es_default: false, updated_at: new Date().toISOString() }).eq("es_default", true);
+    await sb.from("wa_agente_modelos").update({ es_default: true, activo: true, updated_at: new Date().toISOString() }).eq("id", id);
+    loadModelos();
+  } catch (e) { alert("Error al setear default"); }
+}
+
+async function toggleModeloActivo(id, val) {
+  try {
+    await sb.from("wa_agente_modelos").update({ activo: val, updated_at: new Date().toISOString() }).eq("id", id);
+    loadModelos();
+  } catch (e) { /* silent */ }
+}
+
+async function deleteModelo(id, esDefault) {
+  if (esDefault) { alert("No podés eliminar el modelo default. Primero marcá otro como default."); return; }
+  if (!confirm("¿Eliminar este modelo?")) return;
+  try {
+    await sb.from("wa_agente_modelos").delete().eq("id", id);
+    loadModelos();
   } catch (e) { /* silent */ }
 }
 
@@ -2098,6 +2233,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.1</div>
 </body>
 </html>
