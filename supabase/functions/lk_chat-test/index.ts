@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { supabase, getSetting } from "../_shared/supabase.ts";
+import { supabase, getSetting, getIsisClient } from "../_shared/supabase.ts";
 import { canonPhone } from "../_shared/wa-api.ts";
-import { detectIntent, conversationalReply } from "../_shared/claude.ts";
+import { detectIntent, conversationalReply, claudeMessage } from "../_shared/claude.ts";
 import { buildAgenteSystem } from "../_shared/agente.ts";
 
 const CORS = {
@@ -152,6 +152,9 @@ serve(async (req) => {
           break;
         case "cancelar":
           reply = await handleCancel(testPhone);
+          break;
+        case "consulta_factura":
+          reply = await handleInvoiceQuery(customerRow, text, anthropicKey);
           break;
         case "ayuda":
           reply = menuText(customerRow.business_name);
@@ -943,4 +946,152 @@ async function handleGeneral(
   return conversationalReply(apiKey, system, [
     { role: "user", content: text },
   ]);
+}
+
+// ── Invoice / Factura lookup (shell — no WA media) ──
+
+async function handleInvoiceQuery(
+  customer: { id: string; cod_cliente: number; business_name: string },
+  text: string,
+  apiKey: string,
+): Promise<string> {
+  // Paso 1: Parsear parámetros de búsqueda con Haiku
+  const parseSystem = `Sos un parser de consultas de facturas/comprobantes para una empresa mayorista.
+Dado el mensaje del cliente, extraé los parámetros de búsqueda y respondé SOLO con JSON válido:
+{"numero": "número de comprobante o null", "nombre": "nombre/descripción del producto o null", "cuit": "CUIT del cliente o null", "fecha_desde": "YYYY-MM-DD o null", "fecha_hasta": "YYYY-MM-DD o null", "familia": "tipo de comprobante: FAC/NDC/NDN/REM/REC o null"}
+
+Reglas:
+- "numero": si mencionan un número de factura/comprobante (ej: "factura 1234", "comprobante A-0001-00001234")
+- "nombre": si buscan por nombre de producto
+- "cuit": CUIT del cliente (sin guiones). Si no mencionan CUIT, dejá null
+- "fecha_desde"/"fecha_hasta": rango de fechas. Si dicen "de mayo" → desde 2024-05-01 hasta 2024-05-31. Si no mencionan fecha, null
+- "familia": tipo de documento fiscal:
+  - FAC = factura
+  - NDC = nota de crédito
+  - NDN = nota de débito
+  - REM = remito
+  - REC = recibo
+  - Si no especifican tipo, null
+- Si el mensaje es muy vago (ej: "mandame la factura"), devolvé todos los campos en null`;
+
+  let params: {
+    numero: string | null;
+    nombre: string | null;
+    cuit: string | null;
+    fecha_desde: string | null;
+    fecha_hasta: string | null;
+    familia: string | null;
+  };
+
+  try {
+    const parseResult = await claudeMessage({
+      apiKey,
+      model: "claude-haiku-4-5",
+      system: parseSystem,
+      messages: [{ role: "user", content: text }],
+      maxTokens: 200,
+      temperature: 0,
+    });
+    params = JSON.parse(parseResult);
+  } catch {
+    params = { numero: null, nombre: null, cuit: null, fecha_desde: null, fecha_hasta: null, familia: null };
+  }
+
+  // Build query string: número > nombre > "últimos comprobantes"
+  const query = params.numero ?? params.nombre ?? "";
+
+  // Paso 2: Llamar a ISIS RPC
+  try {
+    const isis = await getIsisClient();
+    const { data, error } = await isis.rpc("buscar_factura", {
+      p_query: query,
+      p_cuit: params.cuit ?? customer.cod_cliente?.toString() ?? null,
+      p_fecha_desde: params.fecha_desde,
+      p_fecha_hasta: params.fecha_hasta,
+      p_familia: params.familia,
+      p_limit: 10,
+    });
+
+    if (error) {
+      console.error("ISIS RPC error:", error);
+      return "⚠️ No pude consultar los comprobantes en este momento. Intentá de nuevo más tarde o contactá a ventas.";
+    }
+
+    // Paso 3: Formatear resultados
+    if (!data || data.length === 0) {
+      let msg = "🔍 No encontré comprobantes";
+      if (params.numero) msg += ` con número "${params.numero}"`;
+      if (params.familia) {
+        const tipoNombres: Record<string, string> = {
+          FAC: "facturas", NDC: "notas de crédito", NDN: "notas de débito",
+          REM: "remitos", REC: "recibos",
+        };
+        msg += ` de tipo ${tipoNombres[params.familia] ?? params.familia}`;
+      }
+      if (params.fecha_desde || params.fecha_hasta) {
+        msg += ` en el rango de fechas indicado`;
+      }
+      msg += ".\n\n¿Podés darme más datos? (número, fecha, tipo de comprobante)";
+      return msg;
+    }
+
+    if (data.length === 1) {
+      const f = data[0];
+      return formatInvoiceDetail(f);
+    }
+
+    // Múltiples resultados: listar
+    let msg = `📋 Encontré ${data.length} comprobante${data.length > 1 ? "s" : ""}:\n\n`;
+    // deno-lint-ignore no-explicit-any
+    data.forEach((f: any, i: number) => {
+      const tipo = f.familia ?? "COMP";
+      const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString("es-AR") : "s/f";
+      const total = f.total != null ? `$${Number(f.total).toLocaleString("es-AR")}` : "";
+      msg += `${i + 1}. ${tipo} ${f.numero_completo ?? f.id ?? "?"} — ${fecha} ${total}\n`;
+    });
+    msg += "\n¿Cuál necesitás? Indicame el número.";
+    return msg;
+
+  } catch (err) {
+    console.error("Invoice query error:", err);
+    // deno-lint-ignore no-explicit-any
+    if ((err as any).message?.includes("ISIS Supabase credentials")) {
+      return "⚠️ El módulo de facturación no está configurado todavía. Contactá a ventas para consultar tus comprobantes.";
+    }
+    return "⚠️ Error al buscar comprobantes. Intentá de nuevo más tarde.";
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+function formatInvoiceDetail(f: any): string {
+  const tipo = f.familia ?? "COMP";
+  const tipoNombres: Record<string, string> = {
+    FAC: "Factura", NDC: "Nota de Crédito", NDN: "Nota de Débito",
+    REM: "Remito", REC: "Recibo",
+  };
+  const tipoLabel = tipoNombres[tipo] ?? tipo;
+  const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString("es-AR") : "s/f";
+  const total = f.total != null ? `$${Number(f.total).toLocaleString("es-AR")}` : "—";
+
+  let msg = `📄 *${tipoLabel} ${f.numero_completo ?? f.id ?? ""}*\n`;
+  msg += `📅 Fecha: ${fecha}\n`;
+  if (f.cliente_nombre) msg += `👤 Cliente: ${f.cliente_nombre}\n`;
+  if (f.cuit) msg += `🏢 CUIT: ${f.cuit}\n`;
+  msg += `💰 Total: ${total}\n`;
+  if (f.condicion_venta) msg += `💳 Condición: ${f.condicion_venta}\n`;
+  if (f.observaciones) msg += `📝 Obs: ${f.observaciones}\n`;
+
+  // Items si vienen
+  if (f.items?.length) {
+    msg += `\n📦 Detalle:\n`;
+    // deno-lint-ignore no-explicit-any
+    f.items.forEach((item: any) => {
+      const qty = item.cantidad ?? "";
+      const desc = item.descripcion ?? item.nombre ?? "?";
+      const precio = item.precio_unitario != null ? `$${Number(item.precio_unitario).toLocaleString("es-AR")}` : "";
+      msg += `  • ${qty}x ${desc} ${precio}\n`;
+    });
+  }
+
+  return msg;
 }

@@ -66,12 +66,13 @@ export async function detectIntent(
 ): Promise<{ intent: string; details: string }> {
   const system = `Sos un clasificador de intents para un bot WhatsApp de una empresa mayorista de artículos de cocina.
 Dado el mensaje del cliente, respondé SOLO con JSON válido:
-{"intent": "consulta_pedido" | "nuevo_pedido" | "retiro" | "cancelar" | "ayuda" | "opt_out" | "faq" | "otro", "details": "breve contexto"}
+{"intent": "consulta_pedido" | "nuevo_pedido" | "retiro" | "cancelar" | "consulta_factura" | "ayuda" | "opt_out" | "faq" | "otro", "details": "breve contexto"}
 
 Reglas:
 - "consulta_pedido": pregunta por estado, seguimiento, envío de un pedido
 - "nuevo_pedido": quiere hacer un pedido, pedir productos, agregar items
 - "retiro": pregunta si puede pasar a retirar
+- "consulta_factura": pide una factura, comprobante, nota de crédito, nota de débito, remito, o cualquier documento fiscal. Ej: "mandame la factura", "necesito la factura", "factura numero X", "nota de credito"
 - "cancelar": quiere cancelar pedido en curso
 - "ayuda": pide ayuda o menú de opciones
 - "opt_out": no quiere recibir más mensajes
