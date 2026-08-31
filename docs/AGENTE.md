@@ -39,13 +39,13 @@ Especificidades:
 
 ### Permisos (puede hacer)
 
-- Responder preguntas generales sobre la empresa, productos y modalidad de
-  compra mayorista.
-- Interpretar pedidos en lenguaje libre y proponer el match de producto.
-- Pedir aclaraciones al cliente cuando la consulta es ambigua.
-- Sugerir contactar a un vendedor cuando el caso lo excede.
-- Registrar consultas internas en el submódulo **Consultas** cuando no tiene
-  claro un límite, permiso u objetivo.
+> **El agente arranca sin permisos.** Por defecto no hace nada por iniciativa
+> propia más allá de **responder** y **derivar a un humano**. Cada permiso se
+> **otorga explícitamente**: respondiendo una consulta como «permiso» en el
+> submódulo *Consultas*, o agregándolo a mano en esta lista. Todo lo que no
+> figure acá se considera **no otorgado** (default-deny).
+
+_(Sin permisos otorgados todavía.)_
 
 ### Limitaciones (no puede hacer)
 
