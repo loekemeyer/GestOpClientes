@@ -286,6 +286,9 @@ async function handleGrupo(body: any) {
     envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null);
     estado = envio.ok ? "sent_whatsapp" : "error_envio";
     mensaje.envio = { to: redirect, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
+    if (estado === "sent_whatsapp") {
+      try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", comprobante: (body.comprobantes ?? [])[0] ?? null, source, detalle: { group_key: gk, n_facturas: facturas.length, cod_cliente: body.cod_cliente ?? null, real: true, redirect: true } }); } catch (_e) { /* log best-effort */ }
+    }
   }
 
   const total_sum = totales.reduce((s: number, t: number) => s + t, 0);
@@ -386,6 +389,9 @@ serve(async (req) => {
         envio = await enviarWhatsapp(destPhone, mensaje, pdfCombinado?.url ?? null);
         estado = envio.ok ? "sent_whatsapp" : "error_envio";
         mensaje.envio = { to: destPhone, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
+        if (estado === "sent_whatsapp") {
+          try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", cuit, source: srcUsado, detalle: { grupo_key: grupoKey, n_facturas: facturas.length, dest: destPhone } }); } catch (_e) { /* log best-effort */ }
+        }
       }
     }
 

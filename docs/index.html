@@ -193,8 +193,7 @@
   <nav class="sidebar">
     <h3>🤖 GestOp</h3>
     <div class="active" id="navChat" onclick="showPage('chat')" style="cursor:pointer">💬 Chat Bot</div>
-    <div id="navTemplates" onclick="showPage('templates')" style="cursor:pointer">📋 Plantillas WA</div>
-    <div id="navNotif" onclick="showPage('notif')" style="cursor:pointer">🔔 Avisos automáticos</div>
+    <div id="navDash" onclick="showPage('dash')" style="cursor:pointer">📊 Dashboard</div>
     <div id="navFuego" onclick="showPage('fuego')" style="cursor:pointer">🔥 Prueba de fuego</div>
     <div id="navConv" onclick="showPage('conv')" style="cursor:pointer">💬 Conversaciones</div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
@@ -266,82 +265,32 @@
       </div>
     </div>
 
-    <!-- Page: Plantillas WA -->
-    <div class="page" id="pageTemplates">
+
+    <!-- Page: Dashboard (pipeline de facturación, ventana ±3 días) -->
+    <div class="page" id="pageDash">
       <div class="config-page">
-        <h2>📋 Plantillas WhatsApp</h2>
-        <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem;">
-          Plantillas aprobadas en Meta. Elegí una, completá los parámetros y enviala a un número de prueba
-          (no requiere vincular el número al bot).
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;flex-wrap:wrap;">
+          <h2 style="margin:0;">📊 Dashboard del pipeline</h2>
+          <button class="config-btn small" onclick="loadDashboard()">⟳ Actualizar</button>
+        </div>
+        <p style="color:var(--muted);font-size:0.86rem;margin:0.4rem 0 1rem;">
+          Ventana de <b>7 días</b> (3 atrás · hoy · 3 adelante). Excluye datos de simulación.
         </p>
-
-        <div class="config-section">
-          <h3>Plantillas de Meta</h3>
-          <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem;">
-            <button class="config-btn primary" onclick="loadTemplates()">🔄 Cargar plantillas</button>
-            <span class="config-status" id="tplLoadStatus"></span>
-          </div>
-          <div id="tplList"><div class="bl-empty">Tocá "Cargar plantillas" para traerlas de Meta.</div></div>
+        <div style="overflow-x:auto;">
+          <table id="dashTable" style="border-collapse:collapse;width:100%;min-width:640px;font-size:0.84rem;">
+            <thead id="dashHead"></thead>
+            <tbody id="dashBody"></tbody>
+          </table>
         </div>
 
-        <div class="config-section" id="tplComposeSection" style="display:none;">
-          <h3>Enviar prueba — <span id="tplComposeName" style="color:var(--primary);"></span></h3>
-          <div id="tplPreview" style="background:#f0fdf4;border-radius:8px;padding:0.8rem;margin-bottom:0.9rem;white-space:pre-wrap;font-size:0.88rem;line-height:1.5;"></div>
-          <div class="config-row">
-            <label>Teléfono destino:</label>
-            <input type="text" id="tplPhone" placeholder="Ej: 5491112345678" style="min-width:220px;">
+        <div class="config-section" style="margin-top:1.2rem;">
+          <h3>🧾 Log del pipeline (últimos eventos)</h3>
+          <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.5rem;">
+            Se registra cuándo se <b>genera cada factura</b> (impacta en <code>documentos</code>) y cuándo el bot
+            <b>envía el aviso</b>.
           </div>
-          <div id="tplParams"></div>
-          <div style="margin-top:0.8rem;display:flex;align-items:center;gap:0.6rem;">
-            <button class="config-btn primary" onclick="sendTemplateTest()">📤 Enviar prueba</button>
-            <button class="config-btn" onclick="closeTemplateCompose()">Cancelar</button>
-            <span class="config-status" id="tplSendStatus"></span>
-          </div>
+          <div id="dashLog" style="max-height:340px;overflow-y:auto;"></div>
         </div>
-      </div>
-    </div>
-
-    <!-- Page: Avisos automáticos (simulador facturación, estilo chat) -->
-    <div class="page" id="pageNotif">
-      <div class="chat-container">
-        <div class="chat-header" style="background:#5b21b6;">
-          <div class="avatar" style="background:#7c3aed;">🔔</div>
-          <div class="info">
-            <h2>Avisos automáticos</h2>
-            <span id="notifStatus">Simulador de facturación → trigger real</span>
-          </div>
-          <button class="clear-btn" onclick="notifReset()">🗑️ Limpiar</button>
-        </div>
-        <div class="chat-messages" id="notifMessages"></div>
-        <div class="chat-input" style="flex-direction:column; align-items:stretch; gap:0.5rem; padding:0.6rem 0.8rem;">
-          <div style="font-size:0.72rem;color:var(--muted);text-align:center;">Simular pedido por modelo de plantilla:</div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:center;">
-            <button class="config-btn small" onclick="notifNew('contado',1)">Contado ×1 <span class="tpl-tag">_s</span></button>
-            <button class="config-btn small" onclick="notifNew('contado',3)">Contado ×3 <span class="tpl-tag">_p</span></button>
-            <button class="config-btn small" onclick="notifNew('credito_31_45',1)">Crédito ×1 <span class="tpl-tag">_s</span></button>
-            <button class="config-btn small" onclick="notifNew('credito_31_45',3)">Crédito ×3 <span class="tpl-tag">_p</span></button>
-            <button class="config-btn small" onclick="notifNew('echeq_90',1)">E-check ×1 <span class="tpl-tag">_s</span></button>
-            <button class="config-btn small" onclick="notifNew('echeq_90',3)">E-check ×3 <span class="tpl-tag">_p</span></button>
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center;align-items:center;">
-            <button class="config-btn primary small" onclick="notifNew()">🎲 Al azar</button>
-            <select id="notifSource" style="padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;">
-              <option value="lk">Fuente: LK</option>
-              <option value="ch">Fuente: Chef</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="control-panel" id="notifPanel">
-        <h4>🧪 Pedidos en curso</h4>
-        <div class="notif-hint">
-          Recorrido REAL: el pedido entra en la <b>PPP</b>, cada factura sube su PDF al bucket
-          <code>isis-lk</code>/<code>isis-ch</code> + <code>documentos</code>, y las NPs impactan en
-          <code>Facturacion_NP</code>. El <b>trigger real</b> detecta el grupo completo y
-          <code>lk_factura-check</code> arma el aviso. <b>Desvío a este módulo — no se envía WhatsApp.</b>
-        </div>
-        <div id="notifGroups"><div class="bl-empty" style="font-size:0.8rem;">Sin pedidos. Tocá un modelo arriba.</div></div>
       </div>
     </div>
 
@@ -354,7 +303,7 @@
             <h2>Prueba de fuego</h2>
             <span id="fuegoStatus">Envío REAL por WhatsApp — sólo a números autorizados</span>
           </div>
-          <button class="clear-btn" onclick="notifReset(); loadFuego();">🗑️ Limpiar</button>
+          <button class="clear-btn" onclick="fuegoReset()">🗑️ Limpiar</button>
         </div>
         <div class="chat-messages" id="fuegoMessages"></div>
         <div class="chat-input" style="flex-direction:column; align-items:stretch; gap:0.5rem; padding:0.6rem 0.8rem;">
@@ -587,19 +536,17 @@ sbAuth.auth.onAuthStateChange((event) => {
 // --- Page navigation ---
 function showPage(page) {
   document.getElementById("pageChat").classList.toggle("active", page === "chat");
-  document.getElementById("pageTemplates").classList.toggle("active", page === "templates");
-  document.getElementById("pageNotif").classList.toggle("active", page === "notif");
+  document.getElementById("pageDash").classList.toggle("active", page === "dash");
   document.getElementById("pageFuego").classList.toggle("active", page === "fuego");
   document.getElementById("pageConv").classList.toggle("active", page === "conv");
   document.getElementById("pageConfig").classList.toggle("active", page === "config");
   document.getElementById("navChat").classList.toggle("active", page === "chat");
-  document.getElementById("navTemplates").classList.toggle("active", page === "templates");
-  document.getElementById("navNotif").classList.toggle("active", page === "notif");
+  document.getElementById("navDash").classList.toggle("active", page === "dash");
   document.getElementById("navFuego").classList.toggle("active", page === "fuego");
   document.getElementById("navConv").classList.toggle("active", page === "conv");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   if (page === "config") loadConfigPage();
-  if (page === "notif") loadNotif();
+  if (page === "dash") loadDashboard();
   if (page === "fuego") loadFuego();
   if (page === "conv") loadConversaciones();
 }
@@ -1269,6 +1216,17 @@ function loadFuego() {
   fuegoRefreshContacts();
 }
 
+async function fuegoReset() {
+  if (!confirm("¿Borrar TODOS los datos de prueba (pedido PPP, facturas, documentos, PDFs) y limpiar el chat?")) return;
+  try {
+    const d = await notifCall({ action: "sim_reset" });
+    const box = document.getElementById("fuegoMessages");
+    box.innerHTML = ""; box.dataset.init = "";
+    loadFuego();
+    fuegoAppend(`🧹 Limpiado — ${d.docs || 0} fila(s) y ${d.pdfs || 0} PDF(s) de prueba borrados.`, "system");
+  } catch (e) { fuegoAppend("⚠️ " + esc(e.message), "system"); }
+}
+
 async function fuegoRefreshContacts() {
   try {
     const d = await notifCall({ action: "contact_list" });
@@ -1537,7 +1495,75 @@ async function convSeed() {
   try { const d = await convCall({ action: "seed_demo" }); await convRefresh(); convOpen(d.phone); }
   catch (e) { alert("Error: " + e.message); }
 }
+
+// ══════════════ Dashboard del pipeline ══════════════
+const DASH_ROWS = [
+  { key: "programados", label: "📅 Pedidos programados" },
+  { key: "armados", label: "📦 Pedidos armados" },
+  { key: "facturados", label: "🧾 Pedidos facturados" },
+  { key: "enviadas", label: "📤 Facturas enviadas" },
+];
+function dashDayLabel(iso, hoy) {
+  const d = new Date(iso + "T00:00:00");
+  const dow = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][d.getDay()];
+  const dm = d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+  const tag = iso === hoy ? "HOY" : "";
+  return { dow, dm, tag };
+}
+async function loadDashboard() {
+  const head = document.getElementById("dashHead"), bodyEl = document.getElementById("dashBody");
+  head.innerHTML = ""; bodyEl.innerHTML = '<tr><td style="padding:1rem;color:var(--muted);">⏳ Cargando…</td></tr>';
+  try {
+    const d = await notifCall({ action: "dashboard" });
+    const rango = d.rango || [], hoy = d.hoy;
+    // Header
+    let h = '<tr><th style="text-align:left;padding:0.5rem;border-bottom:2px solid var(--border);">Métrica</th>';
+    for (const r of rango) {
+      const { dow, dm, tag } = dashDayLabel(r.dia, hoy);
+      const isHoy = r.dia === hoy;
+      h += `<th style="padding:0.5rem;border-bottom:2px solid var(--border);text-align:center;${isHoy ? "background:#eef2ff;border-radius:8px 8px 0 0;" : ""}">
+        <div style="font-size:0.72rem;color:var(--muted);">${dow}</div>
+        <div style="font-weight:700;">${dm}</div>
+        ${tag ? '<div style="font-size:0.62rem;color:#4f46e5;font-weight:700;">HOY</div>' : ""}
+      </th>`;
+    }
+    head.innerHTML = h + "</tr>";
+    // Body
+    bodyEl.innerHTML = DASH_ROWS.map((row) => {
+      let cells = `<td style="padding:0.55rem;font-weight:600;">${row.label}</td>`;
+      for (const r of rango) {
+        const isHoy = r.dia === hoy;
+        const v = Number(r[row.key] || 0);
+        const strong = v > 0 ? "color:var(--text,#111);font-weight:700;" : "color:#bbb;";
+        cells += `<td style="padding:0.55rem;text-align:center;${isHoy ? "background:#f5f7ff;" : ""}${strong}">${v}</td>`;
+      }
+      return `<tr style="border-bottom:1px solid var(--border);">${cells}</tr>`;
+    }).join("");
+    renderDashLog(d.log || []);
+  } catch (e) {
+    bodyEl.innerHTML = `<tr><td style="padding:1rem;color:var(--danger);">⚠️ ${esc(e.message)}</td></tr>`;
+  }
+}
+const DASH_EV = {
+  factura_generada: { icon: "🧾", txt: "Factura generada", color: "#a16207", bg: "#fef9c3" },
+  aviso_enviado: { icon: "📤", txt: "Aviso enviado", color: "#15803d", bg: "#dcfce7" },
+};
+function renderDashLog(log) {
+  const box = document.getElementById("dashLog");
+  if (!log.length) { box.innerHTML = '<div class="bl-empty" style="font-size:0.82rem;">Sin eventos registrados aún.</div>'; return; }
+  box.innerHTML = log.map((e) => {
+    const ev = DASH_EV[e.event] || { icon: "•", txt: e.event, color: "#555", bg: "#eee" };
+    const t = e.at ? new Date(e.at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+    const ref = e.comprobante || e.cuit || "";
+    const src = e.source ? `<span class="tpl-tag">${esc(e.source === "ch" ? "Chef" : "LK")}</span>` : "";
+    return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.2rem;border-bottom:1px solid var(--border);font-size:0.8rem;">
+      <span style="background:${ev.bg};color:${ev.color};border-radius:6px;padding:0.1rem 0.45rem;font-weight:600;white-space:nowrap;">${ev.icon} ${esc(ev.txt)}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(ref)} ${src}</span>
+      <span style="color:var(--muted);font-size:0.72rem;white-space:nowrap;">${t}</span>
+    </div>`;
+  }).join("");
+}
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.9.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.10.0</div>
 </body>
 </html>

@@ -258,6 +258,17 @@ serve(async (req) => {
       return json({ ok: true, summary, results });
     }
 
+    // ── dashboard: métricas del pipeline por día (±3) + feed de eventos ──
+    if (action === "dashboard") {
+      const iso = (d: Date) => d.toISOString().slice(0, 10);
+      const base = new Date();
+      const desde = new Date(base); desde.setDate(base.getDate() - 3);
+      const hasta = new Date(base); hasta.setDate(base.getDate() + 3);
+      const { data: rango } = await g.rpc("wa_dashboard_rango", { p_desde: iso(desde), p_hasta: iso(hasta) });
+      const { data: log } = await g.rpc("wa_pipeline_log_reciente", { p_limit: 40 });
+      return json({ rango: rango ?? [], log: log ?? [], hoy: today() });
+    }
+
     // ── sim_state: recorrido de cada pedido + mensaje entregado ──
     if (action === "sim_state") {
       const { data: controls } = await g.from("wa_sim_control").select("*").eq("fecha", today()).order("created_at", { ascending: false }).limit(30);
