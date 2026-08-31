@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase, getSetting } from "../_shared/supabase.ts";
 import { canonPhone, parseIncoming, sendText, markRead } from "../_shared/wa-api.ts";
 import { detectIntent, conversationalReply, matchFAQ } from "../_shared/claude.ts";
+import { buildAgenteSystem } from "../_shared/agente.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WA_VERIFY_TOKEN") ?? "";
 
@@ -469,10 +470,7 @@ async function handleGeneral(
   text: string,
   apiKey: string,
 ): Promise<string> {
-  const system = `Sos el asistente virtual de Loekemeyer Hnos, una empresa mayorista de artículos de cocina y bazar.
-Estás hablando con ${customer.business_name} por WhatsApp.
-Respondé de forma breve, amable y profesional. Si no sabés algo, sugirí contactar a ventas.
-No inventes información sobre pedidos ni precios.`;
+  const system = await buildAgenteSystem(customer.business_name);
 
   return conversationalReply(apiKey, system, [
     { role: "user", content: text },

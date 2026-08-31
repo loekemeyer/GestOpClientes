@@ -135,6 +135,40 @@
     .config-status.ok { color: var(--success); }
     .config-status.err { color: var(--danger); }
 
+    /* Módulo: Configuración del agente */
+    .subtabs { display: flex; gap: 0.4rem; border-bottom: 2px solid var(--border); margin-bottom: 1.3rem; flex-wrap: wrap; }
+    .subtab { padding: 0.55rem 1rem; cursor: pointer; font-size: 0.88rem; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .subtab:hover { color: var(--text); }
+    .subtab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .subpanel { display: none; }
+    .subpanel.active { display: block; }
+    .md-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 860px) { .md-grid { grid-template-columns: 1fr; } }
+    .md-editor textarea { width: 100%; min-height: 340px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; line-height: 1.5; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; resize: vertical; }
+    .md-col-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.4rem; }
+    .md-preview { border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1rem; background: var(--bg); font-size: 0.86rem; line-height: 1.55; min-height: 340px; overflow-y: auto; max-height: 460px; }
+    .md-preview h1 { font-size: 1.1rem; margin: 0.2rem 0 0.6rem; }
+    .md-preview h2 { font-size: 0.98rem; margin: 1rem 0 0.4rem; }
+    .md-preview h3 { font-size: 0.88rem; margin: 0.8rem 0 0.3rem; }
+    .md-preview ul { margin: 0.3rem 0 0.6rem 1.1rem; }
+    .md-preview li { margin-bottom: 0.2rem; }
+    .md-preview p { margin: 0.4rem 0; }
+    .md-preview code { background: var(--border); padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.82rem; }
+    .cat-pill { display: inline-block; font-size: 0.68rem; font-weight: 600; padding: 0.12rem 0.5rem; border-radius: 20px; }
+    .cat-pill.objetivo { background: #dbeafe; color: #1d4ed8; }
+    .cat-pill.limite { background: #fee2e2; color: #b91c1c; }
+    .cat-pill.permiso { background: #dcfce7; color: #15803d; }
+    .cat-pill.pendiente { background: #fef3c7; color: #92400e; }
+    .consulta-card { border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 0.8rem; background: var(--card); }
+    .consulta-card.answered { opacity: 0.72; }
+    .consulta-q { font-size: 0.9rem; font-weight: 500; margin-bottom: 0.25rem; }
+    .consulta-meta { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .consulta-ans { background: var(--bg); border-left: 3px solid var(--success); padding: 0.5rem 0.7rem; border-radius: 0 6px 6px 0; font-size: 0.84rem; margin-top: 0.5rem; }
+    .consulta-form { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; }
+    .consulta-form textarea { width: 100%; min-height: 60px; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.84rem; font-family: inherit; resize: vertical; }
+    .consulta-form .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .consulta-form select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.84rem; }
+
     /* Blacklist table */
     .bl-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.8rem; }
     .bl-table th { text-align: left; font-size: 0.73rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; padding: 0.4rem 0.5rem; border-bottom: 2px solid var(--border); }
@@ -197,6 +231,7 @@
     <div id="navFuego" onclick="showPage('fuego')" style="cursor:pointer">🔥 Prueba de fuego</div>
     <div id="navConv" onclick="showPage('conv')" style="cursor:pointer">💬 Conversaciones</div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
+    <div id="navAgente" onclick="showPage('agente')" style="cursor:pointer">🧠 Configuración del agente</div>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
       <div class="cost-title">💰 Costos IA</div>
@@ -441,6 +476,91 @@
         </div>
       </div>
     </div>
+
+    <!-- Page: Configuración del agente -->
+    <div class="page" id="pageAgente">
+      <div class="config-page">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;flex-wrap:wrap;">
+          <h2 style="margin:0;">🧠 Configuración del agente</h2>
+          <span class="hint" id="agenteUpdated" style="color:var(--muted);font-size:0.75rem;"></span>
+        </div>
+        <p style="color:var(--muted);font-size:0.86rem;margin:0.4rem 0 1.2rem;">
+          Documento rector del agente IA (categoría <b>INTELIGENCIA</b>). Lo que
+          se guarda acá es lo que el bot lee en tiempo real para construir su
+          system prompt.
+        </p>
+
+        <div class="subtabs">
+          <div class="subtab active" id="stObjetivo" onclick="showAgenteTab('objetivo')">🎯 Objetivo</div>
+          <div class="subtab" id="stLimites" onclick="showAgenteTab('limites')">🔒 Limitaciones y Permisos</div>
+          <div class="subtab" id="stConsultas" onclick="showAgenteTab('consultas')">❓ Consultas <span id="consultasBadge" class="cat-pill pendiente" style="display:none;"></span></div>
+        </div>
+
+        <!-- Sub: Objetivo -->
+        <div class="subpanel active" id="panelObjetivo">
+          <div class="config-section" style="max-width:none;">
+            <h3>🎯 Objetivo</h3>
+            <div class="md-grid">
+              <div class="md-editor">
+                <div class="md-col-label">Editar (markdown)</div>
+                <textarea id="mdObjetivo" oninput="renderAgentePreview('objetivo')"></textarea>
+              </div>
+              <div>
+                <div class="md-col-label">Vista previa</div>
+                <div class="md-preview" id="prevObjetivo"></div>
+              </div>
+            </div>
+            <div style="margin-top:0.8rem;display:flex;align-items:center;">
+              <button class="config-btn primary" onclick="saveAgenteSection('objetivo')">💾 Guardar objetivo</button>
+              <span class="config-status" id="objetivoStatus"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub: Limitaciones y Permisos -->
+        <div class="subpanel" id="panelLimites">
+          <div class="config-section" style="max-width:none;">
+            <h3>🔒 Limitaciones y Permisos</h3>
+            <div class="md-grid">
+              <div class="md-editor">
+                <div class="md-col-label">Editar (markdown)</div>
+                <textarea id="mdLimites" oninput="renderAgentePreview('limites')"></textarea>
+              </div>
+              <div>
+                <div class="md-col-label">Vista previa</div>
+                <div class="md-preview" id="prevLimites"></div>
+              </div>
+            </div>
+            <div style="margin-top:0.8rem;display:flex;align-items:center;">
+              <button class="config-btn primary" onclick="saveAgenteSection('limites')">💾 Guardar límites y permisos</button>
+              <span class="config-status" id="limitesStatus"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub: Consultas -->
+        <div class="subpanel" id="panelConsultas">
+          <div class="config-section" style="max-width:none;">
+            <h3>❓ Consultas del agente</h3>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;">
+              Dudas que el agente levanta sobre objetivo, límites o permisos.
+              Respondé y categorizá cada una; luego consolidá las reglas en las
+              pestañas de arriba.
+            </p>
+            <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+              <label style="font-size:0.82rem;color:var(--muted);">Filtrar:</label>
+              <select id="consultasFiltro" onchange="loadConsultas()" style="padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+                <option value="pendiente">Pendientes</option>
+                <option value="respondida">Respondidas</option>
+                <option value="">Todas</option>
+              </select>
+              <button class="config-btn small" onclick="loadConsultas()">⟳ Actualizar</button>
+            </div>
+            <div id="consultasContainer"><div class="bl-empty">Cargando...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -540,12 +660,15 @@ function showPage(page) {
   document.getElementById("pageFuego").classList.toggle("active", page === "fuego");
   document.getElementById("pageConv").classList.toggle("active", page === "conv");
   document.getElementById("pageConfig").classList.toggle("active", page === "config");
+  document.getElementById("pageAgente").classList.toggle("active", page === "agente");
   document.getElementById("navChat").classList.toggle("active", page === "chat");
   document.getElementById("navDash").classList.toggle("active", page === "dash");
   document.getElementById("navFuego").classList.toggle("active", page === "fuego");
   document.getElementById("navConv").classList.toggle("active", page === "conv");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
+  document.getElementById("navAgente").classList.toggle("active", page === "agente");
   if (page === "config") loadConfigPage();
+  if (page === "agente") loadAgentePage();
   if (page === "dash") loadDashboard();
   if (page === "fuego") loadFuego();
   if (page === "conv") loadConversaciones();
@@ -756,6 +879,211 @@ async function saveRateLimitConfig() {
     st.className = "config-status err";
   }
   setTimeout(() => { st.textContent = ""; }, 3000);
+}
+
+// --- Configuración del agente ---
+let agenteMd = "";               // documento rector completo (.md)
+const AG_OBJETIVO = "Objetivo";
+const AG_LIMITES = "Limitaciones y Permisos";
+
+// Devuelve el cuerpo (sin el encabezado) de una sección "## Titulo" del md.
+function mdGetSection(md, title) {
+  const lines = md.split("\n");
+  const norm = s => s.replace(/^##\s+/, "").trim().toLowerCase();
+  const start = lines.findIndex(l => /^##\s+/.test(l) && norm(l) === title.toLowerCase());
+  if (start === -1) return "";
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i])) { end = i; break; }
+  }
+  return lines.slice(start + 1, end).join("\n").replace(/^\n+|\n+$/g, "");
+}
+
+// Reemplaza (o agrega) el cuerpo de una sección "## Titulo" en el md.
+function mdSetSection(md, title, body) {
+  const lines = md.split("\n");
+  const norm = s => s.replace(/^##\s+/, "").trim().toLowerCase();
+  const start = lines.findIndex(l => /^##\s+/.test(l) && norm(l) === title.toLowerCase());
+  const clean = body.trim();
+  if (start === -1) {
+    return md.replace(/\s*$/, "") + "\n\n## " + title + "\n\n" + clean + "\n";
+  }
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i])) { end = i; break; }
+  }
+  const out = [...lines.slice(0, start + 1), "", clean, "", ...lines.slice(end)];
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+// Render markdown mínimo (headings, bold, code, listas, párrafos).
+function renderMdLite(md) {
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inline = s => esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.+?)`/g, "<code>$1</code>");
+  const out = [];
+  let inList = false;
+  const closeList = () => { if (inList) { out.push("</ul>"); inList = false; } };
+  for (const raw of md.split("\n")) {
+    const line = raw.trimEnd();
+    if (/^###\s+/.test(line)) { closeList(); out.push("<h3>" + inline(line.replace(/^###\s+/, "")) + "</h3>"); }
+    else if (/^##\s+/.test(line)) { closeList(); out.push("<h2>" + inline(line.replace(/^##\s+/, "")) + "</h2>"); }
+    else if (/^#\s+/.test(line)) { closeList(); out.push("<h1>" + inline(line.replace(/^#\s+/, "")) + "</h1>"); }
+    else if (/^[-*]\s+/.test(line)) { if (!inList) { out.push("<ul>"); inList = true; } out.push("<li>" + inline(line.replace(/^[-*]\s+/, "")) + "</li>"); }
+    else if (line.trim() === "") { closeList(); }
+    else if (/^>\s?/.test(line)) { closeList(); out.push("<p style='color:var(--muted)'>" + inline(line.replace(/^>\s?/, "")) + "</p>"); }
+    else { closeList(); out.push("<p>" + inline(line) + "</p>"); }
+  }
+  closeList();
+  return out.join("\n");
+}
+
+async function loadAgentePage() {
+  try {
+    const { data } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "agente_get" },
+    });
+    agenteMd = (data && data.contenido) || "";
+    document.getElementById("mdObjetivo").value = mdGetSection(agenteMd, AG_OBJETIVO);
+    document.getElementById("mdLimites").value = mdGetSection(agenteMd, AG_LIMITES);
+    renderAgentePreview("objetivo");
+    renderAgentePreview("limites");
+    const upd = document.getElementById("agenteUpdated");
+    if (data && data.updated_at) {
+      const f = new Date(data.updated_at).toLocaleString("es-AR");
+      upd.textContent = "Última edición: " + f + (data.updated_by ? " · " + data.updated_by : "");
+    } else { upd.textContent = ""; }
+  } catch (e) {
+    document.getElementById("agenteUpdated").textContent = "Error al cargar";
+  }
+  loadConsultas();
+}
+
+function showAgenteTab(tab) {
+  const map = { objetivo: "Objetivo", limites: "Limites", consultas: "Consultas" };
+  for (const [k, cap] of Object.entries(map)) {
+    document.getElementById("st" + cap).classList.toggle("active", k === tab);
+    document.getElementById("panel" + cap).classList.toggle("active", k === tab);
+  }
+  if (tab === "consultas") loadConsultas();
+}
+
+function renderAgentePreview(which) {
+  if (which === "objetivo") {
+    document.getElementById("prevObjetivo").innerHTML = renderMdLite(document.getElementById("mdObjetivo").value);
+  } else {
+    document.getElementById("prevLimites").innerHTML = renderMdLite(document.getElementById("mdLimites").value);
+  }
+}
+
+async function saveAgenteSection(which) {
+  const isObj = which === "objetivo";
+  const title = isObj ? AG_OBJETIVO : AG_LIMITES;
+  const body = document.getElementById(isObj ? "mdObjetivo" : "mdLimites").value;
+  const st = document.getElementById(isObj ? "objetivoStatus" : "limitesStatus");
+  st.textContent = "Guardando..."; st.className = "config-status";
+  agenteMd = mdSetSection(agenteMd, title, body);
+  try {
+    const { error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "agente_save", contenido: agenteMd, updated_by: currentEmail || "admin" },
+    });
+    if (error) throw error;
+    st.textContent = "✓ Guardado"; st.className = "config-status ok";
+    const f = new Date().toLocaleString("es-AR");
+    document.getElementById("agenteUpdated").textContent = "Última edición: " + f + " · " + (currentEmail || "admin");
+  } catch (e) {
+    st.textContent = "✗ Error"; st.className = "config-status err";
+  }
+  setTimeout(() => { st.textContent = ""; }, 3000);
+}
+
+async function loadConsultas() {
+  const container = document.getElementById("consultasContainer");
+  const estado = document.getElementById("consultasFiltro").value;
+  container.innerHTML = '<div class="bl-empty">Cargando...</div>';
+  try {
+    const { data } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "agente_consultas_list", estado: estado || undefined },
+    });
+    const items = (data && data.items) || [];
+    // Badge de pendientes
+    const pend = items.filter(i => i.estado === "pendiente").length;
+    const badge = document.getElementById("consultasBadge");
+    if (estado === "pendiente" && pend > 0) { badge.textContent = pend; badge.style.display = "inline-block"; }
+    else { badge.style.display = "none"; }
+
+    if (!items.length) {
+      container.innerHTML = '<div class="bl-empty">Sin consultas' + (estado ? " " + estado + "s" : "") + '</div>';
+      return;
+    }
+    container.innerHTML = items.map(renderConsulta).join("");
+  } catch (e) {
+    container.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+  }
+}
+
+function renderConsulta(c) {
+  const esc = s => (s || "").replace(/</g, "&lt;");
+  const fecha = c.created_at ? new Date(c.created_at).toLocaleString("es-AR") : "";
+  const meta = "🗓️ " + fecha + (c.origen ? " · 📍 " + esc(c.origen) : "");
+  if (c.estado === "respondida") {
+    const cat = c.categoria
+      ? '<span class="cat-pill ' + c.categoria + '">' + ({ objetivo: "Objetivo", limite: "Límite", permiso: "Permiso" }[c.categoria]) + '</span>'
+      : '';
+    return '<div class="consulta-card answered">' +
+      '<div class="consulta-q">' + esc(c.pregunta) + ' ' + cat + '</div>' +
+      (c.contexto ? '<div class="consulta-meta">' + esc(c.contexto) + '</div>' : '') +
+      '<div class="consulta-meta">' + meta + (c.answered_by ? " · ✍️ " + esc(c.answered_by) : "") + '</div>' +
+      '<div class="consulta-ans">' + esc(c.respuesta) + '</div>' +
+      '</div>';
+  }
+  return '<div class="consulta-card" id="consulta-' + c.id + '">' +
+    '<div class="consulta-q">' + esc(c.pregunta) + ' <span class="cat-pill pendiente">Pendiente</span></div>' +
+    (c.contexto ? '<div class="consulta-meta">' + esc(c.contexto) + '</div>' : '') +
+    '<div class="consulta-meta">' + meta + '</div>' +
+    '<div class="consulta-form">' +
+      '<textarea id="ans-' + c.id + '" placeholder="Escribí la respuesta / regla..."></textarea>' +
+      '<div class="row">' +
+        '<select id="cat-' + c.id + '">' +
+          '<option value="">Categoría...</option>' +
+          '<option value="objetivo">🎯 Objetivo</option>' +
+          '<option value="limite">🔒 Límite</option>' +
+          '<option value="permiso">✅ Permiso</option>' +
+        '</select>' +
+        '<button class="config-btn primary small" onclick="answerConsulta(' + c.id + ')">Responder</button>' +
+        '<button class="config-btn danger small" onclick="deleteConsulta(' + c.id + ')">Descartar</button>' +
+        '<span class="config-status" id="cst-' + c.id + '"></span>' +
+      '</div>' +
+    '</div>' +
+    '</div>';
+}
+
+async function answerConsulta(id) {
+  const respuesta = document.getElementById("ans-" + id).value.trim();
+  const categoria = document.getElementById("cat-" + id).value;
+  const st = document.getElementById("cst-" + id);
+  if (!respuesta) { st.textContent = "Escribí una respuesta"; st.className = "config-status err"; return; }
+  st.textContent = "Guardando..."; st.className = "config-status";
+  try {
+    const { error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "agente_consulta_answer", id, respuesta, categoria: categoria || undefined, answered_by: currentEmail || "admin" },
+    });
+    if (error) throw error;
+    loadConsultas();
+  } catch (e) {
+    st.textContent = "✗ Error"; st.className = "config-status err";
+  }
+}
+
+async function deleteConsulta(id) {
+  if (!confirm("¿Descartar esta consulta?")) return;
+  try {
+    await sb.functions.invoke("lk_chat-test", {
+      body: { action: "agente_consulta_delete", id },
+    });
+    loadConsultas();
+  } catch (e) { /* silent */ }
 }
 
 // --- Blacklist ---
@@ -1564,6 +1892,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.10.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.11.0</div>
 </body>
 </html>

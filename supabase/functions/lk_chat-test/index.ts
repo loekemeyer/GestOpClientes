@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase, getSetting } from "../_shared/supabase.ts";
 import { canonPhone } from "../_shared/wa-api.ts";
 import { detectIntent, conversationalReply } from "../_shared/claude.ts";
+import { buildAgenteSystem } from "../_shared/agente.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +44,28 @@ serve(async (req) => {
     // ── Blacklist remove ──
     if (body.action === "blacklist_remove") {
       return await handleBlacklistRemove(body.id);
+    }
+
+    // ── Agente: documento rector ──
+    if (body.action === "agente_get") {
+      return await handleAgenteGet();
+    }
+    if (body.action === "agente_save") {
+      return await handleAgenteSave(body);
+    }
+
+    // ── Agente: cola de consultas ──
+    if (body.action === "agente_consultas_list") {
+      return await handleAgenteConsultasList(body.estado as string | undefined);
+    }
+    if (body.action === "agente_consulta_add") {
+      return await handleAgenteConsultaAdd(body);
+    }
+    if (body.action === "agente_consulta_answer") {
+      return await handleAgenteConsultaAnswer(body);
+    }
+    if (body.action === "agente_consulta_delete") {
+      return await handleAgenteConsultaDelete(body.id as number | undefined);
     }
 
     // ── Chat endpoint ──
@@ -285,6 +308,107 @@ async function handleBlacklistRemove(id?: number) {
     .delete()
     .eq("id", id);
 
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+// ── Agente: documento rector ──
+
+async function handleAgenteGet() {
+  const { data, error } = await supabase
+    .from("wa_agente_config")
+    .select("contenido, updated_at, updated_by")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) return json({ error: error.message }, 500);
+  return json({
+    contenido: data?.contenido ?? "",
+    updated_at: data?.updated_at ?? null,
+    updated_by: data?.updated_by ?? null,
+  });
+}
+
+async function handleAgenteSave(body: Record<string, unknown>) {
+  const contenido = typeof body.contenido === "string" ? body.contenido : null;
+  if (contenido === null) return json({ error: "contenido requerido" }, 400);
+
+  const { error } = await supabase
+    .from("wa_agente_config")
+    .upsert({
+      id: 1,
+      contenido,
+      updated_at: new Date().toISOString(),
+      updated_by: (body.updated_by as string) || "admin",
+    }, { onConflict: "id" });
+
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+// ── Agente: cola de consultas ──
+
+async function handleAgenteConsultasList(estado?: string) {
+  let q = supabase
+    .from("wa_agente_consultas")
+    .select("id, pregunta, contexto, origen, categoria, respuesta, estado, created_at, answered_at, answered_by")
+    .order("created_at", { ascending: false });
+
+  if (estado) q = q.eq("estado", estado);
+
+  const { data, error } = await q;
+  if (error) return json({ error: error.message }, 500);
+  return json({ items: data ?? [] });
+}
+
+async function handleAgenteConsultaAdd(body: Record<string, unknown>) {
+  const pregunta = typeof body.pregunta === "string" ? body.pregunta.trim() : "";
+  if (!pregunta) return json({ error: "pregunta requerida" }, 400);
+
+  const { error } = await supabase
+    .from("wa_agente_consultas")
+    .insert({
+      pregunta,
+      contexto: (body.contexto as string) || null,
+      origen: (body.origen as string) || "agente",
+    });
+
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+async function handleAgenteConsultaAnswer(body: Record<string, unknown>) {
+  const id = body.id as number | undefined;
+  if (!id) return json({ error: "id requerido" }, 400);
+
+  const respuesta = typeof body.respuesta === "string" ? body.respuesta.trim() : "";
+  const categoria = body.categoria as string | undefined;
+  if (!respuesta) return json({ error: "respuesta requerida" }, 400);
+  if (categoria && !["objetivo", "limite", "permiso"].includes(categoria)) {
+    return json({ error: "categoria inválida" }, 400);
+  }
+
+  const { error } = await supabase
+    .from("wa_agente_consultas")
+    .update({
+      respuesta,
+      categoria: categoria ?? null,
+      estado: "respondida",
+      answered_at: new Date().toISOString(),
+      answered_by: (body.answered_by as string) || "admin",
+    })
+    .eq("id", id);
+
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+async function handleAgenteConsultaDelete(id?: number) {
+  if (!id) return json({ error: "id requerido" }, 400);
+  const { error } = await supabase
+    .from("wa_agente_consultas")
+    .delete()
+    .eq("id", id);
   if (error) return json({ error: error.message }, 500);
   return json({ ok: true });
 }
@@ -937,10 +1061,7 @@ async function handleGeneral(
   text: string,
   apiKey: string,
 ): Promise<string> {
-  const system = `Sos el asistente virtual de Loekemeyer Hnos, una empresa mayorista de artículos de cocina y bazar.
-Estás hablando con ${customer.business_name} por WhatsApp.
-Respondé de forma breve, amable y profesional. Si no sabés algo, sugirí contactar a ventas.
-No inventes información sobre pedidos ni precios.`;
+  const system = await buildAgenteSystem(customer.business_name);
 
   return conversationalReply(apiKey, system, [
     { role: "user", content: text },
