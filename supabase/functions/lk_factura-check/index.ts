@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 
 // lk_factura-check — Etapa 5 del pipeline de facturación (PaginaLK).
 //
@@ -71,6 +72,70 @@ async function tplStatus(name: string): Promise<string | null> {
     } catch { /* si no se puede verificar, no bloquea */ }
   }
   return _tplStatus[name] ?? null;
+}
+
+// ── Lista blanca de envío (wa_envio_contactos). El bot SÓLO envía a estos números. ──
+async function whitelist(): Promise<string[]> {
+  const { data } = await paginalk.from("wa_envio_contactos").select("phone");
+  return (data ?? []).map((r: { phone: string }) => r.phone);
+}
+
+// ── Combinación REAL de PDFs (pdf-lib) — mismo patrón que lk_factura-consolidar ──
+// deno-lint-ignore no-explicit-any
+async function combinarPdfs(g: any, srcUsado: string, cuit: string, fecha: string) {
+  const bucket = srcUsado === "ch" ? "isis-ch" : "isis-lk";
+  const { data: paths } = await g.rpc("wa_sim_factura_paths", { p_source: srcUsado, p_cuit: cuit, p_fecha: fecha });
+  const list = (paths ?? []) as string[];
+  if (!list.length) return null;
+  const merged = await PDFDocument.create();
+  let ok = 0;
+  for (const p of list) {
+    try {
+      const dl = await g.storage.from(bucket).download(p);
+      if (dl.error || !dl.data) continue;
+      const buf = new Uint8Array(await dl.data.arrayBuffer());
+      const src = await PDFDocument.load(buf);
+      const pages = await merged.copyPages(src, src.getPageIndices());
+      pages.forEach((pg: unknown) => merged.addPage(pg as never));
+      ok++;
+    } catch { /* omite PDF ilegible */ }
+  }
+  if (!ok) return null;
+  const bytes = await merged.save();
+  const outPath = `sim/${cuit}/combinada_${fecha}.pdf`;
+  const up = await g.storage.from(bucket).upload(outPath, bytes, { contentType: "application/pdf", upsert: true });
+  if (up.error) return { path: outPath, url: null, n: ok, error: up.error.message };
+  const { data: signed } = await g.storage.from(bucket).createSignedUrl(outPath, 3600);
+  return { path: outPath, url: signed?.signedUrl ?? null, n: ok };
+}
+
+// ── Envío REAL por WhatsApp (Meta Cloud API) con header documento + cuerpo plantilla ──
+async function waPhoneId(): Promise<string> {
+  return Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? (await getSetting("wa_phone_number_id")) ?? "";
+}
+// deno-lint-ignore no-explicit-any
+async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null) {
+  const token = await metaToken(), phoneId = await waPhoneId();
+  if (!token) return { error: "sin WHATSAPP_ACCESS_TOKEN" };
+  if (!phoneId) return { error: "sin wa_phone_number_id" };
+  const components: unknown[] = [];
+  if (pdfUrl) {
+    components.push({ type: "header", parameters: [{ type: "document", document: { link: pdfUrl, filename: "facturas.pdf" } }] });
+  }
+  components.push({ type: "body", parameters: (mensaje.params ?? []).map((t: string) => ({ type: "text", text: t })) });
+  const payload = {
+    messaging_product: "whatsapp", to, type: "template",
+    template: { name: mensaje.template, language: { code: mensaje.language || "es_AR" }, components },
+  };
+  try {
+    const res = await fetch(`${META_API}/${phoneId}/messages`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data?.error?.message || `HTTP ${res.status}`, raw: data };
+    return { ok: true, wamid: data?.messages?.[0]?.id ?? null };
+  } catch (e) { return { error: String(e) }; }
 }
 
 // ── Lógica de descuento/plantilla (guía docs/plantillas_whatsapp.md) ──
@@ -158,11 +223,11 @@ serve(async (req) => {
     const g = await gp();
 
     // Mapear cuit → grupo (cod|destino|dia). Para prueba, desde wa_sim_control (ISIS).
-    let cod = "", direccion = "", metodoCtrl = "";
+    let cod = "", direccion = "", metodoCtrl = "", destPhone = "";
     if (isTest) {
       const { data: ctrl } = await g.from("wa_sim_control").select("*").eq("cuit", cuit).eq("fecha", fecha).maybeSingle();
       if (!ctrl) return json({ skipped: "sin_control", cuit });
-      cod = ctrl.cod_cliente; direccion = ctrl.direccion; metodoCtrl = ctrl.metodo;
+      cod = ctrl.cod_cliente; direccion = ctrl.direccion; metodoCtrl = ctrl.metodo; destPhone = ctrl.dest_phone || "";
     } else {
       return json({ skipped: "real_no_implementado", cuit });
     }
@@ -209,19 +274,41 @@ serve(async (req) => {
 
     const total_sum = facturas.reduce((s: number, f: Record<string, unknown>) => s + Number(f.total || 0), 0);
 
-    // Entregar al destino según modo. Hoy: módulo de prueba (desvío). El grupo ya quedó
-    // marcado enviado por el claim atómico; si la entrega falla, lo liberamos.
+    // ── Combinación REAL de los PDFs (se prueba de verdad aunque no se envíe) ──
+    let pdfCombinado = null;
+    if (mensaje && !multisource && !metodoMixto) {
+      pdfCombinado = await combinarPdfs(g, srcUsado, cuit, fecha);
+      mensaje.pdf_combinado = pdfCombinado ? { path: pdfCombinado.path, n: pdfCombinado.n, ok: !!pdfCombinado.url } : null;
+    }
+
+    // ── Envío REAL por WhatsApp — SÓLO a números de la lista blanca (imperativo de seguridad) ──
+    // Gate: hay número destino + plantilla lista (estado 'delivered') + número autorizado.
+    // Sin dest_phone (ej. Avisos automáticos) NUNCA se envía: queda en el módulo.
+    let envio = null;
+    if (estado === "delivered" && destPhone) {
+      const wl = await whitelist();
+      if (!wl.includes(destPhone)) {
+        estado = "held_no_whitelist";
+      } else {
+        envio = await enviarWhatsapp(destPhone, mensaje, pdfCombinado?.url ?? null);
+        estado = envio.ok ? "sent_whatsapp" : "error_envio";
+        mensaje.envio = { to: destPhone, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
+      }
+    }
+
+    // Registrar en el módulo (siempre, para trazabilidad — enviado o no).
     const { error: inbErr } = await paginalk.from("wa_sim_inbox").insert({
       source: srcUsado, grupo_key: grupoKey, cuit, cod_cliente: cod,
       business_name: grupo.razon_social ?? "CLIENTE SIMULACIÓN", fecha,
       n_facturas: facturas.length, total_sum, metodo, estado, mensaje,
     });
     if (inbErr) {
-      await g.from("wa_grupo_listo").update({ enviado: false, enviado_at: null }).eq("grupo_key", grupoKey);
+      // Si NO se envió por WhatsApp, liberamos el claim para reintentar. Si ya se envió, no.
+      if (estado !== "sent_whatsapp") await g.from("wa_grupo_listo").update({ enviado: false, enviado_at: null }).eq("grupo_key", grupoKey);
       return json({ error: "entrega inbox: " + inbErr.message }, 500);
     }
 
-    return json({ ok: true, delivered: true, destino: modo, estado, grupo_key: grupoKey, multisource, source: srcUsado, n_facturas: facturas.length, mensaje });
+    return json({ ok: true, delivered: true, destino: destPhone ? "whatsapp" : modo, estado, grupo_key: grupoKey, multisource, source: srcUsado, n_facturas: facturas.length, dest_phone: destPhone || null, envio, mensaje });
   } catch (err) {
     console.error("lk_factura-check error:", err);
     return json({ error: err instanceof Error ? err.message : String(err) }, 500);

@@ -195,6 +195,7 @@
     <div class="active" id="navChat" onclick="showPage('chat')" style="cursor:pointer">💬 Chat Bot</div>
     <div id="navTemplates" onclick="showPage('templates')" style="cursor:pointer">📋 Plantillas WA</div>
     <div id="navNotif" onclick="showPage('notif')" style="cursor:pointer">🔔 Avisos automáticos</div>
+    <div id="navFuego" onclick="showPage('fuego')" style="cursor:pointer">🔥 Prueba de fuego</div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
@@ -343,6 +344,58 @@
       </div>
     </div>
 
+    <!-- Page: Prueba de fuego (envío real por WhatsApp, sólo a la lista blanca) -->
+    <div class="page" id="pageFuego">
+      <div class="chat-container">
+        <div class="chat-header" style="background:#b91c1c;">
+          <div class="avatar" style="background:#ef4444;">🔥</div>
+          <div class="info">
+            <h2>Prueba de fuego</h2>
+            <span id="fuegoStatus">Envío REAL por WhatsApp — sólo a números autorizados</span>
+          </div>
+          <button class="clear-btn" onclick="notifReset(); loadFuego();">🗑️ Limpiar</button>
+        </div>
+        <div class="chat-messages" id="fuegoMessages"></div>
+        <div class="chat-input" style="flex-direction:column; align-items:stretch; gap:0.5rem; padding:0.6rem 0.8rem;">
+          <div style="display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center;align-items:center;">
+            <label style="font-size:0.72rem;color:var(--muted);">Enviar a:</label>
+            <select id="fuegoDest" style="padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;min-width:180px;">
+              <option value="">— sin contactos —</option>
+            </select>
+            <select id="fuegoSource" style="padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;">
+              <option value="lk">Fuente: LK</option>
+              <option value="ch">Fuente: Chef</option>
+            </select>
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);text-align:center;">Tocá un modelo → pedido de prueba → pipeline real → <b>WhatsApp al número elegido</b>:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:center;">
+            <button class="config-btn small" onclick="fuegoRun('contado',1)">Contado ×1 <span class="tpl-tag">_s</span></button>
+            <button class="config-btn small" onclick="fuegoRun('contado',3)">Contado ×3 <span class="tpl-tag">_p</span></button>
+            <button class="config-btn small" onclick="fuegoRun('credito_31_45',1)">Crédito ×1 <span class="tpl-tag">_s</span></button>
+            <button class="config-btn small" onclick="fuegoRun('credito_31_45',3)">Crédito ×3 <span class="tpl-tag">_p</span></button>
+            <button class="config-btn small" onclick="fuegoRun('echeq_90',1)">E-check ×1 <span class="tpl-tag">_s</span></button>
+            <button class="config-btn small" onclick="fuegoRun('echeq_90',3)">E-check ×3 <span class="tpl-tag">_p</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-panel" id="fuegoPanel">
+        <h4>📇 Contactos autorizados</h4>
+        <div class="notif-hint" style="border-left-color:#ef4444;">
+          <b>Regla de seguridad:</b> el bot <b>SÓLO</b> envía a los números de esta lista.
+          Lista vacía = no envía a nadie. Se normaliza el formato AR automáticamente
+          (agrega <code>549</code>, entiende <code>011</code>/<code>15</code>, etc.).
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.35rem;margin:0.5rem 0;">
+          <input id="fuegoLabel" placeholder="Nombre (opcional)" style="padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;">
+          <input id="fuegoPhone" oninput="fuegoPreview()" placeholder="Teléfono (ej: +54 9 11 6864-8618)" style="padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;">
+          <div id="fuegoPhonePrev" style="font-size:0.7rem;color:var(--muted);min-height:1em;"></div>
+          <button class="config-btn primary small" onclick="fuegoAddContact()">➕ Agregar contacto</button>
+        </div>
+        <div id="fuegoContacts"><div class="bl-empty" style="font-size:0.8rem;">Sin contactos.</div></div>
+      </div>
+    </div>
+
     <!-- Page: Panel de Control -->
     <div class="page" id="pageConfig">
       <div class="config-page">
@@ -482,13 +535,16 @@ function showPage(page) {
   document.getElementById("pageChat").classList.toggle("active", page === "chat");
   document.getElementById("pageTemplates").classList.toggle("active", page === "templates");
   document.getElementById("pageNotif").classList.toggle("active", page === "notif");
+  document.getElementById("pageFuego").classList.toggle("active", page === "fuego");
   document.getElementById("pageConfig").classList.toggle("active", page === "config");
   document.getElementById("navChat").classList.toggle("active", page === "chat");
   document.getElementById("navTemplates").classList.toggle("active", page === "templates");
   document.getElementById("navNotif").classList.toggle("active", page === "notif");
+  document.getElementById("navFuego").classList.toggle("active", page === "fuego");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   if (page === "config") loadConfigPage();
   if (page === "notif") loadNotif();
+  if (page === "fuego") loadFuego();
 }
 
 // --- Chat ---
@@ -1132,7 +1188,143 @@ function waPreviewHtml(m, nFacturas, source) {
     : `<div class="wa-tpl-tag">⚠️ no pude leer la plantilla de Meta — reconstrucción local · ${esc(m.template || "")}</div>`;
   return `${doc}${cuerpo}${tag}`;
 }
+
+// ══════════════ Prueba de fuego (envío real por WhatsApp, sólo lista blanca) ══════════════
+function fuegoAppend(html, cls) {
+  const box = document.getElementById("fuegoMessages");
+  const div = document.createElement("div");
+  div.className = "msg " + (cls || "system");
+  div.innerHTML = html;
+  box.appendChild(div);
+  const clr = document.createElement("div"); clr.style.clear = "both"; box.appendChild(clr);
+  box.scrollTop = box.scrollHeight;
+}
+
+function loadFuego() {
+  const box = document.getElementById("fuegoMessages");
+  if (!box.dataset.init) {
+    box.dataset.init = "1";
+    fuegoAppend('🔥 <b>Prueba de fuego</b>: genera un pedido de prueba que recorre el pipeline REAL y ' +
+      'entrega la factura <b>por WhatsApp</b> al número que elijas. <b>Sólo</b> puede enviar a números de la ' +
+      'lista de contactos autorizados (panel derecho). Elegí un contacto y tocá un modelo de plantilla.', "system");
+  }
+  ensureMetaTemplates();
+  fuegoRefreshContacts();
+}
+
+async function fuegoRefreshContacts() {
+  try {
+    const d = await notifCall({ action: "contact_list" });
+    const items = d.items || [];
+    const list = document.getElementById("fuegoContacts");
+    const sel = document.getElementById("fuegoDest");
+    if (!items.length) {
+      list.innerHTML = '<div class="bl-empty" style="font-size:0.8rem;">Sin contactos. Agregá uno para poder enviar.</div>';
+    } else {
+      list.innerHTML = items.map((c) =>
+        `<div class="ngroup" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+          <div><div style="font-weight:600;font-size:0.82rem;">${esc(c.label || "(sin nombre)")}</div>
+          <div style="font-size:0.72rem;color:#6b7280;">+${esc(c.phone)}</div></div>
+          <button class="config-btn small" style="color:var(--danger);" onclick="fuegoRemoveContact('${esc(c.id)}')">✕</button>
+        </div>`).join("");
+    }
+    const cur = sel.value;
+    sel.innerHTML = items.length
+      ? items.map((c) => `<option value="${esc(c.phone)}">${esc(c.label || c.phone)} · +${esc(c.phone)}</option>`).join("")
+      : '<option value="">— sin contactos —</option>';
+    if (cur && items.some((c) => c.phone === cur)) sel.value = cur;
+  } catch (e) { /* silent */ }
+}
+
+let _prevTimer = null;
+function fuegoPreview() {
+  clearTimeout(_prevTimer);
+  const raw = document.getElementById("fuegoPhone").value;
+  const el = document.getElementById("fuegoPhonePrev");
+  if (!raw.trim()) { el.textContent = ""; return; }
+  _prevTimer = setTimeout(async () => {
+    try {
+      const r = await notifCall({ action: "contact_preview", phone: raw });
+      el.innerHTML = r.phone
+        ? `→ se guardará como <b>+${esc(r.phone)}</b>`
+        : `<span style="color:var(--danger);">⚠️ ${esc(r.note || "número inválido")}</span>`;
+    } catch (e) { el.textContent = ""; }
+  }, 300);
+}
+
+async function fuegoAddContact() {
+  const phone = document.getElementById("fuegoPhone").value;
+  const label = document.getElementById("fuegoLabel").value;
+  if (!phone.trim()) return;
+  try {
+    const d = await notifCall({ action: "contact_add", phone, label });
+    document.getElementById("fuegoPhone").value = "";
+    document.getElementById("fuegoLabel").value = "";
+    document.getElementById("fuegoPhonePrev").textContent = "";
+    await fuegoRefreshContacts();
+    fuegoAppend(`✅ Contacto agregado: <b>+${esc(d.phone)}</b>`, "system");
+  } catch (e) { alert("No se pudo agregar: " + e.message); }
+}
+
+async function fuegoRemoveContact(id) {
+  if (!confirm("¿Sacar este contacto de la lista autorizada?")) return;
+  try { await notifCall({ action: "contact_remove", id }); await fuegoRefreshContacts(); }
+  catch (e) { alert("No se pudo sacar: " + e.message); }
+}
+
+const FUEGO_EST = {
+  sent_whatsapp: { icon: "✅", txt: "Enviado por WhatsApp", cls: "success" },
+  error_envio: { icon: "❌", txt: "Error al enviar (Meta)", cls: "danger" },
+  held_no_whitelist: { icon: "🚫", txt: "Bloqueado: número no autorizado", cls: "danger" },
+  held_tpl_no_aprobada: { icon: "🚫", txt: "Bloqueado: plantilla no aprobada en Meta", cls: "danger" },
+  held_multisource: { icon: "⚠️", txt: "Retenido: multi-fuente (LK+Chef)", cls: "warning" },
+  held_metodo_mixto: { icon: "⚠️", txt: "Retenido: método de pago mixto", cls: "warning" },
+  delivered: { icon: "📨", txt: "Listo (sin envío)", cls: "success" },
+};
+
+async function fuegoRun(metodo, n) {
+  const dest = document.getElementById("fuegoDest").value;
+  const source = document.getElementById("fuegoSource").value || "lk";
+  if (!dest) { alert("Elegí un contacto de la lista para enviar."); return; }
+  try {
+    await ensureMetaTemplates();
+    const destLabel = document.getElementById("fuegoDest").selectedOptions[0]?.textContent || dest;
+    fuegoAppend(`🔥 <b>Pedido de prueba</b> ${esc(METODO_LABEL[metodo] || metodo)} ×${n} ` +
+      `<span class="tpl-tag">${esc((source === "ch" ? "Chef" : "LK"))}</span> → <b>+${esc(dest)}</b><br>` +
+      `<span style="font-size:0.72rem;color:#6b7280;">Sembrando pedido, facturando NPs, combinando PDFs y enviando…</span>`, "out");
+    const d = await notifCall({ action: "fuego_run", metodo, np_esperados: n, source, dest_phone: dest });
+    // Esperar el aviso final en el inbox (entrega asíncrona por el trigger real).
+    const g = await fuegoWaitAviso(d.cuit);
+    const av = g && g.aviso ? g.aviso : (d.check && d.check.mensaje ? { estado: d.check.estado, mensaje: d.check.mensaje, n_facturas: d.check.n_facturas } : null);
+    if (!av) { fuegoAppend("⏳ Procesando la entrega… actualizá en unos segundos.", "system"); return; }
+    const est = FUEGO_EST[av.estado] || { icon: "•", txt: av.estado || "estado desconocido", cls: "muted" };
+    const m = av.mensaje || {};
+    const envio = m.envio || null;
+    const pdf = m.pdf_combinado || null;
+    // Estado del envío
+    let head = `<b style="color:var(--${est.cls});">${est.icon} ${esc(est.txt)}</b>`;
+    if (av.estado === "sent_whatsapp" && envio && envio.wamid) head += `<br><span style="font-size:0.71rem;color:#6b7280;">wamid: ${esc(envio.wamid)}</span>`;
+    if (av.estado === "error_envio" && envio && envio.error) head += `<br><span style="font-size:0.71rem;color:var(--danger);">${esc(envio.error)}</span>`;
+    if (pdf) head += `<br><span style="font-size:0.71rem;color:#6b7280;">📎 PDF combinado REAL: ${pdf.n} factura(s) ${pdf.ok ? "✔️" : "(sin URL)"}</span>`;
+    fuegoAppend(head, "stage");
+    // Previsualización del mensaje tal cual va a WhatsApp
+    if (m.template) fuegoAppend(waPreviewHtml(m, av.n_facturas || 1, source), "in");
+  } catch (e) { fuegoAppend("⚠️ " + esc(e.message), "system"); }
+}
+
+async function fuegoWaitAviso(cuit) {
+  for (let i = 0; i < 10; i++) {
+    try {
+      const st = await notifCall({ action: "sim_state" });
+      const g = (st.items || []).find((x) => x.cuit === cuit);
+      if (g && g.aviso) return g;
+    } catch (e) { /* retry */ }
+    await new Promise((r) => setTimeout(r, 800));
+  }
+  try { const st = await notifCall({ action: "sim_state" }); return (st.items || []).find((x) => x.cuit === cuit) || null; }
+  catch (e) { return null; }
+}
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.7.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.8.0</div>
 </body>
 </html>

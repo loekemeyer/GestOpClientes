@@ -42,20 +42,22 @@ create table if not exists public.wa_sim_control (
   sim_id uuid primary key default gen_random_uuid(), cuit text not null, fecha date not null,
   np_esperados integer not null default 1, business_name text, metodo text not null default 'no_decidido',
   cod_cliente text, direccion text, tanda text, source text default 'lk', np_list text[] default '{}',
-  created_at timestamptz not null default now(), unique (cuit, fecha));
+  dest_phone text, created_at timestamptz not null default now(), unique (cuit, fecha));
 alter table public.wa_sim_control enable row level security;
+alter table public.wa_sim_control add column if not exists dest_phone text;  -- destino WhatsApp (Prueba de fuego)
 
 -- ── Driver: sembrar pedido en la PPP + snapshot (recorrido real) ──
-create or replace function public.wa_sim_seed_order(p_cuit text, p_np_esperados int, p_metodo text, p_source text)
+-- p_dest_phone: destino WhatsApp (Prueba de fuego). NULL en Avisos automáticos (no envía).
+create or replace function public.wa_sim_seed_order(p_cuit text, p_np_esperados int, p_metodo text, p_source text, p_dest_phone text default null)
 returns jsonb language plpgsql security definer set search_path to 'public' as $$
 declare v_cod text := '99999'; v_dir text := 'SIM-'||p_cuit; v_tanda text := 'SIM'||substr(p_cuit,6);
         v_np text; v_nps text[] := '{}'; i int;
 begin
   if p_cuit is null or p_cuit not like '30999%' then raise exception 'solo cuit de simulacion'; end if;
-  insert into public.wa_sim_control(cuit,fecha,np_esperados,business_name,metodo,cod_cliente,direccion,tanda,source)
-  values (p_cuit,current_date,p_np_esperados,'CLIENTE SIMULACIÓN',p_metodo,v_cod,v_dir,v_tanda,coalesce(p_source,'lk'))
+  insert into public.wa_sim_control(cuit,fecha,np_esperados,business_name,metodo,cod_cliente,direccion,tanda,source,dest_phone)
+  values (p_cuit,current_date,p_np_esperados,'CLIENTE SIMULACIÓN',p_metodo,v_cod,v_dir,v_tanda,coalesce(p_source,'lk'),p_dest_phone)
   on conflict (cuit,fecha) do update set np_esperados=excluded.np_esperados, metodo=excluded.metodo,
-    source=excluded.source, direccion=excluded.direccion, tanda=excluded.tanda;
+    source=excluded.source, direccion=excluded.direccion, tanda=excluded.tanda, dest_phone=excluded.dest_phone;
   for i in 1..p_np_esperados loop
     v_np := '9990'||substr(p_cuit,6)||i::text; v_nps := array_append(v_nps, v_np);
     insert into public."PPP_Programacion_Diaria"(np,cod,tanda,tipo,fecha_recep,razon_social,m3,direccion,zona,fecha_entrega)
@@ -64,7 +66,26 @@ begin
     values (v_np,v_cod,'CLIENTE SIMULACIÓN',v_dir,null,p_metodo,now()) on conflict (np) do nothing;
   end loop;
   update public.wa_sim_control set np_list=v_nps where cuit=p_cuit and fecha=current_date;
-  return jsonb_build_object('cuit',p_cuit,'cod',v_cod,'direccion',v_dir,'tanda',v_tanda,'nps',v_nps);
+  return jsonb_build_object('cuit',p_cuit,'cod',v_cod,'direccion',v_dir,'tanda',v_tanda,'nps',v_nps,'dest_phone',p_dest_phone);
+end $$;
+
+-- ── Driver: teléfono destino del pedido de prueba (lo lee lk_factura-check) ──
+create or replace function public.wa_sim_dest_phone(p_cuit text)
+returns text language sql security definer set search_path to 'public' as $$
+  select dest_phone from public.wa_sim_control where cuit=p_cuit and fecha=current_date;
+$$;
+
+-- ── Driver: paths de los PDFs de un pedido (para la combinación REAL en lk_factura-check) ──
+create or replace function public.wa_sim_factura_paths(p_source text, p_cuit text, p_fecha date)
+returns text[] language plpgsql security definer set search_path to 'public' as $$
+declare v_schema text; v_paths text[];
+begin
+  v_schema := case p_source when 'ch' then 'isis_ch' else 'isis_lk' end;
+  execute format($f$select coalesce(array_agg(storage_path order by numero),'{}')
+    from %I.documentos
+    where contraparte_cuit=$1 and fecha=$2 and familia='factura_venta' and storage_path is not null$f$, v_schema)
+    into v_paths using p_cuit, p_fecha;
+  return v_paths;
 end $$;
 
 -- ── Driver: facturar una NP (dispara el trigger real de grupo completo). Idempotente. ──
