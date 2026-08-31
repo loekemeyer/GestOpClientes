@@ -146,43 +146,29 @@
     .bl-add-row input:focus { border-color: var(--primary); }
     .bl-empty { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 1.5rem 0; }
 
-    /* Avisos automáticos (simulador facturación) */
-    .notif-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 0.9rem 1.1rem; margin-bottom: 1.2rem; font-size: 0.85rem; line-height: 1.5; color: #1e3a5f; max-width: 760px; }
-    .notif-banner b { color: #1e40af; }
-    .notif-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 1.2rem; }
-    .sim-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; max-width: 1100px; }
-    .sim-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-    .sim-card.done { border-color: var(--wa-green); }
-    .sim-card.sent { border-color: var(--muted); opacity: 0.85; }
-    .sim-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.6rem; }
-    .sim-client { font-weight: 600; font-size: 0.95rem; }
-    .sim-sub { font-size: 0.73rem; color: var(--muted); font-family: monospace; margin-top: 0.1rem; }
-    .metodo-badge { display: inline-block; font-size: 0.68rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 20px; white-space: nowrap; }
+    /* Avisos automáticos (simulador facturación, estilo chat) */
+    .notif-hint { font-size: 0.75rem; color: var(--muted); line-height: 1.4; margin-bottom: 1rem; }
+    .notif-hint code { background: #f1f5f9; padding: 0 3px; border-radius: 3px; font-size: 0.72rem; }
+    .metodo-badge { display: inline-block; font-size: 0.66rem; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 20px; white-space: nowrap; }
     .metodo-badge.contado { background: #dcfce7; color: #15803d; }
     .metodo-badge.credito { background: #fef9c3; color: #a16207; }
     .metodo-badge.echeq { background: #ede9fe; color: #6d28d9; }
-    .sim-progress-wrap { margin: 0.7rem 0 0.5rem; }
-    .sim-progress-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.3rem; }
-    .sim-bar { height: 9px; background: #eef2f7; border-radius: 20px; overflow: hidden; }
+    .ngroup { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.7rem; margin-bottom: 0.6rem; }
+    .ngroup.done { border-color: var(--wa-green); background: #f7fef9; }
+    .ngroup-head { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; }
+    .ngroup-cuit { font-size: 0.68rem; color: var(--muted); font-family: monospace; }
+    .sim-bar { height: 8px; background: #eef2f7; border-radius: 20px; overflow: hidden; margin: 0.35rem 0; }
     .sim-bar > span { display: block; height: 100%; background: var(--wa-green); border-radius: 20px; transition: width 0.35s ease; }
     .sim-bar.waiting > span { background: var(--warning); }
-    .sim-facturas { list-style: none; margin: 0.6rem 0; font-size: 0.78rem; }
-    .sim-facturas li { display: flex; justify-content: space-between; padding: 0.2rem 0; border-bottom: 1px dashed var(--border); font-family: monospace; }
-    .sim-facturas li:last-child { border-bottom: none; }
-    .sim-state { font-size: 0.78rem; font-weight: 600; padding: 0.35rem 0.6rem; border-radius: 6px; margin: 0.5rem 0; text-align: center; }
-    .sim-state.waiting { background: #fffbeb; color: #b45309; }
-    .sim-state.complete { background: #f0fdf4; color: var(--success); }
-    .sim-state.sent { background: #f1f5f9; color: #475569; }
-    .sim-card-btns { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
-    /* WhatsApp preview bubble */
-    .wa-preview { background: var(--wa-bg); border-radius: 10px; padding: 0.8rem; margin-top: 0.7rem; }
-    .wa-bubble { background: var(--wa-out); border-radius: 8px; border-top-right-radius: 0; padding: 0.6rem 0.7rem; font-size: 0.82rem; line-height: 1.45; white-space: pre-wrap; box-shadow: 0 1px 1px rgba(0,0,0,0.08); }
-    .wa-doc { display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.05); border-radius: 6px; padding: 0.4rem 0.5rem; margin-bottom: 0.4rem; font-size: 0.76rem; color: #334155; }
-    .wa-tpl-tag { font-size: 0.68rem; color: var(--muted); margin-top: 0.4rem; font-family: monospace; }
-    .desglose { width: 100%; font-size: 0.75rem; margin-top: 0.6rem; border-collapse: collapse; }
-    .desglose td { padding: 0.2rem 0.3rem; border-bottom: 1px solid var(--border); }
-    .desglose td:last-child { text-align: right; font-family: monospace; font-weight: 600; }
-    .desglose tr.hi td { color: var(--success); }
+    .ngroup-prog { font-size: 0.72rem; color: var(--muted); }
+    /* Mensajes del chat: preview WhatsApp dentro de una burbuja "in" */
+    #notifMessages .msg.in .wa-doc { display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.05); border-radius: 6px; padding: 0.4rem 0.5rem; margin-bottom: 0.5rem; font-size: 0.75rem; color: #334155; }
+    #notifMessages .wa-tpl-tag { font-size: 0.66rem; color: var(--muted); margin-top: 0.5rem; font-family: monospace; word-break: break-all; }
+    #notifMessages .desglose { width: 100%; font-size: 0.74rem; margin-top: 0.5rem; border-collapse: collapse; }
+    #notifMessages .desglose td { padding: 0.18rem 0.3rem; border-bottom: 1px solid rgba(0,0,0,0.08); }
+    #notifMessages .desglose td:last-child { text-align: right; font-family: monospace; font-weight: 600; }
+    #notifMessages .desglose tr.hi td { color: #15803d; }
+    #notifMessages .msg.trigger { background: #ede9fe; color: #5b21b6; float: none; max-width: 90%; margin: 0.5rem auto; text-align: center; font-size: 0.8rem; font-weight: 600; border-radius: 6px; }
   </style>
 </head>
 <body>
@@ -311,29 +297,47 @@
       </div>
     </div>
 
-    <!-- Page: Avisos automáticos (simulador facturación) -->
+    <!-- Page: Avisos automáticos (simulador facturación, estilo chat) -->
     <div class="page" id="pageNotif">
-      <div class="config-page">
-        <h2>🔔 Avisos automáticos del bot</h2>
-        <div class="notif-banner">
-          Simulador del aviso proactivo <b>"tu pedido está facturado"</b>. Un pedido puede facturarse
-          en <b>varias facturas (NPs)</b>; el bot lleva rastro y <b>espera a que impacten TODAS</b> las
-          facturas del cliente antes de armar <b>un único aviso consolidado</b> (misma lógica de descuento
-          por método de pago que producción: contado / crédito / e-check).<br>
-          ⚠️ Las plantillas de WhatsApp <b>todavía no están aprobadas en Meta</b>: acá <b>no se envía</b> nada
-          real. Es una simulación aislada (tabla <code>wa_sim_facturas</code>) que no toca las colas de producción.
+      <div class="chat-container">
+        <div class="chat-header" style="background:#5b21b6;">
+          <div class="avatar" style="background:#7c3aed;">🔔</div>
+          <div class="info">
+            <h2>Avisos automáticos</h2>
+            <span id="notifStatus">Simulador de facturación → trigger real</span>
+          </div>
+          <button class="clear-btn" onclick="notifReset()">🗑️ Limpiar</button>
         </div>
+        <div class="chat-messages" id="notifMessages"></div>
+        <div class="chat-input" style="flex-wrap:wrap; gap:0.5rem; justify-content:center;">
+          <button class="config-btn primary small" onclick="notifNew()">🆕 Simular pedido</button>
+          <select id="notifMetodo" style="padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+            <option value="">Método: al azar</option>
+            <option value="contado">Contado</option>
+            <option value="credito_15_30">Crédito 15-30d</option>
+            <option value="credito_31_45">Crédito 31-45d</option>
+            <option value="credito_46_60">Crédito 46-60d</option>
+            <option value="echeq_90">E-check 90d</option>
+            <option value="echeq_120">E-check 120d</option>
+          </select>
+          <select id="notifN" style="padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+            <option value="">Facturas: al azar</option>
+            <option value="1">1 factura</option>
+            <option value="2">2 facturas</option>
+            <option value="3">3 facturas</option>
+            <option value="4">4 facturas</option>
+          </select>
+        </div>
+      </div>
 
-        <div class="notif-actions">
-          <button class="config-btn primary" onclick="simNew()">🎲 Simular pedido nuevo</button>
-          <button class="config-btn small" onclick="simNewMulti()">📦 Simular pedido de 3 facturas</button>
-          <button class="config-btn danger small" onclick="simReset()">🗑️ Limpiar</button>
-          <span class="config-status" id="simStatus"></span>
+      <div class="control-panel" id="notifPanel">
+        <h4>🧪 Pedidos en curso</h4>
+        <div class="notif-hint">
+          Cada factura simulada sube un PDF al bucket <code>isis-lk</code> e inserta una fila en
+          <code>isis_lk.documentos</code> (marcada de prueba). El <b>trigger real</b> arma el aviso cuando
+          impactan todas. <b>No se envía WhatsApp.</b>
         </div>
-
-        <div id="simGrid" class="sim-grid">
-          <div class="bl-empty">Sin simulaciones. Tocá "Simular pedido nuevo" para empezar.</div>
-        </div>
+        <div id="notifGroups"><div class="bl-empty" style="font-size:0.8rem;">Sin pedidos. Tocá "Simular pedido".</div></div>
       </div>
     </div>
 
@@ -482,7 +486,7 @@ function showPage(page) {
   document.getElementById("navNotif").classList.toggle("active", page === "notif");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   if (page === "config") loadConfigPage();
-  if (page === "notif") loadSimList();
+  if (page === "notif") loadNotif();
 }
 
 // --- Chat ---
@@ -915,161 +919,143 @@ async function sendTemplateTest() {
   }
 }
 
-// --- Avisos automáticos: simulador de facturación consolidada ---
+// --- Avisos automáticos: simulador end-to-end (chat) ---
 const METODO_LABEL = {
   contado: "Contado", credito_15_30: "Crédito 15-30d", credito_31_45: "Crédito 31-45d",
   credito_46_60: "Crédito 46-60d", echeq_90: "E-check 90d", echeq_120: "E-check 120d",
   no_decidido: "Sin decidir",
 };
+function grupoDe(m) { m = m || ""; if (m.startsWith("credito")) return "credito"; if (m.startsWith("echeq")) return "echeq"; return "contado"; }
 
-async function simCall(body) {
+async function notifCall(body) {
   const { data, error } = await sb.functions.invoke("lk_notif-sim", { body });
   if (error) throw new Error(error.message || "error");
   if (data && data.error) throw new Error(data.error);
   return data;
 }
 
-function setSimStatus(txt, cls) {
-  const el = document.getElementById("simStatus");
-  el.textContent = txt;
-  el.className = "config-status" + (cls ? " " + cls : "");
-  if (txt) setTimeout(() => { if (el.textContent === txt) el.textContent = ""; }, 4000);
+function notifAppend(html, cls) {
+  const box = document.getElementById("notifMessages");
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.innerHTML = html;
+  box.appendChild(div);
+  const clr = document.createElement("div"); clr.style.clear = "both"; box.appendChild(clr);
+  box.scrollTop = box.scrollHeight;
 }
 
-async function loadSimList() {
-  const grid = document.getElementById("simGrid");
-  try {
-    const data = await simCall({ action: "sim_list" });
-    renderSimGrid(data.items || []);
-  } catch (e) {
-    grid.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar: ' + esc(e.message) + '</div>';
-  }
+function notifIntro() {
+  notifAppend('👋 Simulador de <b>avisos automáticos por facturación</b>.<br>' +
+    'Tocá <b>Simular pedido</b> (opcional: elegí método y cantidad) y después <b>Emitir factura</b> por cada una. ' +
+    'Cada factura sube un PDF a <code>isis-lk</code> e inserta una fila de prueba en <code>isis_lk.documentos</code>. ' +
+    'Cuando impactan todas, el <b>trigger real</b> arma el aviso consolidado. <b>No se envía WhatsApp.</b>', "system");
 }
 
-async function simNew(metodo, np) {
-  setSimStatus("Creando pedido...", "");
-  try {
-    const body = { action: "sim_new" };
-    if (metodo) body.metodo = metodo;
-    if (np) body.np_esperados = np;
-    await simCall(body);
-    setSimStatus("✓ Pedido simulado", "ok");
-    await loadSimList();
-  } catch (e) { setSimStatus("✗ " + e.message, "err"); }
+function loadNotif() {
+  const box = document.getElementById("notifMessages");
+  if (!box.dataset.init) { box.dataset.init = "1"; notifIntro(); }
+  notifRefresh();
 }
 
-function simNewMulti() { simNew("credito_15_30", 3); }
-
-async function simEmit(simId) {
+async function notifNew() {
+  const metodo = document.getElementById("notifMetodo").value;
+  const n = document.getElementById("notifN").value;
+  const body = { action: "sim_new" };
+  if (metodo) body.metodo = metodo;
+  if (n) body.np_esperados = parseInt(n, 10);
   try {
-    const data = await simCall({ action: "sim_emit", sim_id: simId });
-    if (data.disparo) {
-      setSimStatus("✅ Todas las facturas impactaron → aviso consolidado listo", "ok");
+    const d = await notifCall(body);
+    const s = d.sim;
+    notifAppend(`🆕 <b>Pedido simulado</b> — ${esc(s.business_name)} ` +
+      `<span class="metodo-badge ${grupoDe(s.metodo)}">${esc(METODO_LABEL[s.metodo] || s.metodo)}</span>` +
+      `<br><span style="font-size:0.72rem;color:#6b7280;">CUIT ${esc(s.cuit)} · espera ${s.np_esperados} factura(s)</span>`, "system");
+    await notifRefresh();
+  } catch (e) { notifAppend("⚠️ " + esc(e.message), "system"); }
+}
+
+async function notifEmit(cuit) {
+  try {
+    const d = await notifCall({ action: "sim_emit", cuit });
+    if (d.note) { await notifRefresh(); return; }
+    const e = d.emitted;
+    notifAppend(`📄 Factura <b>${esc(e.comprobante)}</b> — ${esc(e.total_fmt)}` +
+      `<br><span style="font-size:0.71rem;">impactó en <code>isis_lk.documentos</code> · PDF → <code>isis-lk/${esc(e.storage_path)}</code></span>`, "out");
+    if (d.disparo) {
+      notifAppend('🔔 Trigger <b>wa_sim_documentos_trg</b> disparado — impactaron todas las facturas del pedido', "trigger");
+      const st = await notifCall({ action: "sim_state" });
+      const g = (st.items || []).find((x) => x.cuit === cuit);
+      if (g && g.estado === "held_metodo_mixto") {
+        notifAppend("⚠️ <b>Método mixto</b> en el grupo — el bot lo retiene para revisión (estado <code>held_metodo_mixto</code>), no manda aviso.", "in");
+      } else if (g && g.mensaje) {
+        notifAppend(waPreviewHtml(g), "in");
+      }
     } else {
-      setSimStatus("📄 Factura emitida — faltan " + data.faltan, "");
+      notifAppend(`⏳ Falta ${d.faltan} factura(s) para completar el pedido…`, "system");
     }
-    await loadSimList();
-  } catch (e) { setSimStatus("✗ " + e.message, "err"); }
+    await notifRefresh();
+  } catch (err) { notifAppend("⚠️ " + esc(err.message), "system"); }
 }
 
-async function simSend(simId) {
+async function notifReset() {
+  if (!confirm("¿Borrar todas las facturas de prueba (documentos + PDFs en ISIS) y limpiar el chat?")) return;
   try {
-    const data = await simCall({ action: "sim_send", sim_id: simId });
-    setSimStatus("✔️ " + (data.nota || "Marcado como enviado (simulado)"), "ok");
-    await loadSimList();
-  } catch (e) { setSimStatus("✗ " + e.message, "err"); }
+    const d = await notifCall({ action: "sim_reset" });
+    document.getElementById("notifMessages").innerHTML = "";
+    document.getElementById("notifMessages").dataset.init = "";
+    notifIntro();
+    notifAppend(`🧹 Limpiado — ${d.borradas || 0} PDF(s) y las facturas de prueba borradas de ISIS.`, "system");
+    document.getElementById("notifMessages").dataset.init = "1";
+    await notifRefresh();
+  } catch (e) { notifAppend("⚠️ " + esc(e.message), "system"); }
 }
 
-async function simReset() {
-  if (!confirm("¿Borrar todas las simulaciones?")) return;
-  try { await simCall({ action: "sim_reset" }); await loadSimList(); setSimStatus("✓ Limpiado", "ok"); }
-  catch (e) { setSimStatus("✗ " + e.message, "err"); }
+async function notifRefresh() {
+  try {
+    const d = await notifCall({ action: "sim_state" });
+    renderNotifGroups(d.items || []);
+  } catch (e) { /* silent */ }
 }
 
-function renderSimGrid(items) {
-  const grid = document.getElementById("simGrid");
+function renderNotifGroups(items) {
+  const box = document.getElementById("notifGroups");
   if (!items.length) {
-    grid.innerHTML = '<div class="bl-empty">Sin simulaciones. Tocá "Simular pedido nuevo" para empezar.</div>';
+    box.innerHTML = '<div class="bl-empty" style="font-size:0.8rem;">Sin pedidos. Tocá "Simular pedido".</div>';
     return;
   }
-  grid.innerHTML = items.map(renderSimCard).join("");
-}
-
-function renderSimCard(s) {
-  const grupo = s.grupo || "contado";
-  const facturados = s.np_facturados || 0;
-  const esperados = s.np_esperados || 1;
-  const pct = Math.min(100, Math.round((facturados / esperados) * 100));
-  const done = s.estado === "complete" || s.estado === "sent_sim";
-  const sent = s.estado === "sent_sim";
-
-  const facturasList = (s.comprobantes || []).map((c, i) => {
-    const t = (s.totales || [])[i];
-    return `<li><span>${esc(c)}</span><span>${fmtArs(t)}</span></li>`;
-  }).join("");
-
-  let stateBox = "";
-  if (s.estado === "waiting") {
-    stateBox = `<div class="sim-state waiting">⏳ Esperando facturas — faltan ${esperados - facturados} de ${esperados}</div>`;
-  } else if (s.estado === "complete") {
-    stateBox = `<div class="sim-state complete">✅ Todas las facturas impactaron → aviso consolidado listo</div>`;
-  } else if (sent) {
-    stateBox = `<div class="sim-state sent">✔️ Enviado (simulado — plantilla pendiente de aprobación)</div>`;
-  }
-
-  const preview = done && s.mensaje ? renderWaPreview(s) : "";
-
-  let btns = "";
-  if (s.estado === "waiting") {
-    btns = `<button class="config-btn primary small" onclick="simEmit('${s.sim_id}')">📄 Emitir factura (${facturados + 1}/${esperados})</button>`;
-  } else if (s.estado === "complete") {
-    btns = `<button class="config-btn small" onclick="simSend('${s.sim_id}')">📤 Marcar enviado (simulado)</button>`;
-  }
-
-  return `<div class="sim-card ${done ? 'done' : ''} ${sent ? 'sent' : ''}">
-    <div class="sim-card-head">
-      <div>
-        <div class="sim-client">${esc(s.business_name || "Cliente")}</div>
-        <div class="sim-sub">CUIT ${esc(s.cuit_masked || "—")} · ${esc(s.fecha || "")}</div>
+  box.innerHTML = items.map((g) => {
+    const pct = Math.min(100, Math.round((g.np_facturados / g.np_esperados) * 100));
+    const done = g.disparado;
+    const btn = !done
+      ? `<button class="config-btn primary small" style="width:100%;margin-top:0.4rem;" onclick="notifEmit('${g.cuit}')">📄 Emitir factura (${g.np_facturados + 1}/${g.np_esperados})</button>`
+      : `<div style="font-size:0.72rem;color:var(--success);font-weight:600;margin-top:0.3rem;text-align:center;">✅ Aviso disparado</div>`;
+    return `<div class="ngroup ${done ? 'done' : ''}">
+      <div class="ngroup-head">
+        <span class="metodo-badge ${grupoDe(g.metodo)}">${esc(METODO_LABEL[g.metodo] || g.metodo)}</span>
+        <span class="ngroup-cuit">${esc(g.cuit)}</span>
       </div>
-      <span class="metodo-badge ${grupo}">${esc(METODO_LABEL[s.metodo] || s.metodo)}</span>
-    </div>
-    <div class="sim-progress-wrap">
-      <div class="sim-progress-label"><span>Facturas emitidas</span><span>${facturados}/${esperados}</span></div>
-      <div class="sim-bar ${s.estado === 'waiting' ? 'waiting' : ''}"><span style="width:${pct}%"></span></div>
-    </div>
-    ${facturasList ? `<ul class="sim-facturas">${facturasList}</ul>` : ""}
-    ${facturados > 1 ? `<div style="text-align:right;font-size:0.78rem;font-weight:600;">Total: ${fmtArs(s.total_sum)}</div>` : ""}
-    ${stateBox}
-    ${preview}
-    <div class="sim-card-btns">${btns}</div>
-  </div>`;
+      <div class="sim-bar ${done ? '' : 'waiting'}"><span style="width:${pct}%"></span></div>
+      <div class="ngroup-prog">${g.np_facturados}/${g.np_esperados} facturas emitidas</div>
+      ${btn}
+    </div>`;
+  }).join("");
 }
 
-function renderWaPreview(s) {
-  const m = s.mensaje || {};
+function waPreviewHtml(g) {
+  const m = g.mensaje || {};
   const d = m.desglose || {};
-  const texto = m.texto_legible || "";
-  const doc = `<div class="wa-doc">📎 factura_consolidada.pdf · ${s.n_facturas} factura(s)</div>`;
+  const doc = g.np_facturados > 1
+    ? `<div class="wa-doc">📎 factura_combinada.pdf · ${g.np_facturados} facturas</div>`
+    : `<div class="wa-doc">📎 factura.pdf</div>`;
   const desglose = `<table class="desglose">
     <tr><td>Total facturado (c/IVA)</td><td>${esc(d.total_civa || "")}</td></tr>
     <tr><td>Descuento del cliente</td><td>${esc(d.dto_cliente || "")}</td></tr>
     <tr><td>Monto a pagar</td><td>${esc(d.monto_cliente || "")}</td></tr>
     <tr class="hi"><td>Ahorro pagando al contado</td><td>${esc(d.ahorro_vs_contado || "")}</td></tr>
   </table>`;
-  return `<div class="wa-preview">
-    ${s.n_facturas > 1 ? doc : ""}
-    <div class="wa-bubble">${esc(texto)}</div>
-    ${desglose}
-    <div class="wa-tpl-tag">plantilla: ${esc(m.template || "")} · params: [${(m.params || []).map(esc).join(", ")}]</div>
-  </div>`;
-}
-
-function fmtArs(n) {
-  const v = Number(n || 0);
-  return "$" + v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${doc}<div style="white-space:pre-wrap;">${esc(m.texto_legible || "")}</div>${desglose}` +
+    `<div class="wa-tpl-tag">plantilla: ${esc(m.template || "")} · params: [${(m.params || []).map(esc).join(", ")}]</div>`;
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.5.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.6.0</div>
 </body>
 </html>
