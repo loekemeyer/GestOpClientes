@@ -37,20 +37,44 @@ function canonPhone(raw: string): string {
 }
 
 // ── Config Meta (secrets env → fallback app_settings) ──
+// Prioridad: mismos secrets que usa el bot de producción (lk_outbox-flush):
+// WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID. Así apunta SIEMPRE al número
+// vinculado actual (hoy el de N8N), no a credenciales viejas de app_settings.
 async function metaToken(): Promise<string> {
-  return Deno.env.get("WA_TOKEN")
+  return Deno.env.get("WHATSAPP_ACCESS_TOKEN")
+    ?? Deno.env.get("WA_TOKEN")
     ?? Deno.env.get("META_ACCESS_TOKEN")
+    ?? Deno.env.get("LK_WA_TOKEN")
     ?? (await getSetting("wa_token")) ?? "";
 }
 async function metaPhoneNumberId(): Promise<string> {
-  return Deno.env.get("WA_PHONE_NUMBER_ID")
+  return Deno.env.get("WHATSAPP_PHONE_NUMBER_ID")
+    ?? Deno.env.get("WA_PHONE_NUMBER_ID")
     ?? Deno.env.get("META_PHONE_NUMBER_ID")
+    ?? Deno.env.get("LK_WA_PHONE_ID")
     ?? (await getSetting("wa_phone_number_id")) ?? "";
 }
 async function metaWabaId(): Promise<string> {
   return Deno.env.get("WA_BUSINESS_ACCOUNT_ID")
     ?? Deno.env.get("META_BUSINESS_ACCOUNT_ID")
+    ?? Deno.env.get("WHATSAPP_BUSINESS_ACCOUNT_ID")
     ?? (await getSetting("wa_business_account_id")) ?? "";
+}
+
+// Deriva el WABA id a partir del phone_number_id (cuando no está seteado o quedó viejo).
+// GET /{phone_number_id}?fields=whatsapp_business_account
+async function wabaFromPhone(phoneNumberId: string, token: string): Promise<string> {
+  if (!phoneNumberId || !token) return "";
+  try {
+    const res = await fetch(
+      `${META_API}/${phoneNumberId}?fields=whatsapp_business_account`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const data = await res.json();
+    return data?.whatsapp_business_account?.id ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function json(data: unknown, status = 200) {
@@ -77,10 +101,20 @@ serve(async (req) => {
 });
 
 async function handleTemplatesList(statusFilter?: string) {
-  const wabaId = await metaWabaId();
   const token = await metaToken();
-  if (!wabaId) return json({ error: "WABA ID no configurado (WA_BUSINESS_ACCOUNT_ID o app_settings.wa_business_account_id)" }, 400);
-  if (!token) return json({ error: "WA_TOKEN no configurado" }, 400);
+  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
+
+  // WABA id: seteado, o derivado del phone_number_id actual (número vinculado hoy).
+  let wabaId = await metaWabaId();
+  const phoneNumberId = await metaPhoneNumberId();
+  let wabaSource = wabaId ? "config" : "";
+  if (!wabaId) {
+    wabaId = await wabaFromPhone(phoneNumberId, token);
+    wabaSource = "derivado_del_numero";
+  }
+  if (!wabaId) {
+    return json({ ok: false, error: "No se pudo determinar el WABA. Falta WA_BUSINESS_ACCOUNT_ID o WHATSAPP_PHONE_NUMBER_ID válido." }, 200);
+  }
 
   const params = new URLSearchParams({ limit: "100" });
   if (statusFilter ?? "APPROVED") params.set("status", statusFilter ?? "APPROVED");
@@ -89,7 +123,11 @@ async function handleTemplatesList(statusFilter?: string) {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();
-  if (data.error) return json({ error: data.error.message ?? JSON.stringify(data.error) }, 500);
+  if (data.error) {
+    const e = data.error;
+    const msg = `Meta (#${e.code ?? "?"}${e.error_subcode ? "/" + e.error_subcode : ""}): ${e.message ?? JSON.stringify(e)}`;
+    return json({ ok: false, error: msg, waba_id: wabaId, waba_source: wabaSource, phone_number_id: phoneNumberId || null }, 200);
+  }
 
   // deno-lint-ignore no-explicit-any
   const templates = (data.data ?? []).map((t: any) => ({
@@ -108,7 +146,7 @@ async function handleTemplatesList(statusFilter?: string) {
     })),
   }));
 
-  return json({ templates, count: templates.length });
+  return json({ templates, count: templates.length, waba_id: wabaId, waba_source: wabaSource });
 }
 
 async function handleTemplateSend(body: Record<string, unknown>) {
@@ -119,8 +157,8 @@ async function handleTemplateSend(body: Record<string, unknown>) {
 
   const phoneNumberId = await metaPhoneNumberId();
   const token = await metaToken();
-  if (!phoneNumberId) return json({ error: "WA_PHONE_NUMBER_ID no configurado" }, 400);
-  if (!token) return json({ error: "WA_TOKEN no configurado" }, 400);
+  if (!phoneNumberId) return json({ ok: false, error: "Falta WHATSAPP_PHONE_NUMBER_ID (número vinculado)." }, 200);
+  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
 
   const to = canonPhone(String(phone));
   const lang = (language as string) || "es_AR";
@@ -141,8 +179,9 @@ async function handleTemplateSend(body: Record<string, unknown>) {
   const result = await res.json();
 
   if (result.error) {
-    const errMsg = result.error.message ?? JSON.stringify(result.error);
-    return json({ ok: false, error: errMsg, to, template_name }, 502);
+    const e = result.error;
+    const errMsg = `Meta (#${e.code ?? "?"}${e.error_subcode ? "/" + e.error_subcode : ""}): ${e.message ?? JSON.stringify(e)}`;
+    return json({ ok: false, error: errMsg, to, template_name }, 200);
   }
 
   // Log en wa_conversations (fire and forget)
