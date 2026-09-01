@@ -482,39 +482,62 @@
         <div class="config-section" style="max-width:none;">
           <h3>💰 Descuentos por pago</h3>
           <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
-            Los usa el bot para calcular el monto de cada método y el ahorro vs. contado en los avisos de factura.
-            El <b>plazo (días)</b> es la etiqueta que aparece en el mensaje. Las bandas de crédito/e-cheq deben
-            coincidir con la condición de venta de la factura para matchear.
+            Cada campo está <b>bloqueado</b>: tocá <b>✏️</b> para editar y <b>💾</b> para guardar (evita cambios
+            accidentales). El bot lee de Supabase apenas guardás. <b>↺ Restaurar</b> abajo descarta lo no guardado.
           </p>
 
           <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.1rem;">
-            <div>
-              <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Descuento contado (%)</label>
-              <input type="number" id="dtoContado" min="0" max="100" step="1" style="width:130px;">
+            <div style="display:flex;align-items:flex-end;gap:0.35rem;">
+              <div>
+                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Descuento contado (%)</label>
+                <input type="number" id="dtoContado" min="0" max="100" step="1" style="width:110px;" readonly>
+              </div>
+              <button class="config-btn small" id="dtoContado_edit" title="Editar" onclick="fieldEdit('dtoContado')">✏️</button>
+              <button class="config-btn primary" id="dtoContado_save" title="Guardar" onclick="fieldSave('dtoContado')" style="display:none;">💾</button>
+              <span class="config-status" id="dtoContado_st"></span>
             </div>
-            <div>
-              <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Días para pago contado</label>
-              <input type="number" id="dtoContadoDias" min="0" max="90" step="1" style="width:130px;">
+            <div style="display:flex;align-items:flex-end;gap:0.35rem;">
+              <div>
+                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Días para pago contado</label>
+                <input type="number" id="dtoContadoDias" min="0" max="90" step="1" style="width:110px;" readonly>
+              </div>
+              <button class="config-btn small" id="dtoContadoDias_edit" title="Editar" onclick="fieldEdit('dtoContadoDias')">✏️</button>
+              <button class="config-btn primary" id="dtoContadoDias_save" title="Guardar" onclick="fieldSave('dtoContadoDias')" style="display:none;">💾</button>
+              <span class="config-status" id="dtoContadoDias_st"></span>
             </div>
           </div>
 
           <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Datos de pago</div>
           <p class="hint" style="display:block;margin:-0.2rem 0 0.5rem;line-height:1.4;">
-            Alias y CBU se completan como <b>variables</b> en el pie de las 6 plantillas — cambialos acá y el bot
-            los actualiza al toque, sin re-editar Meta.
+            Alias y CBU se completan como <b>variables</b> en el pie de las 6 plantillas — sin re-editar Meta.
           </p>
           <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.2rem;">
-            <div style="flex:1;min-width:170px;">
-              <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Alias</label>
-              <input type="text" id="pagoAlias" placeholder="loeke.srl" style="width:100%;">
+            <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:1;min-width:230px;">
+              <div style="flex:1;">
+                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Alias</label>
+                <input type="text" id="pagoAlias" placeholder="loeke.srl" style="width:100%;" readonly>
+              </div>
+              <button class="config-btn small" id="pagoAlias_edit" title="Editar" onclick="fieldEdit('pagoAlias')">✏️</button>
+              <button class="config-btn primary" id="pagoAlias_save" title="Guardar" onclick="fieldSave('pagoAlias')" style="display:none;">💾</button>
+              <span class="config-status" id="pagoAlias_st"></span>
             </div>
-            <div style="flex:2;min-width:240px;">
-              <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">CBU</label>
-              <input type="text" id="pagoCbu" placeholder="1910027855002702387450" style="width:100%;">
+            <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:2;min-width:290px;">
+              <div style="flex:1;">
+                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">CBU</label>
+                <input type="text" id="pagoCbu" placeholder="1910027855002702387450" style="width:100%;" readonly>
+              </div>
+              <button class="config-btn small" id="pagoCbu_edit" title="Editar" onclick="fieldEdit('pagoCbu')">✏️</button>
+              <button class="config-btn primary" id="pagoCbu_save" title="Guardar" onclick="fieldSave('pagoCbu')" style="display:none;">💾</button>
+              <span class="config-status" id="pagoCbu_st"></span>
             </div>
           </div>
 
-          <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Crédito</div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin:0.4rem 0 0.35rem;">
+            <div style="font-weight:600;">Crédito</div>
+            <button class="config-btn small" id="tblCredito_edit" onclick="tableEdit('Credito')">✏️ Editar</button>
+            <button class="config-btn primary" id="tblCredito_save" onclick="tableSave('Credito')" style="display:none;">💾 Guardar</button>
+            <span class="config-status" id="tblCredito_st"></span>
+          </div>
           <table id="dtoCreditoTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
             <thead><tr>
               <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
@@ -523,9 +546,14 @@
             </tr></thead>
             <tbody></tbody>
           </table>
-          <button class="config-btn small" onclick="addCreditoRow()" style="margin-top:0.45rem;">+ Agregar fila</button>
+          <button class="config-btn small" id="dtoCreditoAdd" onclick="addCreditoRow()" style="margin-top:0.45rem;display:none;">+ Agregar fila</button>
 
-          <div style="font-weight:600;margin:1.1rem 0 0.35rem;">E-cheq</div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin:1.1rem 0 0.35rem;">
+            <div style="font-weight:600;">E-cheq</div>
+            <button class="config-btn small" id="tblEcheq_edit" onclick="tableEdit('Echeq')">✏️ Editar</button>
+            <button class="config-btn primary" id="tblEcheq_save" onclick="tableSave('Echeq')" style="display:none;">💾 Guardar</button>
+            <span class="config-status" id="tblEcheq_st"></span>
+          </div>
           <table id="dtoEcheqTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
             <thead><tr>
               <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
@@ -534,12 +562,17 @@
             <tbody></tbody>
           </table>
 
-          <div style="font-weight:600;margin:1.3rem 0 0.35rem;">Excepciones por cliente</div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin:1.3rem 0 0.35rem;">
+            <div style="font-weight:600;">Excepciones por cliente</div>
+            <button class="config-btn small" id="excEditBtn" onclick="excEdit()">✏️ Editar</button>
+            <button class="config-btn primary" id="excSaveBtn" onclick="excSave()" style="display:none;">💾 Guardar</button>
+            <span class="config-status" id="excSt"></span>
+          </div>
           <p class="hint" style="display:block;margin:-0.25rem 0 0.6rem;line-height:1.4;">
             Si agregás un cliente acá, el bot usa <b>siempre</b> ese método para sus facturas,
             ignorando la condición de venta de la factura. Match por CUIT (solo dígitos) o razón social exacta.
           </p>
-          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
+          <div id="excAddRow" style="display:none;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
             <select id="excMetodo" style="min-width:160px;"></select>
             <select id="excTipo"><option value="cuit">CUIT</option><option value="razon">Razón social</option></select>
             <input type="text" id="excValor" placeholder="CUIT o razón social" style="min-width:220px;flex:1;">
@@ -548,7 +581,6 @@
           <div id="excList"></div>
 
           <div style="margin-top:1.1rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-            <button class="config-btn primary" onclick="saveDescuentos()">💾 Guardar descuentos</button>
             <button class="config-btn small" onclick="loadDescuentos()">↺ Restaurar guardado</button>
             <span class="config-status" id="dtoSaveStatus"></span>
           </div>
@@ -1048,9 +1080,10 @@ async function saveRateLimitConfig() {
   setTimeout(() => { st.textContent = ""; }, 3000);
 }
 
-// --- Descuentos por pago (editable, config del bot) ---
+// --- Descuentos por pago (editable con bloqueo por campo) ---
 let dtoCfgCache = null;
-let excData = {}; // excepciones por método: { bandKey: [{tipo,valor,label}] }
+let excData = {};        // excepciones por método: { bandKey: [{tipo,valor,label}] }
+let excLocked = true;    // sección de excepciones bloqueada por defecto
 
 async function loadDescuentos() {
   try {
@@ -1061,6 +1094,87 @@ async function loadDescuentos() {
     const st = document.getElementById("dtoSaveStatus");
     if (st) { st.textContent = "✗ " + (e.message || "error"); st.className = "config-status err"; }
   }
+}
+
+// ── Campos escalares: bloqueo / edición / guardado individual ──
+const DTO_SCALARS = ["dtoContado", "dtoContadoDias", "pagoAlias", "pagoCbu"];
+function fieldLock(id) {
+  const inp = document.getElementById(id);
+  inp.readOnly = true; inp.style.background = "#f1f5f9";
+  document.getElementById(id + "_edit").style.display = "";
+  document.getElementById(id + "_save").style.display = "none";
+}
+function fieldEdit(id) {
+  const inp = document.getElementById(id);
+  inp.readOnly = false; inp.style.background = ""; inp.focus();
+  document.getElementById(id + "_edit").style.display = "none";
+  document.getElementById(id + "_save").style.display = "";
+}
+function patchScalar(cfg, id) {
+  cfg.contado = cfg.contado || {}; cfg.pago = cfg.pago || {};
+  const v = document.getElementById(id).value;
+  if (id === "dtoContado") cfg.contado.dto = Math.min(1, Math.max(0, (Number(v) || 0) / 100));
+  else if (id === "dtoContadoDias") cfg.contado.dias_limite = Math.max(0, Math.round(Number(v) || 0));
+  else if (id === "pagoAlias") cfg.pago.alias = String(v).trim();
+  else if (id === "pagoCbu") cfg.pago.cbu = String(v).trim();
+}
+// Guarda un solo campo: parte de la config guardada (cache) y sólo pisa ese campo.
+async function fieldSave(id) {
+  const st = document.getElementById(id + "_st");
+  st.textContent = "…"; st.className = "config-status";
+  try {
+    const cfg = JSON.parse(JSON.stringify(dtoCfgCache || {}));
+    patchScalar(cfg, id);
+    const d = await notifCall({ action: "descuentos_save", config: cfg });
+    dtoCfgCache = d.config; renderDescuentos(d.config);
+    st.textContent = "✓"; st.className = "config-status ok"; setTimeout(() => { st.textContent = ""; }, 2500);
+  } catch (e) { st.textContent = "✗ " + (e.message || "error"); st.className = "config-status err"; }
+}
+
+// ── Tablas: bloqueo / edición / guardado por tabla ──
+function tableLock(name) {
+  const t = document.getElementById("dto" + name + "Table");
+  t.querySelectorAll("input").forEach((i) => { i.disabled = true; i.style.background = "#f1f5f9"; });
+  t.querySelectorAll("tbody button").forEach((b) => { b.style.display = "none"; });
+  const add = document.getElementById("dto" + name + "Add"); if (add) add.style.display = "none";
+  document.getElementById("tbl" + name + "_edit").style.display = "";
+  document.getElementById("tbl" + name + "_save").style.display = "none";
+}
+function tableEdit(name) {
+  const t = document.getElementById("dto" + name + "Table");
+  t.querySelectorAll("input").forEach((i) => { i.disabled = false; i.style.background = ""; });
+  t.querySelectorAll("tbody button").forEach((b) => { b.style.display = ""; });
+  const add = document.getElementById("dto" + name + "Add"); if (add) add.style.display = "";
+  document.getElementById("tbl" + name + "_edit").style.display = "none";
+  document.getElementById("tbl" + name + "_save").style.display = "";
+}
+function collectCreditoRows() {
+  const pct = (el) => Math.min(1, Math.max(0, (Number(el.value) || 0) / 100));
+  return Array.from(document.querySelectorAll("#dtoCreditoTable tbody tr")).map((tr, i) => ({
+    key: tr.dataset.key || ("credito_x" + (i + 1)),
+    label: tr.querySelector(".dto-label").value.trim(),
+    dto: pct(tr.querySelector(".dto-pct")),
+  })).filter((r) => r.label !== "");
+}
+function collectEcheqRows() {
+  const pct = (el) => Math.min(1, Math.max(0, (Number(el.value) || 0) / 100));
+  return Array.from(document.querySelectorAll("#dtoEcheqTable tbody tr")).map((tr) => ({
+    key: tr.dataset.key || "",
+    label: tr.querySelector(".dto-label").value.trim(),
+    dto: pct(tr.querySelector(".dto-pct")),
+  })).filter((r) => r.key !== "");
+}
+async function tableSave(name) {
+  const st = document.getElementById("tbl" + name + "_st");
+  st.textContent = "…"; st.className = "config-status";
+  try {
+    const cfg = JSON.parse(JSON.stringify(dtoCfgCache || {}));
+    if (name === "Credito") cfg.credito = collectCreditoRows();
+    else cfg.echeq = collectEcheqRows();
+    const d = await notifCall({ action: "descuentos_save", config: cfg });
+    dtoCfgCache = d.config; renderDescuentos(d.config);
+    st.textContent = "✓"; st.className = "config-status ok"; setTimeout(() => { st.textContent = ""; }, 2500);
+  } catch (e) { st.textContent = "✗ " + (e.message || "error"); st.className = "config-status err"; }
 }
 
 function dtoPctInput(v) {
@@ -1100,6 +1214,9 @@ function renderDescuentos(cfg) {
   const et = document.querySelector("#dtoEcheqTable tbody"); et.innerHTML = "";
   (cfg.echeq || []).forEach((r) => et.appendChild(dtoRowEcheq(r)));
   excData = cfg.excepciones && typeof cfg.excepciones === "object" ? cfg.excepciones : {};
+  excLocked = true;
+  DTO_SCALARS.forEach(fieldLock);
+  tableLock("Credito"); tableLock("Echeq");
   renderExcepciones();
 }
 
@@ -1130,6 +1247,9 @@ function renderExcepciones() {
   const cur = sel.value;
   sel.innerHTML = bands.map((b) => `<option value="${esc(b.key)}">${esc(b.label)}</option>`).join("");
   if (cur && bands.some((b) => b.key === cur)) sel.value = cur;
+  document.getElementById("excAddRow").style.display = excLocked ? "none" : "flex";
+  document.getElementById("excEditBtn").style.display = excLocked ? "" : "none";
+  document.getElementById("excSaveBtn").style.display = excLocked ? "none" : "";
   const list = document.getElementById("excList");
   const keys = Object.keys(excData).filter((k) => (excData[k] || []).length);
   if (!keys.length) { list.innerHTML = '<div class="bl-empty" style="padding:0.3rem 0;">Sin excepciones — todos los clientes usan el método de su factura.</div>'; return; }
@@ -1137,11 +1257,27 @@ function renderExcepciones() {
     const chips = (excData[k] || []).map((it, idx) =>
       `<span style="display:inline-flex;align-items:center;gap:0.35rem;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:14px;padding:0.15rem 0.55rem;font-size:0.78rem;">` +
       `${it.tipo === "razon" ? "🏢" : "#"} ${esc(it.valor)}` +
-      `<button class="config-btn small" style="padding:0 0.3rem;line-height:1.2;" title="Quitar" onclick="removeExcepcion('${esc(k)}',${idx})">✕</button></span>`
+      (excLocked ? "" : `<button class="config-btn small" style="padding:0 0.3rem;line-height:1.2;" title="Quitar" onclick="removeExcepcion('${esc(k)}',${idx})">✕</button>`) +
+      `</span>`
     ).join("");
     return `<div style="margin:0.3rem 0;"><div style="font-size:0.76rem;color:var(--muted);margin-bottom:0.25rem;">${esc(bandLabel(k))}</div>` +
       `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;">${chips}</div></div>`;
   }).join("");
+}
+function excEdit() { excLocked = false; renderExcepciones(); }
+async function excSave() {
+  const st = document.getElementById("excSt");
+  st.textContent = "…"; st.className = "config-status";
+  try {
+    const cfg = JSON.parse(JSON.stringify(dtoCfgCache || {}));
+    const validKeys = new Set(["contado", ...(cfg.credito || []).map((r) => r.key), ...(cfg.echeq || []).map((r) => r.key)]);
+    const excepciones = {};
+    Object.keys(excData).forEach((k) => { if (validKeys.has(k) && (excData[k] || []).length) excepciones[k] = excData[k]; });
+    cfg.excepciones = excepciones;
+    const d = await notifCall({ action: "descuentos_save", config: cfg });
+    dtoCfgCache = d.config; renderDescuentos(d.config);
+    st.textContent = "✓"; st.className = "config-status ok"; setTimeout(() => { st.textContent = ""; }, 2500);
+  } catch (e) { st.textContent = "✗ " + (e.message || "error"); st.className = "config-status err"; }
 }
 
 function addExcepcion() {
@@ -1160,49 +1296,6 @@ function addExcepcion() {
 function removeExcepcion(key, idx) {
   if (excData[key]) { excData[key].splice(idx, 1); if (!excData[key].length) delete excData[key]; }
   renderExcepciones();
-}
-
-function collectDescuentos() {
-  const pct = (el) => Math.min(1, Math.max(0, (Number(el.value) || 0) / 100));
-  const credito = Array.from(document.querySelectorAll("#dtoCreditoTable tbody tr")).map((tr, i) => ({
-    key: tr.dataset.key || ("credito_x" + (i + 1)),
-    label: tr.querySelector(".dto-label").value.trim(),
-    dto: pct(tr.querySelector(".dto-pct")),
-  })).filter((r) => r.label !== "");
-  const echeq = Array.from(document.querySelectorAll("#dtoEcheqTable tbody tr")).map((tr) => ({
-    key: tr.dataset.key || "",
-    label: tr.querySelector(".dto-label").value.trim(),
-    dto: pct(tr.querySelector(".dto-pct")),
-  })).filter((r) => r.key !== "");
-  // Solo excepciones cuya banda sigue existiendo (por si se borró un método).
-  const validKeys = new Set(["contado", ...credito.map((r) => r.key), ...echeq.map((r) => r.key)]);
-  const excepciones = {};
-  Object.keys(excData).forEach((k) => { if (validKeys.has(k) && (excData[k] || []).length) excepciones[k] = excData[k]; });
-  return {
-    contado: {
-      dto: pct(document.getElementById("dtoContado")),
-      dias_limite: Math.max(0, Math.round(Number(document.getElementById("dtoContadoDias").value) || 0)),
-    },
-    credito, echeq, excepciones,
-    pago: {
-      alias: document.getElementById("pagoAlias").value.trim(),
-      cbu: document.getElementById("pagoCbu").value.trim(),
-    },
-  };
-}
-
-async function saveDescuentos() {
-  const st = document.getElementById("dtoSaveStatus");
-  st.textContent = "Guardando..."; st.className = "config-status";
-  try {
-    const d = await notifCall({ action: "descuentos_save", config: collectDescuentos() });
-    dtoCfgCache = d.config;
-    renderDescuentos(d.config);
-    st.textContent = "✓ Guardado"; st.className = "config-status ok";
-  } catch (e) {
-    st.textContent = "✗ " + (e.message || "error"); st.className = "config-status err";
-  }
-  setTimeout(() => { st.textContent = ""; }, 3000);
 }
 
 // --- Configuración del agente ---
@@ -2586,6 +2679,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.4</div>
 </body>
 </html>
