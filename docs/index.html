@@ -613,6 +613,16 @@
             <div class="consulta-form" style="margin-bottom:1.2rem;border:1px dashed var(--border);border-radius:8px;padding:0.9rem;">
               <div class="md-col-label">Conectar un modelo</div>
               <div class="row">
+                <label style="font-size:0.8rem;color:var(--muted);">Proveedor:</label>
+                <select id="modProvSel" style="min-width:130px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+                  <option value="">Auto-detectar</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="google">Google (Gemini)</option>
+                </select>
+                <span class="hint" style="font-size:0.72rem;color:var(--muted);">Si no lo detecta solo, elegilo acá.</span>
+              </div>
+              <div class="row" style="margin-top:0.4rem;">
                 <input type="password" id="modKey" placeholder="Pegá la API key (ej: sk-ant-... / sk-... / AIza...)" autocomplete="off" style="flex:1;min-width:220px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;font-family:ui-monospace,monospace;">
                 <button class="config-btn primary small" id="modCheckBtn" onclick="checkModelo()">Chequear</button>
                 <span class="config-status" id="modAddStatus"></span>
@@ -1419,7 +1429,10 @@ async function checkModelo() {
   st.textContent = "Chequeando..."; st.className = "config-status";
   document.getElementById("modCheckBtn").disabled = true;
   try {
-    const data = await amInvoke({ action: "check", api_key: key });
+    const provSel = document.getElementById("modProvSel").value;
+    const payload = { action: "check", api_key: key };
+    if (provSel) payload.proveedor = provSel;
+    const data = await amInvoke(payload);
     _modPendingKey = key;
     _modPendingProv = data.proveedor;
     document.getElementById("modProvDetected").textContent = (PROV_LABEL[data.proveedor] || data.proveedor);
@@ -1447,6 +1460,7 @@ function onModelPicked() {
 function cancelModelo() {
   _modPendingKey = null; _modPendingProv = null;
   document.getElementById("modKey").value = "";
+  document.getElementById("modProvSel").value = "";
   document.getElementById("modLabel").value = "";
   document.getElementById("modLabel").dataset.auto = "";
   document.getElementById("modConfirm").style.display = "none";
@@ -2300,6 +2314,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.4</div>
 </body>
 </html>
