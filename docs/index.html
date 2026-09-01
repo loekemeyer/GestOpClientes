@@ -2411,7 +2411,11 @@ async function convRefresh() {
 }
 
 const EST_DOT = { abierto: "🟢", pendiente: "🟡", resuelto: "✅" };
+// Cache del último list: convOpen lo usa para setear el título con la
+// razón social sin tener que hacer otro lookup.
+let _convItems = [];
 function convRenderList(items) {
+  _convItems = items;
   const box = document.getElementById("convList");
   if (!items.length) {
     box.innerHTML = '<div class="bl-empty" style="padding:1rem;font-size:0.8rem;">Sin conversaciones. Tocá <b>＋demo</b> para simular un mensaje entrante.</div>';
@@ -2423,11 +2427,20 @@ function convRenderList(items) {
     const icon = c.modo_humano ? "🤝" : "🤖";
     const win = c.ventana_abierta ? "" : '<span title="ventana 24h cerrada" style="opacity:0.5;">⏱️</span>';
     const pre = (c.last_dir === "out" ? "vos: " : "") + (c.last_body || "");
+    // Cliente identificado → razón social + código y el teléfono como subtítulo.
+    // Sin identificar → el teléfono es el título (comportamiento anterior).
+    const title = c.business_name
+      ? `${EST_DOT[c.estado] || ""} ${esc(c.business_name)}${c.cod_cliente ? ` <span style="font-weight:400;color:#888;">#${esc(c.cod_cliente)}</span>` : ""}`
+      : `${EST_DOT[c.estado] || ""} +${esc(c.phone)}`;
+    const subtitle = c.business_name
+      ? `<div style="font-size:0.7rem;color:#888;font-family:ui-monospace,monospace;margin-top:0.1rem;">+${esc(c.phone)}</div>`
+      : "";
     return `<div onclick="convOpen('${esc(c.phone)}')" style="padding:0.55rem 0.7rem;border-bottom:1px solid var(--border);cursor:pointer;${active}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;">
-        <b style="font-size:0.82rem;">${EST_DOT[c.estado] || ""} +${esc(c.phone)}</b>
-        <span style="font-size:0.68rem;color:#888;">${convTime(c.last_at)}</span>
+        <b style="font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</b>
+        <span style="font-size:0.68rem;color:#888;flex-shrink:0;">${convTime(c.last_at)}</span>
       </div>
+      ${subtitle}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;margin-top:0.15rem;">
         <span style="font-size:0.74rem;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">${icon} ${esc(pre)}</span>
         <span style="display:flex;gap:0.25rem;align-items:center;">${win}${unread}</span>
@@ -2438,7 +2451,13 @@ function convRenderList(items) {
 
 async function convOpen(phone) {
   convCurrent = phone;
-  document.getElementById("convTitle").textContent = "+" + phone;
+  const item = _convItems.find((x) => x.phone === phone);
+  const titleEl = document.getElementById("convTitle");
+  if (item?.business_name) {
+    titleEl.innerHTML = `${esc(item.business_name)}${item.cod_cliente ? ` <span style="font-weight:400;color:#888;font-size:0.85rem;">#${esc(item.cod_cliente)}</span>` : ""} <span style="font-weight:400;color:#888;font-family:ui-monospace,monospace;font-size:0.75rem;">+${esc(phone)}</span>`;
+  } else {
+    titleEl.textContent = "+" + phone;
+  }
   document.getElementById("convActions").style.display = "flex";
   document.getElementById("convComposer").style.display = "flex";
   document.getElementById("convCanned").style.display = "flex";
@@ -2644,6 +2663,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.15.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.15.1</div>
 </body>
 </html>
