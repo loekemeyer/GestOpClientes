@@ -20,7 +20,7 @@ import {
   runConversation,
   saveMessage,
   type MediaAction,
-} from "./claude.ts";
+} from "../_shared/bot-conversation.ts";
 
 // ─── Config (secrets desde Deno.env) ───────────────────────────────
 
@@ -328,6 +328,14 @@ async function handleMessage(
     customer.dto_vol,
     cfg.anthropicKey,
   );
+
+  // 5b. Si el LLM se cayó (timeout / error irrecuperable), NO enviamos
+  // nada al cliente. `runConversation` ya avisó a un humano vía
+  // `wa_alertas_humano`; el vendedor toma la conversación desde ahí.
+  if (result.timeout || result.llmError) {
+    console.warn(`[webhook] LLM ${result.timeout ? "timeout" : "error"} — no se envía respuesta al cliente ${phone}. Alerta encolada.`);
+    return;
+  }
 
   // 6. Enviar media (fotos, catálogo) antes del texto
   if (result.media.length) {

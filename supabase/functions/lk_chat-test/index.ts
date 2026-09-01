@@ -1,8 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { supabase, getSetting, getIsisClient } from "../_shared/supabase.ts";
+import { supabase, getSetting } from "../_shared/supabase.ts";
 import { canonPhone } from "../_shared/wa-api.ts";
-import { detectIntent, conversationalReply, claudeMessage } from "../_shared/claude.ts";
-import { buildAgenteSystem } from "../_shared/agente.ts";
+import { runConversation } from "../_shared/bot-conversation.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -78,21 +77,35 @@ serve(async (req) => {
     }
 
     // Paso 0: identificar cliente por teléfono
-    let customerRow: { id: string; cod_cliente: number; business_name: string } | null = null;
+    let customerRow: { id: string; cod_cliente: number; business_name: string; dto_vol: number } | null = null;
 
     const { data: identified } = await supabase
       .rpc("wa_identify_customer", { p_phone: phone });
     const iRow = identified?.[0];
     if (iRow) {
+      // wa_identify_customer no devuelve dto_vol; lo consultamos aparte para
+      // pasarle el mismo contexto que el webhook real a `runConversation`.
+      const { data: c } = await supabase
+        .from("customers")
+        .select("dto_vol")
+        .eq("id", iRow.customer_id)
+        .maybeSingle();
       customerRow = {
         id: iRow.customer_id,
         cod_cliente: Number(iRow.cod_cliente),
         business_name: iRow.customer_name,
+        dto_vol: Number(c?.dto_vol ?? 0),
       };
     } else {
       const { data: legacy } = await supabase
         .rpc("bot_cliente_por_whatsapp", { p_telefono: testPhone });
-      customerRow = legacy?.[0] ?? null;
+      const l = legacy?.[0] ?? null;
+      customerRow = l ? {
+        id: l.id ?? l.customer_id,
+        cod_cliente: Number(l.cod_cliente),
+        business_name: l.business_name,
+        dto_vol: Number(l.dto_vol ?? 0),
+      } : null;
     }
 
     let reply: string;
@@ -133,37 +146,44 @@ serve(async (req) => {
       return json({ reply: "⚠️ API Key de Claude no configurada. Configurala en Supabase secrets como ANTHROPIC_API_KEY o CLAUDE_API_KEY." });
     }
 
+    let convAlert: { kind: "timeout" | "llm_error"; text: string } | null = null;
     if (!customerRow) {
       detectedIntent = "linking";
       reply = await handleLinking(testPhone, text, anthropicKey);
     } else {
-      const { intent } = await detectIntent(anthropicKey, text);
-      detectedIntent = intent;
-
-      switch (intent) {
-        case "consulta_pedido":
-          reply = await handleOrderQuery(customerRow);
-          break;
-        case "nuevo_pedido":
-          reply = await handleNewOrder(testPhone, customerRow, text, anthropicKey);
-          break;
-        case "retiro":
-          reply = await handlePickup(customerRow);
-          break;
-        case "cancelar":
-          reply = await handleCancel(testPhone);
-          break;
-        case "consulta_factura":
-          reply = await handleInvoiceQuery(customerRow, text, anthropicKey);
-          break;
-        case "ayuda":
-          reply = menuText(customerRow.business_name);
-          break;
-        case "opt_out":
-          reply = "⚠️ Opt-out deshabilitado en modo test.";
-          break;
-        default:
-          reply = await handleGeneral(customerRow, text, anthropicKey);
+      // Unificado con el webhook real: usa el mismo runConversation
+      // (tool-use loop) que atiende WhatsApp en producción. Esto elimina la
+      // divergencia de flujo entre test y prod. Las media (fotos, PDFs) se
+      // adjuntan como links al final del reply para simular el envío.
+      detectedIntent = "bot";
+      const conv = await runConversation(
+        text,
+        testPhone,
+        customerRow.business_name,
+        customerRow.cod_cliente,
+        customerRow.dto_vol,
+        anthropicKey,
+      );
+      // Timeout / error del LLM → en producción NO se envía nada al
+      // cliente (se avisa a un humano). Acá levantamos una alerta visible
+      // en el chat de test para que el operador entienda qué habría
+      // pasado en prod.
+      if (conv.timeout || conv.llmError) {
+        convAlert = {
+          kind: conv.timeout ? "timeout" : "llm_error",
+          text: conv.reply,
+        };
+        detectedIntent = conv.timeout ? "llm_timeout" : "llm_error";
+        reply = conv.reply;
+      } else {
+        reply = conv.reply;
+        if (conv.media.length) {
+          const mediaLines = conv.media.map((m) => {
+            const label = m.caption ?? m.filename ?? m.type;
+            return `📎 ${label}\n${m.url}`;
+          });
+          reply = reply + "\n\n" + mediaLines.join("\n\n");
+        }
       }
     }
 
@@ -174,7 +194,13 @@ serve(async (req) => {
       { phone, direction: "out", body: reply, msg_type: "text", customer_id: customerId, intent: detectedIntent },
     ]).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
 
-    return json({ reply, customer: customerRow?.business_name ?? null });
+    return json({
+      reply,
+      customer: customerRow?.business_name ?? null,
+      // La UI del dashboard puede mostrar un banner de alerta cuando el
+      // bot habría timeouteado en prod (no se envía nada al cliente real).
+      ...(convAlert ? { alert: convAlert } : {}),
+    });
   } catch (err) {
     console.error("chat-test error:", err);
     return json({ reply: `❌ Error: ${err.message}` });
@@ -307,8 +333,18 @@ async function handleStats(since?: string) {
 
   const { data: monthRows } = await supabase
     .from("bot_token_usage")
-    .select("input_tokens, output_tokens, estimated_cost_usd, created_at")
+    .select("model, input_tokens, output_tokens, estimated_cost_usd, created_at")
     .gte("created_at", monthStart);
+
+  // Cargamos el flag is_free_tier por modelo para renderizar el badge en
+  // el dashboard aunque no haya llamadas registradas todavía.
+  const { data: modelsCfg } = await supabase
+    .from("wa_agente_modelos")
+    .select("model_id, proveedor, is_free_tier");
+  // deno-lint-ignore no-explicit-any
+  const freeMap = new Map<string, boolean>((modelsCfg ?? []).map((m: any) => [m.model_id, !!m.is_free_tier]));
+  // deno-lint-ignore no-explicit-any
+  const providerMap = new Map<string, string>((modelsCfg ?? []).map((m: any) => [m.model_id, m.proveedor]));
 
   // deno-lint-ignore no-explicit-any
   const aggregate = (rows: any[] | null) => {
@@ -321,6 +357,25 @@ async function handleStats(since?: string) {
     };
   };
 
+  // deno-lint-ignore no-explicit-any
+  const aggregateByModel = (rows: any[] | null) => {
+    if (!rows?.length) return [];
+    // deno-lint-ignore no-explicit-any
+    const byModel: Record<string, any[]> = {};
+    for (const r of rows) {
+      const m = r.model ?? "desconocido";
+      (byModel[m] ||= []).push(r);
+    }
+    return Object.entries(byModel)
+      .map(([model, rs]) => ({
+        model,
+        provider: providerMap.get(model) ?? null,
+        is_free_tier: freeMap.get(model) ?? false,
+        ...aggregate(rs),
+      }))
+      .sort((a, b) => b.cost - a.cost || b.calls - a.calls);
+  };
+
   const allMonth = monthRows ?? [];
   const weekRows = allMonth.filter(r => r.created_at >= weekStart);
   const sessionRows = since ? allMonth.filter(r => r.created_at >= since) : null;
@@ -329,6 +384,11 @@ async function handleStats(since?: string) {
     month: aggregate(allMonth),
     week: aggregate(weekRows),
     session: sessionRows ? aggregate(sessionRows) : { cost: 0, input_tokens: 0, output_tokens: 0, calls: 0 },
+    by_model: {
+      month:   aggregateByModel(allMonth),
+      week:    aggregateByModel(weekRows),
+      session: sessionRows ? aggregateByModel(sessionRows) : [],
+    },
   });
 }
 
@@ -494,239 +554,6 @@ async function handleAltaStep(phone: string, text: string, lead: any): Promise<s
 
   // Ya completó todo — mensaje genérico
   return "Tu solicitud de alta ya fue registrada ✅ Un vendedor se va a poner en contacto con vos.";
-}
-
-async function handleOrderQuery(
-  customer: { id: string; cod_cliente: number; business_name: string },
-): Promise<string> {
-  const { data: orders } = await supabase
-    .from("orders")
-    .select("id, created_at, total, status")
-    .eq("customer_id", customer.id)
-    .gte("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  if (!orders?.length) return "No tenés pedidos recientes (últimos 90 días).";
-
-  const orderIds = orders.map((o) => String(o.id));
-  const { data: tracking } = await supabase
-    .from("order_tracking")
-    .select("np_number, status, fecha_entrega")
-    .in("np_number", orderIds);
-
-  const trackingMap = new Map((tracking ?? []).map((t) => [t.np_number, t]));
-
-  const lines = orders.map((o, i) => {
-    const t = trackingMap.get(String(o.id));
-    const fecha = new Date(o.created_at).toLocaleDateString("es-AR");
-    const total = `$${Number(o.total).toLocaleString("es-AR")}`;
-    let estado = o.status;
-    if (t) {
-      estado = t.status;
-      if (t.fecha_entrega) estado += ` para ${t.fecha_entrega}`;
-    }
-    const emoji = t?.status === "entregado" ? "✅" : "📦";
-    return `${i + 1}️⃣ NP-${o.id} (${fecha}) — ${total} — ${emoji} ${estado}`;
-  });
-
-  return `Tus pedidos recientes:\n${lines.join("\n")}\n\n¿Necesitás más detalle de alguno?`;
-}
-
-async function handleNewOrder(
-  phone: string,
-  customer: { id: string; cod_cliente: number; business_name: string },
-  text: string,
-  apiKey: string,
-): Promise<string> {
-  let { data: draft } = await supabase
-    .from("wa_order_draft")
-    .select("*")
-    .eq("phone", phone)
-    .in("status", ["building", "confirming"])
-    .maybeSingle();
-
-  if (!draft) {
-    await supabase.from("wa_order_draft").insert({
-      phone,
-      customer_id: customer.id,
-      items: [],
-      status: "building",
-    });
-    draft = { items: [], status: "building" };
-  }
-
-  if (draft.status === "confirming" && /^(si|sí|confirmo|dale|ok)\b/i.test(text.trim())) {
-    return await submitDraft(phone, customer);
-  }
-
-  if (/^(listo|eso es todo|nada más|nada mas)\b/i.test(text.trim())) {
-    return await showDraftSummary(phone, customer);
-  }
-
-  const parseSystem = `Extraé productos y cantidades en cajas del mensaje. Respondé SOLO JSON:
-[{"query": "nombre o código del producto", "cajas": número}]
-Si no hay productos claros, respondé [].`;
-
-  const parsed = await conversationalReply(apiKey, parseSystem, [
-    { role: "user", content: text },
-  ]);
-
-  let items: { query: string; cajas: number }[];
-  try {
-    items = JSON.parse(parsed);
-  } catch {
-    return "No entendí los productos. Decime el nombre y la cantidad en cajas, ej: *12 cajas de cuchillo asado*";
-  }
-
-  if (!items.length) return "Dale, decime qué necesitás (producto y cantidad en cajas).";
-
-  const added: string[] = [];
-  const notFound: string[] = [];
-  const currentItems = Array.isArray(draft.items) ? [...draft.items] : [];
-
-  for (const item of items) {
-    // Búsqueda inteligente: aliases → trigrama → ILIKE (sin gastar tokens)
-    const { data: products } = await supabase
-      .rpc("wa_product_match", { p_query: item.query, p_limit: 3 });
-
-    if (!products?.length) { notFound.push(item.query); continue; }
-
-    if (products.length > 1) {
-      const opts = products.map((p, i) => `${i + 1}) ${p.description} (${p.cod})`).join("\n");
-      notFound.push(`"${item.query}" — encontré varios:\n${opts}\n¿Cuál?`);
-      continue;
-    }
-
-    const p = products[0];
-    currentItems.push({
-      product_id: p.product_id,
-      cod: p.cod,
-      description: p.description,
-      cajas: item.cajas,
-      uxb: p.uxb,
-      unit_price: p.list_price,
-    });
-    added.push(`• ${item.cajas} cajas ${p.description} (×${p.uxb} u/caja) — $${(item.cajas * p.uxb * Number(p.list_price)).toLocaleString("es-AR")}`);
-  }
-
-  await supabase
-    .from("wa_order_draft")
-    .update({ items: currentItems, status: "building" })
-    .eq("phone", phone)
-    .in("status", ["building", "confirming"]);
-
-  let reply = "";
-  if (added.length) reply += `Agregué:\n${added.join("\n")}`;
-  if (notFound.length) reply += `\n\n⚠️ ${notFound.join("\n")}`;
-  reply += "\n\n¿Algo más? (o decí *listo*)";
-  return reply;
-}
-
-async function showDraftSummary(phone: string, customer: { id: string }): Promise<string> {
-  const { data: draft } = await supabase
-    .from("wa_order_draft")
-    .select("items")
-    .eq("phone", phone)
-    .eq("status", "building")
-    .maybeSingle();
-
-  if (!draft?.items?.length) return "No tenés productos en el pedido. Decime qué necesitás.";
-
-  // deno-lint-ignore no-explicit-any
-  const items = draft.items as any[];
-  let subtotal = 0;
-  const lines = items.map((it) => {
-    const lineTotal = it.cajas * it.uxb * Number(it.unit_price);
-    subtotal += lineTotal;
-    return `• ${it.cajas} cajas ${it.description} — $${lineTotal.toLocaleString("es-AR")}`;
-  });
-
-  const dtoAmount = subtotal * 0.02;
-  const total = subtotal - dtoAmount;
-
-  await supabase
-    .from("wa_order_draft")
-    .update({ status: "confirming" })
-    .eq("phone", phone)
-    .eq("status", "building");
-
-  return `Resumen de tu pedido:\n${lines.join("\n")}\n\nSubtotal: $${subtotal.toLocaleString("es-AR")}\nDto web 2%: -$${dtoAmount.toLocaleString("es-AR")}\nTotal: $${total.toLocaleString("es-AR")}\n\n¿Confirmo? (Sí/No)`;
-}
-
-async function submitDraft(
-  phone: string,
-  customer: { id: string; cod_cliente: number; business_name: string },
-): Promise<string> {
-  const { data: draft } = await supabase
-    .from("wa_order_draft")
-    .select("items")
-    .eq("phone", phone)
-    .eq("status", "confirming")
-    .maybeSingle();
-
-  if (!draft?.items?.length) return "No hay pedido para confirmar.";
-
-  // deno-lint-ignore no-explicit-any
-  const items = (draft.items as any[]).map((it) => ({
-    product_id: it.product_id,
-    cajas: it.cajas,
-    uxb: it.uxb,
-    is_loke: false,
-  }));
-
-  const { data: orderId, error } = await supabase.rpc("bot_submit_order", {
-    p_telefono: phone,
-    p_items: items,
-    p_payment_method: "transferencia",
-  });
-
-  if (error) {
-    console.error("submit error:", error);
-    return "Hubo un error al confirmar. Intentá de nuevo o contactá a ventas.";
-  }
-
-  await supabase
-    .from("wa_order_draft")
-    .update({ status: "submitted" })
-    .eq("phone", phone)
-    .eq("status", "confirming");
-
-  return `✅ Pedido NP-${orderId} confirmado. Te aviso cuando lo programemos.`;
-}
-
-async function handlePickup(customer: { id: string; business_name: string }): Promise<string> {
-  const { data: tracking } = await supabase
-    .from("order_tracking")
-    .select("np_number, status, fecha_entrega")
-    .eq("cod_cliente", customer.id)
-    .eq("status", "programado")
-    .order("fecha_entrega", { ascending: true })
-    .limit(1);
-
-  if (tracking?.length) {
-    const t = tracking[0];
-    return `Tu pedido NP-${t.np_number} está programado para ${t.fecha_entrega}.\nSi querés retirarlo antes, contactá a ventas para coordinar.`;
-  }
-  return "No tenés pedidos programados para entrega. Si querés hacer uno, decime.";
-}
-
-async function handleCancel(phone: string): Promise<string> {
-  const { data: draft } = await supabase
-    .from("wa_order_draft")
-    .select("id")
-    .eq("phone", phone)
-    .in("status", ["building", "confirming"])
-    .maybeSingle();
-
-  if (draft) {
-    await supabase
-      .from("wa_order_draft")
-      .update({ status: "expired" })
-      .eq("id", draft.id);
-    return "Pedido en borrador cancelado. Si necesitás algo más, decime.";
-  }
-  return "No tenés un pedido en curso para cancelar.";
 }
 
 // ── FAQ handler — respuestas automáticas sin gastar tokens ──
@@ -936,162 +763,3 @@ async function lookupOrderModify(
   return `Tu pedido NP-${latest.id} aún puede modificarse. ¿Qué cambios necesitás?\n📝 Indicame:\n• Artículos que quieres agregar/quitar\n• Cantidades\n\nUn vendedor va a confirmar los cambios.`;
 }
 
-async function handleGeneral(
-  customer: { id: string; business_name: string },
-  text: string,
-  apiKey: string,
-): Promise<string> {
-  const system = await buildAgenteSystem(customer.business_name);
-
-  return conversationalReply(apiKey, system, [
-    { role: "user", content: text },
-  ]);
-}
-
-// ── Invoice / Factura lookup (shell — no WA media) ──
-
-async function handleInvoiceQuery(
-  customer: { id: string; cod_cliente: number; business_name: string },
-  text: string,
-  apiKey: string,
-): Promise<string> {
-  // Paso 1: Parsear parámetros de búsqueda con Haiku
-  const parseSystem = `Sos un parser de consultas de facturas/comprobantes para una empresa mayorista.
-Dado el mensaje del cliente, extraé los parámetros de búsqueda y respondé SOLO con JSON válido:
-{"numero": "número de comprobante o null", "nombre": "nombre/descripción del producto o null", "cuit": "CUIT del cliente o null", "fecha_desde": "YYYY-MM-DD o null", "fecha_hasta": "YYYY-MM-DD o null", "familia": "tipo de comprobante: FAC/NDC/NDN/REM/REC o null"}
-
-Reglas:
-- "numero": si mencionan un número de factura/comprobante (ej: "factura 1234", "comprobante A-0001-00001234")
-- "nombre": si buscan por nombre de producto
-- "cuit": CUIT del cliente (sin guiones). Si no mencionan CUIT, dejá null
-- "fecha_desde"/"fecha_hasta": rango de fechas. Si dicen "de mayo" → desde 2024-05-01 hasta 2024-05-31. Si no mencionan fecha, null
-- "familia": tipo de documento fiscal:
-  - FAC = factura
-  - NDC = nota de crédito
-  - NDN = nota de débito
-  - REM = remito
-  - REC = recibo
-  - Si no especifican tipo, null
-- Si el mensaje es muy vago (ej: "mandame la factura"), devolvé todos los campos en null`;
-
-  let params: {
-    numero: string | null;
-    nombre: string | null;
-    cuit: string | null;
-    fecha_desde: string | null;
-    fecha_hasta: string | null;
-    familia: string | null;
-  };
-
-  try {
-    const parseResult = await claudeMessage({
-      apiKey,
-      model: "claude-haiku-4-5",
-      system: parseSystem,
-      messages: [{ role: "user", content: text }],
-      maxTokens: 200,
-      temperature: 0,
-    });
-    params = JSON.parse(parseResult);
-  } catch {
-    params = { numero: null, nombre: null, cuit: null, fecha_desde: null, fecha_hasta: null, familia: null };
-  }
-
-  // Build query string: número > nombre > "últimos comprobantes"
-  const query = params.numero ?? params.nombre ?? "";
-
-  // Paso 2: Llamar a ISIS RPC
-  try {
-    const isis = await getIsisClient();
-    const { data, error } = await isis.rpc("buscar_factura", {
-      p_query: query,
-      p_cuit: params.cuit ?? customer.cod_cliente?.toString() ?? null,
-      p_fecha_desde: params.fecha_desde,
-      p_fecha_hasta: params.fecha_hasta,
-      p_familia: params.familia,
-      p_limit: 10,
-    });
-
-    if (error) {
-      console.error("ISIS RPC error:", error);
-      return "⚠️ No pude consultar los comprobantes en este momento. Intentá de nuevo más tarde o contactá a ventas.";
-    }
-
-    // Paso 3: Formatear resultados
-    if (!data || data.length === 0) {
-      let msg = "🔍 No encontré comprobantes";
-      if (params.numero) msg += ` con número "${params.numero}"`;
-      if (params.familia) {
-        const tipoNombres: Record<string, string> = {
-          FAC: "facturas", NDC: "notas de crédito", NDN: "notas de débito",
-          REM: "remitos", REC: "recibos",
-        };
-        msg += ` de tipo ${tipoNombres[params.familia] ?? params.familia}`;
-      }
-      if (params.fecha_desde || params.fecha_hasta) {
-        msg += ` en el rango de fechas indicado`;
-      }
-      msg += ".\n\n¿Podés darme más datos? (número, fecha, tipo de comprobante)";
-      return msg;
-    }
-
-    if (data.length === 1) {
-      const f = data[0];
-      return formatInvoiceDetail(f);
-    }
-
-    // Múltiples resultados: listar
-    let msg = `📋 Encontré ${data.length} comprobante${data.length > 1 ? "s" : ""}:\n\n`;
-    // deno-lint-ignore no-explicit-any
-    data.forEach((f: any, i: number) => {
-      const tipo = f.familia ?? "COMP";
-      const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString("es-AR") : "s/f";
-      const total = f.total != null ? `$${Number(f.total).toLocaleString("es-AR")}` : "";
-      msg += `${i + 1}. ${tipo} ${f.numero_completo ?? f.id ?? "?"} — ${fecha} ${total}\n`;
-    });
-    msg += "\n¿Cuál necesitás? Indicame el número.";
-    return msg;
-
-  } catch (err) {
-    console.error("Invoice query error:", err);
-    // deno-lint-ignore no-explicit-any
-    if ((err as any).message?.includes("ISIS Supabase credentials")) {
-      return "⚠️ El módulo de facturación no está configurado todavía. Contactá a ventas para consultar tus comprobantes.";
-    }
-    return "⚠️ Error al buscar comprobantes. Intentá de nuevo más tarde.";
-  }
-}
-
-// deno-lint-ignore no-explicit-any
-function formatInvoiceDetail(f: any): string {
-  const tipo = f.familia ?? "COMP";
-  const tipoNombres: Record<string, string> = {
-    FAC: "Factura", NDC: "Nota de Crédito", NDN: "Nota de Débito",
-    REM: "Remito", REC: "Recibo",
-  };
-  const tipoLabel = tipoNombres[tipo] ?? tipo;
-  const fecha = f.fecha ? new Date(f.fecha).toLocaleDateString("es-AR") : "s/f";
-  const total = f.total != null ? `$${Number(f.total).toLocaleString("es-AR")}` : "—";
-
-  let msg = `📄 *${tipoLabel} ${f.numero_completo ?? f.id ?? ""}*\n`;
-  msg += `📅 Fecha: ${fecha}\n`;
-  if (f.cliente_nombre) msg += `👤 Cliente: ${f.cliente_nombre}\n`;
-  if (f.cuit) msg += `🏢 CUIT: ${f.cuit}\n`;
-  msg += `💰 Total: ${total}\n`;
-  if (f.condicion_venta) msg += `💳 Condición: ${f.condicion_venta}\n`;
-  if (f.observaciones) msg += `📝 Obs: ${f.observaciones}\n`;
-
-  // Items si vienen
-  if (f.items?.length) {
-    msg += `\n📦 Detalle:\n`;
-    // deno-lint-ignore no-explicit-any
-    f.items.forEach((item: any) => {
-      const qty = item.cantidad ?? "";
-      const desc = item.descripcion ?? item.nombre ?? "?";
-      const precio = item.precio_unitario != null ? `$${Number(item.precio_unitario).toLocaleString("es-AR")}` : "";
-      msg += `  • ${qty}x ${desc} ${precio}\n`;
-    });
-  }
-
-  return msg;
-}

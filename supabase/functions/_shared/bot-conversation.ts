@@ -1,7 +1,8 @@
 // Claude API — Tool-use conversacional para bot WhatsApp Loekemeyer
 // Usa RPCs bot_* existentes como herramientas de Claude
 
-import { supabase } from "../_shared/supabase.ts";
+import { supabase } from "./supabase.ts";
+import { notificarHumano } from "./alertas.ts";
 
 const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 
@@ -481,6 +482,16 @@ export async function saveMessage(
 export interface ConversationResult {
   reply: string;
   media: MediaAction[];
+  /**
+   * true = el LLM no respondió a tiempo (o el fetch falló irrecuperable).
+   * El call-site NO debe enviar `reply` al cliente: la política actual es
+   * quedarnos callados y avisar a un humano vía `wa_alertas_humano`.
+   * `reply` viene con un texto informativo solo para que la UI de test
+   * pueda mostrarlo como alerta interna.
+   */
+  timeout?: boolean;
+  /** true = falla del LLM que no es timeout (HTTP 4xx/5xx). Misma política que timeout. */
+  llmError?: boolean;
 }
 
 export async function runConversation(
@@ -510,28 +521,62 @@ export async function runConversation(
   const allMedia: MediaAction[] = [];
 
   for (let iter = 0; iter < 5; iter++) {
-    const resp = await fetch(CLAUDE_URL, {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6-20250514",
-        max_tokens: 1024,
-        system: systemPrompt,
-        tools: BOT_TOOLS,
-        messages,
-      }),
-    });
+    // Timeout duro: si Anthropic no responde en 30s, abortamos, encolamos
+    // una alerta humana y salimos SIN enviar mensaje al cliente. El
+    // vendedor lo agarra desde el sistema de aviso (a construir).
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(new Error("LLM timeout 30s")), 30_000);
+    let resp: Response;
+    try {
+      resp = await fetch(CLAUDE_URL, {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6-20250514",
+          max_tokens: 1024,
+          system: systemPrompt,
+          tools: BOT_TOOLS,
+          messages,
+        }),
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      const emsg = e instanceof Error ? e.message : String(e);
+      console.error(`Claude API fetch falló: ${emsg}`);
+      const isTimeout = emsg.includes("timeout") || emsg.includes("aborted");
+      await notificarHumano({
+        tipo: isTimeout ? "llm_timeout" : "llm_error",
+        phone,
+        contexto: { userText, iter, error: emsg, model: "claude-sonnet-4-6-20250514" },
+      });
+      return {
+        reply: isTimeout
+          ? "⏳ [TIMEOUT] El LLM no respondió a tiempo. Se avisó a un humano; el cliente no recibió mensaje."
+          : `⚠️ [LLM_ERROR] ${emsg}. Se avisó a un humano; el cliente no recibió mensaje.`,
+        media: [],
+        timeout: isTimeout,
+        llmError: !isTimeout,
+      };
+    }
+    clearTimeout(timer);
 
     if (!resp.ok) {
       const errText = await resp.text();
       console.error(`Claude API ${resp.status}: ${errText}`);
+      await notificarHumano({
+        tipo: "llm_error",
+        phone,
+        contexto: { userText, iter, http_status: resp.status, error: errText.slice(0, 500), model: "claude-sonnet-4-6-20250514" },
+      });
       return {
-        reply: "Disculpá, estoy teniendo un problema técnico. Intentá de nuevo en unos minutos. 🙏",
+        reply: `⚠️ [LLM_ERROR ${resp.status}] Se avisó a un humano; el cliente no recibió mensaje.`,
         media: [],
+        llmError: true,
       };
     }
 

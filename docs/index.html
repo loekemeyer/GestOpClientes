@@ -47,6 +47,33 @@
     /* Pages */
     .page { display: none; flex: 1; }
     .page.active { display: flex; }
+    /* pageChat es un contenedor con pestañas (chat de prueba + conversaciones reales).
+       Necesitamos que sea columna para que la barra de tabs quede arriba. */
+    .page#pageChat.active { flex-direction: column; }
+
+    /* Tab bar reutilizable */
+    .tab-bar { display: flex; gap: 0.15rem; padding: 0.5rem 0.8rem 0; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .tab-bar .tab { background: transparent; border: 1px solid transparent; border-bottom: none; padding: 0.55rem 1rem; font-size: 0.85rem; font-weight: 500; color: var(--muted); cursor: pointer; border-radius: 8px 8px 0 0; margin-bottom: -1px; }
+    .tab-bar .tab:hover { color: var(--fg); background: var(--bg); }
+    .tab-bar .tab.active { color: var(--primary, #075e54); background: var(--card); border-color: var(--border); font-weight: 600; }
+
+    .chat-tab-content { display: none; flex: 1; min-height: 0; overflow: hidden; }
+    .chat-tab-content.active { display: flex; }
+    /* Tab 2 (conversaciones reales) usa layout distinto: bloque scroll interno */
+    #tabRealConv.active { display: block; padding: 0.8rem; overflow: auto; }
+
+    /* Dashboard: subcategorías colapsables (usa <details>) */
+    .dash-section { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 0.8rem; background: var(--card); overflow: hidden; }
+    .dash-section > summary { list-style: none; cursor: pointer; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.7rem; user-select: none; }
+    .dash-section > summary::-webkit-details-marker { display: none; }
+    .dash-section > summary::before { content: "▶"; font-size: 0.7rem; color: var(--muted); transition: transform 0.15s; }
+    .dash-section[open] > summary::before { transform: rotate(90deg); }
+    .dash-sec-title { font-weight: 600; font-size: 0.95rem; }
+    .dash-sec-hint { font-size: 0.72rem; color: var(--muted); }
+    .dash-sec-body { padding: 0.4rem 1rem 1rem; border-top: 1px solid var(--border); }
+    .ia-stat { flex: 1; min-width: 130px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.55rem 0.7rem; }
+    .ia-stat-lbl { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .ia-stat-val { font-size: 1.1rem; font-weight: 600; margin-top: 0.15rem; }
 
     /* Chat */
     .chat-container { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -229,10 +256,8 @@
 <div class="app" id="app">
   <nav class="sidebar">
     <h3>🤖 GestOp</h3>
-    <div class="active" id="navChat" onclick="showPage('chat')" style="cursor:pointer">💬 Chat Bot</div>
+    <div class="active" id="navChat" onclick="showPage('chat')" style="cursor:pointer">💬 Comunicaciones</div>
     <div id="navDash" onclick="showPage('dash')" style="cursor:pointer">📊 Dashboard</div>
-    <div id="navFuego" onclick="showPage('fuego')" style="cursor:pointer">🔥 Prueba de fuego</div>
-    <div id="navConv" onclick="showPage('conv')" style="cursor:pointer">💬 Conversaciones</div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
     <div id="navAgente" onclick="showPage('agente')" style="cursor:pointer;display:none;">🧠 Configuración del agente</div>
     <div class="spacer"></div>
@@ -246,6 +271,9 @@
       <div class="cost-divider"></div>
       <div class="cost-row"><span class="cost-label">Mes</span><span class="cost-val" id="costMonth">—</span></div>
       <div class="cost-row"><span></span><span class="cost-tok" id="costMonthTok"></span></div>
+      <div class="cost-divider"></div>
+      <div style="font-size:0.65rem;color:var(--muted);margin-top:0.4rem;letter-spacing:0.05em;">POR MODELO (mes)</div>
+      <div id="costByModel" style="margin-top:0.3rem;"></div>
     </div>
     <div class="user-info">
       <span id="userRole"></span><br>
@@ -257,49 +285,98 @@
   <div class="main">
     <!-- Page: Chat -->
     <div class="page active" id="pageChat">
-      <div class="chat-container">
-        <div class="chat-header">
-          <div class="avatar">🤖</div>
-          <div class="info">
-            <h2>Bot Loekemeyer</h2>
-            <span id="chatStatus">En línea</span>
+      <!-- Tab bar: Chat de prueba (sandbox) | Conversaciones (reales) -->
+      <div class="tab-bar" id="chatTabBar">
+        <button class="tab active" data-tab="testChat" onclick="switchChatTab('testChat')">💬 Chat de prueba</button>
+        <button class="tab" data-tab="realConv" onclick="switchChatTab('realConv')">👥 Conversaciones reales</button>
+      </div>
+
+      <!-- Tab 1: Chat de prueba (sandbox contra el bot) -->
+      <div class="chat-tab-content active" id="tabTestChat">
+        <div class="chat-container">
+          <div class="chat-header">
+            <div class="avatar">🤖</div>
+            <div class="info">
+              <h2>Bot Loekemeyer</h2>
+              <span id="chatStatus">En línea</span>
+            </div>
+            <button class="clear-btn" onclick="resetSession()">🔄 Reiniciar</button>
           </div>
-          <button class="clear-btn" onclick="resetSession()">🔄 Reiniciar</button>
+          <div class="chat-messages" id="chatMessages"></div>
+          <div class="chat-input">
+            <input type="text" id="chatInput" placeholder="Escribí un mensaje..." autocomplete="off">
+            <button id="chatSend" onclick="sendMessage()">➤</button>
+          </div>
         </div>
-        <div class="chat-messages" id="chatMessages"></div>
-        <div class="chat-input">
-          <input type="text" id="chatInput" placeholder="Escribí un mensaje..." autocomplete="off">
-          <button id="chatSend" onclick="sendMessage()">➤</button>
+
+        <div class="control-panel" id="controlPanel">
+          <h4>⚙️ Controles de sesión</h4>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">🚫 Desconectar Agente IA</div>
+              <div class="toggle-desc">Solo respuestas FAQ automáticas (0 tokens)</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleNoAI" onchange="toggleAI()">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="ai-status on" id="aiStatus">🤖 Agente IA conectado</div>
+
+          <div class="control-divider"></div>
+
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">🔓 Deshabilitar Rate Limit</div>
+              <div class="toggle-desc">Sin límite de mensajes en esta sesión de test</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleSkipRL" onchange="toggleSkipRL()">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="ai-status on" id="rlStatus">🛡️ Rate limit activo</div>
         </div>
       </div>
 
-      <div class="control-panel" id="controlPanel">
-        <h4>⚙️ Controles de sesión</h4>
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">🚫 Desconectar Agente IA</div>
-            <div class="toggle-desc">Solo respuestas FAQ automáticas (0 tokens)</div>
+      <!-- Tab 2: Conversaciones reales (atención humana / traspaso del bot) -->
+      <div class="chat-tab-content" id="tabRealConv">
+        <div style="display:flex;gap:0.8rem;height:calc(100vh - 170px);min-height:480px;">
+          <div style="width:290px;min-width:250px;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+            <div style="padding:0.6rem 0.7rem;background:#075e54;color:#fff;display:flex;align-items:center;justify-content:space-between;">
+              <b>💬 Conversaciones</b>
+              <span style="display:flex;gap:0.3rem;">
+                <button class="config-btn small" style="padding:0.2rem 0.4rem;" title="Mensaje entrante de prueba" onclick="convSeed()">＋demo</button>
+                <button class="config-btn small" style="padding:0.2rem 0.4rem;" onclick="convRefresh()">⟳</button>
+              </span>
+            </div>
+            <div id="convList" style="flex:1;overflow-y:auto;"></div>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="toggleNoAI" onchange="toggleAI()">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="ai-status on" id="aiStatus">🤖 Agente IA conectado</div>
-
-        <div class="control-divider"></div>
-
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">🔓 Deshabilitar Rate Limit</div>
-            <div class="toggle-desc">Sin límite de mensajes en esta sesión de test</div>
+          <div style="flex:1;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+            <div id="convHeader" style="padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
+              <div id="convTitle" style="font-weight:600;">Elegí una conversación</div>
+              <div id="convActions" style="display:none;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.75rem;cursor:pointer;">
+                  <input type="checkbox" id="convHuman" onchange="convToggleHuman(this.checked)"> 🤝 Modo humano (pausa bot)
+                </label>
+                <select id="convEstado" onchange="convSetEstado(this.value)" style="padding:0.25rem 0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.75rem;">
+                  <option value="abierto">🟢 Abierto</option>
+                  <option value="pendiente">🟡 Pendiente</option>
+                  <option value="resuelto">✅ Resuelto</option>
+                </select>
+              </div>
+            </div>
+            <div id="convWindow" style="display:none;padding:0.35rem 0.8rem;font-size:0.72rem;text-align:center;"></div>
+            <div id="convThread" style="flex:1;overflow-y:auto;padding:0.8rem;background:#e5ddd5;">
+              <div class="bl-empty" style="font-size:0.85rem;color:#555;text-align:center;margin-top:2rem;">Seleccioná un chat de la izquierda para ver el historial y responder.</div>
+            </div>
+            <div id="convCanned" style="display:none;gap:0.3rem;flex-wrap:wrap;padding:0.4rem 0.8rem 0;"></div>
+            <div id="convComposer" style="display:none;padding:0.6rem 0.8rem;border-top:1px solid var(--border);gap:0.5rem;align-items:flex-end;">
+              <textarea id="convInput" rows="1" placeholder="Escribí una respuesta…" style="flex:1;resize:none;padding:0.5rem;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:inherit;"></textarea>
+              <button class="config-btn primary small" id="convSendBtn" onclick="convSend()">Enviar ➤</button>
+            </div>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="toggleSkipRL" onchange="toggleSkipRL()">
-            <span class="slider"></span>
-          </label>
         </div>
-        <div class="ai-status on" id="rlStatus">🛡️ Rate limit activo</div>
       </div>
     </div>
 
@@ -307,133 +384,88 @@
     <!-- Page: Dashboard (pipeline de facturación, ventana ±3 días) -->
     <div class="page" id="pageDash">
       <div class="config-page">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;flex-wrap:wrap;">
-          <h2 style="margin:0;">📊 Dashboard del pipeline</h2>
-          <button class="config-btn small" onclick="loadDashboard()">⟳ Actualizar</button>
-        </div>
-        <p style="color:var(--muted);font-size:0.86rem;margin:0.4rem 0 1rem;">
-          Ventana de <b>7 días</b> (3 atrás · hoy · 3 adelante). Excluye datos de simulación.
-        </p>
-        <div style="overflow-x:auto;">
-          <table id="dashTable" style="border-collapse:collapse;width:100%;min-width:640px;font-size:0.84rem;">
-            <thead id="dashHead"></thead>
-            <tbody id="dashBody"></tbody>
-          </table>
-        </div>
+        <h2 style="margin:0 0 0.8rem;">📊 Dashboard</h2>
 
-        <div class="config-section" style="margin-top:1.2rem;">
-          <h3>🧾 Log del pipeline (últimos eventos)</h3>
-          <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.5rem;">
-            Se registra cuándo se <b>genera cada factura</b> (impacta en <code>documentos</code>) y cuándo el bot
-            <b>envía el aviso</b>.
-          </div>
-          <div id="dashLog" style="max-height:340px;overflow-y:auto;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Page: Prueba de fuego (envío real por WhatsApp, sólo a la lista blanca) -->
-    <div class="page" id="pageFuego">
-      <div class="chat-container">
-        <div class="chat-header" style="background:#b91c1c;">
-          <div class="avatar" style="background:#ef4444;">🔥</div>
-          <div class="info">
-            <h2>Prueba de fuego</h2>
-            <span id="fuegoStatus">Envío REAL por WhatsApp — sólo a números autorizados</span>
-          </div>
-          <button class="clear-btn" onclick="fuegoReset()">🗑️ Limpiar</button>
-        </div>
-        <div class="chat-messages" id="fuegoMessages"></div>
-        <div class="chat-input" style="flex-direction:column; align-items:stretch; gap:0.5rem; padding:0.6rem 0.8rem;">
-          <div style="display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center;align-items:center;">
-            <label style="font-size:0.72rem;color:var(--muted);">Enviar a:</label>
-            <select id="fuegoDest" style="padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;min-width:180px;">
-              <option value="">— sin contactos —</option>
-            </select>
-            <select id="fuegoSource" style="padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;">
-              <option value="lk">Fuente: LK</option>
-              <option value="ch">Fuente: Chef</option>
-            </select>
-          </div>
-          <div style="font-size:0.72rem;color:var(--muted);text-align:center;">Tocá un modelo → pedido de prueba → pipeline real → <b>WhatsApp al número elegido</b>:</div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:center;">
-            <button class="config-btn small" onclick="fuegoRun('contado',1)">Contado ×1 <span class="tpl-tag">_s</span></button>
-            <button class="config-btn small" onclick="fuegoRun('contado',3)">Contado ×3 <span class="tpl-tag">_p</span></button>
-            <button class="config-btn small" onclick="fuegoRun('credito_31_45',1)">Crédito ×1 <span class="tpl-tag">_s</span></button>
-            <button class="config-btn small" onclick="fuegoRun('credito_31_45',3)">Crédito ×3 <span class="tpl-tag">_p</span></button>
-            <button class="config-btn small" onclick="fuegoRun('echeq_90',1)">E-check ×1 <span class="tpl-tag">_s</span></button>
-            <button class="config-btn small" onclick="fuegoRun('echeq_90',3)">E-check ×3 <span class="tpl-tag">_p</span></button>
-          </div>
-        </div>
-      </div>
-
-      <div class="control-panel" id="fuegoPanel">
-        <h4>📇 Contactos autorizados</h4>
-        <div class="notif-hint" style="border-left-color:#ef4444;">
-          <b>Regla de seguridad:</b> el bot <b>SÓLO</b> envía a los números de esta lista.
-          Lista vacía = no envía a nadie. Se normaliza el formato AR automáticamente
-          (agrega <code>549</code>, entiende <code>011</code>/<code>15</code>, etc.).
-        </div>
-        <div style="display:flex;flex-direction:column;gap:0.35rem;margin:0.5rem 0;">
-          <input id="fuegoLabel" placeholder="Nombre (opcional)" style="padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;">
-          <input id="fuegoPhone" oninput="fuegoPreview()" placeholder="Teléfono (ej: +54 9 11 6864-8618)" style="padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;">
-          <div id="fuegoPhonePrev" style="font-size:0.7rem;color:var(--muted);min-height:1em;"></div>
-          <button class="config-btn primary small" onclick="fuegoAddContact()">➕ Agregar contacto</button>
-        </div>
-        <div id="fuegoContacts"><div class="bl-empty" style="font-size:0.8rem;">Sin contactos.</div></div>
-
-        <div style="margin-top:0.9rem;border-top:1px solid var(--border);padding-top:0.6rem;">
-          <h4 style="margin:0 0 0.3rem;">📤 Barrido real de hoy</h4>
-          <div class="notif-hint" style="border-left-color:#b45309;">
-            Envía los <b>pedidos reales facturados de hoy</b> (grupos completos con PDF linkeado) al
-            número de <b>redirección de hoy</b>, tal cual saldrían al cliente — pero <b>no</b> se envía
-            a ningún cliente. Idempotente (no repite). <b>Se apaga solo mañana.</b>
-          </div>
-          <button class="config-btn small" style="width:100%;" onclick="fuegoRealSweep()">📤 Enviar pedidos reales de hoy → redirección</button>
-          <div id="fuegoSweepOut" style="font-size:0.74rem;margin-top:0.4rem;line-height:1.5;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Page: Conversaciones (atención humana / traspaso del bot) -->
-    <div class="page" id="pageConv">
-      <div style="display:flex;gap:0.8rem;height:calc(100vh - 130px);min-height:480px;">
-        <!-- Lista de conversaciones -->
-        <div style="width:290px;min-width:250px;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
-          <div style="padding:0.6rem 0.7rem;background:#075e54;color:#fff;display:flex;align-items:center;justify-content:space-between;">
-            <b>💬 Conversaciones</b>
-            <span style="display:flex;gap:0.3rem;">
-              <button class="config-btn small" style="padding:0.2rem 0.4rem;" title="Mensaje entrante de prueba" onclick="convSeed()">＋demo</button>
-              <button class="config-btn small" style="padding:0.2rem 0.4rem;" onclick="convRefresh()">⟳</button>
-            </span>
-          </div>
-          <div id="convList" style="flex:1;overflow-y:auto;"></div>
-        </div>
-        <!-- Hilo + composición -->
-        <div style="flex:1;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
-          <div id="convHeader" style="padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
-            <div id="convTitle" style="font-weight:600;">Elegí una conversación</div>
-            <div id="convActions" style="display:none;gap:0.4rem;align-items:center;flex-wrap:wrap;">
-              <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.75rem;cursor:pointer;">
-                <input type="checkbox" id="convHuman" onchange="convToggleHuman(this.checked)"> 🤝 Modo humano (pausa bot)
-              </label>
-              <select id="convEstado" onchange="convSetEstado(this.value)" style="padding:0.25rem 0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.75rem;">
-                <option value="abierto">🟢 Abierto</option>
-                <option value="pendiente">🟡 Pendiente</option>
-                <option value="resuelto">✅ Resuelto</option>
-              </select>
+        <!-- ── Subcategoría: Pipeline de facturas ── -->
+        <details class="dash-section" open>
+          <summary>
+            <span class="dash-sec-title">🧾 Pipeline de facturas</span>
+            <span class="dash-sec-hint">Ventana ±3 días · excluye simulación</span>
+            <button class="config-btn small" style="margin-left:auto;" onclick="event.preventDefault(); loadDashboard();">⟳</button>
+          </summary>
+          <div class="dash-sec-body">
+            <div style="overflow-x:auto;">
+              <table id="dashTable" style="border-collapse:collapse;width:100%;min-width:640px;font-size:0.84rem;">
+                <thead id="dashHead"></thead>
+                <tbody id="dashBody"></tbody>
+              </table>
+            </div>
+            <div class="config-section" style="margin-top:1.2rem;">
+              <h3>🧾 Log del pipeline (últimos eventos)</h3>
+              <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.5rem;">
+                Se registra cuándo se <b>genera cada factura</b> (impacta en <code>documentos</code>) y cuándo el bot
+                <b>envía el aviso</b>.
+              </div>
+              <div id="dashLog" style="max-height:340px;overflow-y:auto;"></div>
             </div>
           </div>
-          <div id="convWindow" style="display:none;padding:0.35rem 0.8rem;font-size:0.72rem;text-align:center;"></div>
-          <div id="convThread" style="flex:1;overflow-y:auto;padding:0.8rem;background:#e5ddd5;">
-            <div class="bl-empty" style="font-size:0.85rem;color:#555;text-align:center;margin-top:2rem;">Seleccioná un chat de la izquierda para ver el historial y responder.</div>
+        </details>
+
+        <!-- ── Subcategoría: IA — detalle de gastos ── -->
+        <details class="dash-section">
+          <summary>
+            <span class="dash-sec-title">🤖 IA — gastos y uso</span>
+            <span class="dash-sec-hint">Breakdown por modelo · más completo que el sidebar</span>
+            <button class="config-btn small" style="margin-left:auto;" onclick="event.preventDefault(); loadIaDash();">⟳</button>
+          </summary>
+          <div class="dash-sec-body">
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.8rem;">
+              <label style="font-size:0.78rem;color:var(--muted);">Rango:</label>
+              <select id="iaRange" onchange="loadIaDash()" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+                <option value="session">Sesión</option>
+                <option value="week">Semana</option>
+                <option value="month" selected>Mes actual</option>
+              </select>
+              <label style="font-size:0.78rem;color:var(--muted);margin-left:0.6rem;">Proveedor:</label>
+              <select id="iaProvider" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+                <option value="">Todos</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="openai">OpenAI</option>
+                <option value="google">Google</option>
+              </select>
+              <label style="font-size:0.78rem;color:var(--muted);margin-left:0.6rem;">Tier:</label>
+              <select id="iaTier" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+                <option value="">Todos</option>
+                <option value="free">Solo gratis</option>
+                <option value="paid">Solo pagos</option>
+              </select>
+            </div>
+
+            <!-- Totales del rango elegido -->
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+              <div class="ia-stat"><div class="ia-stat-lbl">Requests</div><div class="ia-stat-val" id="iaTotalCalls">—</div></div>
+              <div class="ia-stat"><div class="ia-stat-lbl">Tokens totales</div><div class="ia-stat-val" id="iaTotalTok">—</div></div>
+              <div class="ia-stat"><div class="ia-stat-lbl">Costo</div><div class="ia-stat-val" id="iaTotalCost">—</div></div>
+              <div class="ia-stat"><div class="ia-stat-lbl">Gratis (calls)</div><div class="ia-stat-val" id="iaFreeCalls">—</div></div>
+            </div>
+
+            <div style="overflow-x:auto;">
+              <table id="iaTable" style="border-collapse:collapse;width:100%;font-size:0.82rem;">
+                <thead>
+                  <tr style="background:var(--bg);">
+                    <th style="text-align:left;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Modelo</th>
+                    <th style="text-align:left;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Proveedor</th>
+                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Requests</th>
+                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">In tok</th>
+                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Out tok</th>
+                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Costo</th>
+                  </tr>
+                </thead>
+                <tbody id="iaTableBody"></tbody>
+              </table>
+            </div>
           </div>
-          <div id="convCanned" style="display:none;gap:0.3rem;flex-wrap:wrap;padding:0.4rem 0.8rem 0;"></div>
-          <div id="convComposer" style="display:none;padding:0.6rem 0.8rem;border-top:1px solid var(--border);gap:0.5rem;align-items:flex-end;">
-            <textarea id="convInput" rows="1" placeholder="Escribí una respuesta…" style="flex:1;resize:none;padding:0.5rem;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:inherit;"></textarea>
-            <button class="config-btn primary small" id="convSendBtn" onclick="convSend()">Enviar ➤</button>
-          </div>
-        </div>
+        </details>
       </div>
     </div>
 
@@ -855,21 +887,29 @@ function showPage(page) {
   if (page === "agente" && currentRole !== "admin") return; // solo admin
   document.getElementById("pageChat").classList.toggle("active", page === "chat");
   document.getElementById("pageDash").classList.toggle("active", page === "dash");
-  document.getElementById("pageFuego").classList.toggle("active", page === "fuego");
-  document.getElementById("pageConv").classList.toggle("active", page === "conv");
   document.getElementById("pageConfig").classList.toggle("active", page === "config");
   document.getElementById("pageAgente").classList.toggle("active", page === "agente");
   document.getElementById("navChat").classList.toggle("active", page === "chat");
   document.getElementById("navDash").classList.toggle("active", page === "dash");
-  document.getElementById("navFuego").classList.toggle("active", page === "fuego");
-  document.getElementById("navConv").classList.toggle("active", page === "conv");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   document.getElementById("navAgente").classList.toggle("active", page === "agente");
   if (page === "config") loadConfigPage();
   if (page === "agente") loadAgentePage();
-  if (page === "dash") loadDashboard();
-  if (page === "fuego") loadFuego();
-  if (page === "conv") loadConversaciones();
+  if (page === "dash") { loadDashboard(); loadIaDash(); }
+}
+
+// Comunicaciones tab switch. La pestaña "Conversaciones reales" es lazy:
+// carga la lista solo al elegirla la primera vez (o al reactivarla).
+let _convLoaded = false;
+function switchChatTab(tab) {
+  const bar = document.getElementById("chatTabBar");
+  bar.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.getElementById("tabTestChat").classList.toggle("active", tab === "testChat");
+  document.getElementById("tabRealConv").classList.toggle("active", tab === "realConv");
+  if (tab === "realConv") {
+    loadConversaciones();
+    _convLoaded = true;
+  }
 }
 
 // --- Chat ---
@@ -941,7 +981,17 @@ async function sendMessage() {
     if (error) {
       addBotMsg("❌ Error al conectar con el bot: " + (error.message || "desconocido"));
     } else {
-      addBotMsg(data.reply || "Sin respuesta");
+      // Alerta: en producción el cliente NO recibiría este mensaje. Se mostraría
+      // acá solo para que el operador vea qué pasó (timeout / error del LLM).
+      if (data.alert) {
+        const label = data.alert.kind === "timeout"
+          ? "⏳ TIMEOUT del LLM — en prod el cliente NO recibiría nada. Alerta encolada a humano."
+          : "⚠️ ERROR del LLM — en prod el cliente NO recibiría nada. Alerta encolada a humano.";
+        addSystemMsg(label);
+        addSystemMsg(data.alert.text);
+      } else {
+        addBotMsg(data.reply || "Sin respuesta");
+      }
       if (data.customer) document.getElementById("chatStatus").textContent = "Conectado — " + data.customer;
       if (data.rateLimited) addSystemMsg("⚠️ Rate limit alcanzado para este número");
       if (data.blacklisted) addSystemMsg("🚫 Número en blacklist");
@@ -1968,6 +2018,28 @@ async function refreshCosts() {
     document.getElementById("costWeekTok").textContent = fmtTok(data.week?.input_tokens, data.week?.output_tokens);
     document.getElementById("costMonth").textContent = fmtCost(data.month?.cost);
     document.getElementById("costMonthTok").textContent = fmtTok(data.month?.input_tokens, data.month?.output_tokens);
+
+    // Breakdown por modelo (mes actual). Muestra costo o "gratis" según flag.
+    const byModelBox = document.getElementById("costByModel");
+    if (byModelBox) {
+      const rows = data.by_model?.month || [];
+      if (!rows.length) {
+        byModelBox.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);opacity:0.6;">sin llamadas este mes</div>';
+      } else {
+        byModelBox.innerHTML = rows.map(r => {
+          const shortName = r.model.length > 22 ? r.model.slice(0, 19) + "…" : r.model;
+          const badge = r.is_free_tier
+            ? '<span style="background:#dcfce7;color:#15803d;font-size:0.6rem;font-weight:600;padding:0.05rem 0.35rem;border-radius:10px;margin-left:0.3rem;">GRATIS</span>'
+            : '';
+          const val = r.is_free_tier ? '<span style="color:#15803d;">$0</span>' : fmtCost(r.cost);
+          return `<div class="cost-row" style="font-size:0.72rem;">
+            <span class="cost-label" title="${r.model}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;">${shortName}${badge}</span>
+            <span class="cost-val" style="font-size:0.75rem;">${val}</span>
+          </div>
+          <div class="cost-row"><span></span><span class="cost-tok">${r.calls} req · ${((r.input_tokens||0)+(r.output_tokens||0)).toLocaleString('es-AR')} tok</span></div>`;
+        }).join("");
+      }
+    }
   } catch (e) { /* silent */ }
 }
 
@@ -2308,174 +2380,6 @@ function waPreviewHtml(m, nFacturas, source) {
   return `${doc}${cuerpo}${tag}`;
 }
 
-// ══════════════ Prueba de fuego (envío real por WhatsApp, sólo lista blanca) ══════════════
-function fuegoAppend(html, cls) {
-  const box = document.getElementById("fuegoMessages");
-  const div = document.createElement("div");
-  div.className = "msg " + (cls || "system");
-  div.innerHTML = html;
-  box.appendChild(div);
-  const clr = document.createElement("div"); clr.style.clear = "both"; box.appendChild(clr);
-  box.scrollTop = box.scrollHeight;
-}
-
-function loadFuego() {
-  const box = document.getElementById("fuegoMessages");
-  if (!box.dataset.init) {
-    box.dataset.init = "1";
-    fuegoAppend('🔥 <b>Prueba de fuego</b>: genera un pedido de prueba que recorre el pipeline REAL y ' +
-      'entrega la factura <b>por WhatsApp</b> al número que elijas. <b>Sólo</b> puede enviar a números de la ' +
-      'lista de contactos autorizados (panel derecho). Elegí un contacto y tocá un modelo de plantilla.', "system");
-  }
-  ensureMetaTemplates();
-  fuegoRefreshContacts();
-}
-
-async function fuegoReset() {
-  if (!confirm("¿Borrar TODOS los datos de prueba (pedido PPP, facturas, documentos, PDFs) y limpiar el chat?")) return;
-  try {
-    const d = await notifCall({ action: "sim_reset" });
-    const box = document.getElementById("fuegoMessages");
-    box.innerHTML = ""; box.dataset.init = "";
-    loadFuego();
-    fuegoAppend(`🧹 Limpiado — ${d.docs || 0} fila(s) y ${d.pdfs || 0} PDF(s) de prueba borrados.`, "system");
-  } catch (e) { fuegoAppend("⚠️ " + esc(e.message), "system"); }
-}
-
-async function fuegoRefreshContacts() {
-  try {
-    const d = await notifCall({ action: "contact_list" });
-    const items = d.items || [];
-    const list = document.getElementById("fuegoContacts");
-    const sel = document.getElementById("fuegoDest");
-    if (!items.length) {
-      list.innerHTML = '<div class="bl-empty" style="font-size:0.8rem;">Sin contactos. Agregá uno para poder enviar.</div>';
-    } else {
-      list.innerHTML = items.map((c) =>
-        `<div class="ngroup" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
-          <div><div style="font-weight:600;font-size:0.82rem;">${esc(c.label || "(sin nombre)")}</div>
-          <div style="font-size:0.72rem;color:#6b7280;">+${esc(c.phone)}</div></div>
-          <button class="config-btn small" style="color:var(--danger);" onclick="fuegoRemoveContact('${esc(c.id)}')">✕</button>
-        </div>`).join("");
-    }
-    const cur = sel.value;
-    sel.innerHTML = items.length
-      ? items.map((c) => `<option value="${esc(c.phone)}">${esc(c.label || c.phone)} · +${esc(c.phone)}</option>`).join("")
-      : '<option value="">— sin contactos —</option>';
-    if (cur && items.some((c) => c.phone === cur)) sel.value = cur;
-  } catch (e) { /* silent */ }
-}
-
-let _prevTimer = null;
-function fuegoPreview() {
-  clearTimeout(_prevTimer);
-  const raw = document.getElementById("fuegoPhone").value;
-  const el = document.getElementById("fuegoPhonePrev");
-  if (!raw.trim()) { el.textContent = ""; return; }
-  _prevTimer = setTimeout(async () => {
-    try {
-      const r = await notifCall({ action: "contact_preview", phone: raw });
-      el.innerHTML = r.phone
-        ? `→ se guardará como <b>+${esc(r.phone)}</b>`
-        : `<span style="color:var(--danger);">⚠️ ${esc(r.note || "número inválido")}</span>`;
-    } catch (e) { el.textContent = ""; }
-  }, 300);
-}
-
-async function fuegoAddContact() {
-  const phone = document.getElementById("fuegoPhone").value;
-  const label = document.getElementById("fuegoLabel").value;
-  if (!phone.trim()) return;
-  try {
-    const d = await notifCall({ action: "contact_add", phone, label });
-    document.getElementById("fuegoPhone").value = "";
-    document.getElementById("fuegoLabel").value = "";
-    document.getElementById("fuegoPhonePrev").textContent = "";
-    await fuegoRefreshContacts();
-    fuegoAppend(`✅ Contacto agregado: <b>+${esc(d.phone)}</b>`, "system");
-  } catch (e) { alert("No se pudo agregar: " + e.message); }
-}
-
-async function fuegoRemoveContact(id) {
-  if (!confirm("¿Sacar este contacto de la lista autorizada?")) return;
-  try { await notifCall({ action: "contact_remove", id }); await fuegoRefreshContacts(); }
-  catch (e) { alert("No se pudo sacar: " + e.message); }
-}
-
-const FUEGO_EST = {
-  sent_whatsapp: { icon: "✅", txt: "Enviado por WhatsApp", cls: "success" },
-  error_envio: { icon: "❌", txt: "Error al enviar (Meta)", cls: "danger" },
-  held_no_whitelist: { icon: "🚫", txt: "Bloqueado: número no autorizado", cls: "danger" },
-  held_tpl_no_aprobada: { icon: "🚫", txt: "Bloqueado: plantilla no aprobada en Meta", cls: "danger" },
-  held_multisource: { icon: "⚠️", txt: "Retenido: multi-fuente (LK+Chef)", cls: "warning" },
-  held_metodo_mixto: { icon: "⚠️", txt: "Retenido: método de pago mixto", cls: "warning" },
-  delivered: { icon: "📨", txt: "Listo (sin envío)", cls: "success" },
-};
-
-async function fuegoRun(metodo, n) {
-  const dest = document.getElementById("fuegoDest").value;
-  const source = document.getElementById("fuegoSource").value || "lk";
-  if (!dest) { alert("Elegí un contacto de la lista para enviar."); return; }
-  try {
-    await ensureMetaTemplates();
-    const destLabel = document.getElementById("fuegoDest").selectedOptions[0]?.textContent || dest;
-    fuegoAppend(`🔥 <b>Pedido de prueba</b> ${esc(METODO_LABEL[metodo] || metodo)} ×${n} ` +
-      `<span class="tpl-tag">${esc((source === "ch" ? "Chef" : "LK"))}</span> → <b>+${esc(dest)}</b><br>` +
-      `<span style="font-size:0.72rem;color:#6b7280;">Sembrando pedido, facturando NPs, combinando PDFs y enviando…</span>`, "out");
-    const d = await notifCall({ action: "fuego_run", metodo, np_esperados: n, source, dest_phone: dest });
-    // Esperar el aviso final en el inbox (entrega asíncrona por el trigger real).
-    const g = await fuegoWaitAviso(d.cuit);
-    const av = g && g.aviso ? g.aviso : (d.check && d.check.mensaje ? { estado: d.check.estado, mensaje: d.check.mensaje, n_facturas: d.check.n_facturas } : null);
-    if (!av) { fuegoAppend("⏳ Procesando la entrega… actualizá en unos segundos.", "system"); return; }
-    const est = FUEGO_EST[av.estado] || { icon: "•", txt: av.estado || "estado desconocido", cls: "muted" };
-    const m = av.mensaje || {};
-    const envio = m.envio || null;
-    const pdf = m.pdf_combinado || null;
-    // Estado del envío
-    let head = `<b style="color:var(--${est.cls});">${est.icon} ${esc(est.txt)}</b>`;
-    if (av.estado === "sent_whatsapp" && envio && envio.wamid) head += `<br><span style="font-size:0.71rem;color:#6b7280;">wamid: ${esc(envio.wamid)}</span>`;
-    if (av.estado === "error_envio" && envio && envio.error) head += `<br><span style="font-size:0.71rem;color:var(--danger);">${esc(envio.error)}</span>`;
-    if (pdf) head += `<br><span style="font-size:0.71rem;color:#6b7280;">📎 PDF combinado REAL: ${pdf.n} factura(s) ${pdf.ok ? "✔️" : "(sin URL)"}</span>`;
-    fuegoAppend(head, "stage");
-    // Previsualización del mensaje tal cual va a WhatsApp
-    if (m.template) fuegoAppend(waPreviewHtml(m, av.n_facturas || 1, source), "in");
-  } catch (e) { fuegoAppend("⚠️ " + esc(e.message), "system"); }
-}
-
-async function fuegoWaitAviso(cuit) {
-  for (let i = 0; i < 10; i++) {
-    try {
-      const st = await notifCall({ action: "sim_state" });
-      const g = (st.items || []).find((x) => x.cuit === cuit);
-      if (g && g.aviso) return g;
-    } catch (e) { /* retry */ }
-    await new Promise((r) => setTimeout(r, 800));
-  }
-  try { const st = await notifCall({ action: "sim_state" }); return (st.items || []).find((x) => x.cuit === cuit) || null; }
-  catch (e) { return null; }
-}
-
-// Barrido real: envía los pedidos reales completos de hoy al número de redirección (whitelist).
-async function fuegoRealSweep() {
-  if (!confirm("¿Enviar los pedidos REALES completos de hoy al número de redirección?\n\nSe manda por WhatsApp real SOLO a ese número (nunca al cliente). Idempotente.")) return;
-  const out = document.getElementById("fuegoSweepOut");
-  out.innerHTML = "⏳ Procesando…";
-  try {
-    const d = await notifCall({ action: "real_sweep" });
-    const s = d.summary || {};
-    const EST = { sent_whatsapp: "✅ enviado", error_envio: "❌ error", held_tpl_no_aprobada: "🚫 plantilla pendiente",
-      held_metodo_mixto: "⚠️ método mixto", ya_enviado: "↩︎ ya enviado", fuera_de_fecha: "⏱️ fuera de fecha",
-      sin_redirect: "sin redirección", redirect_no_whitelist: "🚫 redirección no autorizada" };
-    const rows = (d.results || []).map((r) => {
-      const key = r.estado || r.skipped || (r.error ? "error" : "?");
-      const lbl = EST[key] || key;
-      return `<div>• <b>${esc(r.cod_cliente || "")}</b> (${r.n_facturas || 0} fac) — ${esc(lbl)}${r.template ? " · " + esc(r.template) : ""}</div>`;
-    }).join("");
-    out.innerHTML = `<div style="font-weight:600;margin-bottom:0.2rem;">${s.enviados || 0} enviados · ${s.retenidos || 0} retenidos · ${s.ya_enviados || 0} ya enviados · ${s.errores || 0} errores (de ${s.total || 0})</div>${rows}`;
-    fuegoAppend(`📤 <b>Barrido real</b>: ${s.enviados || 0} enviados a la redirección, ${s.retenidos || 0} retenidos (plantilla pendiente/mixto), ${s.errores || 0} errores.`, "stage");
-  } catch (e) { out.innerHTML = '<span style="color:var(--danger);">⚠️ ' + esc(e.message) + "</span>"; }
-}
-
 // ══════════════ Conversaciones (atención humana / traspaso del bot) ══════════════
 let convCurrent = null;
 const CANNED = [
@@ -2625,6 +2529,67 @@ function dashDayLabel(iso, hoy) {
   const tag = iso === hoy ? "HOY" : "";
   return { dow, dm, tag };
 }
+// ══════════════ Dashboard IA — breakdown por modelo con filtros ══════════════
+// Cachea la última respuesta de `stats` para poder re-renderizar sin volver a
+// pegarle al edge function cuando el usuario solo cambia los filtros locales.
+let _iaLastData = null;
+async function loadIaDash() {
+  if (currentRole !== "admin") return;
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "stats", since: sessionStart },
+    });
+    if (error || !data) return;
+    _iaLastData = data;
+    renderIaTable();
+  } catch (e) { /* silent */ }
+}
+
+function renderIaTable() {
+  if (!_iaLastData) return;
+  const rng = document.getElementById("iaRange").value || "month";
+  const prov = document.getElementById("iaProvider").value;
+  const tier = document.getElementById("iaTier").value;
+  const rows = (_iaLastData.by_model?.[rng] || []).filter(r => {
+    if (prov && r.provider !== prov) return false;
+    if (tier === "free" && !r.is_free_tier) return false;
+    if (tier === "paid" && r.is_free_tier) return false;
+    return true;
+  });
+  // Totales
+  const tot = rows.reduce((a, r) => ({
+    calls: a.calls + r.calls,
+    inTok: a.inTok + (r.input_tokens || 0),
+    outTok: a.outTok + (r.output_tokens || 0),
+    cost: a.cost + Number(r.cost || 0),
+    freeCalls: a.freeCalls + (r.is_free_tier ? r.calls : 0),
+  }), { calls: 0, inTok: 0, outTok: 0, cost: 0, freeCalls: 0 });
+  document.getElementById("iaTotalCalls").textContent = tot.calls.toLocaleString("es-AR");
+  document.getElementById("iaTotalTok").textContent = (tot.inTok + tot.outTok).toLocaleString("es-AR");
+  document.getElementById("iaTotalCost").textContent = fmtCost(tot.cost);
+  document.getElementById("iaFreeCalls").textContent = tot.freeCalls.toLocaleString("es-AR") + " / " + tot.calls.toLocaleString("es-AR");
+
+  const body = document.getElementById("iaTableBody");
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" style="padding:1rem;text-align:center;color:var(--muted);font-size:0.8rem;">Sin datos en el rango/filtro actual</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => {
+    const badge = r.is_free_tier
+      ? '<span style="background:#dcfce7;color:#15803d;font-size:0.6rem;font-weight:600;padding:0.05rem 0.35rem;border-radius:10px;margin-left:0.4rem;">GRATIS</span>'
+      : '';
+    const costCell = r.is_free_tier ? '<span style="color:#15803d;">$0</span>' : fmtCost(r.cost);
+    return `<tr>
+      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);font-family:ui-monospace,monospace;font-size:0.78rem;">${esc(r.model)}${badge}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);">${esc(r.provider || '—')}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;">${r.calls.toLocaleString("es-AR")}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;">${(r.input_tokens||0).toLocaleString("es-AR")}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;">${(r.output_tokens||0).toLocaleString("es-AR")}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;font-weight:600;">${costCell}</td>
+    </tr>`;
+  }).join("");
+}
+
 async function loadDashboard() {
   const head = document.getElementById("dashHead"), bodyEl = document.getElementById("dashBody");
   head.innerHTML = ""; bodyEl.innerHTML = '<tr><td style="padding:1rem;color:var(--muted);">⏳ Cargando…</td></tr>';
@@ -2679,6 +2644,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.15.0</div>
 </body>
 </html>
