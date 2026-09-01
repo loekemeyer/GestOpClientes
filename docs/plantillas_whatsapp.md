@@ -58,8 +58,8 @@ Total de tu factura (con IVA): {{1}}
 
 Con tu pago a {{2}} días abonás: {{3}}
 
-*Pagando hasta el {{4}} podes ahorrarte {{5}}.
-Total Contado: {{6}}*
+*Pagando hasta el {{4}} podes ahorrarte {{5}}.*
+*Total Contado: {{6}}*
 
 Datos para el pago:
 Alias: loeke.srl
@@ -79,8 +79,8 @@ Total de tu factura (con IVA): {{1}}
 Con tu pago por e-cheq a {{2}} días abonás: {{3}}
 Recordá enviar el e-cheq al momento de recibir el pedido.
 
-*Pagando hasta el {{4}} podes ahorrarte {{5}}.
-Total Contado: {{6}}*
+*Pagando hasta el {{4}} podes ahorrarte {{5}}.*
+*Total Contado: {{6}}*
 
 Datos para el pago:
 Alias: loeke.srl
@@ -124,8 +124,8 @@ Detalle por factura: {{3}}
 
 Con tu pago a {{4}} días abonás: {{5}}
 
-*Pagando hasta el {{6}} podes ahorrarte {{7}}.
-Total Contado: {{8}}*
+*Pagando hasta el {{6}} podes ahorrarte {{7}}.*
+*Total Contado: {{8}}*
 
 Datos para el pago:
 Alias: loeke.srl
@@ -146,8 +146,8 @@ Detalle por factura: {{3}}
 Con tu pago por e-cheq a {{4}} días abonás: {{5}}
 Recordá enviar el e-cheq al momento de recibir el pedido.
 
-*Pagando hasta el {{6}} podes ahorrarte {{7}}.
-Total Contado: {{8}}*
+*Pagando hasta el {{6}} podes ahorrarte {{7}}.*
+*Total Contado: {{8}}*
 
 Datos para el pago:
 Alias: loeke.srl
@@ -170,9 +170,10 @@ Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $1
   Las claves de las bandas (`credito_15_30`, `echeq_90`, …) coinciden con `wa_metodo_norm`.
 - **Importes redondeados sin decimales** (`fmtARS`).
 
-Crédito y e-cheq muestran el bloque "*Pagando hasta el {fecha} podes ahorrarte {ahorro}.
-Total Contado: {contado}*", donde `ahorro` = monto de su plazo − total al contado (25%),
-`fecha` = fecha de la factura + días de contado. Contado/sin definir muestran el monto al contado.
+Crédito y e-cheq muestran el bloque (cada línea en negrita, con su propio `*…*`):
+"*Pagando hasta el {fecha} podes ahorrarte {ahorro}.*" y "*Total Contado: {contado}*", donde
+`ahorro` = monto de su plazo − total al contado (25%), `fecha` = fecha de la factura + días de
+contado. Contado/sin definir muestran el monto al contado.
 
 Nombres configurables en `app_settings` (PaginaLK): `wa_tpl_contado`, `wa_tpl_credito`,
 `wa_tpl_echeq`, `wa_tpl_contado_multiple`, `wa_tpl_credito_multiple`, `wa_tpl_echeq_multiple`.

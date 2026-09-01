@@ -254,7 +254,7 @@ function fechaLimiteContado(fechaISO: string, dias: number): string {
 }
 // Bloque de ahorro común (crédito y e-cheq), en negrita en WhatsApp.
 function bloqueAhorro(fecha: string, ahorro: string, contado: string): string[] {
-  return ["", `*Pagando hasta el ${fecha} podes ahorrarte ${ahorro}.`, `Total Contado: ${contado}*`];
+  return ["", `*Pagando hasta el ${fecha} podes ahorrarte ${ahorro}.*`, `*Total Contado: ${contado}*`];
 }
 function textoLegible(grupo: string, esMultiple: boolean, params: string[]): string {
   let cuerpo: string[];
