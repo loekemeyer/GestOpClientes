@@ -3,6 +3,7 @@ import { supabase, getSetting, getIsisClient } from "../_shared/supabase.ts";
 import { canonPhone } from "../_shared/wa-api.ts";
 import { detectIntent, conversationalReply, claudeMessage } from "../_shared/claude.ts";
 import { buildAgenteSystem } from "../_shared/agente.ts";
+import { runConversation } from "../_shared/bot-conversation.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -78,21 +79,35 @@ serve(async (req) => {
     }
 
     // Paso 0: identificar cliente por teléfono
-    let customerRow: { id: string; cod_cliente: number; business_name: string } | null = null;
+    let customerRow: { id: string; cod_cliente: number; business_name: string; dto_vol: number } | null = null;
 
     const { data: identified } = await supabase
       .rpc("wa_identify_customer", { p_phone: phone });
     const iRow = identified?.[0];
     if (iRow) {
+      // wa_identify_customer no devuelve dto_vol; lo consultamos aparte para
+      // pasarle el mismo contexto que el webhook real a `runConversation`.
+      const { data: c } = await supabase
+        .from("customers")
+        .select("dto_vol")
+        .eq("id", iRow.customer_id)
+        .maybeSingle();
       customerRow = {
         id: iRow.customer_id,
         cod_cliente: Number(iRow.cod_cliente),
         business_name: iRow.customer_name,
+        dto_vol: Number(c?.dto_vol ?? 0),
       };
     } else {
       const { data: legacy } = await supabase
         .rpc("bot_cliente_por_whatsapp", { p_telefono: testPhone });
-      customerRow = legacy?.[0] ?? null;
+      const l = legacy?.[0] ?? null;
+      customerRow = l ? {
+        id: l.id ?? l.customer_id,
+        cod_cliente: Number(l.cod_cliente),
+        business_name: l.business_name,
+        dto_vol: Number(l.dto_vol ?? 0),
+      } : null;
     }
 
     let reply: string;
@@ -137,33 +152,26 @@ serve(async (req) => {
       detectedIntent = "linking";
       reply = await handleLinking(testPhone, text, anthropicKey);
     } else {
-      const { intent } = await detectIntent(anthropicKey, text);
-      detectedIntent = intent;
-
-      switch (intent) {
-        case "consulta_pedido":
-          reply = await handleOrderQuery(customerRow);
-          break;
-        case "nuevo_pedido":
-          reply = await handleNewOrder(testPhone, customerRow, text, anthropicKey);
-          break;
-        case "retiro":
-          reply = await handlePickup(customerRow);
-          break;
-        case "cancelar":
-          reply = await handleCancel(testPhone);
-          break;
-        case "consulta_factura":
-          reply = await handleInvoiceQuery(customerRow, text, anthropicKey);
-          break;
-        case "ayuda":
-          reply = menuText(customerRow.business_name);
-          break;
-        case "opt_out":
-          reply = "⚠️ Opt-out deshabilitado en modo test.";
-          break;
-        default:
-          reply = await handleGeneral(customerRow, text, anthropicKey);
+      // Unificado con el webhook real: usa el mismo runConversation
+      // (tool-use loop) que atiende WhatsApp en producción. Esto elimina la
+      // divergencia de flujo entre test y prod. Las media (fotos, PDFs) se
+      // adjuntan como links al final del reply para simular el envío.
+      detectedIntent = "bot";
+      const conv = await runConversation(
+        text,
+        testPhone,
+        customerRow.business_name,
+        customerRow.cod_cliente,
+        customerRow.dto_vol,
+        anthropicKey,
+      );
+      reply = conv.reply;
+      if (conv.media.length) {
+        const mediaLines = conv.media.map((m) => {
+          const label = m.caption ?? m.filename ?? m.type;
+          return `📎 ${label}\n${m.url}`;
+        });
+        reply = reply + "\n\n" + mediaLines.join("\n\n");
       }
     }
 

@@ -20,7 +20,7 @@ import {
   runConversation,
   saveMessage,
   type MediaAction,
-} from "./claude.ts";
+} from "../_shared/bot-conversation.ts";
 
 // ─── Config (secrets desde Deno.env) ───────────────────────────────
 
