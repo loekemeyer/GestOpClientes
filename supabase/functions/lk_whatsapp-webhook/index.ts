@@ -24,7 +24,10 @@ import {
 } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
 
-// ─── Config (secrets desde Deno.env) ───────────────────────────────
+// ─── Config (Deno.env → fallback app_settings) ─────────────────────
+// Prioridad: env var → app_settings. Así podemos rotar el token de WhatsApp
+// desde el dashboard (o SQL) sin tocar secrets de Supabase ni redeployar.
+// La env var sigue siendo válida — pisa a app_settings cuando está seteada.
 
 interface Config {
   waPhoneId: string;
@@ -33,11 +36,11 @@ interface Config {
   anthropicKey: string;
 }
 
-function loadConfig(): Config {
-  const waPhoneId = Deno.env.get("LK_WA_PHONE_ID") ?? "";
-  const waToken = Deno.env.get("LK_WA_TOKEN") ?? "";
-  const waVerifyToken = Deno.env.get("LK_WA_VERIFY_TOKEN") ?? "";
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+async function loadConfig(): Promise<Config> {
+  const waPhoneId = Deno.env.get("LK_WA_PHONE_ID") ?? (await getSetting("LK_WA_PHONE_ID")) ?? "";
+  const waToken = Deno.env.get("LK_WA_TOKEN") ?? (await getSetting("LK_WA_TOKEN")) ?? "";
+  const waVerifyToken = Deno.env.get("LK_WA_VERIFY_TOKEN") ?? (await getSetting("LK_WA_VERIFY_TOKEN")) ?? "";
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY") ?? (await getSetting("ANTHROPIC_API_KEY")) ?? "";
 
   if (!waPhoneId || !waToken || !waVerifyToken || !anthropicKey) {
     const missing = [
@@ -46,7 +49,7 @@ function loadConfig(): Config {
       !waVerifyToken && "LK_WA_VERIFY_TOKEN",
       !anthropicKey && "ANTHROPIC_API_KEY",
     ].filter(Boolean);
-    throw new Error("Faltan env vars: " + missing.join(", "));
+    throw new Error("Faltan credenciales (ni env var ni app_settings): " + missing.join(", "));
   }
 
   return { waPhoneId, waToken, waVerifyToken, anthropicKey };
@@ -746,7 +749,7 @@ Deno.serve(async (req: Request) => {
 
       // ── Acción interna: flush outbox (llamada desde pg_cron) ──
       if (body?.action === "flush") {
-        const cfg = loadConfig();
+        const cfg = await loadConfig();
         const result = await flushOutbox(cfg);
         return new Response(JSON.stringify(result), {
           status: 200,
@@ -760,7 +763,7 @@ Deno.serve(async (req: Request) => {
         return new Response("OK", { status: 200 });
       }
 
-      const cfg = loadConfig();
+      const cfg = await loadConfig();
 
       // Adjuntos (imagen, documento, audio, video, sticker): por ahora
       // NO los descargamos ni parseamos — solo respondemos placeholder pidiendo
