@@ -329,6 +329,14 @@ async function handleMessage(
     cfg.anthropicKey,
   );
 
+  // 5b. Si el LLM se cayó (timeout / error irrecuperable), NO enviamos
+  // nada al cliente. `runConversation` ya avisó a un humano vía
+  // `wa_alertas_humano`; el vendedor toma la conversación desde ahí.
+  if (result.timeout || result.llmError) {
+    console.warn(`[webhook] LLM ${result.timeout ? "timeout" : "error"} — no se envía respuesta al cliente ${phone}. Alerta encolada.`);
+    return;
+  }
+
   // 6. Enviar media (fotos, catálogo) antes del texto
   if (result.media.length) {
     await sendMediaActions(result.media, phone, cfg);

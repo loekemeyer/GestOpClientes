@@ -941,7 +941,17 @@ async function sendMessage() {
     if (error) {
       addBotMsg("❌ Error al conectar con el bot: " + (error.message || "desconocido"));
     } else {
-      addBotMsg(data.reply || "Sin respuesta");
+      // Alerta: en producción el cliente NO recibiría este mensaje. Se mostraría
+      // acá solo para que el operador vea qué pasó (timeout / error del LLM).
+      if (data.alert) {
+        const label = data.alert.kind === "timeout"
+          ? "⏳ TIMEOUT del LLM — en prod el cliente NO recibiría nada. Alerta encolada a humano."
+          : "⚠️ ERROR del LLM — en prod el cliente NO recibiría nada. Alerta encolada a humano.";
+        addSystemMsg(label);
+        addSystemMsg(data.alert.text);
+      } else {
+        addBotMsg(data.reply || "Sin respuesta");
+      }
       if (data.customer) document.getElementById("chatStatus").textContent = "Conectado — " + data.customer;
       if (data.rateLimited) addSystemMsg("⚠️ Rate limit alcanzado para este número");
       if (data.blacklisted) addSystemMsg("🚫 Número en blacklist");
@@ -2679,6 +2689,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.5</div>
 </body>
 </html>
