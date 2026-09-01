@@ -1056,9 +1056,9 @@ function dtoRowCredito(r) {
   const tr = document.createElement("tr");
   tr.dataset.key = (r && r.key) || "";
   tr.innerHTML =
-    '<td style="padding:3px 6px;"><input type="text" class="dto-label" value="' + esc((r && r.label) || "") + '" style="width:100%;" placeholder="ej: 61 a 90"></td>' +
+    '<td style="padding:3px 6px;"><input type="text" class="dto-label" value="' + esc((r && r.label) || "") + '" style="width:100%;" placeholder="ej: 61 a 90" oninput="renderExcepciones()"></td>' +
     '<td style="padding:3px 6px;">' + dtoPctInput(r && r.dto) + '</td>' +
-    '<td style="padding:3px 6px;text-align:center;"><button class="config-btn small" title="Quitar fila" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+    '<td style="padding:3px 6px;text-align:center;"><button class="config-btn small" title="Quitar fila" onclick="this.closest(\'tr\').remove();renderExcepciones()">✕</button></td>';
   return tr;
 }
 
@@ -1066,7 +1066,7 @@ function dtoRowEcheq(r) {
   const tr = document.createElement("tr");
   tr.dataset.key = (r && r.key) || "";
   tr.innerHTML =
-    '<td style="padding:3px 6px;"><input type="text" class="dto-label" value="' + esc((r && r.label) || "") + '" style="width:100%;"></td>' +
+    '<td style="padding:3px 6px;"><input type="text" class="dto-label" value="' + esc((r && r.label) || "") + '" style="width:100%;" oninput="renderExcepciones()"></td>' +
     '<td style="padding:3px 6px;">' + dtoPctInput(r && r.dto) + '</td>';
   return tr;
 }
@@ -2563,6 +2563,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.2</div>
 </body>
 </html>
