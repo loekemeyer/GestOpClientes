@@ -62,27 +62,47 @@ async function metaWaba(): Promise<string> {
 // evita repegarle a Meta dentro del mismo envío/ráfaga, pero refleja aprobaciones/pausas
 // casi en tiempo real sin depender de reciclar la instancia warm.
 let _tplStatus: Record<string, string> | null = null;
-let _tplStatusAt = 0;
+let _tplParams: Record<string, number> | null = null; // name → cantidad de {{n}} en el BODY
+let _tplAt = 0;
 const TPL_TTL_MS = 30_000;
-async function tplStatus(name: string): Promise<string | null> {
-  if (!_tplStatus || (Date.now() - _tplStatusAt) > TPL_TTL_MS) {
-    const fresh: Record<string, string> = {};
-    let ok = false;
-    try {
-      const token = await metaToken(), waba = await metaWaba();
-      if (token && waba) {
-        const res = await fetch(`${META_API}/${waba}/message_templates?limit=200`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
+// Trae de Meta el estado Y la cantidad de variables ({{n}}) del cuerpo de cada plantilla.
+async function refreshTpls(): Promise<void> {
+  if (_tplStatus && (Date.now() - _tplAt) <= TPL_TTL_MS) return;
+  const st: Record<string, string> = {}, pc: Record<string, number> = {};
+  let ok = false;
+  try {
+    const token = await metaToken(), waba = await metaWaba();
+    if (token && waba) {
+      const res = await fetch(`${META_API}/${waba}/message_templates?limit=200&fields=name,status,components`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      // deno-lint-ignore no-explicit-any
+      for (const t of (data.data ?? [])) {
+        st[t.name] = t.status;
+        let max = 0;
         // deno-lint-ignore no-explicit-any
-        for (const t of (data.data ?? [])) fresh[t.name] = t.status;
-        ok = true;
+        for (const c of (t.components ?? [])) {
+          if (c.type === "BODY" && typeof c.text === "string") {
+            const re = /\{\{(\d+)\}\}/g; let m: RegExpExecArray | null;
+            while ((m = re.exec(c.text)) !== null) { const i = parseInt(m[1], 10); if (i > max) max = i; }
+          }
+        }
+        pc[t.name] = max;
       }
-    } catch { /* si no se puede verificar, no bloquea */ }
-    if (ok) { _tplStatus = fresh; _tplStatusAt = Date.now(); }
-    else if (!_tplStatus) { _tplStatus = {}; } // sin snapshot previo, no bloquea
-  }
-  return _tplStatus[name] ?? null;
+      ok = true;
+    }
+  } catch { /* si no se puede verificar, no bloquea */ }
+  if (ok) { _tplStatus = st; _tplParams = pc; _tplAt = Date.now(); }
+  else { if (!_tplStatus) _tplStatus = {}; if (!_tplParams) _tplParams = {}; }
 }
+async function tplStatus(name: string): Promise<string | null> {
+  await refreshTpls(); return _tplStatus![name] ?? null;
+}
+async function tplParamCount(name: string): Promise<number | null> {
+  await refreshTpls(); const v = _tplParams![name]; return (v === undefined) ? null : v;
+}
+// Cantidad de {{n}} esperada por formato/grupo, para autodetectar contra Meta.
+function countV1(grupo: string, esMultiple: boolean): number { return grupo === "contado" ? (esMultiple ? 4 : 2) : (esMultiple ? 8 : 6); }
+function countV2(grupo: string, esMultiple: boolean): number { return grupo === "contado" ? (esMultiple ? 7 : 5) : (esMultiple ? 11 : 9); }
 
 // ── Lista blanca de envío (wa_envio_contactos). El bot SÓLO envía a estos números. ──
 async function whitelist(): Promise<string[]> {
@@ -240,7 +260,7 @@ async function loadDtoCfg(): Promise<DtoCfg> {
   }
   const alias = String(cfg?.pago?.alias ?? PAGO_ALIAS_DEFAULT).trim() || PAGO_ALIAS_DEFAULT;
   const cbu = String(cfg?.pago?.cbu ?? PAGO_CBU_DEFAULT).trim() || PAGO_CBU_DEFAULT;
-  const formato = ((await getSetting("wa_plantilla_formato")) || "v1").trim();
+  const formato = ((await getSetting("wa_plantilla_formato")) || "auto").trim();
   return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map, excCuit, excRazon, alias, cbu, formato };
 }
 function dtoDeMetodo(metodo: string, cfg: DtoCfg): { dto: number; label: string } {
@@ -302,7 +322,7 @@ function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: st
   return cuerpo.join("\n") + "\n" + pagoFooter(alias, cbu);
 }
 // deno-lint-ignore no-explicit-any
-function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg: DtoCfg) {
+async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg: DtoCfg) {
   const grupo = grupoDe(metodo);
   const { dto, label } = dtoDeMetodo(metodo, cfg);
   const totales = facturas.map((f) => Number(f.total || 0));
@@ -315,7 +335,16 @@ function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg: DtoCf
   const esMultiple = n > 1;
   const lista = totales.map((t) => fmtARS(t)).join(" / ");
   const template = esMultiple ? TPL[grupo].multi : TPL[grupo].single;
-  const v2 = cfg.formato === "v2";                             // formato de plantilla en Meta
+  // Formato: 'v1'/'v2' fuerza; 'auto' (default) lo detecta contando los {{n}} vivos en Meta.
+  let v2: boolean;
+  if (cfg.formato === "v2") v2 = true;
+  else if (cfg.formato === "v1") v2 = false;
+  else {
+    const lc = await tplParamCount(template);
+    v2 = (lc === countV2(grupo, esMultiple)) ? true
+       : (lc === countV1(grupo, esMultiple)) ? false
+       : (lc != null && lc >= countV2(grupo, esMultiple)); // desconocido/no leído → v1 (seguro)
+  }
   const contadoPct = String(Math.round(cfg.contadoDto * 100)); // % de contado (editable)
   const metodoPct = String(Math.round(dto * 100));             // % del método/plazo (de la tabla)
   // v2 → Contado: {total, %dtoContado, totalContado}; Crédito/e-cheq: {total, plazoDías,
@@ -384,7 +413,7 @@ async function handleGrupo(body: any) {
   if (metodoMixto) estado = "held_metodo_mixto";
   else {
     const cfg = await loadDtoCfg();
-    mensaje = armarMensaje(metodo, facturas, String(body.dia ?? hoy), cfg);
+    mensaje = await armarMensaje(metodo, facturas, String(body.dia ?? hoy), cfg);
     const st = await tplStatus(mensaje.template);
     mensaje.tpl_status = st;
     if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
@@ -457,7 +486,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
     let base: any = null;
     if (metodoMixto) estado0 = "held_metodo_mixto";
     else {
-      base = armarMensaje(metodo, facturas, fecha, cfg);
+      base = await armarMensaje(metodo, facturas, fecha, cfg);
       const st = await tplStatus(base.template);
       base.tpl_status = st;
       if (st && st !== "APPROVED") estado0 = "held_tpl_no_aprobada";
@@ -558,7 +587,7 @@ serve(async (req) => {
     if (multisource) estado = "held_multisource";
     else if (metodoMixto) estado = "held_metodo_mixto";
     else {
-      mensaje = armarMensaje(metodo, facturas, fecha, cfg);
+      mensaje = await armarMensaje(metodo, facturas, fecha, cfg);
       // No enviar con plantilla no aprobada por Meta (Meta la rechazaría).
       const st = await tplStatus(mensaje.template);
       mensaje.tpl_status = st;
