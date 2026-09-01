@@ -350,6 +350,51 @@ async function conSaludoSiCorresponde(
   return `¡Hola ${businessName}! 👋\n\n${reply}`;
 }
 
+// ─── Statuses de Meta (delivery reports) ───────────────────────────
+// Idempotente por (wamid, status). Cloud API v20+ manda estos events dentro
+// del mismo webhook, en value.statuses[]. Formato:
+//   {
+//     id: 'wamid.HBg…',
+//     status: 'sent' | 'delivered' | 'read' | 'failed',
+//     timestamp: '1700000000',
+//     recipient_id: '5491125608669',
+//     conversation: { id, expiration_timestamp, origin: {type} },
+//     pricing: { billable, pricing_model, category, type },
+//     errors: [{ code, title, message, error_data:{details} }]  // solo en failed
+//   }
+// deno-lint-ignore no-explicit-any
+async function ingestStatuses(body: any): Promise<void> {
+  const changes = body?.entry?.[0]?.changes ?? [];
+  for (const change of changes) {
+    if (change?.field !== "messages") continue;
+    const statuses = change?.value?.statuses ?? [];
+    for (const s of statuses) {
+      if (!s?.id || !s?.status) continue;
+      const tsSec = Number(s.timestamp);
+      const ts = Number.isFinite(tsSec) ? new Date(tsSec * 1000).toISOString() : new Date().toISOString();
+      const convExpSec = Number(s?.conversation?.expiration_timestamp);
+      const convExp = Number.isFinite(convExpSec) ? new Date(convExpSec * 1000).toISOString() : null;
+      try {
+        await supabase.from("wa_message_status").upsert({
+          wamid: s.id,
+          recipient_id: s.recipient_id ?? null,
+          status: s.status,
+          ts,
+          conversation_id: s?.conversation?.id ?? null,
+          conv_expiration: convExp,
+          origin_type: s?.conversation?.origin?.type ?? null,
+          pricing_category: s?.pricing?.category ?? null,
+          pricing_type: s?.pricing?.type ?? null,
+          errors: s?.errors ?? null,
+          raw: s,
+        }, { onConflict: "wamid,status", ignoreDuplicates: true });
+      } catch (e) {
+        console.error("[wa_message_status] insert falló:", e);
+      }
+    }
+  }
+}
+
 // ─── Adjuntos ────────────────────────────────────────────────────────
 // Dos modos según el feature flag `app_settings.wa_comprobantes_activo`:
 //
@@ -761,6 +806,15 @@ Deno.serve(async (req: Request) => {
           headers: { "Content-Type": "application/json" },
         });
       }
+
+      // ── Statuses de Meta (delivery: sent/delivered/read/failed) ──
+      // Cloud API v20+ los rutea junto al campo `messages`, dentro de
+      // entry[].changes[].value.statuses[]. Los loggeamos en wa_message_status
+      // para poder debuggear entregas silenciosas y saber si un template
+      // fue delivered/read/failed post-envío.
+      await ingestStatuses(body).catch((e) =>
+        console.error("[statuses] falló:", e instanceof Error ? e.message : e),
+      );
 
       // ── Webhook de Meta: mensaje entrante ──
       const msg = extractMessage(body);
