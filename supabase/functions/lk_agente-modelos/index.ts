@@ -36,12 +36,27 @@ async function listModels(
   provider: string,
   key: string,
 ): Promise<{ ok: boolean; models?: string[]; error?: string }> {
+  // Extrae un mensaje útil del body de error del proveedor.
+  const bodyErr = async (r: Response): Promise<string> => {
+    try {
+      const t = await r.text();
+      try {
+        const j = JSON.parse(t);
+        return j?.error?.message || j?.error?.type || j?.message || t.slice(0, 300);
+      } catch {
+        return t.slice(0, 300);
+      }
+    } catch {
+      return "";
+    }
+  };
+
   try {
     if (provider === "anthropic") {
       const r = await fetch("https://api.anthropic.com/v1/models?limit=100", {
         headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
       });
-      if (!r.ok) return { ok: false, error: `Anthropic HTTP ${r.status}` };
+      if (!r.ok) return { ok: false, error: `Anthropic HTTP ${r.status}: ${await bodyErr(r)}` };
       const d = await r.json();
       // deno-lint-ignore no-explicit-any
       return { ok: true, models: (d.data ?? []).map((m: any) => m.id) };
@@ -50,19 +65,24 @@ async function listModels(
       const r = await fetch("https://api.openai.com/v1/models", {
         headers: { Authorization: `Bearer ${key}` },
       });
-      if (!r.ok) return { ok: false, error: `OpenAI HTTP ${r.status}` };
+      if (!r.ok) return { ok: false, error: `OpenAI HTTP ${r.status}: ${await bodyErr(r)}` };
       const d = await r.json();
       // deno-lint-ignore no-explicit-any
       return { ok: true, models: (d.data ?? []).map((m: any) => m.id).sort() };
     }
     if (provider === "google") {
       const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=200`,
       );
-      if (!r.ok) return { ok: false, error: `Google HTTP ${r.status}` };
+      if (!r.ok) return { ok: false, error: `Google HTTP ${r.status}: ${await bodyErr(r)}` };
       const d = await r.json();
-      // deno-lint-ignore no-explicit-any
-      return { ok: true, models: (d.models ?? []).map((m: any) => String(m.name).replace(/^models\//, "")) };
+      // Solo modelos que soportan generación de texto (generateContent).
+      const models = (d.models ?? [])
+        // deno-lint-ignore no-explicit-any
+        .filter((m: any) => !Array.isArray(m.supportedGenerationMethods) || m.supportedGenerationMethods.includes("generateContent"))
+        // deno-lint-ignore no-explicit-any
+        .map((m: any) => String(m.name).replace(/^models\//, ""));
+      return { ok: true, models };
     }
     return { ok: false, error: "Proveedor no soportado (anthropic / openai / google)" };
   } catch (e) {
@@ -92,7 +112,10 @@ serve(async (req) => {
         return json({ error: "No pude detectar el proveedor por el formato de la key. Elegí uno manualmente." }, 400);
       }
       const res = await listModels(provider, key);
-      if (!res.ok) return json({ error: `Key inválida o sin acceso: ${res.error}` }, 400);
+      if (!res.ok) {
+        console.error(`[check] ${provider} falló: ${res.error}`);
+        return json({ error: `Key inválida o sin acceso: ${res.error}` }, 400);
+      }
       return json({ ok: true, proveedor: provider, models: res.models });
     }
 

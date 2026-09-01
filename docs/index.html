@@ -1394,6 +1394,24 @@ function renderModelo(m) {
 let _modPendingKey = null;
 let _modPendingProv = null;
 
+// Invoca la edge function y extrae el mensaje de error real del server
+// (supabase-js no lo pone en `data` cuando el status es 4xx/5xx).
+async function amInvoke(payload) {
+  const { data, error } = await sb.functions.invoke("lk_agente-modelos", { body: payload });
+  if (error) {
+    let msg = error.message || "error";
+    try {
+      if (error.context && typeof error.context.json === "function") {
+        const b = await error.context.json();
+        if (b && b.error) msg = b.error;
+      }
+    } catch (_) { /* keep msg */ }
+    throw new Error(msg);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
 async function checkModelo() {
   const key = document.getElementById("modKey").value.trim();
   const st = document.getElementById("modAddStatus");
@@ -1401,10 +1419,7 @@ async function checkModelo() {
   st.textContent = "Chequeando..."; st.className = "config-status";
   document.getElementById("modCheckBtn").disabled = true;
   try {
-    const { data, error } = await sb.functions.invoke("lk_agente-modelos", {
-      body: { action: "check", api_key: key },
-    });
-    if (error || !data || data.error) throw new Error((data && data.error) || "error");
+    const data = await amInvoke({ action: "check", api_key: key });
     _modPendingKey = key;
     _modPendingProv = data.proveedor;
     document.getElementById("modProvDetected").textContent = (PROV_LABEL[data.proveedor] || data.proveedor);
@@ -1444,10 +1459,7 @@ async function saveModelo() {
   const label = document.getElementById("modLabel").value.trim() || model_id;
   st.textContent = "Guardando..."; st.className = "config-status";
   try {
-    const { data, error } = await sb.functions.invoke("lk_agente-modelos", {
-      body: { action: "save", api_key: _modPendingKey, proveedor: _modPendingProv, model_id, label },
-    });
-    if (error || !data || data.error) throw new Error((data && data.error) || "error");
+    await amInvoke({ action: "save", api_key: _modPendingKey, proveedor: _modPendingProv, model_id, label });
     st.textContent = "✓ Guardado"; st.className = "config-status ok";
     cancelModelo();
     loadModelos();
@@ -1475,10 +1487,7 @@ async function deleteModelo(id) {
   if (!confirm("¿Eliminar este modelo? (también se borra su API key guardada)")) return;
   const st = document.getElementById("modSt-" + id);
   try {
-    const { data, error } = await sb.functions.invoke("lk_agente-modelos", {
-      body: { action: "delete", id },
-    });
-    if (error || !data || data.error) throw new Error((data && data.error) || "error");
+    await amInvoke({ action: "delete", id });
     loadModelos();
   } catch (e) {
     if (st) { st.textContent = "✗ " + (e.message || "Error"); st.className = "config-status err"; }
@@ -2291,6 +2300,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.3</div>
 </body>
 </html>
