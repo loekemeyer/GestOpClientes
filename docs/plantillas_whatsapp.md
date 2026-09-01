@@ -70,7 +70,7 @@ Total de tu factura (con IVA): {{1}}
 
 *Con tu pago a {{2}} días abonás: {{3}} ({{4}}% Dto)*
 
-*Pagando hasta el {{5}} podes ahorrarte {{6}}.*
+*Pagando hasta el {{5}} podés ahorrarte {{6}}.*
 *Total Contado: {{7}}*
 
 Datos para el pago:
@@ -91,7 +91,7 @@ Total de tu factura (con IVA): {{1}}
 *Con tu pago por e-cheq a {{2}} días abonás: {{3}} ({{4}}% Dto)*
 Recordá enviar el e-cheq al momento de recibir el pedido.
 
-*Pagando hasta el {{5}} podes ahorrarte {{6}}.*
+*Pagando hasta el {{5}} podés ahorrarte {{6}}.*
 *Total Contado: {{7}}*
 
 Datos para el pago:
@@ -137,7 +137,7 @@ Detalle por factura: {{3}}
 
 *Con tu pago a {{4}} días abonás: {{5}} ({{6}}% Dto)*
 
-*Pagando hasta el {{7}} podes ahorrarte {{8}}.*
+*Pagando hasta el {{7}} podés ahorrarte {{8}}.*
 *Total Contado: {{9}}*
 
 Datos para el pago:
@@ -159,7 +159,7 @@ Detalle por factura: {{3}}
 *Con tu pago por e-cheq a {{4}} días abonás: {{5}} ({{6}}% Dto)*
 Recordá enviar el e-cheq al momento de recibir el pedido.
 
-*Pagando hasta el {{7}} podes ahorrarte {{8}}.*
+*Pagando hasta el {{7}} podés ahorrarte {{8}}.*
 *Total Contado: {{9}}*
 
 Datos para el pago:
@@ -187,7 +187,7 @@ Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $1
   literal `%` va fijo en el cuerpo de Meta y el número lo completa el bot (ej. `({{n}}% Dto)`).
 
 Todas las líneas de método y el bloque de ahorro van **en negrita** (cada una con su propio `*…*`):
-"*Con tu pago a {plazo} días abonás: {monto} ({dto}% Dto)*", "*Pagando hasta el {fecha} podes ahorrarte
+"*Con tu pago a {plazo} días abonás: {monto} ({dto}% Dto)*", "*Pagando hasta el {fecha} podés ahorrarte
 {ahorro}.*", "*Total Contado: {contado}*". `ahorro` = monto de su plazo − total al contado; `fecha` = fecha
 de la factura + días de contado. Contado muestra "*Total a pagar Contado ({dto}% Dto): {monto}*".
 
