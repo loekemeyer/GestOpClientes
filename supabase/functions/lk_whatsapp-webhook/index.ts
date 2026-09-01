@@ -7,7 +7,7 @@
 // Usa RPCs bot_* para todo acceso a datos (no queries directos).
 // Claude tool-use para conversación inteligente.
 
-import { supabase } from "../_shared/supabase.ts";
+import { supabase, getSetting } from "../_shared/supabase.ts";
 import {
   sendText,
   sendImage,
@@ -21,6 +21,7 @@ import {
   saveMessage,
   type MediaAction,
 } from "../_shared/bot-conversation.ts";
+import { handleFaq } from "../_shared/faq.ts";
 
 // ─── Config (secrets desde Deno.env) ───────────────────────────────
 
@@ -118,11 +119,32 @@ async function tryRegister(phone: string, cuit: string): Promise<RegisterResult 
   return data[0];
 }
 
-/** Extrae CUIT del texto (11 dígitos, con o sin guiones) */
+/**
+ * Extrae un CUIT válido del texto, independiente del formato que use el
+ * cliente ("20-12345678-9", "20/12345678/9", "cuit20123456789", "cuit: 20
+ * 12345678 9", etc.). Se limpian TODOS los no-dígitos y se recorren ventanas
+ * de 11 dígitos exigiendo dígito verificador (módulo 11) correcto — evita
+ * falsos positivos con teléfonos de 10-11 dígitos o CUITs mal tipeados.
+ */
+function validaCuit(cuit: string): boolean {
+  if (!/^\d{11}$/.test(cuit)) return false;
+  const mult = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(cuit[i]) * mult[i];
+  const mod = 11 - (sum % 11);
+  const dv = mod === 11 ? 0 : mod === 10 ? 9 : mod;
+  return dv === Number(cuit[10]);
+}
+
 function extractCuit(text: string): string | null {
-  const cleaned = text.replace(/[\s\-\.]/g, "");
-  const match = cleaned.match(/\b(\d{10,11})\b/);
-  return match ? match[1] : null;
+  const digits = text.replace(/\D/g, "");
+  if (digits.length < 11) return null;
+  // Ventana móvil de 11 dígitos: el primer candidato que pase módulo 11 gana.
+  for (let i = 0; i + 11 <= digits.length; i++) {
+    const cand = digits.slice(i, i + 11);
+    if (validaCuit(cand)) return cand;
+  }
+  return null;
 }
 
 /** Maneja el flujo de registro para teléfonos no identificados */
@@ -289,6 +311,36 @@ async function flushOutbox(cfg: Config): Promise<{ sent: number; failed: number 
   return { sent, failed };
 }
 
+// ─── Saludo por plantilla (primer contacto tras N horas de silencio) ─
+// Consulta `bot_historial_chat` para decidir si es el primer mensaje del
+// cliente en la ventana. Si sí, se antepone un saludo fijo con el nombre.
+async function esPrimerContacto(phone: string, umbralHoras: number): Promise<boolean> {
+  const since = new Date(Date.now() - umbralHoras * 3600_000).toISOString();
+  const { count } = await supabase
+    .from("bot_historial_chat")
+    .select("id", { count: "exact", head: true })
+    .eq("telefono", phone)
+    .eq("rol", "user")
+    .gte("creado_en", since);
+  // 0 → nadie escribió en la ventana; 1 → solo el mensaje que acabamos de
+  // guardar. Los dos casos son "primer contacto".
+  return (count ?? 0) <= 1;
+}
+
+/** Wrapping opcional del reply con saludo cuando hay primer contacto. */
+async function conSaludoSiCorresponde(
+  reply: string,
+  phone: string,
+  businessName: string,
+): Promise<string> {
+  const raw = await getSetting("wa_saludo_umbral_horas");
+  const umbral = Number(raw) || 6;
+  if (umbral <= 0) return reply; // saludo desactivado
+  const primero = await esPrimerContacto(phone, umbral);
+  if (!primero) return reply;
+  return `¡Hola ${businessName}! 👋\n\n${reply}`;
+}
+
 // ─── Handler principal ──────────────────────────────────────────────
 
 async function handleMessage(
@@ -301,25 +353,45 @@ async function handleMessage(
   // 1. Marcar como leído (fire-and-forget)
   markRead(cfg.waPhoneId, cfg.waToken, msgId).catch(() => {});
 
-  // 2. Chequear modo (bot / humano)
+  // 2. Modo humano → no procesamos, solo guardamos para trazabilidad
   const modo = await getConversationMode(phone);
   if (modo === "humano") {
     await saveMessage(phone, "user", text);
     return;
   }
 
-  // 3. Buscar cliente por teléfono
+  // 3. Identificar cliente por teléfono
   const customer = await getCustomerContext(phone);
 
+  // 4. FAQ pre-check (0 tokens). Bifurca cliente vs no-cliente. Corta
+  //    acá si hay match "sólido" (AUTO / SEMIAUTO / HUMANO preestablecida).
+  //    La conversación con el agente es el último recurso.
+  const faqCustomer = customer ? {
+    id: customer.customer_id,
+    cod_cliente: customer.cod_cliente,
+    business_name: customer.business_name,
+    dto_vol: customer.dto_vol,
+  } : null;
+  const faq = await handleFaq(text, faqCustomer);
+  if (faq) {
+    await saveMessage(phone, "user", text);
+    const reply = customer
+      ? await conSaludoSiCorresponde(faq.reply, phone, customer.business_name)
+      : faq.reply;
+    await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+    await saveMessage(phone, "assistant", reply);
+    return;
+  }
+
+  // 5. Sin cliente y sin FAQ → flujo de identificación (CUIT)
   if (!customer) {
     await handleRegistration(phone, text, contactName, cfg);
     return;
   }
 
-  // 4. Cliente identificado — guardar mensaje entrante
+  // 6. Cliente identificado, FAQ no matcheó → agente conversacional
   await saveMessage(phone, "user", text);
 
-  // 5. Ejecutar conversación con Claude (tool-use loop)
   const result = await runConversation(
     text,
     phone,
@@ -329,7 +401,7 @@ async function handleMessage(
     cfg.anthropicKey,
   );
 
-  // 5b. Si el LLM se cayó (timeout / error irrecuperable), NO enviamos
+  // 6b. Si el LLM se cayó (timeout / error irrecuperable), NO enviamos
   // nada al cliente. `runConversation` ya avisó a un humano vía
   // `wa_alertas_humano`; el vendedor toma la conversación desde ahí.
   if (result.timeout || result.llmError) {
@@ -337,16 +409,17 @@ async function handleMessage(
     return;
   }
 
-  // 6. Enviar media (fotos, catálogo) antes del texto
+  // 7. Enviar media (fotos, catálogo) antes del texto
   if (result.media.length) {
     await sendMediaActions(result.media, phone, cfg);
   }
 
-  // 7. Enviar respuesta de texto
-  await sendText(cfg.waPhoneId, cfg.waToken, phone, result.reply);
+  // 8. Enviar respuesta de texto (con saludo si es primer contacto)
+  const reply = await conSaludoSiCorresponde(result.reply, phone, customer.business_name);
+  await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
 
-  // 8. Guardar respuesta en historial
-  await saveMessage(phone, "assistant", result.reply);
+  // 9. Guardar respuesta en historial
+  await saveMessage(phone, "assistant", reply);
 }
 
 // ─── Edge Function entry point ──────────────────────────────────────
