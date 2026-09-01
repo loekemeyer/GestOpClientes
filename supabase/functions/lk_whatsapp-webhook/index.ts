@@ -341,6 +341,19 @@ async function conSaludoSiCorresponde(
   return `¡Hola ${businessName}! 👋\n\n${reply}`;
 }
 
+// ─── Kill switch por whitelist ─────────────────────────────────────
+// Mientras la app está en modo "testing/rollout controlado", el bot solo
+// responde a números en `wa_envio_contactos`. Cuando se decida activar
+// para todos los clientes, poner `app_settings.wa_bot_solo_whitelist = 0`.
+async function estaEnWhitelist(phone: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("wa_envio_contactos")
+    .select("phone")
+    .eq("phone", phone)
+    .maybeSingle();
+  return !!data;
+}
+
 // ─── Handler principal ──────────────────────────────────────────────
 
 async function handleMessage(
@@ -350,6 +363,25 @@ async function handleMessage(
   contactName: string | undefined,
   cfg: Config,
 ): Promise<void> {
+  // 0. Kill switch: si el toggle está prendido, solo procesamos números
+  //    de la whitelist (wa_envio_contactos). Cualquier otro se descarta
+  //    silenciosamente — no marcamos leído para no confundir a Meta, no
+  //    respondemos, no guardamos historial. Log en wa_alertas_humano
+  //    para saber qué números intentaron.
+  const raw = await getSetting("wa_bot_solo_whitelist");
+  const soloWhitelist = Number(raw ?? "1") === 1;
+  if (soloWhitelist && !(await estaEnWhitelist(phone))) {
+    console.warn(`[whitelist-gate] mensaje de ${phone} descartado (no está en wa_envio_contactos).`);
+    try {
+      await supabase.from("wa_alertas_humano").insert({
+        tipo: "otro",
+        phone,
+        contexto: { motivo: "whitelist_gate", texto_recibido: text.slice(0, 200), contact_name: contactName ?? null },
+      });
+    } catch { /* fire-and-forget */ }
+    return;
+  }
+
   // 1. Marcar como leído (fire-and-forget)
   markRead(cfg.waPhoneId, cfg.waToken, msgId).catch(() => {});
 
