@@ -15,6 +15,7 @@ import {
   sendTemplate,
   markRead,
   extractMessage,
+  downloadMediaFromMeta,
 } from "./wa-api.ts";
 import {
   runConversation,
@@ -341,19 +342,47 @@ async function conSaludoSiCorresponde(
   return `¡Hola ${businessName}! 👋\n\n${reply}`;
 }
 
-// ─── Adjuntos (interino) ───────────────────────────────────────────
-// Mientras el flujo de comprobantes no está cableado, cualquier adjunto
-// (imagen, PDF, audio, video, sticker) recibe una respuesta placeholder
-// y queda registrado en bot_historial_chat + wa_alertas_humano.
-// Respeta kill switch y whitelist igual que un mensaje de texto.
-const MSG_ADJUNTO_INTERINO =
+// ─── Adjuntos ────────────────────────────────────────────────────────
+// Dos modos según el feature flag `app_settings.wa_comprobantes_activo`:
+//
+//   0 (default, apagado) → placeholder: "no enviar adjuntos por ahora".
+//   1 (encendido)        → flujo de comprobantes:
+//                          1. Baja el archivo de Meta (2-step API)
+//                          2. Sube al bucket `wa-comprobantes`
+//                          3. Inserta fila en `wa_comprobantes` (status pending)
+//                          4. Dispara `lk_parse-comprobante` en background
+//                          5. Responde placeholder "muchas gracias, un vendedor
+//                             lo revisa" (matching auto y respuesta según
+//                             extracto llegan en el próximo iterado)
+//                          6. Encola alerta humana con el id del comprobante
+//
+// Respeta kill switch y whitelist en ambos modos.
+
+const MSG_ADJUNTO_APAGADO =
   "Por favor, no enviar ningún archivo adjunto a este número de momento. 🙏\n\n" +
   "Si necesitás hacer una consulta o pasarnos información, escribinos por texto y te ayudamos.";
 
-async function handleAdjunto(
-  msg: { from: string; msgId: string; type: string; name?: string },
-  cfg: Config,
-): Promise<void> {
+const MSG_ADJUNTO_GRACIAS =
+  "¡Muchas gracias! 🙌\n\nRecibimos tu adjunto. Un vendedor lo va a revisar y te confirmamos a la brevedad.";
+
+// Sólo estos MIME pasan al pipeline de comprobantes. El resto (audio, video,
+// sticker) siempre responde "no enviar adjuntos" incluso con flag encendida.
+const COMPROBANTE_MIMES = new Set([
+  "image/jpeg", "image/png", "image/webp", "application/pdf",
+]);
+
+interface AdjuntoMsg {
+  from: string;
+  msgId: string;
+  type: string;
+  name?: string;
+  mediaId?: string;
+  mediaMime?: string;
+  mediaFilename?: string;
+  caption?: string;
+}
+
+async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
   const phone = msg.from;
 
   // Kill switch / whitelist (mismo gate que handleMessage)
@@ -376,40 +405,199 @@ async function handleAdjunto(
     return;
   }
 
-  // Marcar leído + typing (opcional; falla silenciosa)
-  try { await markRead(cfg.waPhoneId, cfg.waToken, msg.msgId); } catch { /* noop */ }
+  // Feature flag: 0 = placeholder / 1 = flujo de comprobantes
+  const flagRaw = await getSetting("wa_comprobantes_activo");
+  const activo = Number(flagRaw ?? "0") === 1;
 
-  // Loggear entrada en historial para que aparezca en Conversaciones
+  // Marcar leído (fire-and-forget)
+  markRead(cfg.waPhoneId, cfg.waToken, msg.msgId).catch(() => {});
+
+  // Loggear entrada en historial (aparece en Conversaciones)
+  const historialLabel = msg.caption
+    ? `[ADJUNTO ${msg.type.toUpperCase()}] ${msg.caption}`
+    : `[ADJUNTO ${msg.type.toUpperCase()}]`;
   try {
     await supabase.rpc("bot_guardar_mensaje", {
-      p_telefono: phone,
-      p_rol: "user",
-      p_contenido: `[ADJUNTO ${msg.type.toUpperCase()}]`,
+      p_telefono: phone, p_rol: "user", p_contenido: historialLabel,
     });
   } catch (e) { console.error("adjunto: log inbound falló", e); }
 
-  // Responder el placeholder
-  try {
-    await sendText(cfg.waPhoneId, cfg.waToken, phone, MSG_ADJUNTO_INTERINO);
-    await supabase.rpc("bot_guardar_mensaje", {
-      p_telefono: phone,
-      p_rol: "assistant",
-      p_contenido: MSG_ADJUNTO_INTERINO,
-    });
-  } catch (e) { console.error("adjunto: reply falló", e); }
+  if (!activo) {
+    // ── Modo APAGADO: placeholder + alerta ───────────────────────────
+    try {
+      await sendText(cfg.waPhoneId, cfg.waToken, phone, MSG_ADJUNTO_APAGADO);
+      await supabase.rpc("bot_guardar_mensaje", {
+        p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_APAGADO,
+      });
+    } catch (e) { console.error("adjunto: reply apagado falló", e); }
+    try {
+      await supabase.from("wa_alertas_humano").insert({
+        tipo: "adjunto_no_soportado",
+        phone,
+        contexto: {
+          tipo_adjunto: msg.type,
+          wamid: msg.msgId,
+          contact_name: msg.name ?? null,
+          caption: msg.caption ?? null,
+        },
+      });
+    } catch { /* fire-and-forget */ }
+    return;
+  }
 
-  // Alerta para atención humana — registro del intento
+  // ── Modo ENCENDIDO: flujo de comprobantes ─────────────────────────
+  // Tipos no soportados por el pipeline (audio/video/sticker) → placeholder apagado
+  const mime = msg.mediaMime ?? "";
+  if (msg.type === "audio" || msg.type === "video" || msg.type === "sticker" ||
+      (msg.type === "document" && !COMPROBANTE_MIMES.has(mime))) {
+    try {
+      await sendText(cfg.waPhoneId, cfg.waToken, phone, MSG_ADJUNTO_APAGADO);
+      await supabase.rpc("bot_guardar_mensaje", {
+        p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_APAGADO,
+      });
+    } catch (e) { console.error("adjunto: reply no soportado falló", e); }
+    return;
+  }
+
+  if (!msg.mediaId) {
+    console.error("[adjunto] flujo activo pero payload sin mediaId", msg);
+    try {
+      await supabase.from("wa_alertas_humano").insert({
+        tipo: "comprobante_error",
+        phone,
+        contexto: { motivo: "sin_media_id", wamid: msg.msgId, tipo_adjunto: msg.type },
+      });
+    } catch { /* fire-and-forget */ }
+    return;
+  }
+
+  // Identificar cliente (opcional; el matcheo posterior lo puede resolver también)
+  const customer = await getCustomerContext(phone);
+  const codCliente = customer?.cod_cliente ? String(customer.cod_cliente) : null;
+
+  // 1. Bajar de Meta
+  let download;
+  try {
+    download = await downloadMediaFromMeta(msg.mediaId, cfg.waToken);
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error("[adjunto] download Meta falló:", errMsg);
+    try {
+      await supabase.from("wa_alertas_humano").insert({
+        tipo: "comprobante_error",
+        phone,
+        contexto: { motivo: "download_meta", error: errMsg, wamid: msg.msgId },
+      });
+    } catch { /* fire-and-forget */ }
+    return;
+  }
+
+  // 2. Subir al bucket. Path: {cod|phone}/{YYYY-MM}/{wamid}.{ext}
+  const ext = extFromMime(download.mime) || extFromFilename(msg.mediaFilename) || "bin";
+  const yyyyMm = new Date().toISOString().slice(0, 7);
+  const carpeta = codCliente ?? phone;
+  const storagePath = `${carpeta}/${yyyyMm}/${msg.msgId}.${ext}`;
+
+  const upload = await supabase.storage.from("wa-comprobantes").upload(
+    storagePath, download.bytes,
+    { contentType: download.mime, upsert: true },
+  );
+  if (upload.error) {
+    console.error("[adjunto] upload bucket falló:", upload.error.message);
+    try {
+      await supabase.from("wa_alertas_humano").insert({
+        tipo: "comprobante_error",
+        phone,
+        contexto: { motivo: "upload_bucket", error: upload.error.message, wamid: msg.msgId },
+      });
+    } catch { /* fire-and-forget */ }
+    return;
+  }
+
+  // 3. Insertar fila en wa_comprobantes
+  const { data: inserted, error: insErr } = await supabase.from("wa_comprobantes").insert({
+    wamid: msg.msgId,
+    phone,
+    cod_cliente: codCliente,
+    caption: msg.caption ?? null,
+    storage_path: storagePath,
+    mime_type: download.mime,
+    size_bytes: download.fileSize,
+    status: "pending",
+  }).select("id").maybeSingle();
+
+  if (insErr) {
+    console.error("[adjunto] insert wa_comprobantes falló:", insErr.message);
+    // Igual seguimos con placeholder y alerta.
+  }
+  const comprobanteId = inserted?.id ?? null;
+
+  // 4. Disparar parser en background (no bloqueamos la respuesta al cliente)
+  if (comprobanteId) {
+    triggerParser(comprobanteId).catch((e) =>
+      console.error("[adjunto] trigger parser falló:", e instanceof Error ? e.message : e),
+    );
+  }
+
+  // 5. Placeholder "muchas gracias"
+  try {
+    await sendText(cfg.waPhoneId, cfg.waToken, phone, MSG_ADJUNTO_GRACIAS);
+    await supabase.rpc("bot_guardar_mensaje", {
+      p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_GRACIAS,
+    });
+  } catch (e) { console.error("adjunto: reply gracias falló", e); }
+
+  // 6. Alerta humana con el id del comprobante (el badge del menú lo cuenta)
   try {
     await supabase.from("wa_alertas_humano").insert({
-      tipo: "adjunto_no_soportado",
+      tipo: "comprobante_recibido",
       phone,
+      customer_id: customer?.customer_id ?? null,
       contexto: {
-        tipo_adjunto: msg.type,
+        comprobante_id: comprobanteId,
         wamid: msg.msgId,
+        tipo_adjunto: msg.type,
+        mime: download.mime,
+        caption: msg.caption ?? null,
         contact_name: msg.name ?? null,
       },
     });
   } catch { /* fire-and-forget */ }
+}
+
+function extFromMime(mime: string): string | null {
+  const m = mime.toLowerCase();
+  if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
+  if (m.includes("png")) return "png";
+  if (m.includes("webp")) return "webp";
+  if (m.includes("pdf")) return "pdf";
+  return null;
+}
+function extFromFilename(name?: string): string | null {
+  if (!name) return null;
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : null;
+}
+
+/**
+ * Dispara `lk_parse-comprobante` con action=parse. Fire-and-forget: no espera
+ * la respuesta, así el webhook contesta a Meta rápido. El resultado queda en
+ * la fila `wa_comprobantes` que ya fue insertada.
+ */
+async function triggerParser(comprobanteId: string): Promise<void> {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/lk_parse-comprobante`;
+  const anonKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${anonKey}`,
+    },
+    body: JSON.stringify({ action: "parse", comprobante_id: comprobanteId }),
+  });
+  if (!res.ok) {
+    console.error(`[triggerParser] ${res.status}:`, (await res.text()).slice(0, 300));
+  }
 }
 
 // ─── Kill switch por whitelist ─────────────────────────────────────
