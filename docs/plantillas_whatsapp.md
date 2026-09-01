@@ -42,7 +42,7 @@ Notas para que Meta apruebe sin rechazo:
 
 Total de tu factura (con IVA): {{1}}
 
-Pagando al contado (25% de descuento) abonás: {{2}}
+*Total a pagar Contado (25% Dto): {{2}}*
 
 Datos para el pago:
 Alias: loeke.srl
@@ -106,7 +106,7 @@ Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
 
 Detalle por factura: {{3}}
 
-Pagando al contado (25% de descuento) abonás: {{4}}
+*Total a pagar Contado (25% Dto): {{4}}*
 
 Datos para el pago:
 Alias: loeke.srl

@@ -259,12 +259,12 @@ function bloqueAhorro(fecha: string, ahorro: string, contado: string): string[] 
 function textoLegible(grupo: string, esMultiple: boolean, params: string[]): string {
   let cuerpo: string[];
   if (!esMultiple) {
-    if (grupo === "contado") cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `Pagando al contado (25% de descuento) abonás: ${params[1]}`];
+    if (grupo === "contado") cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `*Total a pagar Contado (25% Dto): ${params[1]}*`];
     else if (grupo === "credito") cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `Con tu pago a ${params[1]} días abonás: ${params[2]}`, ...bloqueAhorro(params[3], params[4], params[5])];
     else cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `Con tu pago por e-cheq a ${params[1]} días abonás: ${params[2]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...bloqueAhorro(params[3], params[4], params[5])];
   } else {
     const base = [SALUDO, "", `Total de tus facturas (con IVA): ${params[0]}, en ${params[1]} facturas.`, "", `Detalle por factura: ${params[2]}`, ""];
-    if (grupo === "contado") cuerpo = [...base, `Pagando al contado (25% de descuento) abonás: ${params[3]}`];
+    if (grupo === "contado") cuerpo = [...base, `*Total a pagar Contado (25% Dto): ${params[3]}*`];
     else if (grupo === "credito") cuerpo = [...base, `Con tu pago a ${params[3]} días abonás: ${params[4]}`, ...bloqueAhorro(params[5], params[6], params[7])];
     else cuerpo = [...base, `Con tu pago por e-cheq a ${params[3]} días abonás: ${params[4]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...bloqueAhorro(params[5], params[6], params[7])];
   }
