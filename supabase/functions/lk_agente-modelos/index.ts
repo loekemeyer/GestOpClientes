@@ -96,7 +96,7 @@ function json(data: unknown, status = 200) {
 }
 
 /** Inserta en wa_agente_modelos los model_id que aún no están para esa key. */
-async function syncModels(keyId: number, proveedor: string, last4: string | null, models: string[]): Promise<number> {
+async function syncModels(keyId: number, proveedor: string, last4: string | null, models: string[]): Promise<{ count: number; error?: string }> {
   const { data: existing } = await sb
     .from("wa_agente_modelos")
     .select("model_id")
@@ -107,6 +107,7 @@ async function syncModels(keyId: number, proveedor: string, last4: string | null
     .map((mid) => ({
       key_id: keyId,
       proveedor,
+      label: mid,
       model_id: mid,
       key_source: "db",
       key_last4: last4,
@@ -114,8 +115,13 @@ async function syncModels(keyId: number, proveedor: string, last4: string | null
       prioridad: null,
       estado: "ok",
     }));
-  if (rows.length) await sb.from("wa_agente_modelos").insert(rows);
-  return rows.length;
+  if (!rows.length) return { count: 0 };
+  const { error } = await sb.from("wa_agente_modelos").insert(rows);
+  if (error) {
+    console.error(`[syncModels] insert falló: ${error.message}`);
+    return { count: 0, error: error.message };
+  }
+  return { count: rows.length };
 }
 
 serve(async (req) => {
@@ -155,8 +161,9 @@ serve(async (req) => {
         .select("id")
         .single();
       if (kErr) return json({ error: kErr.message }, 500);
-      const count = await syncModels(keyRow.id, provider, last4, res.models ?? []);
-      return json({ ok: true, proveedor: provider, count });
+      const sync = await syncModels(keyRow.id, provider, last4, res.models ?? []);
+      if (sync.error) return json({ error: `Key guardada pero no pude agregar modelos: ${sync.error}` }, 500);
+      return json({ ok: true, proveedor: provider, count: sync.count });
     }
 
     if (action === "refresh_key") {
@@ -172,8 +179,9 @@ serve(async (req) => {
       if (!key) return json({ error: "No hay credencial disponible para esa key" }, 400);
       const res = await listModels(k.proveedor, key);
       if (!res.ok) return json({ error: `No pude listar modelos: ${res.error}` }, 400);
-      const added = await syncModels(k.id, k.proveedor, k.key_last4, res.models ?? []);
-      return json({ ok: true, added });
+      const sync = await syncModels(k.id, k.proveedor, k.key_last4, res.models ?? []);
+      if (sync.error) return json({ error: `No pude agregar modelos: ${sync.error}` }, 500);
+      return json({ ok: true, added: sync.count });
     }
 
     if (action === "delete_key") {
