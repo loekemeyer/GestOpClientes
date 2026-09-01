@@ -168,6 +168,9 @@
     .consulta-form textarea { width: 100%; min-height: 60px; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.84rem; font-family: inherit; resize: vertical; }
     .consulta-form .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
     .consulta-form select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.84rem; }
+    .chain-row { transition: box-shadow 0.12s, border-color 0.12s; }
+    .chain-row:active { cursor: grabbing; }
+    .chain-row.drag-over { border-color: var(--primary); box-shadow: 0 -2px 0 0 var(--primary) inset; }
 
     /* Blacklist table */
     .bl-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.8rem; }
@@ -1408,21 +1411,65 @@ function renderChain() {
   const cont = document.getElementById("modChainContainer");
   const chain = _modRows.filter(r => r.prioridad != null).sort((a, b) => a.prioridad - b.prioridad);
   if (!chain.length) { cont.innerHTML = '<div class="bl-empty">Sin modelos en uso. Agregá de "Disponibles" ↓</div>'; return; }
+  cont.ondragover = modDragOver;
+  cont.ondrop = (e) => modDrop(e, null);   // soltar en el vacío = al final
   cont.innerHTML = chain.map((r, i) => {
     const estado = r.estado === "caido"
       ? '<span class="cat-pill limite">caído</span>'
       : '<span class="cat-pill permiso">ok</span>';
-    return '<div class="consulta-card" style="padding:0.6rem 0.8rem;">' +
+    return '<div class="consulta-card chain-row" draggable="true" data-id="' + r.id + '"' +
+      ' ondragstart="modDragStart(event,' + r.id + ')" ondragend="modDragEnd(event)"' +
+      ' ondragover="modDragOver(event)" ondrop="modDrop(event,' + r.id + ')"' +
+      ' style="padding:0.6rem 0.8rem;cursor:grab;">' +
       '<div class="row" style="justify-content:space-between;">' +
-        '<span style="font-size:0.86rem;"><b>#' + (i + 1) + '</b> · ' + (PROV_LABEL[r.proveedor] || escM(r.proveedor)) + ' · <code>' + escM(r.model_id) + '</code> ' + estado + '</span>' +
-        '<span style="white-space:nowrap;">' +
-          '<button class="config-btn small" ' + (i === 0 ? "disabled" : "") + ' onclick="moveChain(' + r.id + ',-1)">↑</button> ' +
-          '<button class="config-btn small" ' + (i === chain.length - 1 ? "disabled" : "") + ' onclick="moveChain(' + r.id + ',1)">↓</button> ' +
-          '<button class="config-btn danger small" onclick="removeFromChain(' + r.id + ')">✖</button>' +
+        '<span style="font-size:0.86rem;">' +
+          '<span style="color:var(--muted);cursor:grab;" title="Arrastrá para reordenar">⠿</span> ' +
+          '<b>#' + (i + 1) + '</b> · ' + (PROV_LABEL[r.proveedor] || escM(r.proveedor)) + ' · <code>' + escM(r.model_id) + '</code> ' + estado +
         '</span>' +
+        '<button class="config-btn danger small" onclick="removeFromChain(' + r.id + ')">✖</button>' +
       '</div>' +
     '</div>';
   }).join("");
+}
+
+// Drag & drop para reordenar la cadena.
+let _modDragId = null;
+function modDragStart(e, id) {
+  _modDragId = id;
+  e.dataTransfer.effectAllowed = "move";
+  try { e.dataTransfer.setData("text/plain", String(id)); } catch (_) {}
+}
+function modDragEnd() {
+  _modDragId = null;
+  document.querySelectorAll(".chain-row.drag-over").forEach(el => el.classList.remove("drag-over"));
+}
+function modDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  if (e.currentTarget && e.currentTarget.classList && e.currentTarget.classList.contains("chain-row")) {
+    document.querySelectorAll(".chain-row.drag-over").forEach(el => el.classList.remove("drag-over"));
+    e.currentTarget.classList.add("drag-over");
+  }
+}
+async function modDrop(e, targetId) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.querySelectorAll(".chain-row.drag-over").forEach(el => el.classList.remove("drag-over"));
+  const dragId = _modDragId;
+  _modDragId = null;
+  if (dragId == null || dragId === targetId) return;
+  const order = chainIds();
+  const from = order.indexOf(dragId);
+  if (from < 0) return;
+  order.splice(from, 1);
+  if (targetId == null) {
+    order.push(dragId);                       // soltado al final
+  } else {
+    const to = order.indexOf(targetId);
+    order.splice(to < 0 ? order.length : to, 0, dragId);  // insertar antes del target
+  }
+  await writePrioridades(order);
+  loadModelos();
 }
 
 function renderAvail() {
@@ -1498,15 +1545,6 @@ async function removeFromChain(id) {
   loadModelos();
 }
 
-async function moveChain(id, dir) {
-  const order = chainIds();
-  const i = order.indexOf(id);
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= order.length) return;
-  order[i] = order[j]; order[j] = id;
-  await writePrioridades(order);
-  loadModelos();
-}
 
 // --- Blacklist ---
 async function loadBlacklist() {
@@ -2314,6 +2352,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.5</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.6</div>
 </body>
 </html>
