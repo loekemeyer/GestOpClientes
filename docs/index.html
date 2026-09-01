@@ -510,6 +510,33 @@
           </div>
         </div>
 
+        <!-- Bot: Kill switch + Whitelist -->
+        <div class="config-section">
+          <h3>🛑 Kill switch del bot · Whitelist</h3>
+          <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
+            Mientras el <b>kill switch</b> esté <b>ON</b>, el bot <b>solo</b> responde a los números listados abajo.
+            Todos los demás mensajes se descartan silenciosamente (quedan registrados en <code>wa_alertas_humano</code> con motivo <code>whitelist_gate</code> para auditoría).
+            Cuando quieras abrir a todos los clientes, poné el toggle en <b>OFF</b>.
+          </p>
+          <div class="config-row">
+            <label>Kill switch:</label>
+            <label class="switch">
+              <input type="checkbox" id="cfgKillswitch" onchange="saveKillswitch()">
+              <span class="slider" style="background: var(--success);"></span>
+            </label>
+            <span class="hint" id="cfgKillswitchLabel">Cargando…</span>
+          </div>
+          <div class="bl-add-row" style="margin-top:0.8rem;">
+            <input type="text" id="wlPhoneInput" placeholder="Número (ej: 5491112345678)">
+            <input type="text" id="wlLabelInput" placeholder="Etiqueta (opcional — ej: Nico celular)" style="max-width:220px;">
+            <button class="config-btn primary" onclick="addToWhitelist()">+ Agregar</button>
+          </div>
+          <span class="config-status" id="wlAddStatus"></span>
+          <div id="wlTableContainer">
+            <div class="bl-empty">Cargando...</div>
+          </div>
+        </div>
+
         <!-- Descuentos por pago -->
         <div class="config-section" style="max-width:none;">
           <h3>💰 Descuentos por pago</h3>
@@ -1093,6 +1120,7 @@ async function loadConfigPage() {
     }
   } catch (e) { /* silent */ }
   loadBlacklist();
+  loadKillswitchAndWhitelist();
   loadDescuentos();
 }
 
@@ -1991,6 +2019,102 @@ async function removeFromBlacklist(id) {
   } catch (e) { /* retry on next load */ }
 }
 
+// --- Kill switch + Whitelist ---
+async function loadKillswitchAndWhitelist() {
+  // Toggle
+  try {
+    const { data } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "killswitch_get" },
+    });
+    const on = !!data?.solo_whitelist;
+    const cb = document.getElementById("cfgKillswitch");
+    cb.checked = on;
+    updateKillswitchStyle(on);
+  } catch (e) { /* silent */ }
+  loadWhitelist();
+}
+
+function updateKillswitchStyle(on) {
+  const slider = document.getElementById("cfgKillswitch").nextElementSibling;
+  slider.style.background = on ? "var(--danger, #dc2626)" : "#ccc";
+  document.getElementById("cfgKillswitchLabel").textContent = on
+    ? "🛑 ON — solo responde a números en la whitelist"
+    : "🟢 OFF — el bot responde a todos los clientes";
+}
+
+async function saveKillswitch() {
+  const enabled = document.getElementById("cfgKillswitch").checked;
+  updateKillswitchStyle(enabled);
+  try {
+    await sb.functions.invoke("lk_chat-test", {
+      body: { action: "killswitch_set", enabled },
+    });
+  } catch (e) { /* revert visually on error */ }
+}
+
+async function loadWhitelist() {
+  const box = document.getElementById("wlTableContainer");
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "whitelist_list" },
+    });
+    if (error) throw error;
+    const items = data?.items || [];
+    if (!items.length) {
+      box.innerHTML = '<div class="bl-empty">Whitelist vacía — con el kill switch ON, el bot no responde a nadie.</div>';
+      return;
+    }
+    let html = '<table class="bl-table"><thead><tr><th>Teléfono</th><th>Cliente / Etiqueta</th><th>Agregado</th><th></th></tr></thead><tbody>';
+    for (const it of items) {
+      const label = it.business_name
+        ? `<span class="customer-tag">👤 ${esc(it.business_name)}</span>`
+        : (it.label ? `<span style="font-size:0.82rem;">${esc(it.label)}</span>` : '<span style="color:var(--muted);font-size:0.8rem">—</span>');
+      const fecha = it.created_at ? new Date(it.created_at).toLocaleDateString("es-AR") : "";
+      html += `<tr>
+        <td style="font-family:monospace;font-size:0.82rem;">${esc(it.phone)}</td>
+        <td>${label}</td>
+        <td style="font-size:0.78rem;color:var(--muted);">${fecha}</td>
+        <td><button class="config-btn danger small" onclick="removeFromWhitelist('${esc(it.id)}')">✕</button></td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+  }
+}
+
+async function addToWhitelist() {
+  const phone = document.getElementById("wlPhoneInput").value.trim();
+  const label = document.getElementById("wlLabelInput").value.trim();
+  const st = document.getElementById("wlAddStatus");
+  if (!phone) { st.textContent = "Ingresá un número"; st.className = "config-status err"; return; }
+  st.textContent = "Agregando…"; st.className = "config-status";
+  try {
+    const { data, error } = await sb.functions.invoke("lk_chat-test", {
+      body: { action: "whitelist_add", phone, label },
+    });
+    if (error) throw error;
+    if (data?.error) { st.textContent = "✗ " + data.error; st.className = "config-status err"; return; }
+    st.textContent = "✓ Agregado"; st.className = "config-status ok";
+    document.getElementById("wlPhoneInput").value = "";
+    document.getElementById("wlLabelInput").value = "";
+    loadWhitelist();
+  } catch (e) {
+    st.textContent = "✗ Error al agregar"; st.className = "config-status err";
+  }
+  setTimeout(() => { st.textContent = ""; }, 4000);
+}
+
+async function removeFromWhitelist(id) {
+  try {
+    await sb.functions.invoke("lk_chat-test", {
+      body: { action: "whitelist_remove", id },
+    });
+    loadWhitelist();
+  } catch (e) { /* retry on next load */ }
+}
+
 // --- Costs (admin only) ---
 function fmtCost(v) {
   if (v == null || v === 0) return "$0.00";
@@ -2663,6 +2787,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.15.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.15.2</div>
 </body>
 </html>

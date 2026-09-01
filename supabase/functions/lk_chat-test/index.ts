@@ -46,6 +46,23 @@ serve(async (req) => {
       return await handleBlacklistRemove(body.id);
     }
 
+    // ── Bot kill switch (whitelist gating) ──
+    if (body.action === "killswitch_get") {
+      return await handleKillswitchGet();
+    }
+    if (body.action === "killswitch_set") {
+      return await handleKillswitchSet(!!body.enabled);
+    }
+    if (body.action === "whitelist_list") {
+      return await handleWhitelistList();
+    }
+    if (body.action === "whitelist_add") {
+      return await handleWhitelistAdd(body.phone, body.label);
+    }
+    if (body.action === "whitelist_remove") {
+      return await handleWhitelistRemove(body.id);
+    }
+
     // ── Chat endpoint ──
     const { phone, text, noAI, skipRateLimit } = body;
     if (!phone || !text) {
@@ -316,6 +333,72 @@ async function handleBlacklistRemove(id?: number) {
     .delete()
     .eq("id", id);
 
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+// ── Bot kill switch + whitelist (para el gate en lk_whatsapp-webhook) ──
+// El toggle `wa_bot_solo_whitelist` vive en app_settings; la whitelist es
+// `wa_envio_contactos`. Cuando el toggle está en 1, el webhook solo
+// procesa mensajes de números listados. Todo esto es editable desde el
+// Panel de Control del dashboard.
+
+async function handleKillswitchGet() {
+  const val = await getSetting("wa_bot_solo_whitelist");
+  return json({ solo_whitelist: Number(val ?? "1") === 1 });
+}
+
+async function handleKillswitchSet(enabled: boolean) {
+  const { error } = await supabase.from("app_settings").upsert(
+    { key: "wa_bot_solo_whitelist", value: enabled ? 1 : 0 },
+    { onConflict: "key" },
+  );
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true, solo_whitelist: enabled });
+}
+
+async function handleWhitelistList() {
+  const { data, error } = await supabase
+    .from("wa_envio_contactos")
+    .select("id, phone, label, created_at")
+    .order("created_at", { ascending: false });
+  if (error) return json({ error: error.message }, 500);
+  // Enriquecemos con razón social si el teléfono está vinculado a un cliente,
+  // reusando wa_identify_customer (misma normalización que el resto del bot).
+  const enriched = await Promise.all(
+    (data ?? []).map(async (row) => {
+      let business_name: string | null = null;
+      const { data: id } = await supabase
+        .rpc("wa_identify_customer", { p_phone: row.phone });
+      if (id?.[0]) business_name = id[0].customer_name;
+      return { ...row, business_name };
+    }),
+  );
+  return json({ items: enriched });
+}
+
+async function handleWhitelistAdd(phone?: string, label?: string) {
+  if (!phone) return json({ error: "phone requerido" }, 400);
+  const canonical = canonPhone(phone);
+  const { data: existing } = await supabase
+    .from("wa_envio_contactos")
+    .select("id")
+    .eq("phone", canonical)
+    .maybeSingle();
+  if (existing) return json({ error: "Ya está en la whitelist" }, 409);
+  const { error } = await supabase
+    .from("wa_envio_contactos")
+    .insert({ phone: canonical, label: label ?? null });
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true, phone: canonical });
+}
+
+async function handleWhitelistRemove(id?: string) {
+  if (!id) return json({ error: "id requerido" }, 400);
+  const { error } = await supabase
+    .from("wa_envio_contactos")
+    .delete()
+    .eq("id", id);
   if (error) return json({ error: error.message }, 500);
   return json({ ok: true });
 }
