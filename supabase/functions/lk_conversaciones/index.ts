@@ -54,7 +54,12 @@ serve(async (req) => {
       const items = (data ?? []).map((r: Record<string, unknown>) => {
         const inb = r.inbound_last_at ? new Date(r.inbound_last_at as string).getTime() : 0;
         return {
-          phone: r.phone, last_body: r.last_body, last_dir: dir(r.last_rol as string),
+          phone: r.phone,
+          // Identificación del cliente cuando existe match; NULL si el número
+          // no está vinculado a ningún customer (mostrar solo el teléfono).
+          business_name: r.business_name ?? null,
+          cod_cliente: r.cod_cliente ?? null,
+          last_body: r.last_body, last_dir: dir(r.last_rol as string),
           last_at: r.last_at, total: r.total, unread: r.unread,
           modo_humano: r.modo === "humano", agente: r.agente, modo_expira_en: r.modo_expira_en,
           estado: r.estado, ventana_abierta: inb > 0 && (now - inb) < DAY,
