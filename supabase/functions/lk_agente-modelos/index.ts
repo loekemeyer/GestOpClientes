@@ -1,12 +1,13 @@
 // lk_agente-modelos — gestión segura de modelos del agente.
 // La API key se tipea en el front, viaja acá (server), se valida contra el
 // proveedor y se guarda en wa_agente_model_keys (tabla bloqueada, RLS solo
-// service_role). El navegador nunca lee la key.
+// service_role). Una key = todos sus modelos en "disponibles".
 //
 // Acciones:
-//   check  { api_key, proveedor? }            → detecta proveedor + lista modelos (no guarda)
-//   save   { api_key, proveedor, model_id, label?, notas? } → valida + guarda key + config
-//   delete { id }                             → borra modelo (y su key si es 'db')
+//   check       { api_key, proveedor? }              → detecta proveedor + lista modelos (no guarda)
+//   add_key     { api_key, proveedor?, label? }      → valida + guarda key + agrega TODOS sus modelos
+//   refresh_key { key_id }                           → re-lista modelos de una key (env o db) y agrega los nuevos
+//   delete_key  { key_id }                           → borra la key y todos sus modelos (no env)
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -23,7 +24,6 @@ const sb = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-/** Adivina el proveedor por el formato de la key. */
 function detectProvider(key: string): string | null {
   if (key.startsWith("sk-ant-")) return "anthropic";
   if (key.startsWith("AIza")) return "google";
@@ -36,7 +36,6 @@ async function listModels(
   provider: string,
   key: string,
 ): Promise<{ ok: boolean; models?: string[]; error?: string }> {
-  // Extrae un mensaje útil del body de error del proveedor.
   const bodyErr = async (r: Response): Promise<string> => {
     try {
       const t = await r.text();
@@ -76,7 +75,6 @@ async function listModels(
       );
       if (!r.ok) return { ok: false, error: `Google HTTP ${r.status}: ${await bodyErr(r)}` };
       const d = await r.json();
-      // Solo modelos que soportan generación de texto (generateContent).
       const models = (d.models ?? [])
         // deno-lint-ignore no-explicit-any
         .filter((m: any) => !Array.isArray(m.supportedGenerationMethods) || m.supportedGenerationMethods.includes("generateContent"))
@@ -97,6 +95,29 @@ function json(data: unknown, status = 200) {
   });
 }
 
+/** Inserta en wa_agente_modelos los model_id que aún no están para esa key. */
+async function syncModels(keyId: number, proveedor: string, last4: string | null, models: string[]): Promise<number> {
+  const { data: existing } = await sb
+    .from("wa_agente_modelos")
+    .select("model_id")
+    .eq("key_id", keyId);
+  const have = new Set((existing ?? []).map((r) => r.model_id));
+  const rows = models
+    .filter((mid) => !have.has(mid))
+    .map((mid) => ({
+      key_id: keyId,
+      proveedor,
+      model_id: mid,
+      key_source: "db",
+      key_last4: last4,
+      secret_ref: null,
+      prioridad: null,
+      estado: "ok",
+    }));
+  if (rows.length) await sb.from("wa_agente_modelos").insert(rows);
+  return rows.length;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -108,69 +129,65 @@ serve(async (req) => {
       const key = String(body.api_key ?? "").trim();
       if (!key) return json({ error: "Pegá la API key" }, 400);
       const provider = (body.proveedor as string) || detectProvider(key);
-      if (!provider) {
-        return json({ error: "No pude detectar el proveedor por el formato de la key. Elegí uno manualmente." }, 400);
-      }
+      if (!provider) return json({ error: "No pude detectar el proveedor por el formato de la key. Elegí uno manualmente." }, 400);
       const res = await listModels(provider, key);
       if (!res.ok) {
-        console.error(`[check] ${provider} falló: ${res.error}`);
+        console.error(`[check] ${provider}: ${res.error}`);
         return json({ error: `Key inválida o sin acceso: ${res.error}` }, 400);
       }
       return json({ ok: true, proveedor: provider, models: res.models });
     }
 
-    if (action === "save") {
+    if (action === "add_key") {
       const key = String(body.api_key ?? "").trim();
-      const proveedor = String(body.proveedor ?? "").trim();
-      const model_id = String(body.model_id ?? "").trim();
-      const label = String(body.label ?? "").trim() || model_id;
-      const notas = body.notas ? String(body.notas) : null;
-      if (!key || !proveedor || !model_id) return json({ error: "Faltan datos (key, proveedor, model_id)" }, 400);
-
-      // Re-validar antes de guardar
-      const res = await listModels(proveedor, key);
-      if (!res.ok) return json({ error: `Key inválida: ${res.error}` }, 400);
-
-      // Guardar la key en la tabla bloqueada
+      if (!key) return json({ error: "Pegá la API key" }, 400);
+      const provider = (body.proveedor as string) || detectProvider(key);
+      if (!provider) return json({ error: "No pude detectar el proveedor por el formato de la key. Elegí uno manualmente." }, 400);
+      const res = await listModels(provider, key);
+      if (!res.ok) {
+        console.error(`[add_key] ${provider}: ${res.error}`);
+        return json({ error: `Key inválida o sin acceso: ${res.error}` }, 400);
+      }
+      const last4 = key.slice(-4);
       const { data: keyRow, error: kErr } = await sb
         .from("wa_agente_model_keys")
-        .insert({ api_key: key })
+        .insert({ proveedor: provider, label: (body.label as string) || null, api_key: key, key_source: "db", key_last4: last4 })
         .select("id")
         .single();
       if (kErr) return json({ error: kErr.message }, 500);
-
-      const { error: mErr } = await sb.from("wa_agente_modelos").insert({
-        proveedor,
-        label,
-        model_id,
-        secret_ref: null,
-        key_source: "db",
-        key_id: keyRow.id,
-        key_last4: key.slice(-4),
-        activo: true,
-        es_default: false,
-        notas,
-      });
-      if (mErr) {
-        // rollback de la key si el modelo falló
-        await sb.from("wa_agente_model_keys").delete().eq("id", keyRow.id);
-        return json({ error: mErr.message }, 500);
-      }
-      return json({ ok: true, last4: key.slice(-4) });
+      const count = await syncModels(keyRow.id, provider, last4, res.models ?? []);
+      return json({ ok: true, proveedor: provider, count });
     }
 
-    if (action === "delete") {
-      const id = body.id;
-      if (!id) return json({ error: "id requerido" }, 400);
-      const { data: m } = await sb
-        .from("wa_agente_modelos")
-        .select("id, key_id, es_default")
-        .eq("id", id)
+    if (action === "refresh_key") {
+      const keyId = body.key_id;
+      if (!keyId) return json({ error: "key_id requerido" }, 400);
+      const { data: k } = await sb
+        .from("wa_agente_model_keys")
+        .select("id, proveedor, key_source, secret_ref, api_key, key_last4")
+        .eq("id", keyId)
         .maybeSingle();
-      if (!m) return json({ error: "El modelo no existe" }, 404);
-      if (m.es_default) return json({ error: "No se puede borrar el modelo default. Marcá otro como default primero." }, 400);
-      await sb.from("wa_agente_modelos").delete().eq("id", id);
-      if (m.key_id) await sb.from("wa_agente_model_keys").delete().eq("id", m.key_id);
+      if (!k) return json({ error: "La key no existe" }, 404);
+      const key = k.key_source === "env" ? (Deno.env.get(k.secret_ref ?? "") ?? "") : (k.api_key ?? "");
+      if (!key) return json({ error: "No hay credencial disponible para esa key" }, 400);
+      const res = await listModels(k.proveedor, key);
+      if (!res.ok) return json({ error: `No pude listar modelos: ${res.error}` }, 400);
+      const added = await syncModels(k.id, k.proveedor, k.key_last4, res.models ?? []);
+      return json({ ok: true, added });
+    }
+
+    if (action === "delete_key") {
+      const keyId = body.key_id;
+      if (!keyId) return json({ error: "key_id requerido" }, 400);
+      const { data: k } = await sb
+        .from("wa_agente_model_keys")
+        .select("id, key_source")
+        .eq("id", keyId)
+        .maybeSingle();
+      if (!k) return json({ error: "La key no existe" }, 404);
+      if (k.key_source === "env") return json({ error: "La key de Secrets no se borra desde acá (se administra en Supabase → Secrets)." }, 400);
+      await sb.from("wa_agente_modelos").delete().eq("key_id", keyId);
+      await sb.from("wa_agente_model_keys").delete().eq("id", keyId);
       return json({ ok: true });
     }
 

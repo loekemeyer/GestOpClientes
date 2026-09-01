@@ -599,57 +599,48 @@
         <!-- Sub: Modelos -->
         <div class="subpanel" id="panelModelos">
           <div class="config-section" style="max-width:none;">
-            <h3>🤖 Modelos conectados al agente</h3>
+            <h3>🤖 Modelos del agente</h3>
             <p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.6rem;">
-              Configurá qué modelos de IA puede usar el agente. El marcado como
-              <b>⭐ default</b> es el que usa para responder.
+              Pegá una API key y se agregan <b>todos</b> sus modelos a <b>Disponibles</b>.
+              Armá la cadena <b>En uso</b> en orden: el agente usa el #1; si da problemas,
+              pasa al siguiente (con cooldown).
             </p>
             <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--success);border-radius:0 6px 6px 0;padding:0.7rem 0.9rem;font-size:0.78rem;color:var(--muted);margin-bottom:1.1rem;">
-              🔒 Pegá la API key acá. Se <b>valida y se guarda cifrada del lado del servidor</b>
-              (tabla bloqueada, RLS solo-server). No queda accesible desde el navegador ni se
-              vuelve a mostrar: solo verás <b>····1234</b>.
+              🔒 La key se <b>valida y guarda del lado del servidor</b> (tabla bloqueada, RLS solo-server).
+              No queda accesible desde el navegador: solo verás <b>····1234</b>.
             </div>
 
+            <!-- Agregar key -->
             <div class="consulta-form" style="margin-bottom:1.2rem;border:1px dashed var(--border);border-radius:8px;padding:0.9rem;">
-              <div class="md-col-label">Conectar un modelo</div>
+              <div class="md-col-label">Agregar una API key</div>
               <div class="row">
-                <label style="font-size:0.8rem;color:var(--muted);">Proveedor:</label>
-                <select id="modProvSel" style="min-width:130px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+                <select id="modProvSel" style="min-width:150px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
                   <option value="">Auto-detectar</option>
                   <option value="anthropic">Anthropic</option>
                   <option value="openai">OpenAI</option>
                   <option value="google">Google (Gemini)</option>
                 </select>
-                <span class="hint" style="font-size:0.72rem;color:var(--muted);">Si no lo detecta solo, elegilo acá.</span>
-              </div>
-              <div class="row" style="margin-top:0.4rem;">
-                <input type="password" id="modKey" placeholder="Pegá la API key (ej: sk-ant-... / sk-... / AIza...)" autocomplete="off" style="flex:1;min-width:220px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;font-family:ui-monospace,monospace;">
-                <button class="config-btn primary small" id="modCheckBtn" onclick="checkModelo()">Chequear</button>
+                <input type="password" id="modKey" placeholder="Pegá la API key" autocomplete="off" style="flex:1;min-width:200px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;font-family:ui-monospace,monospace;">
+                <button class="config-btn primary small" id="modAddKeyBtn" onclick="addKey()">+ Agregar key</button>
                 <span class="config-status" id="modAddStatus"></span>
               </div>
-
-              <!-- Confirmación tras chequear -->
-              <div id="modConfirm" style="display:none;margin-top:0.8rem;padding-top:0.8rem;border-top:1px solid var(--border);">
-                <div class="consulta-meta" style="margin-bottom:0.5rem;">
-                  ✅ Key válida — proveedor detectado: <b id="modProvDetected"></b>
-                </div>
-                <div class="row">
-                  <label style="font-size:0.8rem;color:var(--muted);min-width:70px;">Modelo:</label>
-                  <select id="modModelSel" style="flex:1;min-width:180px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;" onchange="onModelPicked()"></select>
-                </div>
-                <div class="row" style="margin-top:0.4rem;">
-                  <label style="font-size:0.8rem;color:var(--muted);min-width:70px;">Nombre:</label>
-                  <input type="text" id="modLabel" placeholder="Nombre visible" style="flex:1;min-width:180px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
-                </div>
-                <div class="row" style="margin-top:0.5rem;">
-                  <button class="config-btn primary small" onclick="saveModelo()">💾 Guardar modelo</button>
-                  <button class="config-btn small" onclick="cancelModelo()">Cancelar</button>
-                  <span class="config-status" id="modSaveStatus"></span>
-                </div>
-              </div>
+              <div id="modKeysContainer" style="margin-top:0.8rem;"></div>
             </div>
 
-            <div id="modelosContainer"><div class="bl-empty">Cargando...</div></div>
+            <!-- En uso (cadena jerárquica) -->
+            <div style="margin-bottom:1.4rem;">
+              <div class="md-col-label" style="margin-bottom:0.4rem;">⭐ En uso — orden de prioridad</div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.6rem;">
+                El agente usa el <b>#1</b>. Si falla (sin tokens, error…), pasa al siguiente y reintenta el de arriba tras un cooldown.
+              </div>
+              <div id="modChainContainer"><div class="bl-empty">Cargando...</div></div>
+            </div>
+
+            <!-- Disponibles -->
+            <div>
+              <div class="md-col-label" style="margin-bottom:0.4rem;">📋 Disponibles</div>
+              <div id="modAvailContainer"><div class="bl-empty">Cargando...</div></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1354,58 +1345,10 @@ async function deleteEval(id) {
 
 // --- Modelos ---
 const PROV_LABEL = { anthropic: "Anthropic", openai: "OpenAI", google: "Google", otro: "Otro" };
+let _modRows = [];
+const escM = s => (s || "").replace(/</g, "&lt;");
 
-async function loadModelos() {
-  const cont = document.getElementById("modelosContainer");
-  cont.innerHTML = '<div class="bl-empty">Cargando...</div>';
-  try {
-    const { data } = await sb.from("wa_agente_modelos")
-      .select("id, proveedor, label, model_id, secret_ref, key_source, key_last4, activo, es_default, notas")
-      .order("es_default", { ascending: false })
-      .order("created_at", { ascending: true });
-    const items = data || [];
-    if (!items.length) { cont.innerHTML = '<div class="bl-empty">Sin modelos configurados</div>'; return; }
-    cont.innerHTML = items.map(renderModelo).join("");
-  } catch (e) {
-    cont.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
-  }
-}
-
-function renderModelo(m) {
-  const esc = s => (s || "").replace(/</g, "&lt;");
-  const def = m.es_default
-    ? '<span class="cat-pill objetivo">⭐ default</span>'
-    : '<button class="config-btn small" onclick="setDefaultModelo(' + m.id + ')">Hacer default</button>';
-  const act = m.activo
-    ? '<span class="cat-pill permiso">activo</span>'
-    : '<span class="cat-pill pendiente">inactivo</span>';
-  const keyInfo = m.key_source === "db"
-    ? '🔑 key: <code>····' + esc(m.key_last4 || "????") + '</code>'
-    : '🔑 <code>' + esc(m.secret_ref || "—") + '</code> (Secrets)';
-  return '<div class="consulta-card' + (m.activo ? '' : ' answered') + '">' +
-    '<div class="consulta-q">' + esc(m.label) + ' ' + def + ' ' + act + '</div>' +
-    '<div class="consulta-meta">' +
-      '🏷️ ' + (PROV_LABEL[m.proveedor] || esc(m.proveedor)) +
-      ' · 🧠 <code>' + esc(m.model_id) + '</code>' +
-      ' · ' + keyInfo +
-    '</div>' +
-    (m.notas ? '<div class="consulta-meta">' + esc(m.notas) + '</div>' : '') +
-    '<div class="row" style="margin-top:0.5rem;">' +
-      '<button class="config-btn small" onclick="toggleModeloActivo(' + m.id + ',' + (m.activo ? 'false' : 'true') + ')">' +
-        (m.activo ? 'Desactivar' : 'Activar') + '</button>' +
-      '<button class="config-btn danger small" onclick="deleteModelo(' + m.id + ')">🗑️ Eliminar</button>' +
-      '<span class="config-status" id="modSt-' + m.id + '"></span>' +
-    '</div>' +
-  '</div>';
-}
-
-// Flujo: pegar key → Chequear (valida + detecta + lista modelos) → confirmar → Guardar.
-// La key vive solo en esta variable durante el flujo; se descarta al guardar/cancelar.
-let _modPendingKey = null;
-let _modPendingProv = null;
-
-// Invoca la edge function y extrae el mensaje de error real del server
-// (supabase-js no lo pone en `data` cuando el status es 4xx/5xx).
+// Invoca la edge function y extrae el mensaje de error real del server.
 async function amInvoke(payload) {
   const { data, error } = await sb.functions.invoke("lk_agente-modelos", { body: payload });
   if (error) {
@@ -1422,90 +1365,147 @@ async function amInvoke(payload) {
   return data;
 }
 
-async function checkModelo() {
+async function loadModelos() {
+  try {
+    const { data } = await sb.from("wa_agente_modelos")
+      .select("id, proveedor, model_id, key_id, key_source, key_last4, prioridad, estado, cooldown_hasta")
+      .order("prioridad", { ascending: true, nullsFirst: false })
+      .order("proveedor", { ascending: true })
+      .order("model_id", { ascending: true });
+    _modRows = data || [];
+  } catch (e) { _modRows = []; }
+  renderKeys();
+  renderChain();
+  renderAvail();
+}
+
+function renderKeys() {
+  const cont = document.getElementById("modKeysContainer");
+  if (!cont) return;
+  const byKey = {};
+  for (const r of _modRows) {
+    const k = r.key_id ?? "none";
+    if (!byKey[k]) byKey[k] = { key_id: r.key_id, proveedor: r.proveedor, key_source: r.key_source, key_last4: r.key_last4, n: 0 };
+    byKey[k].n++;
+  }
+  const keys = Object.values(byKey);
+  if (!keys.length) { cont.innerHTML = ""; return; }
+  cont.innerHTML = '<div class="md-col-label" style="margin-bottom:0.3rem;">Keys cargadas</div>' +
+    keys.map(k => {
+      const cred = k.key_source === "env" ? "🔐 Secrets" : "····" + escM(k.key_last4 || "????");
+      const del = k.key_source === "env" ? "" :
+        '<button class="config-btn danger small" onclick="deleteKey(' + k.key_id + ')">🗑️</button>';
+      return '<div class="row" style="justify-content:space-between;border:1px solid var(--border);border-radius:6px;padding:0.4rem 0.6rem;margin-bottom:0.4rem;">' +
+        '<span style="font-size:0.82rem;">🏷️ ' + (PROV_LABEL[k.proveedor] || escM(k.proveedor)) + ' · ' + cred + ' · <b>' + k.n + '</b> modelos</span>' +
+        '<span style="white-space:nowrap;">' +
+          '<button class="config-btn small" onclick="refreshKey(' + k.key_id + ')">🔄 Actualizar</button> ' + del +
+        '</span>' +
+      '</div>';
+    }).join("");
+}
+
+function renderChain() {
+  const cont = document.getElementById("modChainContainer");
+  const chain = _modRows.filter(r => r.prioridad != null).sort((a, b) => a.prioridad - b.prioridad);
+  if (!chain.length) { cont.innerHTML = '<div class="bl-empty">Sin modelos en uso. Agregá de "Disponibles" ↓</div>'; return; }
+  cont.innerHTML = chain.map((r, i) => {
+    const estado = r.estado === "caido"
+      ? '<span class="cat-pill limite">caído</span>'
+      : '<span class="cat-pill permiso">ok</span>';
+    return '<div class="consulta-card" style="padding:0.6rem 0.8rem;">' +
+      '<div class="row" style="justify-content:space-between;">' +
+        '<span style="font-size:0.86rem;"><b>#' + (i + 1) + '</b> · ' + (PROV_LABEL[r.proveedor] || escM(r.proveedor)) + ' · <code>' + escM(r.model_id) + '</code> ' + estado + '</span>' +
+        '<span style="white-space:nowrap;">' +
+          '<button class="config-btn small" ' + (i === 0 ? "disabled" : "") + ' onclick="moveChain(' + r.id + ',-1)">↑</button> ' +
+          '<button class="config-btn small" ' + (i === chain.length - 1 ? "disabled" : "") + ' onclick="moveChain(' + r.id + ',1)">↓</button> ' +
+          '<button class="config-btn danger small" onclick="removeFromChain(' + r.id + ')">✖</button>' +
+        '</span>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function renderAvail() {
+  const cont = document.getElementById("modAvailContainer");
+  const avail = _modRows.filter(r => r.prioridad == null);
+  if (!avail.length) { cont.innerHTML = '<div class="bl-empty">Todos los modelos están en uso (o no hay keys cargadas).</div>'; return; }
+  cont.innerHTML = '<div style="max-height:320px;overflow-y:auto;">' + avail.map(r =>
+    '<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--border);padding:0.35rem 0.2rem;">' +
+      '<span style="font-size:0.82rem;">' + (PROV_LABEL[r.proveedor] || escM(r.proveedor)) + ' · <code>' + escM(r.model_id) + '</code></span>' +
+      '<button class="config-btn small" onclick="addToChain(' + r.id + ')">➕ a la cadena</button>' +
+    '</div>'
+  ).join("") + '</div>';
+}
+
+// --- Keys ---
+async function addKey() {
   const key = document.getElementById("modKey").value.trim();
+  const prov = document.getElementById("modProvSel").value;
   const st = document.getElementById("modAddStatus");
   if (!key) { st.textContent = "Pegá la key"; st.className = "config-status err"; return; }
-  st.textContent = "Chequeando..."; st.className = "config-status";
-  document.getElementById("modCheckBtn").disabled = true;
+  st.textContent = "Validando..."; st.className = "config-status";
+  document.getElementById("modAddKeyBtn").disabled = true;
   try {
-    const provSel = document.getElementById("modProvSel").value;
-    const payload = { action: "check", api_key: key };
-    if (provSel) payload.proveedor = provSel;
+    const payload = { action: "add_key", api_key: key };
+    if (prov) payload.proveedor = prov;
     const data = await amInvoke(payload);
-    _modPendingKey = key;
-    _modPendingProv = data.proveedor;
-    document.getElementById("modProvDetected").textContent = (PROV_LABEL[data.proveedor] || data.proveedor);
-    const sel = document.getElementById("modModelSel");
-    sel.innerHTML = (data.models || []).map(id => '<option value="' + id + '">' + id + '</option>').join("");
-    onModelPicked();
-    document.getElementById("modConfirm").style.display = "block";
-    st.textContent = "✓ válida"; st.className = "config-status ok";
-  } catch (e) {
-    st.textContent = "✗ " + (e.message || "Key inválida"); st.className = "config-status err";
-  }
-  document.getElementById("modCheckBtn").disabled = false;
-  setTimeout(() => { st.textContent = ""; }, 4000);
-}
-
-function onModelPicked() {
-  const sel = document.getElementById("modModelSel");
-  const lbl = document.getElementById("modLabel");
-  if (sel.value && (!lbl.value || lbl.dataset.auto === "1")) {
-    lbl.value = sel.value;
-    lbl.dataset.auto = "1";
-  }
-}
-
-function cancelModelo() {
-  _modPendingKey = null; _modPendingProv = null;
-  document.getElementById("modKey").value = "";
-  document.getElementById("modProvSel").value = "";
-  document.getElementById("modLabel").value = "";
-  document.getElementById("modLabel").dataset.auto = "";
-  document.getElementById("modConfirm").style.display = "none";
-}
-
-async function saveModelo() {
-  const st = document.getElementById("modSaveStatus");
-  if (!_modPendingKey) { st.textContent = "Chequeá la key primero"; st.className = "config-status err"; return; }
-  const model_id = document.getElementById("modModelSel").value;
-  const label = document.getElementById("modLabel").value.trim() || model_id;
-  st.textContent = "Guardando..."; st.className = "config-status";
-  try {
-    await amInvoke({ action: "save", api_key: _modPendingKey, proveedor: _modPendingProv, model_id, label });
-    st.textContent = "✓ Guardado"; st.className = "config-status ok";
-    cancelModelo();
+    document.getElementById("modKey").value = "";
+    document.getElementById("modProvSel").value = "";
+    st.textContent = "✓ " + (data.count || 0) + " modelos agregados"; st.className = "config-status ok";
     loadModelos();
   } catch (e) { st.textContent = "✗ " + (e.message || "Error"); st.className = "config-status err"; }
-  setTimeout(() => { st.textContent = ""; }, 4000);
+  document.getElementById("modAddKeyBtn").disabled = false;
+  setTimeout(() => { st.textContent = ""; }, 5000);
 }
 
-async function setDefaultModelo(id) {
+async function refreshKey(keyId) {
   try {
-    // Primero limpiar el default actual (solo puede haber uno), después setear el nuevo.
-    await sb.from("wa_agente_modelos").update({ es_default: false, updated_at: new Date().toISOString() }).eq("es_default", true);
-    await sb.from("wa_agente_modelos").update({ es_default: true, activo: true, updated_at: new Date().toISOString() }).eq("id", id);
+    const data = await amInvoke({ action: "refresh_key", key_id: keyId });
     loadModelos();
-  } catch (e) { alert("Error al setear default"); }
+    alert("Actualizado: " + (data.added || 0) + " modelos nuevos.");
+  } catch (e) { alert("Error: " + (e.message || "")); }
 }
 
-async function toggleModeloActivo(id, val) {
+async function deleteKey(keyId) {
+  if (!confirm("¿Eliminar esta key y todos sus modelos? (también se quitan de la cadena)")) return;
   try {
-    await sb.from("wa_agente_modelos").update({ activo: val, updated_at: new Date().toISOString() }).eq("id", id);
+    await amInvoke({ action: "delete_key", key_id: keyId });
     loadModelos();
-  } catch (e) { /* silent */ }
+  } catch (e) { alert("Error: " + (e.message || "")); }
 }
 
-async function deleteModelo(id) {
-  if (!confirm("¿Eliminar este modelo? (también se borra su API key guardada)")) return;
-  const st = document.getElementById("modSt-" + id);
-  try {
-    await amInvoke({ action: "delete", id });
-    loadModelos();
-  } catch (e) {
-    if (st) { st.textContent = "✗ " + (e.message || "Error"); st.className = "config-status err"; }
+// --- Cadena (prioridad) ---
+function chainIds() {
+  return _modRows.filter(r => r.prioridad != null).sort((a, b) => a.prioridad - b.prioridad).map(r => r.id);
+}
+
+async function writePrioridades(orderedIds) {
+  for (let i = 0; i < orderedIds.length; i++) {
+    await sb.from("wa_agente_modelos").update({ prioridad: i + 1 }).eq("id", orderedIds[i]);
   }
+}
+
+async function addToChain(id) {
+  const order = chainIds();
+  order.push(id);
+  await writePrioridades(order);
+  loadModelos();
+}
+
+async function removeFromChain(id) {
+  await sb.from("wa_agente_modelos").update({ prioridad: null }).eq("id", id);
+  await writePrioridades(chainIds().filter(x => x !== id));
+  loadModelos();
+}
+
+async function moveChain(id, dir) {
+  const order = chainIds();
+  const i = order.indexOf(id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  order[i] = order[j]; order[j] = id;
+  await writePrioridades(order);
+  loadModelos();
 }
 
 // --- Blacklist ---
@@ -2314,6 +2314,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.12.5</div>
 </body>
 </html>
