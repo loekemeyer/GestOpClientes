@@ -63,6 +63,10 @@ interface ChainRow {
   key_source: string; // 'env' | 'db'
   secret_ref: string | null;
   api_key: string | null;
+  is_free_tier: boolean;
+  daily_request_limit: number | null;
+  daily_token_limit: number | null;
+  rpm_limit: number | null;
 }
 
 // ── Chain ────────────────────────────────────────────────────────────────────
@@ -72,7 +76,7 @@ async function loadChain(): Promise<ChainRow[]> {
     // pelearnos con el esquema. Dos queries chicas.
     const { data: mods } = await supabase
       .from("wa_agente_modelos")
-      .select("id, proveedor, model_id, key_id, prioridad, estado, cooldown_hasta")
+      .select("id, proveedor, model_id, key_id, prioridad, estado, cooldown_hasta, is_free_tier, daily_request_limit, daily_token_limit, rpm_limit")
       .not("prioridad", "is", null)
       .order("prioridad", { ascending: true });
     const rows = mods ?? [];
@@ -102,6 +106,10 @@ async function loadChain(): Promise<ChainRow[]> {
         key_source: k?.key_source ?? "env",
         secret_ref: k?.secret_ref ?? null,
         api_key: k?.api_key ?? null,
+        is_free_tier: !!m.is_free_tier,
+        daily_request_limit: m.daily_request_limit ?? null,
+        daily_token_limit: m.daily_token_limit ?? null,
+        rpm_limit: m.rpm_limit ?? null,
       };
     });
   } catch (e) {
@@ -117,8 +125,8 @@ function resolveKey(row: ChainRow): string {
   return row.api_key ?? "";
 }
 
-async function markDown(id: number, msg: string) {
-  const until = new Date(Date.now() + COOLDOWN_MS).toISOString();
+async function markDown(id: number, msg: string, untilOverride?: Date) {
+  const until = (untilOverride ?? new Date(Date.now() + COOLDOWN_MS)).toISOString();
   try {
     await supabase.from("wa_agente_modelos").update({
       estado: "caido",
@@ -128,6 +136,58 @@ async function markDown(id: number, msg: string) {
   } catch (e) {
     console.error("[llm.markDown]", e);
   }
+}
+
+/**
+ * Chequea si el modelo se pasó de alguna cuota. Devuelve un motivo
+ * (string) si se pasó, o null si está OK.
+ */
+async function checkQuota(row: ChainRow): Promise<{ reason: string; until: Date } | null> {
+  const now = new Date();
+
+  // rpm — ventana móvil de 60s
+  if (row.rpm_limit != null) {
+    const since = new Date(now.getTime() - 60_000).toISOString();
+    const { count } = await supabase
+      .from("bot_token_usage")
+      .select("id", { count: "exact", head: true })
+      .eq("model", row.model_id)
+      .gte("created_at", since);
+    if ((count ?? 0) >= row.rpm_limit) {
+      return { reason: `rpm_limit ${row.rpm_limit} alcanzado`, until: new Date(now.getTime() + 60_000) };
+    }
+  }
+
+  // daily — desde inicio del día UTC
+  if (row.daily_request_limit != null || row.daily_token_limit != null) {
+    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60_000);
+
+    if (row.daily_request_limit != null) {
+      const { count } = await supabase
+        .from("bot_token_usage")
+        .select("id", { count: "exact", head: true })
+        .eq("model", row.model_id)
+        .gte("created_at", startOfDay.toISOString());
+      if ((count ?? 0) >= row.daily_request_limit) {
+        return { reason: `daily_request_limit ${row.daily_request_limit} alcanzado`, until: endOfDay };
+      }
+    }
+
+    if (row.daily_token_limit != null) {
+      const { data } = await supabase
+        .from("bot_token_usage")
+        .select("input_tokens, output_tokens")
+        .eq("model", row.model_id)
+        .gte("created_at", startOfDay.toISOString());
+      const used = (data ?? []).reduce((acc, r) => acc + (r.input_tokens ?? 0) + (r.output_tokens ?? 0), 0);
+      if (used >= row.daily_token_limit) {
+        return { reason: `daily_token_limit ${row.daily_token_limit} alcanzado (usados ${used})`, until: endOfDay };
+      }
+    }
+  }
+
+  return null;
 }
 
 // ── Fetch con timeout ────────────────────────────────────────────────────────
@@ -275,8 +335,10 @@ async function callByProvider(
 }
 
 // ── Log ──────────────────────────────────────────────────────────────────────
-function logUsage(res: LlmCallResult) {
-  const rates = COST_PER_MTOK[res.model] ?? { input: 3, output: 15 };
+function logUsage(res: LlmCallResult, isFreeTier = false) {
+  // Costo 0 si el modelo está flagueado como free tier — el medidor lo
+  // muestra sin plata aunque el rate del código diga otra cosa.
+  const rates = isFreeTier ? { input: 0, output: 0 } : (COST_PER_MTOK[res.model] ?? { input: 3, output: 15 });
   const cost = (res.inputTokens * rates.input + res.outputTokens * rates.output) / 1_000_000;
   supabase.from("bot_token_usage").insert({
     model: res.model,
@@ -302,6 +364,15 @@ export async function llmCall(opts: LlmCallOpts): Promise<LlmCallResult> {
 
   const errors: string[] = [];
   for (const row of chain) {
+    // Pre-check de cuotas (free tier / diarias / rpm). Si se pasó,
+    // marcamos "caido" con cooldown hasta el fin del período y saltamos.
+    const quota = await checkQuota(row);
+    if (quota) {
+      errors.push(`${row.proveedor}/${row.model_id}: ${quota.reason}`);
+      await markDown(row.id, quota.reason, quota.until);
+      continue;
+    }
+
     const key = resolveKey(row);
     if (!key) {
       errors.push(`${row.proveedor}/${row.model_id}: sin key resoluble`);
@@ -310,7 +381,7 @@ export async function llmCall(opts: LlmCallOpts): Promise<LlmCallResult> {
     }
     try {
       const res = await callByProvider(row.proveedor, key, row.model_id, opts, timeoutMs);
-      logUsage(res);
+      logUsage(res, row.is_free_tier);
       return res;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

@@ -246,6 +246,9 @@
       <div class="cost-divider"></div>
       <div class="cost-row"><span class="cost-label">Mes</span><span class="cost-val" id="costMonth">—</span></div>
       <div class="cost-row"><span></span><span class="cost-tok" id="costMonthTok"></span></div>
+      <div class="cost-divider"></div>
+      <div style="font-size:0.65rem;color:var(--muted);margin-top:0.4rem;letter-spacing:0.05em;">POR MODELO (mes)</div>
+      <div id="costByModel" style="margin-top:0.3rem;"></div>
     </div>
     <div class="user-info">
       <span id="userRole"></span><br>
@@ -1978,6 +1981,28 @@ async function refreshCosts() {
     document.getElementById("costWeekTok").textContent = fmtTok(data.week?.input_tokens, data.week?.output_tokens);
     document.getElementById("costMonth").textContent = fmtCost(data.month?.cost);
     document.getElementById("costMonthTok").textContent = fmtTok(data.month?.input_tokens, data.month?.output_tokens);
+
+    // Breakdown por modelo (mes actual). Muestra costo o "gratis" según flag.
+    const byModelBox = document.getElementById("costByModel");
+    if (byModelBox) {
+      const rows = data.by_model?.month || [];
+      if (!rows.length) {
+        byModelBox.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);opacity:0.6;">sin llamadas este mes</div>';
+      } else {
+        byModelBox.innerHTML = rows.map(r => {
+          const shortName = r.model.length > 22 ? r.model.slice(0, 19) + "…" : r.model;
+          const badge = r.is_free_tier
+            ? '<span style="background:#dcfce7;color:#15803d;font-size:0.6rem;font-weight:600;padding:0.05rem 0.35rem;border-radius:10px;margin-left:0.3rem;">GRATIS</span>'
+            : '';
+          const val = r.is_free_tier ? '<span style="color:#15803d;">$0</span>' : fmtCost(r.cost);
+          return `<div class="cost-row" style="font-size:0.72rem;">
+            <span class="cost-label" title="${r.model}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;">${shortName}${badge}</span>
+            <span class="cost-val" style="font-size:0.75rem;">${val}</span>
+          </div>
+          <div class="cost-row"><span></span><span class="cost-tok">${r.calls} req · ${((r.input_tokens||0)+(r.output_tokens||0)).toLocaleString('es-AR')} tok</span></div>`;
+        }).join("");
+      }
+    }
   } catch (e) { /* silent */ }
 }
 
@@ -2689,6 +2714,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.5</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.14.0</div>
 </body>
 </html>

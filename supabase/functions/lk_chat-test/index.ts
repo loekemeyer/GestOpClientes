@@ -333,8 +333,18 @@ async function handleStats(since?: string) {
 
   const { data: monthRows } = await supabase
     .from("bot_token_usage")
-    .select("input_tokens, output_tokens, estimated_cost_usd, created_at")
+    .select("model, input_tokens, output_tokens, estimated_cost_usd, created_at")
     .gte("created_at", monthStart);
+
+  // Cargamos el flag is_free_tier por modelo para renderizar el badge en
+  // el dashboard aunque no haya llamadas registradas todavía.
+  const { data: modelsCfg } = await supabase
+    .from("wa_agente_modelos")
+    .select("model_id, proveedor, is_free_tier");
+  // deno-lint-ignore no-explicit-any
+  const freeMap = new Map<string, boolean>((modelsCfg ?? []).map((m: any) => [m.model_id, !!m.is_free_tier]));
+  // deno-lint-ignore no-explicit-any
+  const providerMap = new Map<string, string>((modelsCfg ?? []).map((m: any) => [m.model_id, m.proveedor]));
 
   // deno-lint-ignore no-explicit-any
   const aggregate = (rows: any[] | null) => {
@@ -347,6 +357,25 @@ async function handleStats(since?: string) {
     };
   };
 
+  // deno-lint-ignore no-explicit-any
+  const aggregateByModel = (rows: any[] | null) => {
+    if (!rows?.length) return [];
+    // deno-lint-ignore no-explicit-any
+    const byModel: Record<string, any[]> = {};
+    for (const r of rows) {
+      const m = r.model ?? "desconocido";
+      (byModel[m] ||= []).push(r);
+    }
+    return Object.entries(byModel)
+      .map(([model, rs]) => ({
+        model,
+        provider: providerMap.get(model) ?? null,
+        is_free_tier: freeMap.get(model) ?? false,
+        ...aggregate(rs),
+      }))
+      .sort((a, b) => b.cost - a.cost || b.calls - a.calls);
+  };
+
   const allMonth = monthRows ?? [];
   const weekRows = allMonth.filter(r => r.created_at >= weekStart);
   const sessionRows = since ? allMonth.filter(r => r.created_at >= since) : null;
@@ -355,6 +384,11 @@ async function handleStats(since?: string) {
     month: aggregate(allMonth),
     week: aggregate(weekRows),
     session: sessionRows ? aggregate(sessionRows) : { cost: 0, input_tokens: 0, output_tokens: 0, calls: 0 },
+    by_model: {
+      month:   aggregateByModel(allMonth),
+      week:    aggregateByModel(weekRows),
+      session: sessionRows ? aggregateByModel(sessionRows) : [],
+    },
   });
 }
 
