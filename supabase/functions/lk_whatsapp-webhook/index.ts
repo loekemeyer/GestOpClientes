@@ -428,20 +428,20 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
 
   // ── GET: Verificación Meta ──
+  // Meta manda hub.mode + hub.verify_token + hub.challenge. Solo necesitamos
+  // el verify_token; no hace falta que estén las otras env vars (útil cuando
+  // se está dando de alta un número nuevo antes de setear LK_WA_TOKEN etc.).
   if (req.method === "GET") {
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
     if (mode === "subscribe" && challenge) {
-      try {
-        const cfg = loadConfig();
-        if (token === cfg.waVerifyToken) {
-          return new Response(challenge, { status: 200 });
-        }
-      } catch (e) {
-        console.error("Error en verificación:", e);
+      const expected = Deno.env.get("LK_WA_VERIFY_TOKEN") ?? "";
+      if (expected && token === expected) {
+        return new Response(challenge, { status: 200 });
       }
+      console.warn(`[verify] token mismatch. Got: ${token?.slice(0, 8)}…  Env set: ${!!expected}`);
       return new Response("Forbidden", { status: 403 });
     }
 
