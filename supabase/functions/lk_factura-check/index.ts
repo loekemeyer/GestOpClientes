@@ -57,19 +57,28 @@ async function metaToken(): Promise<string> {
 async function metaWaba(): Promise<string> {
   return Deno.env.get("WA_BUSINESS_ACCOUNT_ID") ?? (await getSetting("wa_business_account_id")) ?? "";
 }
+// Chequeo automático de estado de plantillas contra Meta. Cache con TTL corto (30s):
+// evita repegarle a Meta dentro del mismo envío/ráfaga, pero refleja aprobaciones/pausas
+// casi en tiempo real sin depender de reciclar la instancia warm.
 let _tplStatus: Record<string, string> | null = null;
+let _tplStatusAt = 0;
+const TPL_TTL_MS = 30_000;
 async function tplStatus(name: string): Promise<string | null> {
-  if (!_tplStatus) {
-    _tplStatus = {};
+  if (!_tplStatus || (Date.now() - _tplStatusAt) > TPL_TTL_MS) {
+    const fresh: Record<string, string> = {};
+    let ok = false;
     try {
       const token = await metaToken(), waba = await metaWaba();
       if (token && waba) {
         const res = await fetch(`${META_API}/${waba}/message_templates?limit=200`, { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
         // deno-lint-ignore no-explicit-any
-        for (const t of (data.data ?? [])) _tplStatus[t.name] = t.status;
+        for (const t of (data.data ?? [])) fresh[t.name] = t.status;
+        ok = true;
       }
     } catch { /* si no se puede verificar, no bloquea */ }
+    if (ok) { _tplStatus = fresh; _tplStatusAt = Date.now(); }
+    else if (!_tplStatus) { _tplStatus = {}; } // sin snapshot previo, no bloquea
   }
   return _tplStatus[name] ?? null;
 }
