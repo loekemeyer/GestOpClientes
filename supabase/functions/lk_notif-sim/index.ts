@@ -30,6 +30,20 @@ async function getSetting(key: string): Promise<string | null> {
   const { data } = await paginalk.from("app_settings").select("value").eq("key", key).maybeSingle();
   return data?.value ?? null;
 }
+// Config de descuentos por defecto (respaldo si no hay wa_descuentos_config). Los `key` de
+// crédito/e-cheq coinciden con las bandas de wa_metodo_norm (ISIS) para matchear las facturas.
+const DEFAULT_DESCUENTOS = {
+  contado: { dto: 0.25, dias_limite: 14 },
+  credito: [
+    { key: "credito_15_30", label: "15 a 30", dto: 0.20 },
+    { key: "credito_31_45", label: "31 a 45", dto: 0.15 },
+    { key: "credito_46_60", label: "46 a 60", dto: 0.10 },
+  ],
+  echeq: [
+    { key: "echeq_90", label: "90", dto: 0.05 },
+    { key: "echeq_120", label: "120", dto: 0.00 },
+  ],
+};
 let _isisUrl = "", _isisKey = "";
 // deno-lint-ignore no-explicit-any
 let _gp: any = null;
@@ -309,6 +323,36 @@ serve(async (req) => {
       const { data: n } = await g.rpc("wa_sim_cleanup_all");
       await paginalk.from("wa_sim_inbox").delete().like("cuit", "30999%");
       return json({ ok: true, docs: n ?? 0, pdfs: all.length });
+    }
+
+    // ── Config de descuentos (Panel de Control). Editable: % y plazos; crédito con filas. ──
+    if (action === "descuentos_get") {
+      const raw = await getSetting("wa_descuentos_config");
+      let cfg = null;
+      if (raw) { try { cfg = JSON.parse(raw); } catch { cfg = null; } }
+      return json({ ok: true, config: cfg ?? DEFAULT_DESCUENTOS, is_default: !cfg });
+    }
+    if (action === "descuentos_save") {
+      const c = body.config ?? {};
+      // Normaliza/valida: dto en 0..1, días enteros ≥0. Etiquetas de texto libre.
+      const clamp = (v: unknown) => Math.min(1, Math.max(0, Number(v) || 0));
+      const norm = {
+        contado: {
+          dto: clamp(c?.contado?.dto ?? DEFAULT_DESCUENTOS.contado.dto),
+          dias_limite: Math.max(0, Math.round(Number(c?.contado?.dias_limite ?? DEFAULT_DESCUENTOS.contado.dias_limite)) || 0),
+        },
+        // deno-lint-ignore no-explicit-any
+        credito: (Array.isArray(c?.credito) ? c.credito : DEFAULT_DESCUENTOS.credito).map((r: any, i: number) => ({
+          key: String(r?.key || `credito_x${i + 1}`), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
+        })).filter((r: { label: string }) => r.label !== ""),
+        // deno-lint-ignore no-explicit-any
+        echeq: (Array.isArray(c?.echeq) ? c.echeq : DEFAULT_DESCUENTOS.echeq).map((r: any) => ({
+          key: String(r?.key || "").trim(), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
+        })).filter((r: { key: string }) => r.key !== ""),
+      };
+      const { error } = await paginalk.from("app_settings").upsert({ key: "wa_descuentos_config", value: JSON.stringify(norm) }, { onConflict: "key" });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, config: norm });
     }
 
     return json({ error: "action desconocida" }, 400);

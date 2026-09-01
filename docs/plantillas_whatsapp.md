@@ -24,13 +24,19 @@ Notas para que Meta apruebe sin rechazo:
 - El **nombre** va en minúsculas con guión bajo (los de abajo, exactos — coinciden con `app_settings`).
 - En el formulario, el encabezado Documento pide un PDF de muestra: subí cualquiera.
 - Meta pide **valores de ejemplo** para cada `{{n}}`: usá los que están abajo.
-- Formato de importes: `$` + miles con punto + coma decimal + 2 decimales (ej. `$153.355,46`). El bot ya lo arma así.
+- Formato de importes: `$` + miles con punto, **sin decimales** (redondeado a pesos enteros, ej. `$153.355`). El bot ya lo arma así.
+
+> ⚠️ **Reenvío a Meta**: crédito y e-cheq (single y múltiple) cambiaron de cuerpo y de cantidad de
+> `{{n}}`. Al editar el cuerpo de una plantilla ya aprobada, Meta la vuelve a poner **en revisión**.
+> El bot no envía con plantilla no aprobada (queda `held_tpl_no_aprobada`) y re-chequea el estado solo.
+> Los **descuentos y plazos** ahora se editan desde el **Panel de Control → 💰 Descuentos por pago**
+> (no están hardcodeados). `{{4}}`/fecha límite = fecha de factura + días de contado (14 por defecto).
 
 ---
 
 ## A) Una sola factura
 
-### 1 · `pedido_contado`  (contado + clientes que no definieron)
+### 1 · `pedido_contado_s`  (contado + clientes que no definieron)
 ```
 ¡Hola! Tu pedido está listo y estará con vos a la brevedad.
 
@@ -42,9 +48,9 @@ Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-Ejemplos: `{{1}}`=`$470.498,88` · `{{2}}`=`$352.874,16`
+Ejemplos: `{{1}}`=`$470.499` · `{{2}}`=`$352.874`
 
-### 2 · `pedido_credito`  (plazos de crédito)
+### 2 · `pedido_credito_s`  (plazos de crédito)
 ```
 ¡Hola! Tu pedido está listo y estará con vos a la brevedad.
 
@@ -52,40 +58,47 @@ Total de tu factura (con IVA): {{1}}
 
 Con tu pago a {{2}} días abonás: {{3}}
 
-Pagando al contado ahorrarías {{4}}.
+*Pagando hasta el {{4}} podes ahorrarte {{5}}.
+Total Contado: {{6}}*
 
 Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-`{{2}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60`.
-Ejemplos: `{{1}}`=`$743.418,34` · `{{2}}`=`31 a 45` · `{{3}}`=`$631.905,59` · `{{4}}`=`$74.341,83`
+`{{2}}` = plazo elegido (editable en Panel): `15 a 30` / `31 a 45` / `46 a 60`.
+`{{3}}` = monto con su plazo · `{{4}}` = fecha límite para pagar al contado (factura + 14 días) ·
+`{{5}}` = ahorro (monto de su plazo − contado 25%) · `{{6}}` = total pagando al contado.
+Ejemplos: `{{1}}`=`$743.418` · `{{2}}`=`31 a 45` · `{{3}}`=`$631.905` · `{{4}}`=`15/09/2026` · `{{5}}`=`$74.342` · `{{6}}`=`$557.564`
 
-### 3 · `pedido_echeq`  (e-cheq)
+### 3 · `pedido_echeq_s`  (e-cheq)
 ```
 ¡Hola! Tu pedido está listo y estará con vos a la brevedad.
 
 Total de tu factura (con IVA): {{1}}
 
-Con tu pago por e-cheq abonás: {{2}}
+Con tu pago por e-cheq a {{2}} días abonás: {{3}}
 Recordá enviar el e-cheq al momento de recibir el pedido.
 
-Pagando al contado ahorrarías {{3}}.
+*Pagando hasta el {{4}} podes ahorrarte {{5}}.
+Total Contado: {{6}}*
 
 Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-Ejemplos: `{{1}}`=`$1.587.098,44` · `{{2}}`=`$1.507.743,52` · `{{3}}`=`$317.419,69`
+`{{2}}` = plazo del e-cheq (editable en Panel): `90` / `120`. Resto igual que crédito
+(`{{4}}` fecha límite contado, `{{5}}` ahorro, `{{6}}` total contado).
+Ejemplos: `{{1}}`=`$1.587.098` · `{{2}}`=`90` · `{{3}}`=`$1.507.743` · `{{4}}`=`15/09/2026` · `{{5}}`=`$317.420` · `{{6}}`=`$1.190.324`
 
 ---
 
 ## B) Varias facturas (pedido dividido)
 
 `{{2}}` = cantidad de facturas · `{{3}}` = importes individuales separados por ` / `
-(ej. `$153.355,46 / $200.100,00 / $99.999,99`). Los descuentos corren un lugar.
+(ej. `$153.355 / $200.100 / $99.999`). Los `{{n}}` de método/descuento corren dos lugares
+respecto del single (por los campos `{{2}}` cantidad y `{{3}}` detalle).
 
-### 4 · `pedido_contado_multiple`
+### 4 · `pedido_contado_p`
 ```
 ¡Hola! Tu pedido está listo y estará con vos a la brevedad.
 
@@ -99,9 +112,9 @@ Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 / $200.100,00 / $146.544,54` · `{{4}}`=`$375.000,00`
+Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`$375.000`
 
-### 5 · `pedido_credito_multiple`
+### 5 · `pedido_credito_p`
 ```
 ¡Hola! Tu pedido está listo y estará con vos a la brevedad.
 
@@ -111,16 +124,18 @@ Detalle por factura: {{3}}
 
 Con tu pago a {{4}} días abonás: {{5}}
 
-Pagando al contado ahorrarías {{6}}.
+*Pagando hasta el {{6}} podes ahorrarte {{7}}.
+Total Contado: {{8}}*
 
 Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-`{{4}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60`.
-Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 / $200.100,00 / $146.544,54` · `{{4}}`=`31 a 45` · `{{5}}`=`$425.000,00` · `{{6}}`=`$50.000,00`
+`{{4}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60` · `{{6}}` = fecha límite contado ·
+`{{7}}` = ahorro vs. contado · `{{8}}` = total pagando al contado.
+Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`31 a 45` · `{{5}}`=`$425.000` · `{{6}}`=`15/09/2026` · `{{7}}`=`$50.000` · `{{8}}`=`$375.000`
 
-### 6 · `pedido_echeq_multiple`
+### 6 · `pedido_echeq_p`
 ```
 ¡Hola! Tu pedido está listo y estará con vos a la brevedad.
 
@@ -128,31 +143,36 @@ Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
 
 Detalle por factura: {{3}}
 
-Con tu pago por e-cheq abonás: {{4}}
+Con tu pago por e-cheq a {{4}} días abonás: {{5}}
 Recordá enviar el e-cheq al momento de recibir el pedido.
 
-Pagando al contado ahorrarías {{5}}.
+*Pagando hasta el {{6}} podes ahorrarte {{7}}.
+Total Contado: {{8}}*
 
 Datos para el pago:
 Alias: loeke.srl
 CBU: 1910027855002702387450
 ```
-Ejemplos: `{{1}}`=`$500.000,00` · `{{2}}`=`3` · `{{3}}`=`$153.355,46 / $200.100,00 / $146.544,54` · `{{4}}`=`$475.000,00` · `{{5}}`=`$100.000,00`
+`{{4}}` = plazo del e-cheq: `90` / `120` · `{{6}}` fecha límite contado · `{{7}}` ahorro · `{{8}}` total contado.
+Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`90` · `{{5}}`=`$475.000` · `{{6}}`=`15/09/2026` · `{{7}}`=`$100.000` · `{{8}}`=`$375.000`
 
 ---
 
 ## Cómo el bot elige y llena (referencia técnica)
 
-`supabase/functions/lk_factura-consolidar` decide:
+`supabase/functions/lk_factura-check` (`armarMensaje`) decide:
 - **Grupo por método** (`wa_metodo_norm` sobre `condicion_venta` de la factura):
   contado / no_decidido → contado · credito_* → credito · echeq_* → echeq.
 - **Single vs múltiple**: según cantidad de facturas del pedido.
-- **Descuentos** (`wa_descuentos_metodo`, default): contado 25%, 15-30d 20%, 31-45d 15%,
-  46-60d 10%, e-cheq 90d 5%, e-cheq 120d 0%. `no_decidido` se muestra como contado.
+- **Descuentos y plazos**: se leen de `app_settings.wa_descuentos_config` (editable en el
+  **Panel de Control → 💰 Descuentos por pago**). Defaults: contado 25% (vence a 14 días),
+  15-30d 20%, 31-45d 15%, 46-60d 10%, e-cheq 90d 5%, e-cheq 120d 0%. `no_decidido` → contado.
+  Las claves de las bandas (`credito_15_30`, `echeq_90`, …) coinciden con `wa_metodo_norm`.
+- **Importes redondeados sin decimales** (`fmtARS`).
 
-Crédito y e-cheq muestran ambos **la diferencia** (`ahorroVsContado` = lo que ahorraría
-pagando al contado), con la línea "Pagando al contado ahorrarías X." Contado/sin definir
-muestran el monto a pagar al contado.
+Crédito y e-cheq muestran el bloque "*Pagando hasta el {fecha} podes ahorrarte {ahorro}.
+Total Contado: {contado}*", donde `ahorro` = monto de su plazo − total al contado (25%),
+`fecha` = fecha de la factura + días de contado. Contado/sin definir muestran el monto al contado.
 
 Nombres configurables en `app_settings` (PaginaLK): `wa_tpl_contado`, `wa_tpl_credito`,
 `wa_tpl_echeq`, `wa_tpl_contado_multiple`, `wa_tpl_credito_multiple`, `wa_tpl_echeq_multiple`.
@@ -178,5 +198,7 @@ Un pedido real se parte en 2-6, así que no hay riesgo práctico. Si algún día
 decenas de facturas, acortar el formato de la lista `{{3}}`.
 
 ## Estado
-Plantillas listas para cargar. El bot ya las selecciona y completa (deploy v8), **sin envío**:
-todo el pipeline queda dormant hasta empezar los testeos con mensajes reales.
+El bot selecciona y completa las 6 plantillas con la lógica nueva (descuentos editables, importes
+redondeados, bloque de ahorro con fecha límite). Crédito y e-cheq (single/múltiple) deben **re-editarse
+en Meta** con el cuerpo de arriba y esperar re-aprobación; el bot no envía con plantilla no aprobada.
+Restricción activa: los envíos reales salen **sólo a la lista blanca** (`wa_envio_contactos`).

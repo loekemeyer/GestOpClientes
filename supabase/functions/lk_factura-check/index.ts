@@ -46,7 +46,8 @@ function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 function fmtARS(n: number): string {
-  return "$" + Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Sin decimales: se redondea el importe a pesos enteros (regla de negocio).
+  return "$" + Math.round(Number(n || 0)).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 }
 
 // ── Estado de aprobación de la plantilla en Meta (no enviar si no está APPROVED) ──
@@ -176,10 +177,14 @@ async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null) {
 }
 
 // ── Lógica de descuento/plantilla (guía docs/plantillas_whatsapp.md) ──
+// Los % de descuento y los plazos (etiqueta de días) son EDITABLES desde el Panel de
+// Control (app_settings.wa_descuentos_config). Acá quedan los defaults de respaldo.
 const DTO_DEFAULT: Record<string, number> = {
   contado: 0.25, credito_15_30: 0.20, credito_31_45: 0.15, credito_46_60: 0.10, echeq_90: 0.05, echeq_120: 0.00, no_decidido: 0.25,
 };
-const PLAZO: Record<string, string> = { credito_15_30: "15 a 30", credito_31_45: "31 a 45", credito_46_60: "46 a 60" };
+const LABEL_DEFAULT: Record<string, string> = {
+  credito_15_30: "15 a 30", credito_31_45: "31 a 45", credito_46_60: "46 a 60", echeq_90: "90", echeq_120: "120",
+};
 const TPL: Record<string, { single: string; multi: string }> = {
   contado: { single: "pedido_contado_s", multi: "pedido_contado_p" },
   credito: { single: "pedido_credito_s", multi: "pedido_credito_p" },
@@ -192,51 +197,87 @@ function grupoDe(m: string): "contado" | "credito" | "echeq" {
 }
 const PAGO_FOOTER = ["", "Datos para el pago:", "Alias: loeke.srl", "CBU: 1910027855002702387450"].join("\n");
 const SALUDO = "¡Hola! Tu pedido está listo y estará con vos a la brevedad.";
+
+// Config de descuentos editable (Panel de Control → app_settings.wa_descuentos_config).
+// Devuelve el dto de contado, los días para el vencimiento del pago contado, y un mapa
+// metodo→{dto,label} para crédito/e-cheq. Si no hay config, usa los defaults de arriba.
+interface DtoCfg { contadoDto: number; diasLimite: number; map: Record<string, { dto: number; label: string }>; }
+async function loadDtoCfg(): Promise<DtoCfg> {
+  // deno-lint-ignore no-explicit-any
+  let cfg: any = null;
+  const raw = await getSetting("wa_descuentos_config");
+  if (raw) { try { cfg = JSON.parse(raw); } catch { /* usa defaults */ } }
+  const contadoDto = Number(cfg?.contado?.dto ?? DTO_DEFAULT.contado);
+  const diasLimite = Number(cfg?.contado?.dias_limite ?? 14);
+  const map: Record<string, { dto: number; label: string }> = {};
+  for (const r of (cfg?.credito ?? [])) if (r?.key) map[r.key] = { dto: Number(r.dto), label: String(r.label ?? LABEL_DEFAULT[r.key] ?? "") };
+  for (const r of (cfg?.echeq ?? [])) if (r?.key) map[r.key] = { dto: Number(r.dto), label: String(r.label ?? LABEL_DEFAULT[r.key] ?? "") };
+  return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map };
+}
+function dtoDeMetodo(metodo: string, cfg: DtoCfg): { dto: number; label: string } {
+  const e = cfg.map[metodo];
+  if (e && Number.isFinite(e.dto)) return { dto: e.dto, label: e.label || LABEL_DEFAULT[metodo] || "" };
+  return { dto: DTO_DEFAULT[metodo] ?? cfg.contadoDto, label: LABEL_DEFAULT[metodo] || "" };
+}
+// Fecha (DD/MM/YYYY) hasta la que se puede abonar al contado: fecha de factura + diasLimite.
+function fechaLimiteContado(fechaISO: string, dias: number): string {
+  const base = new Date((fechaISO || new Date().toISOString().slice(0, 10)) + "T00:00:00Z");
+  if (isNaN(base.getTime())) return "";
+  base.setUTCDate(base.getUTCDate() + (Number.isFinite(dias) ? dias : 14));
+  const dd = String(base.getUTCDate()).padStart(2, "0");
+  const mm = String(base.getUTCMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${base.getUTCFullYear()}`;
+}
+// Bloque de ahorro común (crédito y e-cheq), en negrita en WhatsApp.
+function bloqueAhorro(fecha: string, ahorro: string, contado: string): string[] {
+  return ["", `*Pagando hasta el ${fecha} podes ahorrarte ${ahorro}.`, `Total Contado: ${contado}*`];
+}
 function textoLegible(grupo: string, esMultiple: boolean, params: string[]): string {
   let cuerpo: string[];
   if (!esMultiple) {
     if (grupo === "contado") cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `Pagando al contado (25% de descuento) abonás: ${params[1]}`];
-    else if (grupo === "credito") cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `Con tu pago a ${params[1]} días abonás: ${params[2]}`, "", `Pagando al contado ahorrarías ${params[3]}.`];
-    else cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `Con tu pago por e-cheq abonás: ${params[1]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", "", `Pagando al contado ahorrarías ${params[2]}.`];
+    else if (grupo === "credito") cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `Con tu pago a ${params[1]} días abonás: ${params[2]}`, ...bloqueAhorro(params[3], params[4], params[5])];
+    else cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `Con tu pago por e-cheq a ${params[1]} días abonás: ${params[2]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...bloqueAhorro(params[3], params[4], params[5])];
   } else {
     const base = [SALUDO, "", `Total de tus facturas (con IVA): ${params[0]}, en ${params[1]} facturas.`, "", `Detalle por factura: ${params[2]}`, ""];
     if (grupo === "contado") cuerpo = [...base, `Pagando al contado (25% de descuento) abonás: ${params[3]}`];
-    else if (grupo === "credito") cuerpo = [...base, `Con tu pago a ${params[3]} días abonás: ${params[4]}`, "", `Pagando al contado ahorrarías ${params[5]}.`];
-    else cuerpo = [...base, `Con tu pago por e-cheq abonás: ${params[3]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", "", `Pagando al contado ahorrarías ${params[4]}.`];
+    else if (grupo === "credito") cuerpo = [...base, `Con tu pago a ${params[3]} días abonás: ${params[4]}`, ...bloqueAhorro(params[5], params[6], params[7])];
+    else cuerpo = [...base, `Con tu pago por e-cheq a ${params[3]} días abonás: ${params[4]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...bloqueAhorro(params[5], params[6], params[7])];
   }
   return cuerpo.join("\n") + "\n" + PAGO_FOOTER;
 }
 // deno-lint-ignore no-explicit-any
-function armarMensaje(metodo: string, facturas: any[]) {
+function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg: DtoCfg) {
   const grupo = grupoDe(metodo);
-  const dto = DTO_DEFAULT[metodo] ?? 0.25;
+  const { dto, label } = dtoDeMetodo(metodo, cfg);
   const totales = facturas.map((f) => Number(f.total || 0));
   const total_sum = totales.reduce((s, t) => s + t, 0);
-  const montoContado = total_sum * 0.75;
+  const montoContado = total_sum * (1 - cfg.contadoDto);
   const montoCliente = total_sum * (1 - dto);
   const ahorro = montoCliente - montoContado;
-  const plazo = PLAZO[metodo] ?? "";
+  const fechaLimite = fechaLimiteContado(fecha, cfg.diasLimite);
   const n = facturas.length;
   const esMultiple = n > 1;
   const lista = totales.map((t) => fmtARS(t)).join(" / ");
   const template = esMultiple ? TPL[grupo].multi : TPL[grupo].single;
+  // Crédito/e-cheq: {total, plazoDías, montoCliente, fechaLímite, ahorro, totalContado}.
+  // Contado: {total, totalContado}. En múltiple se intercalan {cantidad, detalle} tras el total.
   let params: string[];
   if (!esMultiple) {
-    if (grupo === "credito") params = [fmtARS(total_sum), plazo, fmtARS(montoCliente), fmtARS(ahorro)];
-    else if (grupo === "echeq") params = [fmtARS(total_sum), fmtARS(montoCliente), fmtARS(ahorro)];
-    else params = [fmtARS(total_sum), fmtARS(montoContado)];
+    if (grupo === "contado") params = [fmtARS(total_sum), fmtARS(montoContado)];
+    else params = [fmtARS(total_sum), label, fmtARS(montoCliente), fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
   } else {
     const base = [fmtARS(total_sum), String(n), lista];
-    if (grupo === "credito") params = [...base, plazo, fmtARS(montoCliente), fmtARS(ahorro)];
-    else if (grupo === "echeq") params = [...base, fmtARS(montoCliente), fmtARS(ahorro)];
-    else params = [...base, fmtARS(montoContado)];
+    if (grupo === "contado") params = [...base, fmtARS(montoContado)];
+    else params = [...base, label, fmtARS(montoCliente), fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
   }
   return {
     template, language: "es_AR", metodo, grupo, n_facturas: n, multiple: esMultiple,
     params, lista_facturas: lista, texto_legible: textoLegible(grupo, esMultiple, params),
     total_sum, total_fmt: fmtARS(total_sum),
     desglose: {
-      total_civa: fmtARS(total_sum), dto_cliente: `${Math.round(dto * 100)}%`,
+      total_civa: fmtARS(total_sum), dto_cliente: `${Math.round(dto * 100)}%`, plazo_dias: label || null,
+      fecha_limite_contado: fechaLimite,
       monto_cliente: fmtARS(montoCliente), monto_contado: fmtARS(montoContado), ahorro_vs_contado: fmtARS(ahorro),
     },
   };
@@ -276,7 +317,8 @@ async function handleGrupo(body: any) {
   let mensaje: any = null;
   if (metodoMixto) estado = "held_metodo_mixto";
   else {
-    mensaje = armarMensaje(metodo, facturas);
+    const cfg = await loadDtoCfg();
+    mensaje = armarMensaje(metodo, facturas, String(body.dia ?? hoy), cfg);
     const st = await tplStatus(mensaje.template);
     mensaje.tpl_status = st;
     if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
@@ -329,6 +371,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
   const { data: grupos } = await g.rpc("wa_grupos_dia_cuit", { p_cuit: cuit, p_fecha: fecha });
   if (!grupos || !grupos.length) return json({ pendiente: true, cuit, note: "sin facturas matcheadas a NP/dirección hoy" });
 
+  const cfg = await loadDtoCfg();
   const out = [];
   for (const gr of grupos) {
     const destino = gr.destino || "(s/dir)";
@@ -346,7 +389,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
     let base: any = null;
     if (metodoMixto) estado0 = "held_metodo_mixto";
     else {
-      base = armarMensaje(metodo, facturas);
+      base = armarMensaje(metodo, facturas, fecha, cfg);
       const st = await tplStatus(base.template);
       base.tpl_status = st;
       if (st && st !== "APPROVED") estado0 = "held_tpl_no_aprobada";
@@ -444,7 +487,8 @@ serve(async (req) => {
     if (multisource) estado = "held_multisource";
     else if (metodoMixto) estado = "held_metodo_mixto";
     else {
-      mensaje = armarMensaje(metodo, facturas);
+      const cfg = await loadDtoCfg();
+      mensaje = armarMensaje(metodo, facturas, fecha, cfg);
       // No enviar con plantilla no aprobada por Meta (Meta la rechazaría).
       const st = await tplStatus(mensaje.template);
       mensaje.tpl_status = st;
