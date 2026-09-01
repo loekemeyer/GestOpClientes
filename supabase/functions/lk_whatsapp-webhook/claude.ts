@@ -510,21 +510,38 @@ export async function runConversation(
   const allMedia: MediaAction[] = [];
 
   for (let iter = 0; iter < 5; iter++) {
-    const resp = await fetch(CLAUDE_URL, {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6-20250514",
-        max_tokens: 1024,
-        system: systemPrompt,
-        tools: BOT_TOOLS,
-        messages,
-      }),
-    });
+    // Timeout duro: si Anthropic no responde en 30s, abortamos y devolvemos
+    // un mensaje "problema técnico" en vez de colgar el edge function hasta
+    // que Supabase lo mate a los ~150s.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(new Error("LLM timeout 30s")), 30_000);
+    let resp: Response;
+    try {
+      resp = await fetch(CLAUDE_URL, {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6-20250514",
+          max_tokens: 1024,
+          system: systemPrompt,
+          tools: BOT_TOOLS,
+          messages,
+        }),
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      console.error(`Claude API fetch falló: ${e instanceof Error ? e.message : String(e)}`);
+      return {
+        reply: "Disculpá, estoy teniendo un problema técnico. Intentá de nuevo en unos minutos. 🙏",
+        media: [],
+      };
+    }
+    clearTimeout(timer);
 
     if (!resp.ok) {
       const errText = await resp.text();

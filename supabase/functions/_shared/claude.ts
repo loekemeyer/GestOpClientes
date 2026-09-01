@@ -1,17 +1,17 @@
 import { supabase } from "./supabase.ts";
+import { llmCall } from "./llm.ts";
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-
-// Usar aliases sin fecha para no romperse cuando Anthropic depreca versiones
+// Aliases sin fecha (hints para detectIntent / conversationalReply). Cuando la
+// chain de wa_agente_modelos está poblada, `llmCall` la usa y estos hints
+// quedan solo como fallback duro (env ANTHROPIC_API_KEY).
 const MODEL_HAIKU = "claude-haiku-4-5";
 const MODEL_SONNET = "claude-sonnet-4-6";
 
-const COST_PER_MTOK: Record<string, { input: number; output: number }> = {
-  [MODEL_HAIKU]: { input: 1.0, output: 5.0 },
-  [MODEL_SONNET]: { input: 3.0, output: 15.0 },
-};
-
-/** Llama a Claude API directo (sin SDK). Loguea tokens a bot_token_usage. */
+/**
+ * Llama a un LLM. Backward-compatible: recibe apiKey + model y los usa como
+ * pin (sin chain). El resto del flujo (timeout, log de tokens) va por
+ * `llmCall`. Los nuevos consumidores deberían llamar a `llmCall` directamente.
+ */
 export async function claudeMessage(opts: {
   apiKey: string;
   model: string;
@@ -20,46 +20,17 @@ export async function claudeMessage(opts: {
   maxTokens?: number;
   temperature?: number;
 }): Promise<string> {
-  const res = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": opts.apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: opts.model,
-      max_tokens: opts.maxTokens ?? 1024,
-      temperature: opts.temperature ?? 0,
-      system: opts.system,
-      messages: opts.messages,
-    }),
+  const res = await llmCall({
+    system: opts.system,
+    messages: opts.messages,
+    maxTokens: opts.maxTokens,
+    temperature: opts.temperature,
+    pinned: { provider: "anthropic", model: opts.model, apiKey: opts.apiKey },
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Claude API ${res.status}: ${err}`);
-  }
-
-  const data = await res.json();
-
-  // Log token usage (fire and forget)
-  const usage = data.usage;
-  if (usage) {
-    const rates = COST_PER_MTOK[opts.model] ?? { input: 3, output: 15 };
-    const cost = (usage.input_tokens * rates.input + usage.output_tokens * rates.output) / 1_000_000;
-    supabase.from("bot_token_usage").insert({
-      model: opts.model,
-      input_tokens: usage.input_tokens ?? 0,
-      output_tokens: usage.output_tokens ?? 0,
-      estimated_cost_usd: cost,
-    }).then(() => {}).catch((e: unknown) => console.error("token log err:", e));
-  }
-
-  return data.content?.[0]?.text ?? "";
+  return res.text;
 }
 
-/** Detecta intent con Haiku. Devuelve JSON parseado. */
+/** Detecta intent (modelo barato). Devuelve JSON parseado. */
 export async function detectIntent(
   apiKey: string,
   userMessage: string,
@@ -79,36 +50,65 @@ Reglas:
 - "faq": preguntas generales sobre la empresa (horarios, formas de pago, envíos, mínimos, devoluciones, catálogo, precios, descuentos, zonas de entrega)
 - "otro": cualquier otra cosa que no encaje arriba`;
 
-  const text = await claudeMessage({
-    apiKey,
-    model: MODEL_HAIKU,
-    system,
-    messages: [{ role: "user", content: userMessage }],
-    maxTokens: 150,
-    temperature: 0,
-  });
-
+  // Consumimos la chain (wa_agente_modelos). Si está vacía o falla todo,
+  // `llmCall` cae al env ANTHROPIC_API_KEY con Sonnet como último recurso.
+  // El parámetro `apiKey` queda por retrocompatibilidad: si no hay chain ni
+  // env, lo usamos como pin final con Haiku.
   try {
-    return JSON.parse(text);
-  } catch {
-    return { intent: "otro", details: text };
+    const res = await llmCall({
+      system,
+      messages: [{ role: "user", content: userMessage }],
+      maxTokens: 150,
+      temperature: 0,
+    });
+    try {
+      return JSON.parse(res.text);
+    } catch {
+      return { intent: "otro", details: res.text };
+    }
+  } catch (_e) {
+    if (!apiKey) throw _e;
+    const text = await claudeMessage({
+      apiKey,
+      model: MODEL_HAIKU,
+      system,
+      messages: [{ role: "user", content: userMessage }],
+      maxTokens: 150,
+      temperature: 0,
+    });
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { intent: "otro", details: text };
+    }
   }
 }
 
-/** Respuesta conversacional con Sonnet. */
+/** Respuesta conversacional. Consume la chain; cae a Sonnet si no hay. */
 export async function conversationalReply(
   apiKey: string,
   system: string,
   messages: { role: string; content: string }[],
 ): Promise<string> {
-  return claudeMessage({
-    apiKey,
-    model: MODEL_SONNET,
-    system,
-    messages,
-    maxTokens: 800,
-    temperature: 0.3,
-  });
+  try {
+    const res = await llmCall({
+      system,
+      messages,
+      maxTokens: 800,
+      temperature: 0.3,
+    });
+    return res.text;
+  } catch (_e) {
+    if (!apiKey) throw _e;
+    return claudeMessage({
+      apiKey,
+      model: MODEL_SONNET,
+      system,
+      messages,
+      maxTokens: 800,
+      temperature: 0.3,
+    });
+  }
 }
 
 /** Busca FAQ por keywords. Devuelve respuesta o null si no hay match. */
