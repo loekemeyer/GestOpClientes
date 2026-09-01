@@ -518,6 +518,19 @@
             <tbody></tbody>
           </table>
 
+          <div style="font-weight:600;margin:1.3rem 0 0.35rem;">Excepciones por cliente</div>
+          <p class="hint" style="display:block;margin:-0.25rem 0 0.6rem;line-height:1.4;">
+            Si agregás un cliente acá, el bot usa <b>siempre</b> ese método para sus facturas,
+            ignorando la condición de venta de la factura. Match por CUIT (solo dígitos) o razón social exacta.
+          </p>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
+            <select id="excMetodo" style="min-width:160px;"></select>
+            <select id="excTipo"><option value="cuit">CUIT</option><option value="razon">Razón social</option></select>
+            <input type="text" id="excValor" placeholder="CUIT o razón social" style="min-width:220px;flex:1;">
+            <button class="config-btn small" onclick="addExcepcion()">+ Agregar</button>
+          </div>
+          <div id="excList"></div>
+
           <div style="margin-top:1.1rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
             <button class="config-btn primary" onclick="saveDescuentos()">💾 Guardar descuentos</button>
             <button class="config-btn small" onclick="loadDescuentos()">↺ Restaurar guardado</button>
@@ -1021,6 +1034,7 @@ async function saveRateLimitConfig() {
 
 // --- Descuentos por pago (editable, config del bot) ---
 let dtoCfgCache = null;
+let excData = {}; // excepciones por método: { bandKey: [{tipo,valor,label}] }
 
 async function loadDescuentos() {
   try {
@@ -1066,10 +1080,67 @@ function renderDescuentos(cfg) {
   (cfg.credito || []).forEach((r) => ct.appendChild(dtoRowCredito(r)));
   const et = document.querySelector("#dtoEcheqTable tbody"); et.innerHTML = "";
   (cfg.echeq || []).forEach((r) => et.appendChild(dtoRowEcheq(r)));
+  excData = cfg.excepciones && typeof cfg.excepciones === "object" ? cfg.excepciones : {};
+  renderExcepciones();
 }
 
 function addCreditoRow() {
-  document.querySelector("#dtoCreditoTable tbody").appendChild(dtoRowCredito({ key: "", label: "", dto: 0 }));
+  document.querySelector("#dtoCreditoTable tbody").appendChild(dtoRowCredito({ key: "credito_x" + Date.now(), label: "", dto: 0 }));
+  renderExcepciones();
+}
+
+// Bandas (métodos) actualmente en pantalla, para el selector de excepciones.
+function currentBands() {
+  const bands = [{ key: "contado", label: "Contado" }];
+  document.querySelectorAll("#dtoCreditoTable tbody tr").forEach((tr, i) => {
+    const key = tr.dataset.key || ("credito_x" + (i + 1));
+    const lbl = tr.querySelector(".dto-label").value.trim();
+    if (lbl) bands.push({ key, label: "Crédito " + lbl });
+  });
+  document.querySelectorAll("#dtoEcheqTable tbody tr").forEach((tr) => {
+    const key = tr.dataset.key; const lbl = tr.querySelector(".dto-label").value.trim();
+    if (key && lbl) bands.push({ key, label: "E-cheq " + lbl });
+  });
+  return bands;
+}
+function bandLabel(key) { const b = currentBands().find((x) => x.key === key); return b ? b.label : key; }
+
+function renderExcepciones() {
+  const bands = currentBands();
+  const sel = document.getElementById("excMetodo");
+  const cur = sel.value;
+  sel.innerHTML = bands.map((b) => `<option value="${esc(b.key)}">${esc(b.label)}</option>`).join("");
+  if (cur && bands.some((b) => b.key === cur)) sel.value = cur;
+  const list = document.getElementById("excList");
+  const keys = Object.keys(excData).filter((k) => (excData[k] || []).length);
+  if (!keys.length) { list.innerHTML = '<div class="bl-empty" style="padding:0.3rem 0;">Sin excepciones — todos los clientes usan el método de su factura.</div>'; return; }
+  list.innerHTML = keys.map((k) => {
+    const chips = (excData[k] || []).map((it, idx) =>
+      `<span style="display:inline-flex;align-items:center;gap:0.35rem;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:14px;padding:0.15rem 0.55rem;font-size:0.78rem;">` +
+      `${it.tipo === "razon" ? "🏢" : "#"} ${esc(it.valor)}` +
+      `<button class="config-btn small" style="padding:0 0.3rem;line-height:1.2;" title="Quitar" onclick="removeExcepcion('${esc(k)}',${idx})">✕</button></span>`
+    ).join("");
+    return `<div style="margin:0.3rem 0;"><div style="font-size:0.76rem;color:var(--muted);margin-bottom:0.25rem;">${esc(bandLabel(k))}</div>` +
+      `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;">${chips}</div></div>`;
+  }).join("");
+}
+
+function addExcepcion() {
+  const key = document.getElementById("excMetodo").value;
+  const tipo = document.getElementById("excTipo").value === "razon" ? "razon" : "cuit";
+  let valor = document.getElementById("excValor").value.trim();
+  if (!key || !valor) return;
+  if (tipo === "cuit") { valor = valor.replace(/\D/g, ""); if (!valor) return; }
+  if (!excData[key]) excData[key] = [];
+  const dup = excData[key].some((it) => it.tipo === tipo &&
+    (tipo === "cuit" ? it.valor.replace(/\D/g, "") === valor : it.valor.trim().toUpperCase() === valor.trim().toUpperCase()));
+  if (!dup) excData[key].push({ tipo, valor, label: null });
+  document.getElementById("excValor").value = "";
+  renderExcepciones();
+}
+function removeExcepcion(key, idx) {
+  if (excData[key]) { excData[key].splice(idx, 1); if (!excData[key].length) delete excData[key]; }
+  renderExcepciones();
 }
 
 function collectDescuentos() {
@@ -1084,12 +1155,16 @@ function collectDescuentos() {
     label: tr.querySelector(".dto-label").value.trim(),
     dto: pct(tr.querySelector(".dto-pct")),
   })).filter((r) => r.key !== "");
+  // Solo excepciones cuya banda sigue existiendo (por si se borró un método).
+  const validKeys = new Set(["contado", ...credito.map((r) => r.key), ...echeq.map((r) => r.key)]);
+  const excepciones = {};
+  Object.keys(excData).forEach((k) => { if (validKeys.has(k) && (excData[k] || []).length) excepciones[k] = excData[k]; });
   return {
     contado: {
       dto: pct(document.getElementById("dtoContado")),
       dias_limite: Math.max(0, Math.round(Number(document.getElementById("dtoContadoDias").value) || 0)),
     },
-    credito, echeq,
+    credito, echeq, excepciones,
   };
 }
 
@@ -2488,6 +2563,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.1</div>
 </body>
 </html>

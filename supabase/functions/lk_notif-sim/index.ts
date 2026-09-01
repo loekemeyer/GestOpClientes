@@ -43,6 +43,7 @@ const DEFAULT_DESCUENTOS = {
     { key: "echeq_90", label: "90", dto: 0.05 },
     { key: "echeq_120", label: "120", dto: 0.00 },
   ],
+  excepciones: {} as Record<string, unknown[]>,
 };
 let _isisUrl = "", _isisKey = "";
 // deno-lint-ignore no-explicit-any
@@ -336,19 +337,34 @@ serve(async (req) => {
       const c = body.config ?? {};
       // Normaliza/valida: dto en 0..1, días enteros ≥0. Etiquetas de texto libre.
       const clamp = (v: unknown) => Math.min(1, Math.max(0, Number(v) || 0));
+      // deno-lint-ignore no-explicit-any
+      const credito = (Array.isArray(c?.credito) ? c.credito : DEFAULT_DESCUENTOS.credito).map((r: any, i: number) => ({
+        key: String(r?.key || `credito_x${i + 1}`), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
+      })).filter((r: { label: string }) => r.label !== "");
+      // deno-lint-ignore no-explicit-any
+      const echeq = (Array.isArray(c?.echeq) ? c.echeq : DEFAULT_DESCUENTOS.echeq).map((r: any) => ({
+        key: String(r?.key || "").trim(), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
+      })).filter((r: { key: string }) => r.key !== "");
+      // Excepciones por cliente, keyed por método (band). Solo se conservan bandas válidas.
+      const validKeys = new Set<string>(["contado", ...credito.map((r: { key: string }) => r.key), ...echeq.map((r: { key: string }) => r.key)]);
+      const excSrc = (c?.excepciones && typeof c.excepciones === "object") ? c.excepciones : {};
+      const excepciones: Record<string, unknown[]> = {};
+      for (const k of Object.keys(excSrc)) {
+        if (!validKeys.has(k)) continue;
+        // deno-lint-ignore no-explicit-any
+        const clean = (Array.isArray(excSrc[k]) ? excSrc[k] : []).map((it: any) => ({
+          tipo: it?.tipo === "razon" ? "razon" : "cuit",
+          valor: String(it?.valor ?? "").trim(),
+          label: String(it?.label ?? "").trim() || null,
+        })).filter((it: { valor: string }) => it.valor !== "");
+        if (clean.length) excepciones[k] = clean;
+      }
       const norm = {
         contado: {
           dto: clamp(c?.contado?.dto ?? DEFAULT_DESCUENTOS.contado.dto),
           dias_limite: Math.max(0, Math.round(Number(c?.contado?.dias_limite ?? DEFAULT_DESCUENTOS.contado.dias_limite)) || 0),
         },
-        // deno-lint-ignore no-explicit-any
-        credito: (Array.isArray(c?.credito) ? c.credito : DEFAULT_DESCUENTOS.credito).map((r: any, i: number) => ({
-          key: String(r?.key || `credito_x${i + 1}`), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
-        })).filter((r: { label: string }) => r.label !== ""),
-        // deno-lint-ignore no-explicit-any
-        echeq: (Array.isArray(c?.echeq) ? c.echeq : DEFAULT_DESCUENTOS.echeq).map((r: any) => ({
-          key: String(r?.key || "").trim(), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
-        })).filter((r: { key: string }) => r.key !== ""),
+        credito, echeq, excepciones,
       };
       const { error } = await paginalk.from("app_settings").upsert({ key: "wa_descuentos_config", value: JSON.stringify(norm) }, { onConflict: "key" });
       if (error) return json({ error: error.message }, 500);

@@ -201,7 +201,14 @@ const SALUDO = "¡Hola! Tu pedido está listo y estará con vos a la brevedad.";
 // Config de descuentos editable (Panel de Control → app_settings.wa_descuentos_config).
 // Devuelve el dto de contado, los días para el vencimiento del pago contado, y un mapa
 // metodo→{dto,label} para crédito/e-cheq. Si no hay config, usa los defaults de arriba.
-interface DtoCfg { contadoDto: number; diasLimite: number; map: Record<string, { dto: number; label: string }>; }
+interface DtoCfg {
+  contadoDto: number; diasLimite: number;
+  map: Record<string, { dto: number; label: string }>;
+  // Excepciones por cliente: si el CUIT (solo dígitos) o la razón social (mayúsc/trim) está
+  // acá, el bot fuerza ese método para sus facturas, ignorando la condición de venta.
+  excCuit: Record<string, string>; excRazon: Record<string, string>;
+}
+const normRazon = (s: string) => String(s || "").trim().toUpperCase().replace(/\s+/g, " ");
 async function loadDtoCfg(): Promise<DtoCfg> {
   // deno-lint-ignore no-explicit-any
   let cfg: any = null;
@@ -212,12 +219,29 @@ async function loadDtoCfg(): Promise<DtoCfg> {
   const map: Record<string, { dto: number; label: string }> = {};
   for (const r of (cfg?.credito ?? [])) if (r?.key) map[r.key] = { dto: Number(r.dto), label: String(r.label ?? LABEL_DEFAULT[r.key] ?? "") };
   for (const r of (cfg?.echeq ?? [])) if (r?.key) map[r.key] = { dto: Number(r.dto), label: String(r.label ?? LABEL_DEFAULT[r.key] ?? "") };
-  return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map };
+  const excCuit: Record<string, string> = {}, excRazon: Record<string, string> = {};
+  const exc = cfg?.excepciones ?? {};
+  for (const bandKey of Object.keys(exc)) {
+    for (const it of (exc[bandKey] ?? [])) {
+      if (!it?.valor) continue;
+      if (it.tipo === "razon") excRazon[normRazon(it.valor)] = bandKey;
+      else { const d = String(it.valor).replace(/\D/g, ""); if (d) excCuit[d] = bandKey; }
+    }
+  }
+  return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map, excCuit, excRazon };
 }
 function dtoDeMetodo(metodo: string, cfg: DtoCfg): { dto: number; label: string } {
   const e = cfg.map[metodo];
   if (e && Number.isFinite(e.dto)) return { dto: e.dto, label: e.label || LABEL_DEFAULT[metodo] || "" };
   return { dto: DTO_DEFAULT[metodo] ?? cfg.contadoDto, label: LABEL_DEFAULT[metodo] || "" };
+}
+// Devuelve el método forzado para un cliente (por CUIT o razón social), o null si no hay excepción.
+function metodoExcepcion(cfg: DtoCfg, cuit: string | null | undefined, razon: string | null | undefined): string | null {
+  const d = String(cuit || "").replace(/\D/g, "");
+  if (d && cfg.excCuit[d]) return cfg.excCuit[d];
+  const r = normRazon(razon || "");
+  if (r && cfg.excRazon[r]) return cfg.excRazon[r];
+  return null;
 }
 // Fecha (DD/MM/YYYY) hasta la que se puede abonar al contado: fecha de factura + diasLimite.
 function fechaLimiteContado(fechaISO: string, dias: number): string {
@@ -379,8 +403,10 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
     const totales = (gr.totales ?? []) as number[];
     const metodos = (gr.metodos ?? []) as string[];
     const facturas = totales.map((t) => ({ total: t }));
-    const metodoMixto = metodos.length > 1;
-    const metodo = metodos[0] || "no_decidido";
+    // Excepción por cliente: fuerza el método elegido (ignora la condición de venta / método mixto).
+    const ov = metodoExcepcion(cfg, cuit, gr.razon_social);
+    const metodoMixto = ov ? false : metodos.length > 1;
+    const metodo = ov || metodos[0] || "no_decidido";
     const total_sum = totales.reduce((s, t) => s + Number(t || 0), 0);
 
     // Mensaje + PDF combinado se arman UNA vez por grupo (mismo para todos los destinos).
@@ -477,9 +503,12 @@ serve(async (req) => {
     const srcUsado = facturasLk.length ? "lk" : "ch";
     if (!facturas.length) return json({ complete: true, note: "grupo completo pero sin documentos parseados aún" });
 
+    const cfg = await loadDtoCfg();
     const metodos = Array.from(new Set(facturas.map((f: Record<string, unknown>) => f.metodo).filter(Boolean)));
-    const metodoMixto = metodos.length > 1;
-    const metodo = (facturas[0]?.metodo as string) || metodoCtrl || "no_decidido";
+    // Excepción por cliente: fuerza el método elegido (ignora condición de venta / método mixto).
+    const ov = metodoExcepcion(cfg, cuit, grupo.razon_social);
+    const metodoMixto = ov ? false : metodos.length > 1;
+    const metodo = ov || (facturas[0]?.metodo as string) || metodoCtrl || "no_decidido";
 
     let estado = "delivered";
     // deno-lint-ignore no-explicit-any
@@ -487,7 +516,6 @@ serve(async (req) => {
     if (multisource) estado = "held_multisource";
     else if (metodoMixto) estado = "held_metodo_mixto";
     else {
-      const cfg = await loadDtoCfg();
       mensaje = armarMensaje(metodo, facturas, fecha, cfg);
       // No enviar con plantilla no aprobada por Meta (Meta la rechazaría).
       const st = await tplStatus(mensaje.template);
