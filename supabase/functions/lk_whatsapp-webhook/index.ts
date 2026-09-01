@@ -341,6 +341,77 @@ async function conSaludoSiCorresponde(
   return `¡Hola ${businessName}! 👋\n\n${reply}`;
 }
 
+// ─── Adjuntos (interino) ───────────────────────────────────────────
+// Mientras el flujo de comprobantes no está cableado, cualquier adjunto
+// (imagen, PDF, audio, video, sticker) recibe una respuesta placeholder
+// y queda registrado en bot_historial_chat + wa_alertas_humano.
+// Respeta kill switch y whitelist igual que un mensaje de texto.
+const MSG_ADJUNTO_INTERINO =
+  "Por favor, no enviar ningún archivo adjunto a este número de momento. 🙏\n\n" +
+  "Si necesitás hacer una consulta o pasarnos información, escribinos por texto y te ayudamos.";
+
+async function handleAdjunto(
+  msg: { from: string; msgId: string; type: string; name?: string },
+  cfg: Config,
+): Promise<void> {
+  const phone = msg.from;
+
+  // Kill switch / whitelist (mismo gate que handleMessage)
+  const raw = await getSetting("wa_bot_solo_whitelist");
+  const soloWhitelist = Number(raw ?? "1") === 1;
+  if (soloWhitelist && !(await estaEnWhitelist(phone))) {
+    console.warn(`[whitelist-gate] adjunto de ${phone} descartado.`);
+    try {
+      await supabase.from("wa_alertas_humano").insert({
+        tipo: "otro",
+        phone,
+        contexto: {
+          motivo: "whitelist_gate",
+          origen: "adjunto",
+          tipo_adjunto: msg.type,
+          contact_name: msg.name ?? null,
+        },
+      });
+    } catch { /* fire-and-forget */ }
+    return;
+  }
+
+  // Marcar leído + typing (opcional; falla silenciosa)
+  try { await markRead(cfg.waPhoneId, cfg.waToken, msg.msgId); } catch { /* noop */ }
+
+  // Loggear entrada en historial para que aparezca en Conversaciones
+  try {
+    await supabase.rpc("bot_guardar_mensaje", {
+      p_telefono: phone,
+      p_rol: "user",
+      p_contenido: `[ADJUNTO ${msg.type.toUpperCase()}]`,
+    });
+  } catch (e) { console.error("adjunto: log inbound falló", e); }
+
+  // Responder el placeholder
+  try {
+    await sendText(cfg.waPhoneId, cfg.waToken, phone, MSG_ADJUNTO_INTERINO);
+    await supabase.rpc("bot_guardar_mensaje", {
+      p_telefono: phone,
+      p_rol: "assistant",
+      p_contenido: MSG_ADJUNTO_INTERINO,
+    });
+  } catch (e) { console.error("adjunto: reply falló", e); }
+
+  // Alerta para atención humana — registro del intento
+  try {
+    await supabase.from("wa_alertas_humano").insert({
+      tipo: "adjunto_no_soportado",
+      phone,
+      contexto: {
+        tipo_adjunto: msg.type,
+        wamid: msg.msgId,
+        contact_name: msg.name ?? null,
+      },
+    });
+  } catch { /* fire-and-forget */ }
+}
+
 // ─── Kill switch por whitelist ─────────────────────────────────────
 // Mientras la app está en modo "testing/rollout controlado", el bot solo
 // responde a números en `wa_envio_contactos`. Cuando se decida activar
@@ -501,12 +572,22 @@ Deno.serve(async (req: Request) => {
         return new Response("OK", { status: 200 });
       }
 
+      const cfg = loadConfig();
+
+      // Adjuntos (imagen, documento, audio, video, sticker): por ahora
+      // NO los descargamos ni parseamos — solo respondemos placeholder pidiendo
+      // que no se envíen. El flujo de comprobantes se activa en un paso posterior
+      // (ver tabla wa_comprobantes y bucket wa-comprobantes).
+      const TIPOS_ADJUNTO = ["image", "document", "audio", "video", "sticker"];
+      if (TIPOS_ADJUNTO.includes(msg.type)) {
+        await handleAdjunto(msg, cfg);
+        return new Response("OK", { status: 200 });
+      }
+
       // Solo procesar mensajes de texto por ahora
       if (msg.type !== "text" || !msg.text.trim()) {
         return new Response("OK", { status: 200 });
       }
-
-      const cfg = loadConfig();
 
       // Procesar (Meta tolera hasta 20s de respuesta)
       await handleMessage(msg.from, msg.text, msg.msgId, msg.name, cfg);
