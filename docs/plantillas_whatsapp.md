@@ -35,6 +35,12 @@ Notas para que Meta apruebe sin rechazo:
 > El **% de descuento** y los **datos de pago (alias/CBU)** ahora son **variables** en cada plantilla (salen de
 > la tabla del Panel), así que si cambiás un % o el alias/CBU, el mensaje se actualiza solo — sin re-editar Meta.
 > La fecha límite de contado = fecha de factura + días de contado (14 por defecto, editable).
+>
+> 🔀 **Interruptor de formato** (`app_settings.wa_plantilla_formato`): `v1` = estructura vieja (sin %/alias/CBU
+> variables, footer fijo, lo que está cargado hoy en Meta); `v2` = esta guía (nueva). El bot arma los `{{n}}`
+> según ese flag. Mientras las plantillas de Meta tengan el formato viejo, dejar `v1`. Cuando termines de editar
+> las 6 en Meta a este formato nuevo, poné `v2` — sin redeploy, impacta al toque. **NO** cambiar a `v2` antes de
+> editar Meta (rompería el envío por cantidad de `{{n}}`).
 
 ---
 

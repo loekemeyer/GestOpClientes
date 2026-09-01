@@ -214,6 +214,9 @@ interface DtoCfg {
   excCuit: Record<string, string>; excRazon: Record<string, string>;
   // Datos de pago editables (alias/CBU), se completan como variables en el pie.
   alias: string; cbu: string;
+  // Formato de plantilla: 'v1' = estructura vieja (sin %/alias/CBU variables, footer fijo);
+  // 'v2' = nueva (% y alias/CBU como variables). Debe coincidir con lo cargado en Meta.
+  formato: string;
 }
 const normRazon = (s: string) => String(s || "").trim().toUpperCase().replace(/\s+/g, " ");
 async function loadDtoCfg(): Promise<DtoCfg> {
@@ -237,7 +240,8 @@ async function loadDtoCfg(): Promise<DtoCfg> {
   }
   const alias = String(cfg?.pago?.alias ?? PAGO_ALIAS_DEFAULT).trim() || PAGO_ALIAS_DEFAULT;
   const cbu = String(cfg?.pago?.cbu ?? PAGO_CBU_DEFAULT).trim() || PAGO_CBU_DEFAULT;
-  return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map, excCuit, excRazon, alias, cbu };
+  const formato = ((await getSetting("wa_plantilla_formato")) || "v1").trim();
+  return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map, excCuit, excRazon, alias, cbu, formato };
 }
 function dtoDeMetodo(metodo: string, cfg: DtoCfg): { dto: number; label: string } {
   const e = cfg.map[metodo];
@@ -261,21 +265,39 @@ function fechaLimiteContado(fechaISO: string, dias: number): string {
   const mm = String(base.getUTCMonth() + 1).padStart(2, "0");
   return `${dd}/${mm}/${base.getUTCFullYear()}`;
 }
-// Bloque de ahorro común (crédito y e-cheq), en negrita en WhatsApp.
-function bloqueAhorro(fecha: string, ahorro: string, contado: string): string[] {
-  return ["", `*Pagando hasta el ${fecha} podes ahorrarte ${ahorro}.*`, `*Total Contado: ${contado}*`];
-}
-function textoLegible(grupo: string, esMultiple: boolean, params: string[], alias: string, cbu: string): string {
+// Reconstrucción legible del mensaje (preview/auditoría). Debe respetar el ORDEN de params
+// según el formato: v2 intercala el %dto y agrega alias/CBU; v1 no.
+function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: string, cbu: string, v2: boolean): string {
+  const sav2 = (f: string, a: string, c: string) => ["", `*Pagando hasta el ${f} podes ahorrarte ${a}.*`, `*Total Contado: ${c}*`];
+  const sav1 = (f: string, a: string, c: string) => ["", `*Pagando hasta el ${f} podes ahorrarte ${a}.`, `Total Contado: ${c}*`];
   let cuerpo: string[];
   if (!esMultiple) {
-    if (grupo === "contado") cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `*Total a pagar Contado (${params[1]}% Dto): ${params[2]}*`];
-    else if (grupo === "credito") cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `*Con tu pago a ${params[1]} días abonás: ${params[2]} (${params[3]}% Dto)*`, ...bloqueAhorro(params[4], params[5], params[6])];
-    else cuerpo = [SALUDO, "", `Total de tu factura (con IVA): ${params[0]}`, "", `*Con tu pago por e-cheq a ${params[1]} días abonás: ${params[2]} (${params[3]}% Dto)*`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...bloqueAhorro(params[4], params[5], params[6])];
+    if (grupo === "contado") {
+      cuerpo = v2
+        ? [SALUDO, "", `Total de tu factura (con IVA): ${p[0]}`, "", `*Total a pagar Contado (${p[1]}% Dto): ${p[2]}*`]
+        : [SALUDO, "", `Total de tu factura (con IVA): ${p[0]}`, "", `*Total a pagar Contado (25% Dto): ${p[1]}*`];
+    } else if (grupo === "credito") {
+      cuerpo = v2
+        ? [SALUDO, "", `Total de tu factura (con IVA): ${p[0]}`, "", `*Con tu pago a ${p[1]} días abonás: ${p[2]} (${p[3]}% Dto)*`, ...sav2(p[4], p[5], p[6])]
+        : [SALUDO, "", `Total de tu factura (con IVA): ${p[0]}`, "", `Con tu pago a ${p[1]} días abonás: ${p[2]}`, ...sav1(p[3], p[4], p[5])];
+    } else {
+      cuerpo = v2
+        ? [SALUDO, "", `Total de tu factura (con IVA): ${p[0]}`, "", `*Con tu pago por e-cheq a ${p[1]} días abonás: ${p[2]} (${p[3]}% Dto)*`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...sav2(p[4], p[5], p[6])]
+        : [SALUDO, "", `Total de tu factura (con IVA): ${p[0]}`, "", `Con tu pago por e-cheq a ${p[1]} días abonás: ${p[2]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...sav1(p[3], p[4], p[5])];
+    }
   } else {
-    const base = [SALUDO, "", `Total de tus facturas (con IVA): ${params[0]}, en ${params[1]} facturas.`, "", `Detalle por factura: ${params[2]}`, ""];
-    if (grupo === "contado") cuerpo = [...base, `*Total a pagar Contado (${params[3]}% Dto): ${params[4]}*`];
-    else if (grupo === "credito") cuerpo = [...base, `*Con tu pago a ${params[3]} días abonás: ${params[4]} (${params[5]}% Dto)*`, ...bloqueAhorro(params[6], params[7], params[8])];
-    else cuerpo = [...base, `*Con tu pago por e-cheq a ${params[3]} días abonás: ${params[4]} (${params[5]}% Dto)*`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...bloqueAhorro(params[6], params[7], params[8])];
+    const base = [SALUDO, "", `Total de tus facturas (con IVA): ${p[0]}, en ${p[1]} facturas.`, "", `Detalle por factura: ${p[2]}`, ""];
+    if (grupo === "contado") {
+      cuerpo = v2 ? [...base, `*Total a pagar Contado (${p[3]}% Dto): ${p[4]}*`] : [...base, `*Total a pagar Contado (25% Dto): ${p[3]}*`];
+    } else if (grupo === "credito") {
+      cuerpo = v2
+        ? [...base, `*Con tu pago a ${p[3]} días abonás: ${p[4]} (${p[5]}% Dto)*`, ...sav2(p[6], p[7], p[8])]
+        : [...base, `Con tu pago a ${p[3]} días abonás: ${p[4]}`, ...sav1(p[5], p[6], p[7])];
+    } else {
+      cuerpo = v2
+        ? [...base, `*Con tu pago por e-cheq a ${p[3]} días abonás: ${p[4]} (${p[5]}% Dto)*`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...sav2(p[6], p[7], p[8])]
+        : [...base, `Con tu pago por e-cheq a ${p[3]} días abonás: ${p[4]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...sav1(p[5], p[6], p[7])];
+    }
   }
   return cuerpo.join("\n") + "\n" + pagoFooter(alias, cbu);
 }
@@ -293,24 +315,31 @@ function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg: DtoCf
   const esMultiple = n > 1;
   const lista = totales.map((t) => fmtARS(t)).join(" / ");
   const template = esMultiple ? TPL[grupo].multi : TPL[grupo].single;
+  const v2 = cfg.formato === "v2";                             // formato de plantilla en Meta
   const contadoPct = String(Math.round(cfg.contadoDto * 100)); // % de contado (editable)
   const metodoPct = String(Math.round(dto * 100));             // % del método/plazo (de la tabla)
-  // Contado: {total, %dtoContado, totalContado}.
-  // Crédito/e-cheq: {total, plazoDías, montoCliente, %dto, fechaLímite, ahorro, totalContado}.
-  // En múltiple se intercalan {cantidad, detalle} tras el total. Al final SIEMPRE {alias, cbu}.
+  // v2 → Contado: {total, %dtoContado, totalContado}; Crédito/e-cheq: {total, plazoDías,
+  //   montoCliente, %dto, fechaLímite, ahorro, totalContado}; al final {alias, cbu}.
+  // v1 (Meta actual) → sin %dto ni alias/CBU (footer fijo): Contado {total, totalContado};
+  //   Crédito/e-cheq {total, plazoDías, montoCliente, fechaLímite, ahorro, totalContado}.
+  // En múltiple se intercalan {cantidad, detalle} tras el total.
   let params: string[];
   if (!esMultiple) {
-    if (grupo === "contado") params = [fmtARS(total_sum), contadoPct, fmtARS(montoContado)];
-    else params = [fmtARS(total_sum), label, fmtARS(montoCliente), metodoPct, fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
+    if (grupo === "contado") params = v2 ? [fmtARS(total_sum), contadoPct, fmtARS(montoContado)] : [fmtARS(total_sum), fmtARS(montoContado)];
+    else params = v2
+      ? [fmtARS(total_sum), label, fmtARS(montoCliente), metodoPct, fechaLimite, fmtARS(ahorro), fmtARS(montoContado)]
+      : [fmtARS(total_sum), label, fmtARS(montoCliente), fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
   } else {
     const base = [fmtARS(total_sum), String(n), lista];
-    if (grupo === "contado") params = [...base, contadoPct, fmtARS(montoContado)];
-    else params = [...base, label, fmtARS(montoCliente), metodoPct, fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
+    if (grupo === "contado") params = v2 ? [...base, contadoPct, fmtARS(montoContado)] : [...base, fmtARS(montoContado)];
+    else params = v2
+      ? [...base, label, fmtARS(montoCliente), metodoPct, fechaLimite, fmtARS(ahorro), fmtARS(montoContado)]
+      : [...base, label, fmtARS(montoCliente), fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
   }
-  params = [...params, cfg.alias, cfg.cbu]; // pie de pago (variables)
+  if (v2) params = [...params, cfg.alias, cfg.cbu]; // pie de pago (variables) sólo en v2
   return {
-    template, language: "es_AR", metodo, grupo, n_facturas: n, multiple: esMultiple,
-    params, lista_facturas: lista, texto_legible: textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu),
+    template, language: "es_AR", metodo, grupo, n_facturas: n, multiple: esMultiple, formato: v2 ? "v2" : "v1",
+    params, lista_facturas: lista, texto_legible: textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu, v2),
     total_sum, total_fmt: fmtARS(total_sum),
     desglose: {
       total_civa: fmtARS(total_sum), dto_cliente: `${Math.round(dto * 100)}%`, plazo_dias: label || null,
