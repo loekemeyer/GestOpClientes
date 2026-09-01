@@ -166,11 +166,21 @@ export interface WaMessage {
   type: string;
   name?: string;
   timestamp: string;
+  /** Id del media en Meta (para image/document/audio/video/sticker). Requiere
+   * fetch 2-step contra Graph API para bajar el archivo real. */
+  mediaId?: string;
+  /** MIME sugerido por Meta (opcional; para redoblar contra el detectado al bajar). */
+  mediaMime?: string;
+  /** Filename original cuando el cliente adjunta un documento. */
+  mediaFilename?: string;
+  /** Caption opcional que el cliente puede haber puesto junto al adjunto. */
+  caption?: string;
 }
 
 /**
- * Extrae el primer mensaje de texto del payload del webhook de Meta.
- * Retorna null si no hay mensaje procesable.
+ * Extrae el primer mensaje del payload del webhook de Meta. Soporta texto y
+ * media (image/document/audio/video/sticker) — en media, popula mediaId +
+ * mediaMime + caption. Retorna null si no hay mensaje procesable.
  */
 export function extractMessage(body: Record<string, unknown>): WaMessage | null {
   try {
@@ -184,16 +194,74 @@ export function extractMessage(body: Record<string, unknown>): WaMessage | null 
     if (!msg) return null;
 
     const contact = value?.contacts?.[0];
+    const type = msg.type ?? "text";
+
+    // Media types: el payload trae msg[type] = { id, mime_type, sha256, filename?, caption? }
+    const mediaBlock = ["image", "document", "audio", "video", "sticker"].includes(type)
+      ? msg[type] ?? {}
+      : {};
 
     return {
       from: msg.from,
       msgId: msg.id,
       text: msg.text?.body ?? "",
-      type: msg.type ?? "text",
+      type,
       name: contact?.profile?.name,
       timestamp: msg.timestamp,
+      mediaId: mediaBlock.id ?? undefined,
+      mediaMime: mediaBlock.mime_type ?? undefined,
+      mediaFilename: mediaBlock.filename ?? undefined,
+      caption: mediaBlock.caption ?? undefined,
     };
   } catch {
     return null;
   }
+}
+
+// ─── Descarga de media (2 pasos, Meta Cloud API) ────────────────────
+
+export interface DownloadedMedia {
+  bytes: Uint8Array;
+  mime: string;
+  sha256: string | null;
+  fileSize: number | null;
+}
+
+/**
+ * Baja un adjunto de WhatsApp desde Meta Cloud API.
+ *
+ * Paso 1: GET /{media-id} con Bearer → devuelve JSON con { url, mime_type,
+ *         sha256, file_size } donde `url` es una signed URL de Meta.
+ * Paso 2: GET esa signed URL con el mismo Bearer → bytes del archivo.
+ *
+ * Los archivos expiran en Meta a los 30 días — hay que bajarlos y guardarlos
+ * apenas llegan. Los devuelve como Uint8Array listos para subir a Storage.
+ */
+export async function downloadMediaFromMeta(mediaId: string, token: string): Promise<DownloadedMedia> {
+  // Paso 1
+  const metaRes = await fetch(`${GRAPH_URL}/${mediaId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!metaRes.ok) {
+    const t = await metaRes.text();
+    throw new Error(`Meta media metadata ${metaRes.status}: ${t.slice(0, 300)}`);
+  }
+  const meta = await metaRes.json();
+  if (!meta.url) throw new Error("Meta media metadata sin url");
+
+  // Paso 2 — signed URL apunta a lookaside.fbsbx.com; requiere el mismo Bearer
+  const fileRes = await fetch(meta.url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!fileRes.ok) {
+    const t = await fileRes.text();
+    throw new Error(`Meta media download ${fileRes.status}: ${t.slice(0, 300)}`);
+  }
+  const buf = new Uint8Array(await fileRes.arrayBuffer());
+  return {
+    bytes: buf,
+    mime: (meta.mime_type as string) || fileRes.headers.get("content-type") || "application/octet-stream",
+    sha256: (meta.sha256 as string) ?? null,
+    fileSize: typeof meta.file_size === "number" ? meta.file_size : buf.length,
+  };
 }
