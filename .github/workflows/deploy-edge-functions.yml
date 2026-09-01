@@ -1,0 +1,80 @@
+name: Deploy Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/deploy-edge-functions.yml'
+  workflow_dispatch:  # permite disparo manual desde la UI de Actions
+
+concurrency:
+  group: deploy-edge-functions
+  cancel-in-progress: false  # cola: no cancelar deploys en curso
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: kwkclwhmoygunqmlegrg
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # necesitamos el commit anterior para detectar cambios
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Descubre qué funciones cambiaron. Si cambió algo en `_shared/`, se
+      # despliegan TODAS las funciones que importan shared (por ahora
+      # lk_whatsapp-webhook y lk_chat-test). El resto solo se despliega si
+      # su propio directorio cambió.
+      - name: Detectar funciones a desplegar
+        id: detect
+        run: |
+          set -e
+          # Todas las funciones bajo supabase/functions/ (menos _shared)
+          ALL_FNS=$(ls supabase/functions | grep -v '^_shared$' || true)
+
+          # Diff contra el commit anterior en main
+          CHANGED=$(git diff --name-only HEAD^ HEAD -- supabase/functions/ || true)
+
+          # ¿Cambió shared?
+          SHARED_CHANGED=$(echo "$CHANGED" | grep -E '^supabase/functions/_shared/' || true)
+
+          FNS_TO_DEPLOY=""
+          for fn in $ALL_FNS; do
+            OWN_CHANGE=$(echo "$CHANGED" | grep -E "^supabase/functions/${fn}/" || true)
+            if [ -n "$OWN_CHANGE" ]; then
+              FNS_TO_DEPLOY="$FNS_TO_DEPLOY $fn"
+              continue
+            fi
+            # Si cambió shared, solo redeploy si la función lo importa
+            if [ -n "$SHARED_CHANGED" ] && grep -rq "from \"../_shared" "supabase/functions/${fn}/"; then
+              FNS_TO_DEPLOY="$FNS_TO_DEPLOY $fn"
+            fi
+          done
+
+          FNS_TO_DEPLOY=$(echo "$FNS_TO_DEPLOY" | xargs || true)
+          echo "functions=$FNS_TO_DEPLOY" >> "$GITHUB_OUTPUT"
+          echo "Cambiadas: $FNS_TO_DEPLOY"
+
+      - name: Deploy
+        if: steps.detect.outputs.functions != ''
+        run: |
+          set -e
+          for fn in ${{ steps.detect.outputs.functions }}; do
+            echo "── Deploy $fn ──"
+            # verify_jwt=false: el proyecto trabaja con webhooks/RPCs propios,
+            # no con auth de usuario final. Cada función que necesite JWT lo
+            # setea internamente por config del dashboard.
+            supabase functions deploy "$fn" \
+              --project-ref "$SUPABASE_PROJECT_ID" \
+              --no-verify-jwt
+          done
+
+      - name: Sin cambios
+        if: steps.detect.outputs.functions == ''
+        run: echo "No hay funciones para deployar."
