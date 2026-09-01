@@ -13,12 +13,14 @@ usar según el método del cliente y la cantidad de facturas del pedido.
 | **Pie de página** (opcional) | `Loekemeyer Mayorista` |
 | **Botones** | ninguno |
 
-Datos de pago (texto FIJO al final de las 6, no variable):
+Datos de pago al final de las 6. El rótulo "Datos para el pago:" va fijo; el **alias y el CBU son
+variables** (los completa el bot desde la tabla del Panel):
 ```
 Datos para el pago:
-Alias: loeke.srl
-CBU: 1910027855002702387450
+Alias: {{n}}
+CBU: {{m}}
 ```
+(en cada plantilla, `{{n}}`/`{{m}}` son los dos últimos `{{…}}` — ver el número exacto en cada una).
 
 Notas para que Meta apruebe sin rechazo:
 - El **nombre** va en minúsculas con guión bajo (los de abajo, exactos — coinciden con `app_settings`).
@@ -26,11 +28,13 @@ Notas para que Meta apruebe sin rechazo:
 - Meta pide **valores de ejemplo** para cada `{{n}}`: usá los que están abajo.
 - Formato de importes: `$` + miles con punto, **sin decimales** (redondeado a pesos enteros, ej. `$153.355`). El bot ya lo arma así.
 
-> ⚠️ **Reenvío a Meta**: crédito y e-cheq (single y múltiple) cambiaron de cuerpo y de cantidad de
-> `{{n}}`. Al editar el cuerpo de una plantilla ya aprobada, Meta la vuelve a poner **en revisión**.
-> El bot no envía con plantilla no aprobada (queda `held_tpl_no_aprobada`) y re-chequea el estado solo.
-> Los **descuentos y plazos** ahora se editan desde el **Panel de Control → 💰 Descuentos por pago**
-> (no están hardcodeados). `{{4}}`/fecha límite = fecha de factura + días de contado (14 por defecto).
+> ⚠️ **Reenvío a Meta**: las **6** cambiaron de cuerpo y de cantidad de `{{n}}`. Al editar el cuerpo de una
+> plantilla ya aprobada, Meta la vuelve a poner **en revisión**. El bot no envía con plantilla no aprobada
+> (queda `held_tpl_no_aprobada`) y re-chequea el estado solo (cada 30s).
+> Los **descuentos y plazos** se editan en el **Panel de Control → 💰 Descuentos por pago** (no hardcodeados).
+> El **% de descuento** y los **datos de pago (alias/CBU)** ahora son **variables** en cada plantilla (salen de
+> la tabla del Panel), así que si cambiás un % o el alias/CBU, el mensaje se actualiza solo — sin re-editar Meta.
+> La fecha límite de contado = fecha de factura + días de contado (14 por defecto, editable).
 
 ---
 
@@ -42,13 +46,15 @@ Notas para que Meta apruebe sin rechazo:
 
 Total de tu factura (con IVA): {{1}}
 
-*Total a pagar Contado (25% Dto): {{2}}*
+*Total a pagar Contado ({{2}}% Dto): {{3}}*
 
 Datos para el pago:
-Alias: loeke.srl
-CBU: 1910027855002702387450
+Alias: {{4}}
+CBU: {{5}}
 ```
-Ejemplos: `{{1}}`=`$470.499` · `{{2}}`=`$352.874`
+`{{2}}` = % de descuento contado (de la tabla, ej. `25`) · `{{3}}` = monto a pagar al contado ·
+`{{4}}` = alias · `{{5}}` = CBU (datos de pago, editables en el Panel).
+Ejemplos: `{{1}}`=`$470.499` · `{{2}}`=`25` · `{{3}}`=`$352.874` · `{{4}}`=`loeke.srl` · `{{5}}`=`1910027855002702387450`
 
 ### 2 · `pedido_credito_s`  (plazos de crédito)
 ```
@@ -56,19 +62,19 @@ Ejemplos: `{{1}}`=`$470.499` · `{{2}}`=`$352.874`
 
 Total de tu factura (con IVA): {{1}}
 
-Con tu pago a {{2}} días abonás: {{3}}
+*Con tu pago a {{2}} días abonás: {{3}} ({{4}}% Dto)*
 
-*Pagando hasta el {{4}} podes ahorrarte {{5}}.*
-*Total Contado: {{6}}*
+*Pagando hasta el {{5}} podes ahorrarte {{6}}.*
+*Total Contado: {{7}}*
 
 Datos para el pago:
-Alias: loeke.srl
-CBU: 1910027855002702387450
+Alias: {{8}}
+CBU: {{9}}
 ```
-`{{2}}` = plazo elegido (editable en Panel): `15 a 30` / `31 a 45` / `46 a 60`.
-`{{3}}` = monto con su plazo · `{{4}}` = fecha límite para pagar al contado (factura + 14 días) ·
-`{{5}}` = ahorro (monto de su plazo − contado 25%) · `{{6}}` = total pagando al contado.
-Ejemplos: `{{1}}`=`$743.418` · `{{2}}`=`31 a 45` · `{{3}}`=`$631.905` · `{{4}}`=`15/09/2026` · `{{5}}`=`$74.342` · `{{6}}`=`$557.564`
+`{{2}}` = plazo (de la tabla): `15 a 30` / `31 a 45` / `46 a 60` · `{{3}}` = monto con su plazo ·
+`{{4}}` = % de descuento del plazo (de la tabla, ej. `20`) · `{{5}}` = fecha límite contado (factura + 14 días) ·
+`{{6}}` = ahorro (monto de su plazo − contado) · `{{7}}` = total pagando al contado · `{{8}}` = alias · `{{9}}` = CBU.
+Ejemplos: `{{1}}`=`$743.418` · `{{2}}`=`31 a 45` · `{{3}}`=`$631.905` · `{{4}}`=`15` · `{{5}}`=`15/09/2026` · `{{6}}`=`$74.342` · `{{7}}`=`$557.564` · `{{8}}`=`loeke.srl` · `{{9}}`=`1910027855002702387450`
 
 ### 3 · `pedido_echeq_s`  (e-cheq)
 ```
@@ -76,19 +82,19 @@ Ejemplos: `{{1}}`=`$743.418` · `{{2}}`=`31 a 45` · `{{3}}`=`$631.905` · `{{4}
 
 Total de tu factura (con IVA): {{1}}
 
-Con tu pago por e-cheq a {{2}} días abonás: {{3}}
+*Con tu pago por e-cheq a {{2}} días abonás: {{3}} ({{4}}% Dto)*
 Recordá enviar el e-cheq al momento de recibir el pedido.
 
-*Pagando hasta el {{4}} podes ahorrarte {{5}}.*
-*Total Contado: {{6}}*
+*Pagando hasta el {{5}} podes ahorrarte {{6}}.*
+*Total Contado: {{7}}*
 
 Datos para el pago:
-Alias: loeke.srl
-CBU: 1910027855002702387450
+Alias: {{8}}
+CBU: {{9}}
 ```
-`{{2}}` = plazo del e-cheq (editable en Panel): `90` / `120`. Resto igual que crédito
-(`{{4}}` fecha límite contado, `{{5}}` ahorro, `{{6}}` total contado).
-Ejemplos: `{{1}}`=`$1.587.098` · `{{2}}`=`90` · `{{3}}`=`$1.507.743` · `{{4}}`=`15/09/2026` · `{{5}}`=`$317.420` · `{{6}}`=`$1.190.324`
+`{{2}}` = plazo del e-cheq (de la tabla): `90` / `120` · `{{4}}` = % de descuento (ej. `5`). Resto igual que
+crédito (`{{5}}` fecha límite contado, `{{6}}` ahorro, `{{7}}` total contado, `{{8}}` alias, `{{9}}` CBU).
+Ejemplos: `{{1}}`=`$1.587.098` · `{{2}}`=`90` · `{{3}}`=`$1.507.743` · `{{4}}`=`5` · `{{5}}`=`15/09/2026` · `{{6}}`=`$317.420` · `{{7}}`=`$1.190.324` · `{{8}}`=`loeke.srl` · `{{9}}`=`1910027855002702387450`
 
 ---
 
@@ -106,13 +112,14 @@ Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
 
 Detalle por factura: {{3}}
 
-*Total a pagar Contado (25% Dto): {{4}}*
+*Total a pagar Contado ({{4}}% Dto): {{5}}*
 
 Datos para el pago:
-Alias: loeke.srl
-CBU: 1910027855002702387450
+Alias: {{6}}
+CBU: {{7}}
 ```
-Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`$375.000`
+`{{4}}` = % de descuento contado (ej. `25`) · `{{5}}` = monto a pagar al contado · `{{6}}` = alias · `{{7}}` = CBU.
+Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`25` · `{{5}}`=`$375.000` · `{{6}}`=`loeke.srl` · `{{7}}`=`1910027855002702387450`
 
 ### 5 · `pedido_credito_p`
 ```
@@ -122,18 +129,18 @@ Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
 
 Detalle por factura: {{3}}
 
-Con tu pago a {{4}} días abonás: {{5}}
+*Con tu pago a {{4}} días abonás: {{5}} ({{6}}% Dto)*
 
-*Pagando hasta el {{6}} podes ahorrarte {{7}}.*
-*Total Contado: {{8}}*
+*Pagando hasta el {{7}} podes ahorrarte {{8}}.*
+*Total Contado: {{9}}*
 
 Datos para el pago:
-Alias: loeke.srl
-CBU: 1910027855002702387450
+Alias: {{10}}
+CBU: {{11}}
 ```
-`{{4}}` = plazo elegido: `15 a 30` / `31 a 45` / `46 a 60` · `{{6}}` = fecha límite contado ·
-`{{7}}` = ahorro vs. contado · `{{8}}` = total pagando al contado.
-Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`31 a 45` · `{{5}}`=`$425.000` · `{{6}}`=`15/09/2026` · `{{7}}`=`$50.000` · `{{8}}`=`$375.000`
+`{{4}}` = plazo (de la tabla): `15 a 30` / `31 a 45` / `46 a 60` · `{{6}}` = % de descuento del plazo ·
+`{{7}}` = fecha límite contado · `{{8}}` = ahorro vs. contado · `{{9}}` = total contado · `{{10}}` = alias · `{{11}}` = CBU.
+Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`31 a 45` · `{{5}}`=`$425.000` · `{{6}}`=`15` · `{{7}}`=`15/09/2026` · `{{8}}`=`$50.000` · `{{9}}`=`$375.000` · `{{10}}`=`loeke.srl` · `{{11}}`=`1910027855002702387450`
 
 ### 6 · `pedido_echeq_p`
 ```
@@ -143,18 +150,19 @@ Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
 
 Detalle por factura: {{3}}
 
-Con tu pago por e-cheq a {{4}} días abonás: {{5}}
+*Con tu pago por e-cheq a {{4}} días abonás: {{5}} ({{6}}% Dto)*
 Recordá enviar el e-cheq al momento de recibir el pedido.
 
-*Pagando hasta el {{6}} podes ahorrarte {{7}}.*
-*Total Contado: {{8}}*
+*Pagando hasta el {{7}} podes ahorrarte {{8}}.*
+*Total Contado: {{9}}*
 
 Datos para el pago:
-Alias: loeke.srl
-CBU: 1910027855002702387450
+Alias: {{10}}
+CBU: {{11}}
 ```
-`{{4}}` = plazo del e-cheq: `90` / `120` · `{{6}}` fecha límite contado · `{{7}}` ahorro · `{{8}}` total contado.
-Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`90` · `{{5}}`=`$475.000` · `{{6}}`=`15/09/2026` · `{{7}}`=`$100.000` · `{{8}}`=`$375.000`
+`{{4}}` = plazo del e-cheq: `90` / `120` · `{{6}}` = % de descuento (ej. `5`) · `{{7}}` fecha límite contado ·
+`{{8}}` ahorro · `{{9}}` total contado · `{{10}}` alias · `{{11}}` CBU.
+Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`90` · `{{5}}`=`$475.000` · `{{6}}`=`5` · `{{7}}`=`15/09/2026` · `{{8}}`=`$100.000` · `{{9}}`=`$375.000` · `{{10}}`=`loeke.srl` · `{{11}}`=`1910027855002702387450`
 
 ---
 
@@ -169,11 +177,13 @@ Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $1
   15-30d 20%, 31-45d 15%, 46-60d 10%, e-cheq 90d 5%, e-cheq 120d 0%. `no_decidido` → contado.
   Las claves de las bandas (`credito_15_30`, `echeq_90`, …) coinciden con `wa_metodo_norm`.
 - **Importes redondeados sin decimales** (`fmtARS`).
+- **% de descuento como variable**: cada plantilla recibe el % (contado o del plazo) desde la tabla; el
+  literal `%` va fijo en el cuerpo de Meta y el número lo completa el bot (ej. `({{n}}% Dto)`).
 
-Crédito y e-cheq muestran el bloque (cada línea en negrita, con su propio `*…*`):
-"*Pagando hasta el {fecha} podes ahorrarte {ahorro}.*" y "*Total Contado: {contado}*", donde
-`ahorro` = monto de su plazo − total al contado (25%), `fecha` = fecha de la factura + días de
-contado. Contado/sin definir muestran el monto al contado.
+Todas las líneas de método y el bloque de ahorro van **en negrita** (cada una con su propio `*…*`):
+"*Con tu pago a {plazo} días abonás: {monto} ({dto}% Dto)*", "*Pagando hasta el {fecha} podes ahorrarte
+{ahorro}.*", "*Total Contado: {contado}*". `ahorro` = monto de su plazo − total al contado; `fecha` = fecha
+de la factura + días de contado. Contado muestra "*Total a pagar Contado ({dto}% Dto): {monto}*".
 
 Nombres configurables en `app_settings` (PaginaLK): `wa_tpl_contado`, `wa_tpl_credito`,
 `wa_tpl_echeq`, `wa_tpl_contado_multiple`, `wa_tpl_credito_multiple`, `wa_tpl_echeq_multiple`.

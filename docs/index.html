@@ -498,6 +498,22 @@
             </div>
           </div>
 
+          <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Datos de pago</div>
+          <p class="hint" style="display:block;margin:-0.2rem 0 0.5rem;line-height:1.4;">
+            Alias y CBU se completan como <b>variables</b> en el pie de las 6 plantillas — cambialos acá y el bot
+            los actualiza al toque, sin re-editar Meta.
+          </p>
+          <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.2rem;">
+            <div style="flex:1;min-width:170px;">
+              <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Alias</label>
+              <input type="text" id="pagoAlias" placeholder="loeke.srl" style="width:100%;">
+            </div>
+            <div style="flex:2;min-width:240px;">
+              <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">CBU</label>
+              <input type="text" id="pagoCbu" placeholder="1910027855002702387450" style="width:100%;">
+            </div>
+          </div>
+
           <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Crédito</div>
           <table id="dtoCreditoTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
             <thead><tr>
@@ -1076,6 +1092,9 @@ function renderDescuentos(cfg) {
   const c = cfg.contado || {};
   document.getElementById("dtoContado").value = Math.round((Number(c.dto) || 0) * 100);
   document.getElementById("dtoContadoDias").value = Number(c.dias_limite) || 0;
+  const pago = cfg.pago || {};
+  document.getElementById("pagoAlias").value = pago.alias || "";
+  document.getElementById("pagoCbu").value = pago.cbu || "";
   const ct = document.querySelector("#dtoCreditoTable tbody"); ct.innerHTML = "";
   (cfg.credito || []).forEach((r) => ct.appendChild(dtoRowCredito(r)));
   const et = document.querySelector("#dtoEcheqTable tbody"); et.innerHTML = "";
@@ -1165,6 +1184,10 @@ function collectDescuentos() {
       dias_limite: Math.max(0, Math.round(Number(document.getElementById("dtoContadoDias").value) || 0)),
     },
     credito, echeq, excepciones,
+    pago: {
+      alias: document.getElementById("pagoAlias").value.trim(),
+      cbu: document.getElementById("pagoCbu").value.trim(),
+    },
   };
 }
 
@@ -2563,6 +2586,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.13.3</div>
 </body>
 </html>

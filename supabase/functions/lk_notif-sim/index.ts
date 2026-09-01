@@ -44,6 +44,8 @@ const DEFAULT_DESCUENTOS = {
     { key: "echeq_120", label: "120", dto: 0.00 },
   ],
   excepciones: {} as Record<string, unknown[]>,
+  // Datos de pago (alias/CBU) que el bot completa como variables en el pie de las plantillas.
+  pago: { alias: "loeke.srl", cbu: "1910027855002702387450" },
 };
 let _isisUrl = "", _isisKey = "";
 // deno-lint-ignore no-explicit-any
@@ -359,12 +361,16 @@ serve(async (req) => {
         })).filter((it: { valor: string }) => it.valor !== "");
         if (clean.length) excepciones[k] = clean;
       }
+      const pago = {
+        alias: (String(c?.pago?.alias ?? DEFAULT_DESCUENTOS.pago.alias).trim() || DEFAULT_DESCUENTOS.pago.alias),
+        cbu: (String(c?.pago?.cbu ?? DEFAULT_DESCUENTOS.pago.cbu).trim() || DEFAULT_DESCUENTOS.pago.cbu),
+      };
       const norm = {
         contado: {
           dto: clamp(c?.contado?.dto ?? DEFAULT_DESCUENTOS.contado.dto),
           dias_limite: Math.max(0, Math.round(Number(c?.contado?.dias_limite ?? DEFAULT_DESCUENTOS.contado.dias_limite)) || 0),
         },
-        credito, echeq, excepciones,
+        credito, echeq, excepciones, pago,
       };
       const { error } = await paginalk.from("app_settings").upsert({ key: "wa_descuentos_config", value: JSON.stringify(norm) }, { onConflict: "key" });
       if (error) return json({ error: error.message }, 500);
