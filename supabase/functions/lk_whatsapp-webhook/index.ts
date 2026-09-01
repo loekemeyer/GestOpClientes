@@ -24,7 +24,15 @@ import {
 } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
 
-// ─── Config (secrets desde Deno.env) ───────────────────────────────
+// ─── Config (app_settings → fallback Deno.env) ─────────────────────
+// Prioridad: app_settings → env var. app_settings es la fuente de verdad —
+// se puede rotar el token desde SQL/dashboard sin tocar secrets de Supabase
+// ni redeployar. La env var queda como fallback para bootstrapping o si
+// alguien limpia app_settings por error.
+//
+// Ojo: si tenés env var vieja + app_settings actualizado, este orden usa el
+// app_settings (correcto). El orden inverso te dejaría con el token viejo
+// funcionando y el nuevo ignorado.
 
 interface Config {
   waPhoneId: string;
@@ -33,11 +41,11 @@ interface Config {
   anthropicKey: string;
 }
 
-function loadConfig(): Config {
-  const waPhoneId = Deno.env.get("LK_WA_PHONE_ID") ?? "";
-  const waToken = Deno.env.get("LK_WA_TOKEN") ?? "";
-  const waVerifyToken = Deno.env.get("LK_WA_VERIFY_TOKEN") ?? "";
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+async function loadConfig(): Promise<Config> {
+  const waPhoneId = (await getSetting("LK_WA_PHONE_ID")) ?? Deno.env.get("LK_WA_PHONE_ID") ?? "";
+  const waToken = (await getSetting("LK_WA_TOKEN")) ?? Deno.env.get("LK_WA_TOKEN") ?? "";
+  const waVerifyToken = (await getSetting("LK_WA_VERIFY_TOKEN")) ?? Deno.env.get("LK_WA_VERIFY_TOKEN") ?? "";
+  const anthropicKey = (await getSetting("ANTHROPIC_API_KEY")) ?? Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 
   if (!waPhoneId || !waToken || !waVerifyToken || !anthropicKey) {
     const missing = [
@@ -46,7 +54,7 @@ function loadConfig(): Config {
       !waVerifyToken && "LK_WA_VERIFY_TOKEN",
       !anthropicKey && "ANTHROPIC_API_KEY",
     ].filter(Boolean);
-    throw new Error("Faltan env vars: " + missing.join(", "));
+    throw new Error("Faltan credenciales (ni app_settings ni env var): " + missing.join(", "));
   }
 
   return { waPhoneId, waToken, waVerifyToken, anthropicKey };
@@ -746,7 +754,7 @@ Deno.serve(async (req: Request) => {
 
       // ── Acción interna: flush outbox (llamada desde pg_cron) ──
       if (body?.action === "flush") {
-        const cfg = loadConfig();
+        const cfg = await loadConfig();
         const result = await flushOutbox(cfg);
         return new Response(JSON.stringify(result), {
           status: 200,
@@ -760,7 +768,7 @@ Deno.serve(async (req: Request) => {
         return new Response("OK", { status: 200 });
       }
 
-      const cfg = loadConfig();
+      const cfg = await loadConfig();
 
       // Adjuntos (imagen, documento, audio, video, sticker): por ahora
       // NO los descargamos ni parseamos — solo respondemos placeholder pidiendo
