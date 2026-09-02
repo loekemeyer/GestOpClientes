@@ -266,14 +266,24 @@ serve(async (req) => {
         } catch (e) { r = { error: String(e) }; }
         results.push({ cuit: c.cuit, source: c.source, ...r });
       }
-      const est = (r: Record<string, unknown>) => String(r.estado || r.skipped || (r.error ? "error" : (r.already ? "ya_enviado" : ""))) ;
+      // El camino real trae los estados DENTRO de `grupos[]` (uno por grupo ×
+      // destinatario); el camino sim los trae al tope. Aplanamos ambos para
+      // contar bien (antes leía r.estado del tope y siempre daba enviados:0).
+      // deno-lint-ignore no-explicit-any
+      const estadosDe = (r: any): string[] => (Array.isArray(r?.grupos) && r.grupos.length)
+        ? r.grupos.map((x: Record<string, unknown>) => String(x.estado || x.skipped || ""))
+        : [String(r?.estado || r?.skipped || (r?.error ? "error" : (r?.already ? "ya_enviado" : "")))];
+      // deno-lint-ignore no-explicit-any
+      const flat = results.flatMap((r: any) => estadosDe(r));
       const summary = {
         total: results.length,
-        enviados: results.filter((r) => est(r) === "sent_whatsapp").length,
-        retenidos: results.filter((r) => est(r).startsWith("held")).length,
-        ya_enviados: results.filter((r) => est(r) === "ya_enviado").length,
-        sin_facturas: results.filter((r) => r.complete === false).length,
-        errores: results.filter((r) => est(r) === "error" || est(r) === "error_envio").length,
+        unidades: flat.length,
+        enviados: flat.filter((e) => e === "sent_whatsapp").length,
+        retenidos: flat.filter((e) => e.startsWith("held")).length,
+        ya_enviados: flat.filter((e) => e === "ya_enviado").length,
+        // deno-lint-ignore no-explicit-any
+        sin_facturas: results.filter((r: any) => r.complete === false || r.pendiente === true).length,
+        errores: flat.filter((e) => e === "error" || e === "error_envio").length,
       };
       return json({ ok: true, summary, results });
     }

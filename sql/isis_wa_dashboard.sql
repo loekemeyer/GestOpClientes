@@ -6,8 +6,9 @@
 -- wa_dashboard_rango(desde,hasta): métricas por día (excluye simulación):
 --   programados = PPP_Programacion_Diaria por fecha_entrega
 --   armados     = vista_cola_impresion por armado_ts
---   facturados  = Facturacion_NP por facturado_at
---   enviadas    = wa_pipeline_log event='aviso_enviado'
+--   facturados  = Facturacion_NP por facturado_at (distinct NP)
+--   enviadas    = wa_pipeline_log event='aviso_enviado' (mensajes: 1 por grupo × destinatario)
+--   facturas_enviadas = facturas cubiertas por avisos enviados, dedup por grupo
 
 create table if not exists public.wa_pipeline_log(
   id bigserial primary key,
@@ -43,8 +44,9 @@ begin
   return null;
 end $$;
 
+drop function if exists public.wa_dashboard_rango(date, date);
 create or replace function public.wa_dashboard_rango(p_desde date, p_hasta date)
-returns table(dia date, programados int, armados int, facturados int, enviadas int)
+returns table(dia date, programados int, armados int, facturados int, enviadas int, facturas_enviadas int)
 language sql stable security definer set search_path to 'public' as $$
   with dias as (select generate_series(p_desde, p_hasta, interval '1 day')::date d)
   select d,
@@ -54,7 +56,19 @@ language sql stable security definer set search_path to 'public' as $$
        where v.armado_ts::date = d and coalesce(v.np,'') not like '9990%'),
     (select count(distinct np)::int from public."Facturacion_NP" f
        where f.facturado_at::date = d and coalesce(f.cod_cliente,'')<>'99999' and coalesce(f.np,'') not like '9990%'),
-    (select count(*)::int from public.wa_pipeline_log l where l.event='aviso_enviado' and l.at::date = d)
+    -- enviadas = mensajes (una fila de log por grupo × destinatario)
+    (select count(*)::int from public.wa_pipeline_log l where l.event='aviso_enviado' and l.at::date = d),
+    -- facturas_enviadas = facturas cubiertas por avisos enviados, dedup por grupo
+    -- (mismo grupo a 2 destinatarios cuenta una sola vez).
+    (select coalesce(sum(nf),0)::int from (
+        select distinct on (grp) nf from (
+          select coalesce(detalle->>'group_key', detalle->>'grupo_key',
+                 cuit || '|' || coalesce(detalle->>'empresa','') || '|' || coalesce(detalle->>'destino','')) as grp,
+                 coalesce((detalle->>'n_facturas')::int, 0) as nf
+          from public.wa_pipeline_log
+          where event='aviso_enviado' and at::date = d
+        ) s order by grp, nf desc
+     ) u)
   from dias order by d;
 $$;
 
