@@ -19,9 +19,10 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 - **programados** = `PPP_Programacion_Diaria` por `fecha_entrega`
 - **armados** = `vista_cola_impresion` por `armado_ts`
 - **facturados** = `Facturacion_NP` por `facturado_at` (distinct **NP**)
-- **enviadas** = `wa_pipeline_log` event `aviso_enviado` — **una fila por (grupo × destinatario)**, NO por NP. Con 2 destinatarios de prueba, cada envío cuenta doble.
+- **enviadas** (dashboard: "📤 Mensajes enviados") = `wa_pipeline_log` event `aviso_enviado` — **una fila por (grupo × destinatario)**, NO por NP. Con 2 destinatarios de prueba, cada envío cuenta doble.
+- **facturas_enviadas** = facturas cubiertas por avisos enviados, **dedup por grupo** (mismo grupo a 2 destinatarios cuenta 1 vez). El front lo muestra como `(x de y)` = `(facturas_enviadas de facturados)` al lado de Mensajes enviados.
 
-⚠️ "facturados" (NP) y "enviadas" (avisos por destinatario) **no son la misma unidad** — no se comparan 1:1.
+⚠️ "facturados" (NP) y "Mensajes enviados" (avisos por destinatario) **no son la misma unidad** — por eso se agregó `(x de y)`.
 
 ## Flujo de envío de factura (producción, hoy en modo prueba)
 
@@ -39,7 +40,7 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 | key | qué hace | valor al 2026-09-02 |
 |-----|----------|---------------------|
 | `wa_real_redirect_to` | destino(s) de prueba de las facturas, coma-sep. Deben estar en la whitelist `wa_envio_contactos`. | `5491125608669` (Luis) |
-| `wa_real_redirect_date` | **el envío real SOLO ocurre el día que esta fecha == HOY.** Hay que rearmarla cada día (guard de seguridad). Si quedó en ayer → 0 envíos hoy. | `2026-09-02` |
+| `wa_real_redirect_date` | **ventana de 48h**: el envío real ocurre ese día Y el siguiente (`dentroVentana` en `lk_factura-check`). Si la fecha quedó a >1 día, se apaga solo. Rearmar cuando arranca una tanda de prueba. | `2026-09-02` (activo 02 y 03/09) |
 | `wa_factura_envio_modo` | `modulo` (chat de prueba) / `whatsapp` (real) | `modulo` |
 | `wa_bot_solo_whitelist` | killswitch del bot de chat: `1` = solo responde a `wa_envio_contactos` | `1` |
 | `wa_comprobantes_activo` | flujo de comprobantes entrantes: `0` apagado / `1` on | `0` |

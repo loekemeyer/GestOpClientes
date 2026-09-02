@@ -45,6 +45,18 @@ async function gp() {
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
+// Ventana de envío real: activo si HOY cae dentro de las 48h desde `wa_real_redirect_date`
+// (ese día Y el siguiente). Reemplaza el guard de "solo el día exacto" para que un envío
+// habilitado un día siga activo también al día siguiente. Sigue siendo por fecha (no toggle):
+// si la fecha quedó vieja (>1 día), se apaga solo.
+function dentroVentana(rDate: string, hoy: string): boolean {
+  if (!rDate) return false;
+  const base = new Date(rDate + "T00:00:00Z").getTime();
+  const h = new Date(hoy + "T00:00:00Z").getTime();
+  if (isNaN(base) || isNaN(h)) return false;
+  const dias = (h - base) / 86400000;
+  return dias >= 0 && dias <= 1; // rDate o rDate+1 (48h)
+}
 function fmtARS(n: number): string {
   // Sin decimales: se redondea el importe a pesos enteros (regla de negocio).
   return "$" + Math.round(Number(n || 0)).toLocaleString("es-AR", { maximumFractionDigits: 0 });
@@ -388,7 +400,7 @@ async function handleGrupo(body: any) {
   const rDate = (await getSetting("wa_real_redirect_date")) || "";
   const hoy = new Date().toISOString().slice(0, 10);
   if (!redirect) return json({ mode: "grupo", skipped: "sin_redirect" });
-  if (rDate !== hoy) return json({ mode: "grupo", skipped: "fuera_de_fecha", rDate, hoy });
+  if (!dentroVentana(rDate, hoy)) return json({ mode: "grupo", skipped: "fuera_de_ventana", rDate, hoy });
   const wl = await whitelist();
   if (!wl.includes(redirect)) return json({ mode: "grupo", skipped: "redirect_no_whitelist" });
 
@@ -455,7 +467,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
   const raw = (await getSetting("wa_real_redirect_to")) || "";
   const rDate = (await getSetting("wa_real_redirect_date")) || "";
   const hoy = new Date().toISOString().slice(0, 10);
-  if (!raw || rDate !== hoy) return json({ skipped: "dormant_real", cuit });
+  if (!raw || !dentroVentana(rDate, hoy)) return json({ skipped: "dormant_real", cuit });
   if (fecha !== hoy) return json({ skipped: "no_es_hoy", cuit, fecha });
   // Puede haber varios destinos (coma-separados). Sólo los que estén en la lista blanca.
   const wl = await whitelist();

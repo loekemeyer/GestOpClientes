@@ -2880,7 +2880,7 @@ const DASH_ROWS = [
   { key: "programados", label: "📅 Pedidos programados" },
   { key: "armados", label: "📦 Pedidos armados" },
   { key: "facturados", label: "🧾 Pedidos facturados" },
-  { key: "enviadas", label: "📤 Facturas enviadas" },
+  { key: "enviadas", label: "📤 Mensajes enviados" },
 ];
 function dashDayLabel(iso, hoy) {
   const d = new Date(iso + "T00:00:00");
@@ -2975,7 +2975,13 @@ async function loadDashboard() {
         const isHoy = r.dia === hoy;
         const v = Number(r[row.key] || 0);
         const strong = v > 0 ? "color:var(--text,#111);font-weight:700;" : "color:#bbb;";
-        cells += `<td style="padding:0.55rem;text-align:center;${isHoy ? "background:#f5f7ff;" : ""}${strong}">${v}</td>`;
+        // "Mensajes enviados" muestra al lado (facturas enviadas de facturas totales del día).
+        let extra = "";
+        if (row.key === "enviadas") {
+          const fe = Number(r.facturas_enviadas || 0), fac = Number(r.facturados || 0);
+          extra = ` <span style="font-weight:400;color:var(--muted);font-size:0.72rem;">(${fe} de ${fac})</span>`;
+        }
+        cells += `<td style="padding:0.55rem;text-align:center;${isHoy ? "background:#f5f7ff;" : ""}${strong}">${v}${extra}</td>`;
       }
       return `<tr style="border-bottom:1px solid var(--border);">${cells}</tr>`;
     }).join("");
@@ -3004,6 +3010,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.2</div>
 </body>
 </html>
