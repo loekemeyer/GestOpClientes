@@ -499,12 +499,12 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
 
     // ── Regla método-mixto (CLAUDE.md / docs) ──
     //  · Excepción por cliente → un solo grupo con el método forzado.
-    //  · 0 métodos reales (todas "prefiere no decir") → un grupo no_decidido.
+    //  · 0 métodos reales (todas "prefiere no decir") → un grupo no_decidido (= contado).
     //  · 1 método real → las no_decidido se ASUMEN de ese método → un solo mensaje.
-    //  · ≥2 métodos reales → un mensaje POR método; las no_decidido quedan RETENIDAS
-    //    (ambiguo: no se adivina a cuál grupo van) para revisión humana.
+    //  · ≥2 métodos reales → un mensaje POR método; las "prefiere no decir" se tratan como
+    //    CONTADO (se fusionan con el grupo contado si existe, o forman uno nuevo). Sin retención.
     const ov = metodoExcepcion(cfg, cuit, gr.razon_social);
-    let subgrupos: { metodo: string; facturas: typeof facs; held?: boolean }[];
+    let subgrupos: { metodo: string; facturas: typeof facs }[];
     if (ov) {
       subgrupos = [{ metodo: ov, facturas: facs }];
     } else {
@@ -512,9 +512,10 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
       if (reales.length <= 1) {
         subgrupos = [{ metodo: reales[0] || "no_decidido", facturas: facs }];
       } else {
-        subgrupos = reales.map((m) => ({ metodo: m, facturas: facs.filter((f) => f.metodo === m) }));
-        const nd = facs.filter((f) => f.metodo === "no_decidido");
-        if (nd.length) subgrupos.push({ metodo: "no_decidido", facturas: nd, held: true });
+        // no_decidido → contado (efectivo); se agrupa por método efectivo.
+        const efec = (m: string) => (m === "no_decidido" ? "contado" : m);
+        const metodosEfec = Array.from(new Set(facs.map((f) => efec(f.metodo))));
+        subgrupos = metodosEfec.map((m) => ({ metodo: m, facturas: facs.filter((f) => efec(f.metodo) === m) }));
       }
     }
     const split = subgrupos.length > 1;
@@ -526,8 +527,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
       let estado0 = "delivered";
       // deno-lint-ignore no-explicit-any
       let base: any = null;
-      if (sg.held) estado0 = "held_metodo_mixto";
-      else {
+      {
         base = await armarMensaje(sg.metodo, sgFacturas.map((f) => ({ total: f.total })), fecha, cfg);
         const st = await tplStatus(base.template);
         base.tpl_status = st;
@@ -535,7 +535,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
         base.real_group = { cuit, empresa: gr.empresa, destino, metodo: sg.metodo, cod_cliente: gr.cod_cliente ?? null, razon_social: gr.razon_social ?? null, comprobantes: sgFacturas.map((f) => f.comprobante) };
       }
       let pdf = null;
-      if (base && !sg.held) {
+      if (base) {
         // Con split, el método entra en el nombre del PDF para no pisar entre subgrupos.
         const outName = (split ? `${cuit}|${gr.empresa}|${destino}|${sg.metodo}|${fecha}` : `${cuit}|${gr.empresa}|${destino}|${fecha}`).replace(/[^0-9a-zA-Z]+/g, "_");
         pdf = await combinarPaths(g, source, sgFacturas.map((f) => f.path).filter(Boolean) as string[], outName);

@@ -35,11 +35,11 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 - El método se lee **por factura** (RPC `wa_grupos_dia_cuit` → `metodos_fac[]`, alineado con comprobantes/totales/paths).
 - **1 método real + "prefiere no decir" (no_decidido)** → las no_decidido se **asumen** de ese método → **un solo mensaje** (ej. SANLOZ: 2×credito_15_30 + 1×no_decidido → las 3 como credito_15_30).
 - **0 métodos reales** (todas no_decidido) → un mensaje no_decidido.
-- **≥2 métodos reales distintos** → **un mensaje por método** (split, con el método en la `group_key` y en el nombre del PDF). Las no_decidido en ese caso quedan **retenidas** (`held_metodo_mixto`): ambiguo, no se adivina a qué grupo van.
+- **≥2 métodos reales distintos** → **un mensaje por método** (split, con el método en la `group_key` y en el nombre del PDF). Las no_decidido en ese caso se tratan como **contado**: se fusionan con el grupo contado si existe, o forman uno nuevo. **No hay retención.**
 - Excepción por cliente (`wa_descuentos_config`) fuerza un método y anula el split.
 
 **Retenciones (no se envían):**
-- `held_metodo_mixto` — sólo cuando hay ≥2 métodos reales y quedan facturas no_decidido ambiguas (ver regla arriba).
+- `held_metodo_mixto` — ya **no** ocurre en el camino real de redirección (la regla siempre da destino a cada factura). Queda como estado histórico y en el path de simulación.
 - `held_tpl_no_aprobada` — la plantilla de Meta no está en estado APPROVED.
 
 **Reintento automático (no se pierde nada si algo falla):**

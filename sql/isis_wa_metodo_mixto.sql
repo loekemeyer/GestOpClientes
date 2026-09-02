@@ -6,7 +6,8 @@
 --     · las facturas con "prefiere no decir" (no_decidido) son agregados de mercadería y
 --       se ASUMEN con el mismo método que la(s) otra(s) del grupo → un solo mensaje;
 --     · si hay ≥2 métodos REALES distintos (sin contar no_decidido), se manda UN mensaje
---       por método; las no_decidido en ese caso quedan RETENIDAS (ambiguo) para revisión.
+--       por método; las no_decidido en ese caso se tratan como CONTADO (se fusionan con el
+--       grupo contado si existe, o forman uno nuevo). No hay retención.
 --   Para poder mapear factura→método, el RPC ahora devuelve el método POR factura
 --   (metodos_fac, alineado con comprobantes/storage_paths/totales por comprobante_id).
 --   La lógica de split/absorción vive en lk_factura-check (handleRealRedirect).
