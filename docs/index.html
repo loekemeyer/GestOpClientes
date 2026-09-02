@@ -853,6 +853,11 @@
               o quitarlas, pero mantené el nombre igual para que el dato se complete solo.
               Usá <b>Insertar dato</b> para agregarlas sin errores de tipeo.
             </p>
+            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--warning);border-radius:0 6px 6px 0;padding:0.6rem 0.85rem;font-size:0.77rem;color:var(--muted);margin-bottom:1rem;">
+              🔢 Lo marcado como <b>dato calculado</b> lo arma el sistema (montos, listas de pedidos, stock).
+              Editás el <b>texto alrededor</b>, no el cálculo — la lógica vive en el bot, no acá.
+              🔒 Solo un <b>admin</b> puede guardar cambios.
+            </div>
             <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.9rem;flex-wrap:wrap;">
               <button class="config-btn small" onclick="loadFaqs()">⟳ Actualizar</button>
               <span class="config-status" id="faqStatus" style="font-size:0.78rem;color:var(--muted);"></span>
@@ -1594,7 +1599,7 @@ function faqItemHtml(r) {
   const isCalc = r.requires_db_lookup && FAQ_CALC_LOOKUPS.indexOf(r.db_lookup_type) !== -1;
   const flags = [];
   if (r.db_lookup_type) flags.push('<span class="faq-flag">🔗 ' + esc(r.db_lookup_type) + '</span>');
-  if (isCalc) flags.push('<span class="faq-flag calc">🔢 dato calculado por el sistema</span>');
+  if (isCalc) flags.push('<span class="faq-flag calc">🔢 el sistema completa el dato — no se edita</span>');
   const tokBtns = toks.map(t =>
     '<button class="faq-token-btn' + (t.is_block ? ' block' : '') + '" title="' + esc(t.descripcion || t.label || '') +
     '" onclick="faqInsertToken(' + r.id + ',\'' + t.token + '\')">+ {{' + esc(t.token) + '}}</button>'
@@ -1660,8 +1665,19 @@ async function saveFaq(id) {
   if (inst) patch.institutional_response = inst.value.trim() ? inst.value : null;
   if (web) patch.web_first_response = web.value.trim() ? web.value : null;
   try {
-    const { error } = await sb.from("wa_faq").update(patch).eq("id", id);
-    if (error) throw error;
+    // La escritura NO va directa a la tabla (anon key es pública). Pasa por la
+    // edge function lk_faq-admin, que valida que seas admin server-side.
+    const { data: { session } } = await sbAuth.auth.getSession();
+    if (!session) { st.textContent = "Sesión expirada, recargá la página"; st.style.color = "var(--danger)"; return; }
+    const { data, error } = await sb.functions.invoke("lk_faq-admin", {
+      body: { action: "update", access_token: session.access_token, id, patch },
+    });
+    if (error) {
+      let msg = error.message || "error";
+      try { if (error.context && typeof error.context.json === "function") { const b = await error.context.json(); if (b && b.error) msg = b.error; } } catch (_) { /* keep msg */ }
+      throw new Error(msg);
+    }
+    if (data && data.error) throw new Error(data.error);
     st.textContent = "✓ Guardado"; st.style.color = "var(--success)";
     const row = faqRows.find(r => r.id === id);
     if (row) Object.assign(row, patch);
@@ -2988,6 +3004,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.1</div>
 </body>
 </html>

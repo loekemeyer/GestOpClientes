@@ -65,6 +65,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     const reply = tpl
       ? renderTemplate(tpl, { nombre_cliente: customer?.business_name, tema: topic, topic })
       : `📋 *${topic}* necesita atención de un vendedor. Te van a contactar a la brevedad.\n\nTambién podés escribirnos a ventas@loekemeyer.com`;
+    // Punto de cableado (a futuro): acá iría `notificarHumano({ tipo: "escalation", ... })`
+    // de _shared/alertas.ts para avisar al vendedor. Se deja SIN conectar a propósito.
     return {
       reply,
       intent: "escalation",

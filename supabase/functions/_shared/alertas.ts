@@ -7,7 +7,9 @@
 
 import { supabase } from "./supabase.ts";
 
-export type TipoAlerta = "llm_timeout" | "llm_error" | "faq_no_match" | "otro";
+export type TipoAlerta = "llm_timeout" | "llm_error" | "faq_no_match" | "escalation" | "otro";
+// "escalation" queda declarado para cablear el aviso de las FAQ categoría
+// HUMANO cuando se decida notificar. Hoy NO hay call-site que lo use.
 
 export interface AlertaHumanoInput {
   tipo: TipoAlerta;
