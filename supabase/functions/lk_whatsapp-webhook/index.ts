@@ -163,23 +163,44 @@ async function handleRegistration(
   contactName: string | undefined,
   cfg: Config,
 ): Promise<void> {
+  // Guardamos el mensaje entrante y cada respuesta en el historial, para que
+  // el flujo de identificación (CUIT) sea visible en Conversaciones y se pueda
+  // debuggear qué mandó el cliente y qué contestó el bot.
+  await saveMessage(phone, "user", text);
+  const send = async (reply: string): Promise<void> => {
+    await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+    await saveMessage(phone, "assistant", reply);
+  };
+
   const cuit = extractCuit(text);
 
   if (!cuit) {
-    const reply =
+    // Si el cliente tipeó ~11 dígitos pero no pasan la validación (módulo 11),
+    // es un CUIT mal copiado: avisamos en vez de repetir el saludo genérico.
+    // Un CUIT válido en cualquier mensaje siguiente lo toma extractCuit y avanza
+    // (el flujo es stateless: cada mensaje de no-cliente reintenta el registro).
+    const digitos = text.replace(/\D/g, "").length;
+    if (digitos >= 11) {
+      await send(
+        `Ese CUIT no parece válido 🤔\n\n` +
+        `Verificá que tenga *11 dígitos* y esté bien copiado (con o sin guiones), y probá de nuevo.\n\n` +
+        `Si no lo tenés a mano, escribinos a ventas@loekemeyer.com`,
+      );
+      return;
+    }
+    await send(
       `¡Hola${contactName ? " " + contactName : ""}! 👋\n\n` +
       `Soy el asistente de *Loekemeyer*. ` +
       `Para poder ayudarte, necesito identificarte.\n\n` +
-      `¿Me pasás tu *CUIT*? (con o sin guiones)`;
-    await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+      `¿Me pasás tu *CUIT*? (con o sin guiones)`,
+    );
     return;
   }
 
   const result = await tryRegister(phone, cuit);
 
   if (!result) {
-    await sendText(
-      cfg.waPhoneId, cfg.waToken, phone,
+    await send(
       "Hubo un error al procesar tu solicitud. Intentá de nuevo o contactá a ventas: ventas@loekemeyer.com",
     );
     return;
@@ -187,33 +208,32 @@ async function handleRegistration(
 
   switch (result.status) {
     case "already_registered": {
-      const reply =
+      await send(
         `¡Hola ${result.business_name}! 👋\n\n` +
         `Ya estás registrado. ¿En qué te puedo ayudar?\n\n` +
         `📦 Estado de pedidos\n` +
         `🔍 Buscar productos\n` +
         `🚚 Consultar entregas\n` +
-        `💬 Cualquier consulta`;
-      await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+        `💬 Cualquier consulta`,
+      );
       break;
     }
 
     case "auto_associated": {
-      const reply =
+      await send(
         `¡Hola ${result.business_name}! 👋\n\n` +
         `Ya quedaste vinculado a este número.\n` +
         `Podés consultarme por:\n\n` +
         `📦 Estado de tus pedidos\n` +
         `🔍 Buscar productos\n` +
         `🚚 Consultar entregas\n` +
-        `💬 Cualquier otra consulta`;
-      await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+        `💬 Cualquier otra consulta`,
+      );
       break;
     }
 
     case "cuit_not_found": {
-      await sendText(
-        cfg.waPhoneId, cfg.waToken, phone,
+      await send(
         `No encontré un cliente con ese CUIT. 🤔\n\n` +
         `Verificá el número e intentá de nuevo, o contactá a ventas:\n` +
         `📧 ventas@loekemeyer.com\n` +
@@ -223,8 +243,7 @@ async function handleRegistration(
     }
 
     case "pending_primary": {
-      await sendText(
-        cfg.waPhoneId, cfg.waToken, phone,
+      await send(
         `Encontré la cuenta de *${result.business_name}*. 👍\n\n` +
         `Como ya hay un teléfono principal registrado, tu solicitud queda pendiente de aprobación.\n\n` +
         `Te vamos a avisar cuando se apruebe. 🙏`,
@@ -233,8 +252,7 @@ async function handleRegistration(
     }
 
     default: {
-      await sendText(
-        cfg.waPhoneId, cfg.waToken, phone,
+      await send(
         `Tu solicitud está en estado: ${result.status}. Contactá a ventas si necesitás ayuda.`,
       );
     }

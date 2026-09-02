@@ -235,6 +235,33 @@
     #notifMessages .desglose td:last-child { text-align: right; font-family: monospace; font-weight: 600; }
     #notifMessages .desglose tr.hi td { color: #15803d; }
     #notifMessages .msg.trigger { background: #ede9fe; color: #5b21b6; float: none; max-width: 90%; margin: 0.5rem auto; text-align: center; font-size: 0.8rem; font-weight: 600; border-radius: 6px; }
+
+    /* Preguntas frecuentes (plantillas editables) */
+    .faq-sec { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 1rem; overflow: hidden; }
+    .faq-sec-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.65rem 0.9rem; font-weight: 600; font-size: 0.9rem; }
+    .faq-sec-head .count { margin-left: auto; font-size: 0.72rem; font-weight: 700; background: rgba(255,255,255,0.55); padding: 0.05rem 0.5rem; border-radius: 20px; }
+    .faq-sec-body { padding: 0.3rem 0.9rem 0.85rem; }
+    .faq-sec.auto     .faq-sec-head { background: #dcfce7; color: #15803d; }
+    .faq-sec.semiauto .faq-sec-head { background: #dbeafe; color: #1d4ed8; }
+    .faq-sec.ia       .faq-sec-head { background: #ede9fe; color: #6d28d9; }
+    .faq-sec.humano   .faq-sec-head { background: #fee2e2; color: #b91c1c; }
+    .faq-item { border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 0.85rem; margin-top: 0.7rem; background: var(--card); }
+    .faq-q { font-size: 0.88rem; font-weight: 600; margin-bottom: 0.1rem; }
+    .faq-sub { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .faq-flags { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .faq-flag { font-size: 0.63rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 20px; background: var(--bg); border: 1px solid var(--border); color: var(--muted); font-family: ui-monospace, monospace; }
+    .faq-flag.calc { background: #fef3c7; color: #92400e; border-color: #fde68a; font-family: inherit; }
+    .faq-tpl textarea, .faq-extra textarea { width: 100%; min-height: 100px; padding: 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; line-height: 1.5; font-family: ui-monospace, monospace; resize: vertical; }
+    .faq-extra textarea { min-height: 78px; }
+    .faq-tokens { display: flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; margin: 0.45rem 0 0.1rem; }
+    .faq-token-btn { font-size: 0.68rem; font-family: ui-monospace, monospace; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; border-radius: 5px; padding: 0.12rem 0.4rem; cursor: pointer; }
+    .faq-token-btn:hover { background: #e0e7ff; }
+    .faq-token-btn.block { background: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
+    .faq-prev { border: 1px dashed var(--border); border-radius: 6px; padding: 0.5rem 0.65rem; background: var(--bg); font-size: 0.82rem; line-height: 1.5; white-space: pre-wrap; margin-top: 0.35rem; }
+    .faq-prev .tok { background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 0 0.25rem; font-family: ui-monospace, monospace; font-size: 0.76rem; }
+    .faq-prev .tok.block { background: #f3e8ff; color: #7e22ce; }
+    .faq-more { font-size: 0.74rem; color: var(--primary); cursor: pointer; margin-top: 0.55rem; display: inline-block; }
+    .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
 </head>
 <body>
@@ -666,6 +693,7 @@
         <div class="subtabs">
           <div class="subtab active" id="stObjetivo" onclick="showAgenteTab('objetivo')">🎯 Objetivo</div>
           <div class="subtab" id="stLimites" onclick="showAgenteTab('limites')">🔒 Limitaciones y Permisos</div>
+          <div class="subtab" id="stFaq" onclick="showAgenteTab('faq')">💬 Preguntas frecuentes</div>
           <div class="subtab" id="stConsultas" onclick="showAgenteTab('consultas')">❓ Consultas <span id="consultasBadge" class="cat-pill pendiente" style="display:none;"></span></div>
           <div class="subtab" id="stEval" onclick="showAgenteTab('eval')">🧪 Evaluación</div>
           <div class="subtab" id="stModelos" onclick="showAgenteTab('modelos')">🤖 Modelos</div>
@@ -811,6 +839,30 @@
               <div class="md-col-label" style="margin-bottom:0.4rem;">📋 Disponibles</div>
               <div id="modAvailContainer"><div class="bl-empty">Cargando...</div></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Sub: Preguntas frecuentes -->
+        <div class="subpanel" id="panelFaq">
+          <div class="config-section" style="max-width:none;">
+            <h3>💬 Preguntas frecuentes</h3>
+            <p style="font-size:0.8rem;color:var(--muted);margin:0.2rem 0 0.8rem;">
+              Respuestas que usa el bot, agrupadas por las 4 categorías de automatización.
+              Editá el texto de cada plantilla. Las partes que el bot completa con datos
+              del sistema van entre <code>{{ }}</code> y se muestran resaltadas: podés moverlas
+              o quitarlas, pero mantené el nombre igual para que el dato se complete solo.
+              Usá <b>Insertar dato</b> para agregarlas sin errores de tipeo.
+            </p>
+            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--warning);border-radius:0 6px 6px 0;padding:0.6rem 0.85rem;font-size:0.77rem;color:var(--muted);margin-bottom:1rem;">
+              🔢 Lo marcado como <b>dato calculado</b> lo arma el sistema (montos, listas de pedidos, stock).
+              Editás el <b>texto alrededor</b>, no el cálculo — la lógica vive en el bot, no acá.
+              🔒 Solo un <b>admin</b> puede guardar cambios.
+            </div>
+            <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.9rem;flex-wrap:wrap;">
+              <button class="config-btn small" onclick="loadFaqs()">⟳ Actualizar</button>
+              <span class="config-status" id="faqStatus" style="font-size:0.78rem;color:var(--muted);"></span>
+            </div>
+            <div id="faqContainer"><div class="bl-empty">Cargando...</div></div>
           </div>
         </div>
       </div>
@@ -1460,14 +1512,179 @@ async function loadAgentePage() {
 }
 
 function showAgenteTab(tab) {
-  const map = { objetivo: "Objetivo", limites: "Limites", consultas: "Consultas", eval: "Eval", modelos: "Modelos" };
+  const map = { objetivo: "Objetivo", limites: "Limites", faq: "Faq", consultas: "Consultas", eval: "Eval", modelos: "Modelos" };
   for (const [k, cap] of Object.entries(map)) {
     document.getElementById("st" + cap).classList.toggle("active", k === tab);
     document.getElementById("panel" + cap).classList.toggle("active", k === tab);
   }
+  if (tab === "faq") loadFaqs();
   if (tab === "consultas") loadConsultas();
   if (tab === "eval") loadEvals();
   if (tab === "modelos") loadModelos();
+}
+
+// --- Preguntas frecuentes (plantillas editables) ---
+const FAQ_CATS = [
+  { key: "full_auto",    cls: "auto",     icon: "🟢", label: "Auto",     desc: "Respuesta fija, sin datos ni IA." },
+  { key: "semi_auto",    cls: "semiauto", icon: "🔵", label: "Semiauto", desc: "Plantilla + datos del sistema (sin IA)." },
+  { key: "inteligencia", cls: "ia",       icon: "🟣", label: "IA",       desc: "Requiere Claude (parseo, matching)." },
+  { key: "needs_human",  cls: "humano",   icon: "🔴", label: "Humano",   desc: "Deriva a un vendedor." },
+];
+// Lookups cuyo dato lo calcula el backend (el usuario edita el texto alrededor,
+// no el valor en sí). Los de valor único (customer_discount) sí son editables.
+const FAQ_CALC_LOOKUPS = ["order_status", "product_price", "product_stock", "order_modify", "order_detail", "order_cancel", "product_search"];
+let faqRows = [];
+let faqTokensByType = {};   // db_lookup_type -> [{token,label,descripcion,is_block,ejemplo}]
+
+async function loadFaqs() {
+  const cont = document.getElementById("faqContainer");
+  cont.innerHTML = '<div class="bl-empty">Cargando...</div>';
+  try {
+    const [faqRes, tokRes] = await Promise.all([
+      sb.from("wa_faq")
+        .select("id,category_label,subcategory,sample_question,automation_level,bot_response,institutional_response,web_first_response,requires_db_lookup,db_lookup_type")
+        .eq("is_active", true)
+        .order("priority", { ascending: false }),
+      sb.from("wa_faq_lookup_tokens")
+        .select("db_lookup_type,token,label,descripcion,is_block,ejemplo,sort_order")
+        .order("sort_order", { ascending: true }),
+    ]);
+    faqRows = faqRes.data || [];
+    faqTokensByType = {};
+    (tokRes.data || []).forEach(t => { (faqTokensByType[t.db_lookup_type] = faqTokensByType[t.db_lookup_type] || []).push(t); });
+    renderFaqs();
+    const total = faqRows.length;
+    document.getElementById("faqStatus").textContent = total + " preguntas activas";
+  } catch (e) {
+    cont.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+  }
+}
+
+function faqAllTokens() {
+  return Object.values(faqTokensByType).reduce((a, b) => a.concat(b), []);
+}
+
+function faqTokensFor(row) {
+  const g = faqTokensByType["_global"] || [];
+  const t = faqTokensByType[row.db_lookup_type] || [];
+  const seen = new Set(), out = [];
+  t.concat(g).forEach(x => { if (!seen.has(x.token)) { seen.add(x.token); out.push(x); } });
+  return out;
+}
+
+function faqRenderPreview(text) {
+  return esc(text || "").replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_m, k) => {
+    const isBlock = faqAllTokens().some(x => x.token === k && x.is_block);
+    return '<span class="tok' + (isBlock ? ' block' : '') + '">{{' + k + '}}</span>';
+  });
+}
+
+function renderFaqs() {
+  const cont = document.getElementById("faqContainer");
+  cont.innerHTML = FAQ_CATS.map(cat => {
+    const rows = faqRows.filter(r => (r.automation_level || "") === cat.key);
+    const items = rows.map(faqItemHtml).join("") ||
+      '<div class="bl-empty" style="padding:0.7rem 0;">Sin preguntas en esta categoría</div>';
+    return '<div class="faq-sec ' + cat.cls + '">' +
+      '<div class="faq-sec-head">' + cat.icon + ' ' + cat.label +
+        ' <span style="font-weight:400;opacity:0.85;">— ' + esc(cat.desc) + '</span>' +
+        '<span class="count">' + rows.length + '</span></div>' +
+      '<div class="faq-sec-body">' + items + '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function faqItemHtml(r) {
+  const toks = faqTokensFor(r);
+  const isCalc = r.requires_db_lookup && FAQ_CALC_LOOKUPS.indexOf(r.db_lookup_type) !== -1;
+  const flags = [];
+  if (r.db_lookup_type) flags.push('<span class="faq-flag">🔗 ' + esc(r.db_lookup_type) + '</span>');
+  if (isCalc) flags.push('<span class="faq-flag calc">🔢 el sistema completa el dato — no se edita</span>');
+  const tokBtns = toks.map(t =>
+    '<button class="faq-token-btn' + (t.is_block ? ' block' : '') + '" title="' + esc(t.descripcion || t.label || '') +
+    '" onclick="faqInsertToken(' + r.id + ',\'' + t.token + '\')">+ {{' + esc(t.token) + '}}</button>'
+  ).join("");
+  const tokRow = toks.length
+    ? '<div class="faq-tokens"><span style="font-size:0.7rem;color:var(--muted);">Insertar dato:</span>' + tokBtns + '</div>'
+    : '';
+  const bot = r.bot_response || "";
+  return '<div class="faq-item" id="faq-item-' + r.id + '">' +
+    '<div class="faq-q">' + esc(r.sample_question || r.category_label || '—') + '</div>' +
+    '<div class="faq-sub">' + esc(r.category_label || '') + (r.subcategory ? ' · ' + esc(r.subcategory) : '') + '</div>' +
+    (flags.length ? '<div class="faq-flags">' + flags.join("") + '</div>' : '') +
+    '<div class="faq-tpl">' +
+      '<div class="md-col-label">Respuesta (plantilla)</div>' +
+      '<textarea id="faq-bot-' + r.id + '" oninput="faqOnInput(' + r.id + ')">' + esc(bot) + '</textarea>' +
+      tokRow +
+      '<div class="md-col-label" style="margin-top:0.4rem;">Vista previa</div>' +
+      '<div class="faq-prev" id="faq-prev-' + r.id + '">' + faqRenderPreview(bot) + '</div>' +
+    '</div>' +
+    '<span class="faq-more" id="faq-more-' + r.id + '" onclick="faqToggleExtra(' + r.id + ')">▸ Más campos (institucional / web)</span>' +
+    '<div class="faq-extra" id="faq-extra-' + r.id + '" style="display:none;">' +
+      '<div class="md-col-label" style="margin-top:0.5rem;">Respuesta institucional (sin cliente identificado)</div>' +
+      '<textarea id="faq-inst-' + r.id + '">' + esc(r.institutional_response || '') + '</textarea>' +
+      '<div class="md-col-label" style="margin-top:0.5rem;">Mensaje web-first (se antepone a clientes)</div>' +
+      '<textarea id="faq-web-' + r.id + '">' + esc(r.web_first_response || '') + '</textarea>' +
+    '</div>' +
+    '<div class="faq-save-row">' +
+      '<button class="config-btn primary small" onclick="saveFaq(' + r.id + ')">💾 Guardar</button>' +
+      '<span class="config-status" id="faq-status-' + r.id + '" style="font-size:0.78rem;"></span>' +
+    '</div>' +
+  '</div>';
+}
+
+function faqOnInput(id) {
+  const ta = document.getElementById("faq-bot-" + id);
+  document.getElementById("faq-prev-" + id).innerHTML = faqRenderPreview(ta.value);
+}
+
+function faqInsertToken(id, token) {
+  const ta = document.getElementById("faq-bot-" + id);
+  const ins = "{{" + token + "}}";
+  const s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const e = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = s + ins.length;
+  faqOnInput(id);
+}
+
+function faqToggleExtra(id) {
+  const box = document.getElementById("faq-extra-" + id);
+  const on = box.style.display === "none";
+  box.style.display = on ? "block" : "none";
+  document.getElementById("faq-more-" + id).textContent = (on ? "▾" : "▸") + " Más campos (institucional / web)";
+}
+
+async function saveFaq(id) {
+  const st = document.getElementById("faq-status-" + id);
+  st.textContent = "Guardando..."; st.style.color = "var(--muted)";
+  const patch = { bot_response: document.getElementById("faq-bot-" + id).value };
+  const inst = document.getElementById("faq-inst-" + id);
+  const web = document.getElementById("faq-web-" + id);
+  if (inst) patch.institutional_response = inst.value.trim() ? inst.value : null;
+  if (web) patch.web_first_response = web.value.trim() ? web.value : null;
+  try {
+    // La escritura NO va directa a la tabla (anon key es pública). Pasa por la
+    // edge function lk_faq-admin, que valida que seas admin server-side.
+    const { data: { session } } = await sbAuth.auth.getSession();
+    if (!session) { st.textContent = "Sesión expirada, recargá la página"; st.style.color = "var(--danger)"; return; }
+    const { data, error } = await sb.functions.invoke("lk_faq-admin", {
+      body: { action: "update", access_token: session.access_token, id, patch },
+    });
+    if (error) {
+      let msg = error.message || "error";
+      try { if (error.context && typeof error.context.json === "function") { const b = await error.context.json(); if (b && b.error) msg = b.error; } } catch (_) { /* keep msg */ }
+      throw new Error(msg);
+    }
+    if (data && data.error) throw new Error(data.error);
+    st.textContent = "✓ Guardado"; st.style.color = "var(--success)";
+    const row = faqRows.find(r => r.id === id);
+    if (row) Object.assign(row, patch);
+    setTimeout(() => { st.textContent = ""; }, 2500);
+  } catch (e) {
+    st.textContent = "Error: " + (e.message || e); st.style.color = "var(--danger)";
+  }
 }
 
 // Guarda el documento completo + versiona en historial. Refresca editores.
@@ -2787,6 +3004,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.15.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.1</div>
 </body>
 </html>
