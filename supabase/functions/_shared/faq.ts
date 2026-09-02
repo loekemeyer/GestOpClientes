@@ -26,6 +26,22 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 /**
+ * Reemplaza tokens {{token}} de una plantilla de wa_faq con datos reales.
+ * Estándar: {{snake_case}} (ver sql/051_wa_faq_editable_templates.sql y la
+ * tabla wa_faq_lookup_tokens). Un token sin valor se reemplaza por "".
+ * El front edita el texto alrededor de los tokens; el backend completa los datos.
+ */
+export function renderTemplate(
+  tpl: string,
+  vars: Record<string, string | number | null | undefined>,
+): string {
+  return String(tpl).replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_m, key) => {
+    const v = vars[key];
+    return v === undefined || v === null ? "" : String(v);
+  });
+}
+
+/**
  * Corre el pre-check de FAQ. Devuelve null si:
  *   - no hay match (score bajo o vacío)
  *   - la FAQ requiere cliente identificado y no hay uno → deja pasar al
@@ -42,9 +58,15 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
 
   // Escalación humana: preestablecida en la FAQ (categoría HUMANO)
   if (top.automation_level === "needs_human") {
-    const topic = top.fallback_label || top.subcategory || "tu consulta";
+    const topic = top.subcategory || "tu consulta";
+    // Plantilla editable desde el front (wa_faq.bot_response). Si está vacía,
+    // se usa el mensaje genérico de escalación.
+    const tpl = String(top.bot_response ?? "").trim();
+    const reply = tpl
+      ? renderTemplate(tpl, { nombre_cliente: customer?.business_name, tema: topic, topic })
+      : `📋 *${topic}* necesita atención de un vendedor. Te van a contactar a la brevedad.\n\nTambién podés escribirnos a ventas@loekemeyer.com`;
     return {
-      reply: `📋 *${topic}* necesita atención de un vendedor. Te van a contactar a la brevedad.\n\nTambién podés escribirnos a ventas@loekemeyer.com`,
+      reply,
       intent: "escalation",
       automation_level: "needs_human",
       faq_id: top.faq_id,
@@ -53,7 +75,7 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
 
   // SEMIAUTO con lookup a Supabase (0 tokens). Requiere cliente.
   if (top.requires_db_lookup && customer) {
-    const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text);
+    const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top);
     if (lookupReply) {
       return {
         reply: lookupReply,
@@ -81,6 +103,11 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (isCliente && top.web_first_response) reply += top.web_first_response + "\n\n";
   reply += primary;
 
+  // Resolver cualquier token {{...}} de la plantilla en la rama estática.
+  // Acá no hay lookup: los tokens sin dato disponible se quitan (→ "") para no
+  // filtrar {{fecha}} literal a un cliente. {{nombre_cliente}} sí se completa.
+  reply = renderTemplate(reply, { nombre_cliente: customer?.business_name });
+
   return {
     reply: reply.trim(),
     intent: "faq",
@@ -94,10 +121,12 @@ async function handleFaqLookup(
   lookupType: string,
   customer: NonNullable<Customer>,
   message: string,
+  // deno-lint-ignore no-explicit-any
+  faq?: any,
 ): Promise<string | null> {
   switch (lookupType) {
     case "order_status":       return lookupOrderStatus(customer);
-    case "customer_discount":  return lookupCustomerDiscount(customer);
+    case "customer_discount":  return lookupCustomerDiscount(customer, faq);
     case "product_price":      return lookupProductPrice(customer, message);
     case "product_stock":      return lookupProductStock(customer, message);
     case "order_modify":       return lookupOrderModify(customer);
@@ -135,10 +164,20 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
   return `${customer.business_name}, acá está el estado de tus pedidos:\n\n${lines.join("\n")}\n\n¿Necesitás más detalle de alguno?`;
 }
 
-async function lookupCustomerDiscount(customer: NonNullable<Customer>): Promise<string | null> {
+// deno-lint-ignore no-explicit-any
+async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any): Promise<string | null> {
   const { data: row } = await supabase
     .from("customers").select("discount").eq("id", customer.id).maybeSingle();
   const volumeDiscount = row?.discount ?? 0;
+  // Plantilla editable desde el front: si trae el token {{descuento_volumen}}
+  // se renderiza con los datos reales; si no, se usa el texto por defecto.
+  const tpl = String(faq?.bot_response ?? "").trim();
+  if (tpl.includes("{{descuento_volumen}}")) {
+    return renderTemplate(tpl, {
+      nombre_cliente: customer.business_name,
+      descuento_volumen: volumeDiscount,
+    });
+  }
   return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}%\n💻 *Por compra web*: 2% adicional\n💰 *Por pago*:\n  • Contado (0-14 días): 25%\n  • 30 días: 20%\n  • 60 días: 10%\n  • 90 días: 5%\n\nEstos se aplican sobre el precio base de la web. 💡`;
 }
 
