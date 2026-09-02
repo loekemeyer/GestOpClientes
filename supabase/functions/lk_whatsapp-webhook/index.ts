@@ -175,6 +175,19 @@ async function handleRegistration(
   const cuit = extractCuit(text);
 
   if (!cuit) {
+    // Si el cliente tipeó ~11 dígitos pero no pasan la validación (módulo 11),
+    // es un CUIT mal copiado: avisamos en vez de repetir el saludo genérico.
+    // Un CUIT válido en cualquier mensaje siguiente lo toma extractCuit y avanza
+    // (el flujo es stateless: cada mensaje de no-cliente reintenta el registro).
+    const digitos = text.replace(/\D/g, "").length;
+    if (digitos >= 11) {
+      await send(
+        `Ese CUIT no parece válido 🤔\n\n` +
+        `Verificá que tenga *11 dígitos* y esté bien copiado (con o sin guiones), y probá de nuevo.\n\n` +
+        `Si no lo tenés a mano, escribinos a ventas@loekemeyer.com`,
+      );
+      return;
+    }
     await send(
       `¡Hola${contactName ? " " + contactName : ""}! 👋\n\n` +
       `Soy el asistente de *Loekemeyer*. ` +
