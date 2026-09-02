@@ -93,6 +93,39 @@ Toda pregunta de cliente entra en UNA de estas 4 categorías. Aplica tanto a FAQ
 
 **Regla de oro**: Minimizar IA (SEMIAUTO > AUTO > INTELIGENCIA > HUMANO) → solo gastar tokens cuando no hay otra opción.
 
+## Sincronización lógica ↔ front (pestaña "Preguntas frecuentes")
+
+**Regla: todo cambio en la lógica del bot o en el flujo de conversación se
+refleja en el front en el MISMO cambio (mismo PR).** La pestaña "Preguntas
+frecuentes" (Configuración del agente, en `docs/index.html`) y las tablas que la
+alimentan son la vista humana de cómo responde el bot; si la lógica cambia y el
+front no, el dashboard miente.
+
+Cada vez que toques `supabase/functions/_shared/faq.ts`,
+`_shared/bot-conversation.ts` o `lk_whatsapp-webhook/index.ts` (o el flujo de
+conversación en general), antes de cerrar el cambio verificá y actualizá:
+
+1. **`wa_faq`** — si agregás/cambiás/quitás una respuesta o su categoría
+   (`automation_level`: full_auto/semi_auto/inteligencia/needs_human), reflejalo
+   en la fila (`bot_response`, `institutional_response`, `web_first_response`,
+   `category_label`). La pestaña lee de acá, así que el cambio se ve solo.
+2. **`wa_faq_lookup_tokens`** — si agregás/renombrás un `db_lookup_type` o un
+   dato que el bot inyecta en runtime, agregá/actualizá su token `{{...}}` acá
+   (con `is_block` correcto). Sin esto el editor del front no lo ofrece.
+3. **Estándar de tokens** — cualquier placeholder nuevo va como `{{snake_case}}`.
+   Nunca `[corchetes]`, `{llave simple}` ni `----`. Solo poné tokens de dato en
+   campos que el bot pueda completar en ese contexto (ej.: no en
+   `institutional_response`, que se sirve a no-clientes sin datos).
+4. **Docs de flujo** — si cambia el flujo conversacional, actualizá
+   `docs/FLUJOS.md` / `docs/AGENTE.md` para que no queden desfasados.
+5. **Versión** — si tocaste `docs/index.html`, bumpeá el badge y comunicá la
+   versión (ver "Versionado"). Si es solo backend, aclarar que la versión
+   visible no cambia.
+
+Escritura de `wa_faq` desde el front: SIEMPRE vía la Edge Function
+`lk_faq-admin` (valida admin server-side). NUNCA reabrir un `anon_update` en
+`wa_faq`: la anon key es pública.
+
 ## Testing
 
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
