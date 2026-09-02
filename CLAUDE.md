@@ -27,6 +27,17 @@ State: caveman-state.json (true/false). Say "activa caveman" or "desactiva cavem
 
 ---
 
+## ⚡ Antes de empezar (leer SIEMPRE)
+
+**Al arrancar cualquier sesión, leé `docs/ESTADO.md` y `git log --oneline -20`.**
+`docs/ESTADO.md` es el mapa vivo: los DOS proyectos Supabase (PaginaLK vs ISIS),
+de dónde sale cada número del dashboard, el flujo de envío de facturas, los flags
+críticos de `app_settings` y qué edge functions no están en el repo. Sin eso se
+pierde tiempo re-descubriendo (y mirando la base equivocada).
+
+**Al cerrar, si cambiaste flags, flujos, arquitectura o estado operativo,
+actualizá `docs/ESTADO.md`** (y la fecha de "última actualización").
+
 ## Qué es este proyecto
 
 Bot WhatsApp para clientes mayoristas de Loekemeyer. Corre como Supabase Edge Function
