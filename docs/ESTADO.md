@@ -31,9 +31,20 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 3. `lk_factura-check` → `handleRealRedirect`: agrupa las facturas del día por **cuit + empresa + dirección**, arma el mensaje + combina PDFs, y **entrega a los números de `wa_real_redirect_to`** (nunca al cliente en modo prueba). Loguea `aviso_enviado` por destinatario.
 4. Backlog manual del día: edge `lk_notif-sim` action **`real_sweep`** (recorre los cuits facturados de hoy y redispara `lk_factura-check`).
 
+**Regla método-mixto (dentro de un grupo cuit+empresa+destino):**
+- El método se lee **por factura** (RPC `wa_grupos_dia_cuit` → `metodos_fac[]`, alineado con comprobantes/totales/paths).
+- **1 método real + "prefiere no decir" (no_decidido)** → las no_decidido se **asumen** de ese método → **un solo mensaje** (ej. SANLOZ: 2×credito_15_30 + 1×no_decidido → las 3 como credito_15_30).
+- **0 métodos reales** (todas no_decidido) → un mensaje no_decidido.
+- **≥2 métodos reales distintos** → **un mensaje por método** (split, con el método en la `group_key` y en el nombre del PDF). Las no_decidido en ese caso quedan **retenidas** (`held_metodo_mixto`): ambiguo, no se adivina a qué grupo van.
+- Excepción por cliente (`wa_descuentos_config`) fuerza un método y anula el split.
+
 **Retenciones (no se envían):**
-- `held_metodo_mixto` — el pedido tiene facturas con **métodos de pago distintos**; el bot no sabe qué descuento/plantilla aplicar → lo deja para revisión humana (salvo excepción por cliente en `wa_descuentos_config`).
+- `held_metodo_mixto` — sólo cuando hay ≥2 métodos reales y quedan facturas no_decidido ambiguas (ver regla arriba).
 - `held_tpl_no_aprobada` — la plantilla de Meta no está en estado APPROVED.
+
+**Reintento automático (no se pierde nada si algo falla):**
+- Cron `wa_barrido_avisos` (ISIS, cada 15 min) reprocesa los cuits facturados de **hoy y ayer** (ventana 48h) llamando a `lk_factura-check`. Idempotente (salta lo ya enviado). Recupera facturas que quedaron sin mandar por parser lento, config activada tarde o error transitorio.
+- `handleRealRedirect` acepta facturas con `fecha` dentro de la ventana de 48h (antes sólo `fecha === hoy`, por eso ayer 3 clientes quedaron sin enviar tras la medianoche).
 
 ## Flags críticos (`app_settings`, PaginaLK)
 

@@ -59,11 +59,14 @@ language sql stable security definer set search_path to 'public' as $$
     -- enviadas = mensajes (una fila de log por grupo × destinatario)
     (select count(*)::int from public.wa_pipeline_log l where l.event='aviso_enviado' and l.at::date = d),
     -- facturas_enviadas = facturas cubiertas por avisos enviados, dedup por grupo
-    -- (mismo grupo a 2 destinatarios cuenta una sola vez).
+    -- (mismo grupo a 2 destinatarios cuenta una sola vez). Incluye el método en la clave:
+    -- con la regla método-mixto, un mismo cuit+empresa+destino puede generar varios avisos
+    -- (uno por método), y cada uno cubre facturas distintas.
     (select coalesce(sum(nf),0)::int from (
         select distinct on (grp) nf from (
           select coalesce(detalle->>'group_key', detalle->>'grupo_key',
-                 cuit || '|' || coalesce(detalle->>'empresa','') || '|' || coalesce(detalle->>'destino','')) as grp,
+                 cuit || '|' || coalesce(detalle->>'empresa','') || '|' || coalesce(detalle->>'destino','')
+                      || '|' || coalesce(detalle->>'metodo','')) as grp,
                  coalesce((detalle->>'n_facturas')::int, 0) as nf
           from public.wa_pipeline_log
           where event='aviso_enviado' and at::date = d
