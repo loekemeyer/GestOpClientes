@@ -201,9 +201,14 @@ edge function al armar el envío:
 
 - **Regla A — un solo método real + `no_decidido`**: las facturas `no_decidido` **adoptan el método
   real presente** (ej.: crédito 30d + "prefiero no decir" → todo crédito 30d). Un solo mensaje.
-- **Regla B — ≥2 métodos reales distintos** (ej.: crédito + e-cheq): las `no_decidido` pasan a
-  **contado** y el grupo se **PARTE**: un mensaje por cada método distinto, cada uno con sus propias
-  facturas y su **propio PDF** combinado. `mensaje.split_metodo` marca cada parte.
+- **Regla B — ≥2 métodos reales distintos** (ej.: crédito + e-cheq): el grupo se **PARTE** en un
+  mensaje por cada método distinto (cada uno con sus propias facturas y su **propio PDF**;
+  `mensaje.split_metodo` marca cada parte). Las `no_decidido` se **absorben en un método ya
+  presente**, nunca inventan un grupo nuevo:
+  - si **contado** está entre los reales → las `no_decidido` van a contado;
+  - si **NO hay contado** → van al método real con **menor descuento** (desempate: método con más
+    facturas → orden contado<crédito<echeq → nombre). Así no aparece una parte "contado" que el
+    pedido no tenía.
 - **Sin método real** (todo `no_decidido`): se trata como contado (comportamiento previo).
 - **Excepción por cliente** (`wa_descuentos_config.excepciones`): fuerza un método para todas las
   facturas del cliente e **ignora** el mixto (no parte).

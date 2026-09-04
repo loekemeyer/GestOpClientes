@@ -365,13 +365,31 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
 // A) Si en el grupo hay UN solo método real (≠ "no_decidido"), las facturas "no_decidido"
 //    adoptan ese método → un solo mensaje con ese método (ej.: crédito + "prefiero no decir"
 //    → todo crédito). Si no hay ningún método real, queda "no_decidido" (se trata como contado).
-// B) Si hay >1 método real distinto, las "no_decidido" pasan a CONTADO y el grupo se PARTE:
-//    un mensaje por cada método distinto, cada uno con sus propias facturas (y su propio PDF).
+// B) Si hay >1 método real distinto, las "no_decidido" se ABSORBEN en un método ya presente
+//    (nunca se inventa un grupo que no existía) y el grupo se PARTE en un mensaje por método:
+//      - si "contado" está entre los reales → las "no_decidido" van a contado;
+//      - si NO hay contado → van al método real con MENOR descuento (desempate: más facturas,
+//        luego orden contado<crédito<echeq, luego nombre).
+//    Cada sub-grupo lleva sus propias facturas y su propio PDF.
 interface FacMin { total: number; metodo: string; storage_path?: string | null; comprobante_id?: string | null }
 function ordenMetodo(m: string): number { return m === "contado" ? 0 : m.startsWith("credito") ? 1 : 2; }
+// Elige el método real (de `reales`) que absorbe las "no_decidido" cuando no hay contado:
+// menor descuento primero; empate → método con más facturas; luego orden; luego nombre.
+function metodoAbsorbeNoDecidido(reales: string[], facturas: FacMin[], cfg: DtoCfg): string {
+  const count: Record<string, number> = {};
+  for (const f of facturas) { const m = f.metodo || "no_decidido"; if (m !== "no_decidido") count[m] = (count[m] ?? 0) + 1; }
+  return reales.slice().sort((a, b) => {
+    const da = dtoDeMetodo(a, cfg).dto, db = dtoDeMetodo(b, cfg).dto;
+    if (da !== db) return da - db;                                         // menor descuento
+    if ((count[b] ?? 0) !== (count[a] ?? 0)) return (count[b] ?? 0) - (count[a] ?? 0); // grupo más grande
+    const oa = ordenMetodo(a), ob = ordenMetodo(b);
+    if (oa !== ob) return oa - ob;                                         // contado<credito<echeq
+    return a < b ? -1 : a > b ? 1 : 0;                                     // nombre (determinismo)
+  })[0];
+}
 // Devuelve los sub-grupos a enviar. Con excepción por cliente (metodoForzado) NO se parte:
 // un único sub-grupo con ese método para todas las facturas.
-function planMetodos(facturas: FacMin[], metodoForzado?: string | null): { metodo: string; facturas: FacMin[] }[] {
+function planMetodos(facturas: FacMin[], cfg: DtoCfg, metodoForzado?: string | null): { metodo: string; facturas: FacMin[] }[] {
   const norm = (m: string) => m || "no_decidido";
   if (metodoForzado) return [{ metodo: metodoForzado, facturas }];
   const reales = Array.from(new Set(facturas.map((f) => norm(f.metodo)).filter((m) => m !== "no_decidido")));
@@ -379,10 +397,12 @@ function planMetodos(facturas: FacMin[], metodoForzado?: string | null): { metod
     // Regla A: un solo mensaje; "no_decidido" adopta el único método real (o queda no_decidido→contado).
     return [{ metodo: reales[0] || "no_decidido", facturas }];
   }
-  // Regla B: "no_decidido" → contado; se agrupa por método resuelto y se manda uno por método.
+  // Regla B: método que absorbe las "no_decidido" (contado si está; si no, el de menor descuento).
+  const target = reales.includes("contado") ? "contado" : metodoAbsorbeNoDecidido(reales, facturas, cfg);
   const byMetodo = new Map<string, FacMin[]>();
   for (const f of facturas) {
-    const m = norm(f.metodo) === "no_decidido" ? "contado" : norm(f.metodo);
+    const nm = norm(f.metodo);
+    const m = nm === "no_decidido" ? target : nm;
     (byMetodo.get(m) ?? byMetodo.set(m, []).get(m)!).push(f);
   }
   return Array.from(byMetodo.entries())
@@ -429,7 +449,7 @@ async function handleGrupo(body: any) {
   let heldMixtoSinSplit = false;
   if (metodosFac.length === totales.length && totales.length > 0) {
     const facMin: FacMin[] = totales.map((t: number, i: number) => ({ total: Number(t || 0), metodo: metodosFac[i] || "no_decidido", storage_path: storagePaths[i] ?? null, comprobante_id: comprobantes[i] ?? null }));
-    subgrupos = planMetodos(facMin);
+    subgrupos = planMetodos(facMin, cfg);
   } else {
     const facMin: FacMin[] = totales.map((t: number, i: number) => ({ total: Number(t || 0), metodo: "no_decidido", storage_path: storagePaths[i] ?? null, comprobante_id: comprobantes[i] ?? null }));
     const reales = Array.from(new Set(metodosDistinct.map((m) => m || "no_decidido").filter((m) => m !== "no_decidido")));
@@ -518,7 +538,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
     }));
     // Excepción por cliente: fuerza el método (ignora la condición de venta / método mixto).
     const ov = metodoExcepcion(cfg, cuit, gr.razon_social);
-    const subgrupos = planMetodos(facMin, ov);
+    const subgrupos = planMetodos(facMin, cfg, ov);
     const multiMetodo = subgrupos.length > 1;
 
     // Cada sub-grupo (por método) se arma UNA vez y se entrega a cada destino.
@@ -642,7 +662,7 @@ serve(async (req) => {
       total: Number(f.total || 0), metodo: String(f.metodo || "no_decidido"),
       storage_path: (f.storage_path as string) ?? null, comprobante_id: (f.comprobante_id as string) ?? null,
     }));
-    const subgrupos = planMetodos(facMin, ov);
+    const subgrupos = planMetodos(facMin, cfg, ov);
     const multiMetodo = subgrupos.length > 1;
 
     let wl: string[] | null = null;

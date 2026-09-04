@@ -34,8 +34,10 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 **Método mixto (Reglas A/B, helper `planMetodos` en `lk_factura-check`):**
 - **Regla A**: si el grupo tiene UN solo método real + facturas `no_decidido` ("prefiero no decir"),
   las `no_decidido` **adoptan ese método** → un solo mensaje (ej.: crédito + no_decidido = todo crédito).
-- **Regla B**: si hay ≥2 métodos reales distintos, las `no_decidido` pasan a **contado** y el grupo se
-  **PARTE**: un mensaje por método, cada uno con su PDF propio.
+- **Regla B**: si hay ≥2 métodos reales distintos, el grupo se **PARTE** (un mensaje por método, con
+  PDF propio). Las `no_decidido` se absorben en un método ya presente: **contado** si está entre los
+  reales; si no, el método real de **menor descuento** (desempate: más facturas → orden → nombre).
+  Nunca inventa un grupo contado que el pedido no tenía.
 - **Excepción por cliente** (`wa_descuentos_config.excepciones`) fuerza método e ignora el mixto.
 - `held_metodo_mixto` sólo queda en `handleGrupo` (`mode:grupo`) si llega el set de métodos distinto
   sin método por-factura y hay ≥2 reales. Los caminos activos (real por `wa_grupos_dia_cuit`, prueba
