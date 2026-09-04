@@ -16,7 +16,7 @@ select
   'saludo', 'Saludo', 'saludo_inicial', 'semi_auto', 'Hola',
   array['hola','holis','ola','buenas','buen dia','buenos dias','buenas tardes','buenas noches','hey','buenas!'],
   '¡Hola {{nombre_cliente}}! 👋 ¿En qué te puedo ayudar?',
-  'No tengo tu número registrado como cliente. ¿Me pasarías tu *CUIT* para verificar? (con o sin guiones)',
+  '¡Hola! 👋 No tengo tu número registrado como cliente. ¿Me pasarías tu *CUIT* para verificar? (con o sin guiones)',
   false, null, 100, true, false,
   'Saludo sin request. Cliente → saluda por nombre. No-cliente → pide CUIT (mismo copy que handleRegistration).'
 where not exists (select 1 from public.wa_faq where subcategory = 'saludo_inicial');
