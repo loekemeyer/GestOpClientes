@@ -156,6 +156,189 @@ function extractCuit(text: string): string | null {
   return null;
 }
 
+// ─── Alta de cliente nuevo (no-cliente sin CUIT en sistema) ────────
+// Toma de datos paso a paso, 0 tokens (determinístico, sin IA). Se dispara
+// cuando un no-cliente acepta registrarse (o su CUIT no está en el sistema).
+// El estado vive en `wa_prospect_leads` (status='pending' + alta_step). Al
+// terminar: se deja el "cable" para el vendedor (fila en wa_alertas_humano,
+// SIN enchufar a ninguna notificación push todavía) y se le avisa al cliente
+// que la solicitud va a revisión.
+
+const ALTA_INTRO =
+  `¡Genial! Te tomo los datos para registrarte. 📋\n\n` +
+  `Te voy a ir preguntando de a uno. Si querés cortar, escribí *cancelar*.\n\n` +
+  `¿Cuál es tu *razón social*?`;
+
+// Orden de campos. Si en el disparo ya teníamos el CUIT (cuit_not_found), no se
+// vuelve a pedir; si el alta arranca sin CUIT, se pide primero.
+const ALTA_STEPS: { field: string; prompt: string }[] = [
+  { field: "razon_social",      prompt: "📋 ¿Cuál es tu *razón social*?" },
+  { field: "nombre_contacto",   prompt: "👤 ¿*Nombre de contacto*? (nombre y apellido)" },
+  { field: "telefono",          prompt: "📱 ¿*Teléfono* de contacto? (con característica, ej: 11 2345-6789)" },
+  { field: "mail",              prompt: "📧 ¿*Mail*? (ej: nombre@dominio.com)" },
+  { field: "direccion",         prompt: "📍 ¿*Dirección*? (calle y número)" },
+  { field: "localidad",         prompt: "📍 ¿*Localidad*?" },
+  { field: "expreso_nombre",    prompt: "🚚 ¿Con qué *expreso / transporte* trabajan? (nombre)" },
+  { field: "expreso_direccion", prompt: "🚚 ¿*Dirección del expreso*?" },
+  { field: "expreso_telefono",  prompt: "🚚 ¿*Teléfono del expreso*? (con característica)" },
+  { field: "tipo_comercio",     prompt: "🏪 ¿*Tipo de comercio*? (ej: bazar, mayorista, distribuidor)" },
+  { field: "dimension_comercio", prompt: "🏪 ¿*Dimensión del local*? (ej: 4x8 = 32 m²)" },
+  { field: "tiene_venta_web",   prompt: "🌐 ¿Tenés *venta web / página*? Si sí, pasame el link; si no, poné *no*." },
+  { field: "ya_vende_lk",       prompt: "📦 ¿Ya vendés *mercadería Loekemeyer*? (sí / no)" },
+];
+
+const STEP_A_QUIEN = "📦 ¿A quién le comprás Loekemeyer actualmente?";
+const STEP_COMO_CONOCE = "📢 ¿De dónde nos conocés? (ej: recomendación, redes, feria)";
+
+const MSG_ALTA_COMPLETA =
+  `✅ ¡Listo! Ya tengo todos tus datos.\n\n` +
+  `La solicitud irá a revisión y nos pondremos en contacto con vos cuando sea aprobada. ¡Gracias! 🙌`;
+
+const MSG_ALTA_CANCELADA =
+  `Listo, cancelé el registro. Si querés retomarlo más adelante, escribime *registrarme*. 👋`;
+
+// Dispara el alta (aceptar el registro / "soy nuevo").
+const RE_ALTA_START =
+  /\b(soy nuevo|nuevo cliente|quiero ser cliente|darme de alta|registrar(me|te)?|registro|dar de alta|alta|si\s*,?\s*(dale|quiero|registrame)|dale|quiero registrarme|primera vez)\b/i;
+// Cortar el alta en curso.
+const RE_ALTA_CANCEL = /\b(cancelar|cancelá|salir|dejar|olvidalo|no quiero|parar|basta)\b/i;
+
+/** Valida el dato del campo actual. Devuelve mensaje de error o null si OK. */
+function validarAltaCampo(field: string, text: string): string | null {
+  const t = text.trim();
+  if (!t) return "Se me quedó vacío 🤔 ¿Me lo repetís?";
+  if (field === "mail") {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) {
+      return "Ese mail no parece válido 🤔 Debería ser algo tipo *nombre@dominio.com*. ¿Me lo pasás de nuevo?";
+    }
+  }
+  if (field === "telefono" || field === "expreso_telefono") {
+    if (t.replace(/\D/g, "").length < 8) {
+      return "Ese teléfono parece corto 🤔 Pasámelo con característica (ej: *11 2345-6789*).";
+    }
+  }
+  return null;
+}
+
+async function getPendingLead(phone: string) {
+  const { data } = await supabase
+    .from("wa_prospect_leads")
+    .select("id, cuit, razon_social, nombre_contacto, telefono, mail, direccion, localidad, expreso_nombre, expreso_direccion, expreso_telefono, tipo_comercio, dimension_comercio, tiene_venta_web, ya_vende_lk, a_quien_compra, como_conoce_marca, alta_step, raw_messages")
+    .eq("phone", phone)
+    .eq("status", "pending")
+    .maybeSingle();
+  return data;
+}
+
+/** Avisa al vendedor de un alta completa. CABLE SIN ENCHUFAR: solo deja la
+ *  fila en wa_alertas_humano; todavía no hay push/notificación conectada. */
+async function notificarAltaVendedor(phone: string, lead: Record<string, unknown>): Promise<void> {
+  try {
+    await supabase.from("wa_alertas_humano").insert({
+      tipo: "alta_cliente_nuevo",
+      phone,
+      contexto: {
+        lead_id: lead.id ?? null,
+        cuit: lead.cuit ?? null,
+        razon_social: lead.razon_social ?? null,
+        nombre_contacto: lead.nombre_contacto ?? null,
+        localidad: lead.localidad ?? null,
+        motivo: "solicitud_alta_completa",
+      },
+    });
+  } catch (e) {
+    console.error("notificarAltaVendedor falló:", e);
+  }
+}
+
+/** Enruta la respuesta del cliente al campo del alta que corresponda. */
+async function handleAltaStep(
+  phone: string,
+  text: string,
+  // deno-lint-ignore no-explicit-any
+  lead: any,
+  send: (reply: string) => Promise<void>,
+): Promise<void> {
+  if (RE_ALTA_CANCEL.test(text)) {
+    await supabase.from("wa_prospect_leads")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("id", lead.id);
+    await send(MSG_ALTA_CANCELADA);
+    return;
+  }
+
+  const step: number = lead.alta_step ?? 0;
+  const messages = Array.isArray(lead.raw_messages) ? [...lead.raw_messages] : [];
+  messages.push({ role: "user", content: text, ts: new Date().toISOString() });
+
+  // ── Pasos base ────────────────────────────────────────────────────
+  if (step < ALTA_STEPS.length) {
+    const currentField = ALTA_STEPS[step].field;
+
+    const err = validarAltaCampo(currentField, text);
+    if (err) {
+      // Dato mal formado → re-preguntar el MISMO campo, no avanzar.
+      await send(err);
+      return;
+    }
+
+    let value: unknown = text.trim();
+    if (currentField === "ya_vende_lk") {
+      value = /^(si|sí|s|yes|y|1|true|dale)\b/i.test(text.trim());
+    }
+
+    const nextStep = step + 1;
+    await supabase.from("wa_prospect_leads")
+      .update({
+        [currentField]: value,
+        alta_step: nextStep,
+        raw_messages: messages,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lead.id);
+
+    if (nextStep >= ALTA_STEPS.length) {
+      const yaVende = currentField === "ya_vende_lk" ? value : lead.ya_vende_lk;
+      await send(yaVende === true ? STEP_A_QUIEN : STEP_COMO_CONOCE);
+      return;
+    }
+    await send(ALTA_STEPS[nextStep].prompt);
+    return;
+  }
+
+  // ── Paso extra según ya_vende_lk ─────────────────────────────────────
+  const needsExtra = lead.ya_vende_lk === true ? "a_quien_compra" : "como_conoce_marca";
+  if (!lead[needsExtra]) {
+    await supabase.from("wa_prospect_leads")
+      .update({
+        [needsExtra]: text.trim(),
+        status: "complete",
+        raw_messages: messages,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lead.id);
+
+    await notificarAltaVendedor(phone, { ...lead, [needsExtra]: text.trim() });
+    await send(MSG_ALTA_COMPLETA);
+    return;
+  }
+
+  // Ya estaba completo (mensaje tardío) — no re-notificar.
+  await send("Tu solicitud ya está registrada y en revisión ✅ Te avisamos cuando se apruebe.");
+}
+
+/** Crea el lead (status='pending', alta_step=0). No envía nada: el caller
+ *  decide el copy de arranque. `cuit` opcional (viene de cuit_not_found). */
+async function crearLead(phone: string, text: string, cuit: string | null): Promise<void> {
+  await supabase.from("wa_prospect_leads").insert({
+    phone,
+    cuit,
+    alta_step: 0,
+    status: "pending",
+    raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
+  });
+}
+
 /** Maneja el flujo de registro para teléfonos no identificados */
 async function handleRegistration(
   phone: string,
@@ -188,9 +371,16 @@ async function handleRegistration(
       );
       return;
     }
+    // Aceptó registrarse (o dijo "soy nuevo") sin pasar CUIT → arrancar alta.
+    if (RE_ALTA_START.test(text)) {
+      await crearLead(phone, text, null);
+      await send(ALTA_INTRO);
+      return;
+    }
     await send(
       `Todavía no te tengo registrado como cliente. ` +
-      `¿Me pasás tu *CUIT* así te registro y podés ver precios y hacer pedidos? (con o sin guiones)`,
+      `¿Me pasás tu *CUIT* así te registro y podés ver precios y hacer pedidos? (con o sin guiones)\n\n` +
+      `Si todavía no sos cliente, decime *registrarme* y te tomo los datos.`,
     );
     return;
   }
@@ -231,11 +421,14 @@ async function handleRegistration(
     }
 
     case "cuit_not_found": {
+      // No está en el sistema → arrancar la toma de datos. El CUIT ya validado
+      // (módulo 11) queda guardado en el lead. Un solo mensaje: ofrecer + 1er campo.
+      await crearLead(phone, text, cuit);
       await send(
-        `No encontré un cliente con ese CUIT. 🤔\n\n` +
-        `Verificá el número e intentá de nuevo, o contactá a ventas:\n` +
-        `📧 ventas@loekemeyer.com\n` +
-        `📱 1131181021`,
+        `No te encontré como cliente con ese CUIT. 🤔\n\n` +
+        `Si querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. ` +
+        `Te pregunto de a uno (para cortar, escribí *cancelar*):\n\n` +
+        `📋 ¿Cuál es tu *razón social*?`,
       );
       break;
     }
@@ -730,6 +923,22 @@ async function handleMessage(
 
   // 3. Identificar cliente por teléfono
   const customer = await getCustomerContext(phone);
+
+  // 3b. Alta en curso (no-cliente): si ya arrancó la toma de datos, cada
+  //     mensaje es la respuesta al campo que toca. La interceptamos ACÁ, antes
+  //     del FAQ, para que un saludo/keyword no le robe la respuesta al alta.
+  if (!customer) {
+    const lead = await getPendingLead(phone);
+    if (lead) {
+      await saveMessage(phone, "user", text);
+      const send = async (reply: string): Promise<void> => {
+        await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+        await saveMessage(phone, "assistant", reply);
+      };
+      await handleAltaStep(phone, text, lead, send);
+      return;
+    }
+  }
 
   // 4. FAQ pre-check (0 tokens). Bifurca cliente vs no-cliente. Corta
   //    acá si hay match "sólido" (AUTO / SEMIAUTO / HUMANO preestablecida).

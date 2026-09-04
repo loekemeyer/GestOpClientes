@@ -93,6 +93,7 @@ Cambios de esta tanda:
 3. **`faq.ts`**: no-cliente prioriza `institutional_response` (fallback a `bot_response` se mantiene; el saludo lleva su propio institucional = pedir CUIT).
 4. **Copy no-cliente** en `handleRegistration`: "No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?".
 5. **Cables sin enchufar (TODO):** escalación a humano (`notificarHumano` sin call-site) y cierre por inactividad ~30-40 min (bajar el 8h + aviso/botón al vendedor + retomar bot).
+7. **Alta de cliente nuevo (`handleAltaStep` en el webhook, portado de `lk_chat-test`):** el no-cliente cuyo CUIT no está en el sistema (o que pide *registrarme*) entra en una toma de datos determinística paso a paso (0 tokens), estado en `wa_prospect_leads`. Al completar: aviso al cliente ("solicitud a revisión") + fila en `wa_alertas_humano` (`tipo='alta_cliente_nuevo'`) como cable para el vendedor, todavía **sin** push conectado.
 6. **Ruteo por `automation_level` (`handleFaq`):** `full_auto`/`semi_auto` → respuesta de la FAQ (estática o con lookup); `needs_human` → escalación; **`inteligencia` → `handleFaq` devuelve null** para NO servir texto enlatado → lo maneja el agente IA (cliente) o el registro (no-cliente). Antes, una FAQ `inteligencia` (ej. `nuevo_pedido`) servía su `institutional_response` por error.
 
 > Requiere deploy de `lk_whatsapp-webhook` (bundlea `_shared/faq.ts`) para que tomen efecto los puntos 2-4. CI deploya al mergear a `main`. Post-deploy: activar `datos_transferencia` (`is_active=true`).

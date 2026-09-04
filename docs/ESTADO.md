@@ -88,6 +88,18 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 - FAQ categorías: AUTO/SEMIAUTO/IA/HUMANO. Pestaña "Preguntas frecuentes" en el front lee `wa_faq` + `wa_faq_lookup_tokens`. Escritura solo vía `lk_faq-admin` (admin). Ver regla de sincronización en `CLAUDE.md`.
 - Registro por CUIT: valida módulo 11; CUIT inválido → avisa; guarda historial.
   Copy no-cliente: *"No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?"*.
+- **Alta de cliente nuevo (webhook, portada de `lk_chat-test` el 2026-09-04):** cuando el
+  CUIT **no está en el sistema** (`cuit_not_found`) o el no-cliente dice *registrarme / soy nuevo /
+  dale*, arranca la **toma de datos paso a paso** (0 tokens, sin IA). Estado en
+  `wa_prospect_leads` (`status='pending'` + `alta_step`); cada mensaje entrante es la respuesta al
+  campo que toca (interceptado en `handleMessage` paso 3b, **antes** del FAQ). 13 campos base
+  (razón social, contacto, tel, mail, dirección, localidad, expreso ×3, tipo/dimensión de comercio,
+  venta web, ¿ya vende LK?) + 1 extra (`a_quien_compra` si ya vende / `como_conoce_marca` si no).
+  Valida formato de **mail** (`x@y.z`) y **teléfonos** (≥8 dígitos) → si no cuadra, re-pregunta el
+  mismo campo. *cancelar* corta el alta (`status='cancelled'`). Al terminar (`status='complete'`):
+  mensaje al cliente *"La solicitud irá a revisión y nos pondremos en contacto con vos cuando sea
+  aprobada!"* + **cable para el vendedor**: fila en `wa_alertas_humano` (`tipo='alta_cliente_nuevo'`)
+  — **SIN enchufar** a push/notificación todavía.
 - **FAQs nuevas (sql/053):** `saludo_inicial` (SEMIAUTO, activa — cliente saluda por nombre, no-cliente
   pide CUIT) y `datos_transferencia` (SEMIAUTO, **inactiva** hasta deploy — alias/CBU vienen de
   `wa_descuentos_config.pago`, editables en el Panel; lookup `payment_data` en `faq.ts`).
