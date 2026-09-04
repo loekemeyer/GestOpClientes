@@ -55,8 +55,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (error || !matches?.length) return null;
 
   const top = matches[0];
-  // Score bajo → no es un match real, dejar que la IA responda
-  if (top.match_score < 0.3) return null;
+  // match_score (RPC wa_faq_match, sql/054): peso de keywords que matchean por
+  // inicio-de-palabra sobre texto normalizado (sin acentos), + rescate difuso
+  // (pg_trgm) para typos. Un match real vale >= 1; sin match queda ~0 (sólo el
+  // micro-desempate por similitud). Umbral 1 = "necesita al menos un keyword
+  // sólido o un typo cercano"; si no, lo maneja la IA / el registro.
+  if (Number(top.match_score) < 1) return null;
 
   // Escalación humana: preestablecida en la FAQ (categoría HUMANO)
   if (top.automation_level === "needs_human") {

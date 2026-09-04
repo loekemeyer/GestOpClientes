@@ -86,6 +86,17 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
   4. **Sin FAQ**: cliente → agente IA (responde si puede, si no escala a humano); no-cliente → registro por CUIT.
   - "Request" = cualquier consulta/duda/pedido del cliente.
 - FAQ categorías: AUTO/SEMIAUTO/IA/HUMANO. Pestaña "Preguntas frecuentes" en el front lee `wa_faq` + `wa_faq_lookup_tokens`. Escritura solo vía `lk_faq-admin` (admin). Ver regla de sincronización en `CLAUDE.md`.
+- **Matcher de FAQs (RPC `wa_faq_match`, reescrito sql/054 el 2026-09-04):** determinístico, 0 tokens.
+  Antes era substring crudo (`LIKE '%kw%'`) sin normalizar → los acentos rompían el match, "ola"
+  matcheaba "chocolate" y "?" matcheaba todo. Ahora: normaliza (unaccent + lower + `[a-z0-9 ]`),
+  matchea por **inicio de palabra** (`\m`, mata falsos positivos pero tolera plurales), **dedup** de
+  keywords normalizados (no doble-cuenta pares acentuados), **peso por especificidad** (frase larga
+  gana a palabra suelta) y **rescate difuso** (pg_trgm `word_similarity ≥ 0.55`) para typos.
+  `match_score` ahora es `numeric`: match real ≥ 1, sin match ≈ 0. `faq.ts` corta en `< 1`.
+  Requiere extensión `unaccent` (creada en 054). Deploy de `faq.ts` va por CI (lo bundlea el webhook).
+- **FAQ `alta_cliente` (id=6) DESACTIVADA** (sql/054): era `needs_human` y escalaba a un vendedor
+  cuando el no-cliente pedía registrarse. Ahora el **intake self-service** (`wa_prospect_leads`, en el
+  webhook) toma los datos paso a paso, así que esa FAQ ya no debe interceptar.
 - Registro por CUIT: valida módulo 11; CUIT inválido → avisa; guarda historial.
   Copy no-cliente: *"No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?"*.
 - **Alta de cliente nuevo (webhook, portada de `lk_chat-test` el 2026-09-04):** cuando el
