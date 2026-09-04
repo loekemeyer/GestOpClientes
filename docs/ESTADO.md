@@ -4,12 +4,27 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-09-04.
 
-## Dos proyectos Supabase (¡importante!)
+## 🔑 Accesos, permisos y dónde está cada cosa (LEER PRIMERO)
 
-| Proyecto | ID | Qué tiene |
-|----------|----|-----------|
-| **PaginaLK** | `kwkclwhmoygunqmlegrg` | Bot WhatsApp, webhook, front (`docs/index.html`), `app_settings`, `wa_*`, edge functions `lk_*`. |
-| **ISIS** | `hrxfctzncixxqmpfhskv` | Facturación: `Facturacion_NP`, `PPP_Programacion_Diaria`, `vista_cola_impresion`, `wa_pipeline_log`, RPC `wa_dashboard_rango`. También el **login Google** del dashboard. |
+**Qué accesos tenemos por MCP en las sesiones (no re-descubrir ni pedir tokens):**
+- **Supabase** (MCP): acceso total a los 3 proyectos de la cuenta/org `azosplccoimzkdtbvzfi`
+  → leer/escribir SQL, `apply_migration`, `deploy_edge_function`, logs, etc. **No hace falta pedir credenciales.**
+- **GitHub** (MCP): repo `loekemeyer/GestOpClientes` → leer/commitear/pushear, Actions (disparar/ver workflows), PRs.
+
+**Los 3 proyectos Supabase (misma cuenta):**
+| Proyecto (nombre real) | ID | Qué es |
+|---|---|---|
+| **PaginaLK** — "loekemeyer's web" | `kwkclwhmoygunqmlegrg` | Bot WhatsApp, webhook, front (`docs/index.html`), `app_settings`, `wa_*`, edge functions `lk_*`. **Acá deploya el CI.** |
+| **ISIS** — "Control Partes Talleristas" | `hrxfctzncixxqmpfhskv` | Facturación: `Facturacion_NP`, `PPP_Programacion_Diaria`, `vista_cola_impresion`, `wa_pipeline_log`, RPCs `wa_dashboard_rango`, `wa_metodo_norm`, `wa_grupos_dia_cuit`. Login Google del dashboard. |
+| "Costos" | `fxyhvacysnqzzsdvmplx` | No toca el bot. |
+
+**Tokens / secrets — dónde vive cada uno (para NO marear):**
+- **Token de WhatsApp (Meta):** vive en el **secret de Edge Function** `WHATSAPP_ACCESS_TOKEN` (PaginaLK, alcance de proyecto = lo ven todas las funciones). El webhook además usa `LK_WA_TOKEN`. **NO** está en `app_settings` (la copia vieja `wa_token` se borró el 2026-09-04 porque estaba vencida y confundía). **Para chequear si el token vive y si las plantillas están APPROVED: invocar la edge `lk_tpl-check`** (no hay que pedir el token).
+- **Datos de pago (alias/CBU):** `app_settings.wa_descuentos_config` → `pago.alias` / `pago.cbu`, editables desde el Panel. Los usa `lk_factura-check` y la FAQ `datos_transferencia`.
+- **Lista blanca de envío:** tabla `wa_envio_contactos` (hoy: Luis, Thomy, N8N-test).
+- **Llave de deploy del CI:** GitHub Actions secret `SUPABASE_ACCESS_TOKEN` (cuenta Supabase → Account → Access Tokens). Es OTRA cosa que el token de WA. Sin ella, el workflow `deploy-edge-functions.yml` falla. Estado: ⚠️ ver sección "CI de deploy" abajo.
+
+**Cómo se deploya una edge function:** push a `main` → CI (`.github/workflows/deploy-edge-functions.yml`) la sube. Funciones chicas también se pueden subir a mano con MCP `deploy_edge_function`. El webhook (`lk_whatsapp-webhook`, ~1500 líneas + `_shared`) es demasiado grande para transcribir a mano con fidelidad → **debe ir por CI.**
 
 El dashboard de la página lee del **pipeline de facturas que vive en ISIS**. Si algo de facturación no cuadra, la data está en ISIS, no en PaginaLK.
 
