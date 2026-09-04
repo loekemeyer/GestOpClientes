@@ -97,8 +97,11 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 - **FAQ `alta_cliente` (id=6) DESACTIVADA** (sql/054): era `needs_human` y escalaba a un vendedor
   cuando el no-cliente pedía registrarse. Ahora el **intake self-service** (`wa_prospect_leads`, en el
   webhook) toma los datos paso a paso, así que esa FAQ ya no debe interceptar.
-- **Vocabulario expandido desde chats reales (sql/055, 2026-09-04):** minamos `bot_historial_chat`
-  + `wa_conversations` (~860 msgs de cliente) y agregamos las frases reales a las FAQs
+- **Vocabulario expandido desde chats (sql/055, 2026-09-04):** minamos `bot_historial_chat`
+  + `wa_conversations`. ⚠️ **OJO representatividad**: el corpus NO es de clientes reales — 71% (508/712)
+  es de UN tester (`5491164880712`) y el resto son líneas internas (Thomy/Luis/Loekemeyer). Los
+  fraseos son plausibles pero es intuición de tester, no la voz del cliente. **RE-MINAR cuando se
+  abra la whitelist y entren clientes de verdad.** Agregamos esas frases a las FAQs
   (order_status id=1/9, factura id=10, lista id=11, aumento id=13, catálogo id=19, mínimo id=21,
   formas de pago id=15, datos transferencia id=42, zona id=31). Frases específicas, NO palabras
   sueltas ambiguas (dedup idempotente). Además:
