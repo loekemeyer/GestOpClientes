@@ -171,6 +171,12 @@ git fetch origin main
 git checkout -B mi-branch origin/main
 ```
 
+### Cierre de cambios → main (pedido del usuario)
+**Cada vez que termines un cambio que se despliega o afecta producción, no lo dejes muerto en la
+branch:** o **pusheás a `main` automáticamente**, o preguntás explícito **"¿pusheo a main?"**.
+Nunca dar por cerrada una tanda dejándola solo en la rama sin avisar. (El CI deploya las edge
+functions únicamente al mergear a `main`.)
+
 ### Zonas de responsabilidad
 
 | Zona | Archivos | Quién modifica |
