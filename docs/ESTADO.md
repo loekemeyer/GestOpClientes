@@ -91,6 +91,10 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 - **FAQs nuevas (sql/053):** `saludo_inicial` (SEMIAUTO, activa — cliente saluda por nombre, no-cliente
   pide CUIT) y `datos_transferencia` (SEMIAUTO, **inactiva** hasta deploy — alias/CBU vienen de
   `wa_descuentos_config.pago`, editables en el Panel; lookup `payment_data` en `faq.ts`).
+- **REGLA — nombres:** el bot le dice al cliente SOLO nombres de **nuestra base** (`business_name` /
+  razón social). **NUNCA** el nombre de perfil de WhatsApp (`msg.name` / `contactName`) — es dato del
+  usuario, no nuestro. El WA-name solo puede usarse en logs internos (`wa_alertas_humano.contexto.contact_name`)
+  para el vendedor, jamás en un mensaje al cliente.
 - **`faq.ts`**: no-cliente prioriza `institutional_response` (con fallback a `bot_response`,
   mantenido para no dejar mudas ~23 FAQs institucionales sin institucional cargado). El saludo
   lleva su propio `institutional_response` (pedir CUIT) para no saludar con nombre vacío.
