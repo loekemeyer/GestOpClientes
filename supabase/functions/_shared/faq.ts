@@ -1,3 +1,5 @@
+// Flujo cara-al-cliente 2026-09-04: no-cliente prioriza institucional; lookup payment_data
+//   (alias/CBU desde wa_descuentos_config). Deploy vía CI al pushear a main.
 // _shared/faq.ts — Pre-check de FAQs (respuestas AUTO/SEMIAUTO/HUMANO)
 // que corre antes de tocar el LLM. Consume la tabla `wa_faq` vía la RPC
 // `wa_faq_match` y elige entre `bot_response` (cliente identificado) e

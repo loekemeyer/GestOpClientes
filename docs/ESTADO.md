@@ -22,7 +22,7 @@
 - **Token de WhatsApp (Meta):** vive en el **secret de Edge Function** `WHATSAPP_ACCESS_TOKEN` (PaginaLK, alcance de proyecto = lo ven todas las funciones). El webhook además usa `LK_WA_TOKEN`. **NO** está en `app_settings` (la copia vieja `wa_token` se borró el 2026-09-04 porque estaba vencida y confundía). **Para chequear si el token vive y si las plantillas están APPROVED: invocar la edge `lk_tpl-check`** (no hay que pedir el token).
 - **Datos de pago (alias/CBU):** `app_settings.wa_descuentos_config` → `pago.alias` / `pago.cbu`, editables desde el Panel. Los usa `lk_factura-check` y la FAQ `datos_transferencia`.
 - **Lista blanca de envío:** tabla `wa_envio_contactos` (hoy: Luis, Thomy, N8N-test).
-- **Llave de deploy del CI:** GitHub Actions secret `SUPABASE_ACCESS_TOKEN` (cuenta Supabase → Account → Access Tokens). Es OTRA cosa que el token de WA. Sin ella, el workflow `deploy-edge-functions.yml` falla. Estado: ⚠️ ver sección "CI de deploy" abajo.
+- **Llave de deploy del CI:** GitHub Actions secret `SUPABASE_ACCESS_TOKEN` (cuenta Supabase → Account → Access Tokens). Es OTRA cosa que el token de WA. Estado: ✅ **cargada el 2026-09-04, VENCE el 2027-05-04 → renovar antes** (regenerar en Supabase y re-pegar en GitHub; Supabase ya no da tokens sin vencimiento).
 
 **Cómo se deploya una edge function:** push a `main` → CI (`.github/workflows/deploy-edge-functions.yml`) la sube. Funciones chicas también se pueden subir a mano con MCP `deploy_edge_function`. El webhook (`lk_whatsapp-webhook`, ~1500 líneas + `_shared`) es demasiado grande para transcribir a mano con fidelidad → **debe ir por CI.**
 
@@ -99,18 +99,16 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
     avisar al vendedor / botón "Cerrar chat" en el Panel, y retomar el bot al reiniciar el cliente. Requiere idle-sweep + UI.
 
-## ⚠️ CI de deploy ROTO — falta secret (2026-09-04)
+## CI de deploy — ARREGLADO (2026-09-04)
 
-`.github/workflows/deploy-edge-functions.yml` corre al pushear a `main`, pero **falla siempre**
-porque el secret **`SUPABASE_ACCESS_TOKEN` está vacío** ("Access token not provided"). Por eso
-las edge functions **no se deployan solas** y hay que hacerlo a mano (MCP `deploy_edge_function`).
+`.github/workflows/deploy-edge-functions.yml` corre al pushear a `main` y deploya las edge
+functions cuyos archivos cambiaron en el commit (si cambió `_shared/`, redeploya las que lo
+importan: `lk_whatsapp-webhook` y `lk_chat-test`). Antes fallaba por el secret vacío; el secret
+`SUPABASE_ACCESS_TOKEN` **ya está cargado** (vence 2027-05-04, ver arriba).
 
-**Fix permanente (lo hace el usuario):** GitHub → Settings → Secrets and variables → Actions →
-agregar `SUPABASE_ACCESS_TOKEN` (generarlo en Supabase → Account → Access Tokens). Después
-re-correr el workflow: deploya todo, incluido `lk_whatsapp-webhook`.
-
-Mientras el secret no esté: cada cambio de edge function en `main` queda en el repo pero **no vivo**
-hasta deploy manual.
+**Cómo forzar un deploy:** pushear a `main` un commit que toque `supabase/functions/**`
+(el detector usa `git diff HEAD^ HEAD`), o **Actions → Deploy Edge Functions → Run workflow**.
+Un commit que sólo toca docs NO dispara deploy.
 
 ## Edge functions que NO están en este repo (solo desplegadas)
 
