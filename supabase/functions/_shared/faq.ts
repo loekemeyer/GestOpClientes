@@ -77,6 +77,11 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     };
   }
 
+  // "inteligencia": la FAQ es SOLO la etiqueta del intent (ej. "nuevo_pedido"), no una
+  // respuesta enlatada. La respuesta real la arma el agente IA (cliente) o cae al registro
+  // (no-cliente). Devolvemos null para NO servir el texto estático.
+  if (top.automation_level === "inteligencia") return null;
+
   // SEMIAUTO con lookup a Supabase (0 tokens).
   if (top.requires_db_lookup) {
     // payment_data (alias/CBU) NO requiere cliente: los datos para transferir
