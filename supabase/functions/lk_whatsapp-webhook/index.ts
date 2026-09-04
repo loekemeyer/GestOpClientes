@@ -189,9 +189,8 @@ async function handleRegistration(
       return;
     }
     await send(
-      `¡Hola${contactName ? " " + contactName : ""}! 👋\n\n` +
-      `No tengo tu número registrado como cliente. ` +
-      `¿Me pasarías tu *CUIT* para verificar? (con o sin guiones)`,
+      `Todavía no te tengo registrado como cliente. ` +
+      `¿Me pasás tu *CUIT* así te registro y podés ver precios y hacer pedidos? (con o sin guiones)`,
     );
     return;
   }
