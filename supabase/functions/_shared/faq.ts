@@ -98,14 +98,18 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   }
 
   // ── Elección cliente / no-cliente ──────────────────────────────────────
-  // Cliente identificado → bot_response (personalizado; fallback a institucional).
-  // Sin cliente          → SOLO institutional_response. Nunca bot_response: ese
-  //   campo puede traer datos/nombre del cliente y no debe filtrarse a un no-cliente.
-  //   Si la FAQ no tiene institucional, devolvemos null → cae al registro (pedir CUIT).
+  // Cliente identificado → prioriza bot_response (personalizado).
+  // Sin cliente          → prioriza institutional_response.
+  // Fallback al otro campo si el preferido está vacío. (No sacamos el fallback:
+  // hay ~23 FAQs activas sin institucional que son institucionales de hecho y
+  // quedarían mudas para no-clientes.) Para que un mensaje NO deba responderle a
+  // un no-cliente (ej.: el saludo, que sino saludaría con nombre vacío), se le
+  // carga un institutional_response propio — así el no-cliente recibe ese texto
+  // (ej.: pedir CUIT) en vez del bot_response.
   const isCliente = !!customer;
   const primary = isCliente
     ? (top.bot_response ?? top.institutional_response)
-    : top.institutional_response;
+    : (top.institutional_response ?? top.bot_response);
   if (!primary || !String(primary).trim()) return null;
 
   // web_first_response se antepone solo si el cliente está identificado

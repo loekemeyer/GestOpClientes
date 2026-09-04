@@ -90,7 +90,7 @@ Cambios de esta tanda:
 
 1. **Saludo** (`wa_faq.saludo_inicial`, SEMIAUTO, activa): cliente → "¡Hola {{nombre_cliente}}! ¿En qué te puedo ayudar?"; no-cliente → pide CUIT para verificar.
 2. **Datos de pago** (`wa_faq.datos_transferencia`, SEMIAUTO, **inactiva** hasta deploy): alias/CBU desde `wa_descuentos_config.pago` (editable en el Panel), lookup `payment_data` en `faq.ts`.
-3. **`faq.ts`**: a un no-cliente solo se le sirve `institutional_response` (nunca `bot_response`).
+3. **`faq.ts`**: no-cliente prioriza `institutional_response` (fallback a `bot_response` se mantiene; el saludo lleva su propio institucional = pedir CUIT).
 4. **Copy no-cliente** en `handleRegistration`: "No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?".
 5. **Cables sin enchufar (TODO):** escalación a humano (`notificarHumano` sin call-site) y cierre por inactividad ~30-40 min (bajar el 8h + aviso/botón al vendedor + retomar bot).
 

@@ -76,7 +76,9 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 - **FAQs nuevas (sql/053):** `saludo_inicial` (SEMIAUTO, activa — cliente saluda por nombre, no-cliente
   pide CUIT) y `datos_transferencia` (SEMIAUTO, **inactiva** hasta deploy — alias/CBU vienen de
   `wa_descuentos_config.pago`, editables en el Panel; lookup `payment_data` en `faq.ts`).
-- **`faq.ts`**: a un **no-cliente** solo se le sirve `institutional_response` (nunca `bot_response`).
+- **`faq.ts`**: no-cliente prioriza `institutional_response` (con fallback a `bot_response`,
+  mantenido para no dejar mudas ~23 FAQs institucionales sin institucional cargado). El saludo
+  lleva su propio `institutional_response` (pedir CUIT) para no saludar con nombre vacío.
 - **Cables creados sin enchufar (TODO, no conectados):**
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
