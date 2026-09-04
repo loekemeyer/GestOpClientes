@@ -84,6 +84,19 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
     avisar al vendedor / botón "Cerrar chat" en el Panel, y retomar el bot al reiniciar el cliente. Requiere idle-sweep + UI.
 
+## ⚠️ CI de deploy ROTO — falta secret (2026-09-04)
+
+`.github/workflows/deploy-edge-functions.yml` corre al pushear a `main`, pero **falla siempre**
+porque el secret **`SUPABASE_ACCESS_TOKEN` está vacío** ("Access token not provided"). Por eso
+las edge functions **no se deployan solas** y hay que hacerlo a mano (MCP `deploy_edge_function`).
+
+**Fix permanente (lo hace el usuario):** GitHub → Settings → Secrets and variables → Actions →
+agregar `SUPABASE_ACCESS_TOKEN` (generarlo en Supabase → Account → Access Tokens). Después
+re-correr el workflow: deploya todo, incluido `lk_whatsapp-webhook`.
+
+Mientras el secret no esté: cada cambio de edge function en `main` queda en el repo pero **no vivo**
+hasta deploy manual.
+
 ## Edge functions que NO están en este repo (solo desplegadas)
 
 `lk_notif-facturado` (path viejo, redirige a un número de test — en desuso), `lk_outbox-flush` (cron cada 2 min manda `wa_outbox`). Para verlas: `mcp Supabase get_edge_function`. Si las tocás, considerá traerlas al repo.
