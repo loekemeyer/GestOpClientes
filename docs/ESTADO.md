@@ -31,9 +31,19 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 3. `lk_factura-check` → `handleRealRedirect`: agrupa las facturas del día por **cuit + empresa + dirección**, arma el mensaje + combina PDFs, y **entrega a los números de `wa_real_redirect_to`** (nunca al cliente en modo prueba). Loguea `aviso_enviado` por destinatario.
 4. Backlog manual del día: edge `lk_notif-sim` action **`real_sweep`** (recorre los cuits facturados de hoy y redispara `lk_factura-check`).
 
-**Retenciones (no se envían):**
-- `held_metodo_mixto` — el pedido tiene facturas con **métodos de pago distintos**; el bot no sabe qué descuento/plantilla aplicar → lo deja para revisión humana (salvo excepción por cliente en `wa_descuentos_config`).
+**Método mixto (Reglas A/B, helper `planMetodos` en `lk_factura-check`):**
+- **Regla A**: si el grupo tiene UN solo método real + facturas `no_decidido` ("prefiero no decir"),
+  las `no_decidido` **adoptan ese método** → un solo mensaje (ej.: crédito + no_decidido = todo crédito).
+- **Regla B**: si hay ≥2 métodos reales distintos, las `no_decidido` pasan a **contado** y el grupo se
+  **PARTE**: un mensaje por método, cada uno con su PDF propio.
+- **Excepción por cliente** (`wa_descuentos_config.excepciones`) fuerza método e ignora el mixto.
+- `held_metodo_mixto` sólo queda en `handleGrupo` (`mode:grupo`) si llega el set de métodos distinto
+  sin método por-factura y hay ≥2 reales. Los caminos activos (real por `wa_grupos_dia_cuit`, prueba
+  por `wa_factura_grupo`) tienen método por factura y **parten** en vez de retener.
+
+**Otras retenciones:**
 - `held_tpl_no_aprobada` — la plantilla de Meta no está en estado APPROVED.
+- `held_multisource` — el grupo mezcla facturas LK y CH; queda para revisión humana.
 
 ## Flags críticos (`app_settings`, PaginaLK)
 

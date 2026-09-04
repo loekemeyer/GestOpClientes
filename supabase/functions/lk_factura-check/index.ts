@@ -122,35 +122,6 @@ async function whitelist(): Promise<string[]> {
   return (data ?? []).map((r: { phone: string }) => r.phone);
 }
 
-// ── Combinación REAL de PDFs (pdf-lib) — mismo patrón que lk_factura-consolidar ──
-// deno-lint-ignore no-explicit-any
-async function combinarPdfs(g: any, srcUsado: string, cuit: string, fecha: string) {
-  const bucket = srcUsado === "ch" ? "isis-ch" : "isis-lk";
-  const { data: paths } = await g.rpc("wa_sim_factura_paths", { p_source: srcUsado, p_cuit: cuit, p_fecha: fecha });
-  const list = (paths ?? []) as string[];
-  if (!list.length) return null;
-  const merged = await PDFDocument.create();
-  let ok = 0;
-  for (const p of list) {
-    try {
-      const dl = await g.storage.from(bucket).download(p);
-      if (dl.error || !dl.data) continue;
-      const buf = new Uint8Array(await dl.data.arrayBuffer());
-      const src = await PDFDocument.load(buf);
-      const pages = await merged.copyPages(src, src.getPageIndices());
-      pages.forEach((pg: unknown) => merged.addPage(pg as never));
-      ok++;
-    } catch { /* omite PDF ilegible */ }
-  }
-  if (!ok) return null;
-  const bytes = await merged.save();
-  const outPath = `sim/${cuit}/combinada_${fecha}.pdf`;
-  const up = await g.storage.from(bucket).upload(outPath, bytes, { contentType: "application/pdf", upsert: true });
-  if (up.error) return { path: outPath, url: null, n: ok, error: up.error.message };
-  const { data: signed } = await g.storage.from(bucket).createSignedUrl(outPath, 3600);
-  return { path: outPath, url: signed?.signedUrl ?? null, n: ok };
-}
-
 // ── Combinación REAL por lista explícita de paths (grupos reales linkeados) ──
 // deno-lint-ignore no-explicit-any
 async function combinarPaths(g: any, source: string, paths: string[], outName: string) {
@@ -390,6 +361,35 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
   };
 }
 
+// ── Método mixto: reglas acordadas (ver docs/plantillas_whatsapp.md) ──
+// A) Si en el grupo hay UN solo método real (≠ "no_decidido"), las facturas "no_decidido"
+//    adoptan ese método → un solo mensaje con ese método (ej.: crédito + "prefiero no decir"
+//    → todo crédito). Si no hay ningún método real, queda "no_decidido" (se trata como contado).
+// B) Si hay >1 método real distinto, las "no_decidido" pasan a CONTADO y el grupo se PARTE:
+//    un mensaje por cada método distinto, cada uno con sus propias facturas (y su propio PDF).
+interface FacMin { total: number; metodo: string; storage_path?: string | null; comprobante_id?: string | null }
+function ordenMetodo(m: string): number { return m === "contado" ? 0 : m.startsWith("credito") ? 1 : 2; }
+// Devuelve los sub-grupos a enviar. Con excepción por cliente (metodoForzado) NO se parte:
+// un único sub-grupo con ese método para todas las facturas.
+function planMetodos(facturas: FacMin[], metodoForzado?: string | null): { metodo: string; facturas: FacMin[] }[] {
+  const norm = (m: string) => m || "no_decidido";
+  if (metodoForzado) return [{ metodo: metodoForzado, facturas }];
+  const reales = Array.from(new Set(facturas.map((f) => norm(f.metodo)).filter((m) => m !== "no_decidido")));
+  if (reales.length <= 1) {
+    // Regla A: un solo mensaje; "no_decidido" adopta el único método real (o queda no_decidido→contado).
+    return [{ metodo: reales[0] || "no_decidido", facturas }];
+  }
+  // Regla B: "no_decidido" → contado; se agrupa por método resuelto y se manda uno por método.
+  const byMetodo = new Map<string, FacMin[]>();
+  for (const f of facturas) {
+    const m = norm(f.metodo) === "no_decidido" ? "contado" : norm(f.metodo);
+    (byMetodo.get(m) ?? byMetodo.set(m, []).get(m)!).push(f);
+  }
+  return Array.from(byMetodo.entries())
+    .sort((a, b) => ordenMetodo(a[0]) - ordenMetodo(b[0]))
+    .map(([metodo, facturas]) => ({ metodo, facturas }));
+}
+
 // ── Modo GRUPO: envío REAL redirigido de un grupo real ya linkeado (NP↔factura) ──
 // Recibe el grupo completo (comprobantes/paths/totales/metodos) y lo entrega SÓLO al número
 // de redirección (Thomy) — nunca al cliente. Guardas: config de redirección + fecha de HOY +
@@ -414,48 +414,72 @@ async function handleGrupo(body: any) {
 
   const empresa = String(body.empresa ?? "lk");
   const source = empresa === "chef" ? "ch" : "lk";
-  const metodos = (body.metodos ?? []) as string[];
-  const facturas = totales.map((t: number) => ({ total: t }));
-  const metodoMixto = metodos.length > 1;
-  const metodo = metodos[0] || "no_decidido";
+  const storagePaths = (body.storage_paths ?? []) as string[];
+  const comprobantes = (body.comprobantes ?? []) as string[];
+  const metodosFac = (body.metodos_fac ?? []) as string[];   // método por factura (si el emisor lo manda)
+  const metodosDistinct = (body.metodos ?? []) as string[];  // set distinto (fallback)
+  const cfg = await loadDtoCfg();
+  const g = await gp();
+  const total_sum = totales.reduce((s: number, t: number) => s + t, 0);
 
-  let estado = "delivered";
-  // deno-lint-ignore no-explicit-any
-  let mensaje: any = null;
-  if (metodoMixto) estado = "held_metodo_mixto";
-  else {
-    const cfg = await loadDtoCfg();
-    mensaje = await armarMensaje(metodo, facturas, String(body.dia ?? hoy), cfg);
+  // Plan de métodos (Reglas A/B). Con método por-factura (metodos_fac) se puede PARTIR por método;
+  // con sólo el set distinto se aplica Regla A y, si hay >1 método real, se retiene (no se puede
+  // partir con seguridad sin saber qué factura es de cada método).
+  let subgrupos: { metodo: string; facturas: FacMin[] }[];
+  let heldMixtoSinSplit = false;
+  if (metodosFac.length === totales.length && totales.length > 0) {
+    const facMin: FacMin[] = totales.map((t: number, i: number) => ({ total: Number(t || 0), metodo: metodosFac[i] || "no_decidido", storage_path: storagePaths[i] ?? null, comprobante_id: comprobantes[i] ?? null }));
+    subgrupos = planMetodos(facMin);
+  } else {
+    const facMin: FacMin[] = totales.map((t: number, i: number) => ({ total: Number(t || 0), metodo: "no_decidido", storage_path: storagePaths[i] ?? null, comprobante_id: comprobantes[i] ?? null }));
+    const reales = Array.from(new Set(metodosDistinct.map((m) => m || "no_decidido").filter((m) => m !== "no_decidido")));
+    if (reales.length <= 1) subgrupos = [{ metodo: reales[0] || "no_decidido", facturas: facMin }];
+    else { subgrupos = []; heldMixtoSinSplit = true; }
+  }
+
+  // >1 método real sin poder partir → retener para revisión (no se envía).
+  if (heldMixtoSinSplit) {
+    await paginalk.from("wa_shadow_log").upsert({
+      group_key: gk, empresa, cod_cliente: body.cod_cliente ?? null, dia: body.dia ?? null,
+      n_facturas: totales.length, estado: "held_metodo_mixto", wamid: null, total_sum, redirect_to: redirect, mensaje: null,
+    }, { onConflict: "group_key" });
+    return json({ mode: "grupo", group_key: gk, estado: "held_metodo_mixto", n_facturas: totales.length, redirect_to: redirect });
+  }
+
+  const multiMetodo = subgrupos.length > 1;
+  const entregas: unknown[] = [];
+  for (const sub of subgrupos) {
+    const sgKey = multiMetodo ? `${gk}|${sub.metodo}` : gk;
+    const sub_total = sub.facturas.reduce((s, f) => s + Number(f.total || 0), 0);
+    let estado = "delivered";
+    // deno-lint-ignore no-explicit-any
+    const mensaje: any = await armarMensaje(sub.metodo, sub.facturas, String(body.dia ?? hoy), cfg);
     const st = await tplStatus(mensaje.template);
     mensaje.tpl_status = st;
     if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
-    mensaje.real_group = { group_key: gk, cod_cliente: body.cod_cliente ?? null, comprobantes: body.comprobantes ?? [] };
-  }
+    mensaje.real_group = { group_key: sgKey, cod_cliente: body.cod_cliente ?? null, comprobantes: sub.facturas.map((f) => f.comprobante_id).filter(Boolean) };
+    if (multiMetodo) mensaje.split_metodo = { metodo: sub.metodo, n_sub: subgrupos.length };
 
-  const g = await gp();
-  let pdf = null;
-  if (mensaje && !metodoMixto) {
-    pdf = await combinarPaths(g, source, (body.storage_paths ?? []) as string[], gk.replace(/[^0-9a-zA-Z]+/g, "_"));
+    const pdf = await combinarPaths(g, source, sub.facturas.map((f) => f.storage_path).filter(Boolean) as string[], sgKey.replace(/[^0-9a-zA-Z]+/g, "_"));
     mensaje.pdf_combinado = pdf ? { path: pdf.path, n: pdf.n, ok: !!pdf.url } : null;
-  }
 
-  let envio = null;
-  if (estado === "delivered") {
-    envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null);
-    estado = envio.ok ? "sent_whatsapp" : "error_envio";
-    mensaje.envio = { to: redirect, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
-    if (estado === "sent_whatsapp") {
-      try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", comprobante: (body.comprobantes ?? [])[0] ?? null, source, detalle: { group_key: gk, n_facturas: facturas.length, cod_cliente: body.cod_cliente ?? null, real: true, redirect: true } }); } catch (_e) { /* log best-effort */ }
+    let envio = null;
+    if (estado === "delivered") {
+      envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null);
+      estado = envio.ok ? "sent_whatsapp" : "error_envio";
+      mensaje.envio = { to: redirect, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
+      if (estado === "sent_whatsapp") {
+        try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", comprobante: sub.facturas[0]?.comprobante_id ?? null, source, detalle: { group_key: sgKey, n_facturas: sub.facturas.length, cod_cliente: body.cod_cliente ?? null, metodo: sub.metodo, real: true, redirect: true } }); } catch (_e) { /* log best-effort */ }
+      }
     }
+    await paginalk.from("wa_shadow_log").upsert({
+      group_key: sgKey, empresa, cod_cliente: body.cod_cliente ?? null, dia: body.dia ?? null,
+      n_facturas: sub.facturas.length, estado, wamid: envio?.wamid ?? null, total_sum: sub_total, redirect_to: redirect, mensaje,
+    }, { onConflict: "group_key" });
+    entregas.push({ group_key: sgKey, metodo: sub.metodo, estado, n_facturas: sub.facturas.length, template: mensaje.template, envio });
   }
 
-  const total_sum = totales.reduce((s: number, t: number) => s + t, 0);
-  await paginalk.from("wa_shadow_log").upsert({
-    group_key: gk, empresa, cod_cliente: body.cod_cliente ?? null, dia: body.dia ?? null,
-    n_facturas: facturas.length, estado, wamid: envio?.wamid ?? null, total_sum, redirect_to: redirect, mensaje,
-  }, { onConflict: "group_key" });
-
-  return json({ mode: "grupo", group_key: gk, estado, n_facturas: facturas.length, template: mensaje?.template ?? null, envio, redirect_to: redirect });
+  return json({ mode: "grupo", group_key: gk, split_metodo: multiMetodo, entregas, redirect_to: redirect });
 }
 
 // ── Camino REAL event-driven: cada factura que impacta hoy → identifica factura↔NP y agrupa
@@ -484,53 +508,59 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
     const destino = gr.destino || "(s/dir)";
     const source = gr.empresa === "chef" ? "ch" : "lk";
     const totales = (gr.totales ?? []) as number[];
-    const metodos = (gr.metodos ?? []) as string[];
-    const facturas = totales.map((t) => ({ total: t }));
-    // Excepción por cliente: fuerza el método elegido (ignora la condición de venta / método mixto).
+    const storagePaths = (gr.storage_paths ?? []) as string[];
+    const comprobantes = (gr.comprobantes ?? []) as string[];
+    // Método por factura (alineado con totales/paths/comprobantes por comprobante_id).
+    const metodosFac = (gr.metodos_fac ?? gr.metodos ?? []) as string[];
+    const facMin: FacMin[] = totales.map((t, i) => ({
+      total: Number(t || 0), metodo: metodosFac[i] || metodosFac[0] || "no_decidido",
+      storage_path: storagePaths[i] ?? null, comprobante_id: comprobantes[i] ?? null,
+    }));
+    // Excepción por cliente: fuerza el método (ignora la condición de venta / método mixto).
     const ov = metodoExcepcion(cfg, cuit, gr.razon_social);
-    const metodoMixto = ov ? false : metodos.length > 1;
-    const metodo = ov || metodos[0] || "no_decidido";
-    const total_sum = totales.reduce((s, t) => s + Number(t || 0), 0);
+    const subgrupos = planMetodos(facMin, ov);
+    const multiMetodo = subgrupos.length > 1;
 
-    // Mensaje + PDF combinado se arman UNA vez por grupo (mismo para todos los destinos).
-    let estado0 = "delivered";
-    // deno-lint-ignore no-explicit-any
-    let base: any = null;
-    if (metodoMixto) estado0 = "held_metodo_mixto";
-    else {
-      base = await armarMensaje(metodo, facturas, fecha, cfg);
+    // Cada sub-grupo (por método) se arma UNA vez y se entrega a cada destino.
+    for (const sub of subgrupos) {
+      const sub_total = sub.facturas.reduce((s, f) => s + Number(f.total || 0), 0);
+      const sub_comprob = sub.facturas.map((f) => f.comprobante_id).filter(Boolean);
+      let estado0 = "delivered";
+      // deno-lint-ignore no-explicit-any
+      const base: any = await armarMensaje(sub.metodo, sub.facturas, fecha, cfg);
       const st = await tplStatus(base.template);
       base.tpl_status = st;
       if (st && st !== "APPROVED") estado0 = "held_tpl_no_aprobada";
-      base.real_group = { cuit, empresa: gr.empresa, destino, cod_cliente: gr.cod_cliente ?? null, razon_social: gr.razon_social ?? null, comprobantes: gr.comprobantes ?? [] };
-    }
-    let pdf = null;
-    if (base && !metodoMixto) {
-      pdf = await combinarPaths(g, source, (gr.storage_paths ?? []) as string[], `${cuit}|${gr.empresa}|${destino}|${fecha}`.replace(/[^0-9a-zA-Z]+/g, "_"));
+      base.real_group = { cuit, empresa: gr.empresa, destino, cod_cliente: gr.cod_cliente ?? null, razon_social: gr.razon_social ?? null, comprobantes: sub_comprob };
+      if (multiMetodo) base.split_metodo = { metodo: sub.metodo, n_sub: subgrupos.length };
+      // PDF combinado: SÓLO las facturas de este sub-grupo (un PDF por método).
+      const pdf = await combinarPaths(g, source, sub.facturas.map((f) => f.storage_path).filter(Boolean) as string[], `${cuit}|${gr.empresa}|${destino}|${fecha}|${sub.metodo}`.replace(/[^0-9a-zA-Z]+/g, "_"));
       base.pdf_combinado = pdf ? { path: pdf.path, n: pdf.n, ok: !!pdf.url } : null;
-    }
 
-    // Se entrega a cada destino (Thomy, Luis, …). Idempotente por (grupo, destino).
-    for (const to of redirects) {
-      const gk = `real|${cuit}|${gr.empresa}|${destino}|${fecha}|${to}`;
-      const { data: prev } = await paginalk.from("wa_shadow_log").select("estado,n_facturas").eq("group_key", gk).maybeSingle();
-      if (prev && prev.estado === "sent_whatsapp" && (prev.n_facturas ?? 0) >= facturas.length) { out.push({ empresa: gr.empresa, destino, to, skipped: "ya_enviado" }); continue; }
-      let estado = estado0;
-      const mensaje = base ? { ...base } : null;
-      let envio = null;
-      if (estado === "delivered") {
-        envio = await enviarWhatsapp(to, mensaje, pdf?.url ?? null);
-        estado = envio.ok ? "sent_whatsapp" : "error_envio";
-        if (mensaje) mensaje.envio = { to, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
-        if (estado === "sent_whatsapp") {
-          try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", cuit, source, detalle: { empresa: gr.empresa, destino, to, n_facturas: facturas.length, real: true, redirect: true } }); } catch (_e) { /* best-effort */ }
+      // Se entrega a cada destino (Thomy, Luis, …). Idempotente por (grupo, método, destino).
+      for (const to of redirects) {
+        const gk = multiMetodo
+          ? `real|${cuit}|${gr.empresa}|${destino}|${fecha}|${to}|${sub.metodo}`
+          : `real|${cuit}|${gr.empresa}|${destino}|${fecha}|${to}`;
+        const { data: prev } = await paginalk.from("wa_shadow_log").select("estado,n_facturas").eq("group_key", gk).maybeSingle();
+        if (prev && prev.estado === "sent_whatsapp" && (prev.n_facturas ?? 0) >= sub.facturas.length) { out.push({ empresa: gr.empresa, destino, to, metodo: sub.metodo, skipped: "ya_enviado" }); continue; }
+        let estado = estado0;
+        const mensaje = { ...base };
+        let envio = null;
+        if (estado === "delivered") {
+          envio = await enviarWhatsapp(to, mensaje, pdf?.url ?? null);
+          estado = envio.ok ? "sent_whatsapp" : "error_envio";
+          mensaje.envio = { to, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
+          if (estado === "sent_whatsapp") {
+            try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", cuit, source, detalle: { empresa: gr.empresa, destino, to, n_facturas: sub.facturas.length, metodo: sub.metodo, real: true, redirect: true } }); } catch (_e) { /* best-effort */ }
+          }
         }
+        await paginalk.from("wa_shadow_log").upsert({
+          group_key: gk, empresa: gr.empresa ?? source, cod_cliente: gr.cod_cliente ?? null, dia: fecha,
+          n_facturas: sub.facturas.length, estado, wamid: envio?.wamid ?? null, total_sum: sub_total, redirect_to: to, mensaje,
+        }, { onConflict: "group_key" });
+        out.push({ empresa: gr.empresa, destino, to, metodo: sub.metodo, estado, n_facturas: sub.facturas.length, template: base.template });
       }
-      await paginalk.from("wa_shadow_log").upsert({
-        group_key: gk, empresa: gr.empresa ?? source, cod_cliente: gr.cod_cliente ?? null, dia: fecha,
-        n_facturas: facturas.length, estado, wamid: envio?.wamid ?? null, total_sum, redirect_to: to, mensaje,
-      }, { onConflict: "group_key" });
-      out.push({ empresa: gr.empresa, destino, to, estado, n_facturas: facturas.length, template: base?.template ?? null });
     }
   }
 
@@ -556,11 +586,11 @@ serve(async (req) => {
 
     const modo = (await getSetting("wa_factura_envio_modo")) || "modulo";
     // Mapear cuit → grupo (cod|destino|dia). Para prueba, desde wa_sim_control (ISIS).
-    let cod = "", direccion = "", metodoCtrl = "", destPhone = "";
+    let cod = "", direccion = "", destPhone = "";
     {
       const { data: ctrl } = await g.from("wa_sim_control").select("*").eq("cuit", cuit).eq("fecha", fecha).maybeSingle();
       if (!ctrl) return json({ skipped: "sin_control", cuit });
-      cod = ctrl.cod_cliente; direccion = ctrl.direccion; metodoCtrl = ctrl.metodo; destPhone = ctrl.dest_phone || "";
+      cod = ctrl.cod_cliente; direccion = ctrl.direccion; destPhone = ctrl.dest_phone || "";
     }
     const destino = (direccion || "").toUpperCase() || "(s/dir)";
     const grupoKey = `${cod}|${destino}|${fecha}`;
@@ -587,65 +617,84 @@ serve(async (req) => {
     if (!facturas.length) return json({ complete: true, note: "grupo completo pero sin documentos parseados aún" });
 
     const cfg = await loadDtoCfg();
-    const metodos = Array.from(new Set(facturas.map((f: Record<string, unknown>) => f.metodo).filter(Boolean)));
-    // Excepción por cliente: fuerza el método elegido (ignora condición de venta / método mixto).
+    // Excepción por cliente: fuerza el método (ignora condición de venta / método mixto).
     const ov = metodoExcepcion(cfg, cuit, grupo.razon_social);
-    const metodoMixto = ov ? false : metodos.length > 1;
-    const metodo = ov || (facturas[0]?.metodo as string) || metodoCtrl || "no_decidido";
+    const total_sum = facturas.reduce((s: number, f: Record<string, unknown>) => s + Number(f.total || 0), 0);
 
-    let estado = "delivered";
-    // deno-lint-ignore no-explicit-any
-    let mensaje: any = null;
-    if (multisource) estado = "held_multisource";
-    else if (metodoMixto) estado = "held_metodo_mixto";
-    else {
-      mensaje = await armarMensaje(metodo, facturas, fecha, cfg);
-      // No enviar con plantilla no aprobada por Meta (Meta la rechazaría).
+    // Multisource (lk+ch en el mismo grupo): no se envía, queda para revisión humana.
+    if (multisource) {
+      const { error: inbErr } = await paginalk.from("wa_sim_inbox").insert({
+        source: srcUsado, grupo_key: grupoKey, cuit, cod_cliente: cod,
+        business_name: grupo.razon_social ?? "CLIENTE SIMULACIÓN", fecha,
+        n_facturas: facturas.length, total_sum, metodo: (facturas[0]?.metodo as string) || "no_decidido",
+        estado: "held_multisource", mensaje: null,
+      });
+      if (inbErr) {
+        await g.from("wa_grupo_listo").update({ enviado: false, enviado_at: null }).eq("grupo_key", grupoKey);
+        return json({ error: "entrega inbox: " + inbErr.message }, 500);
+      }
+      return json({ ok: true, delivered: true, destino: modo, estado: "held_multisource", grupo_key: grupoKey, multisource, source: srcUsado, n_facturas: facturas.length });
+    }
+
+    // Plan de métodos (Reglas A/B): "no_decidido" adopta el método real presente, o se parte
+    // en un mensaje por método cuando hay >1 método real distinto.
+    const facMin: FacMin[] = facturas.map((f: Record<string, unknown>) => ({
+      total: Number(f.total || 0), metodo: String(f.metodo || "no_decidido"),
+      storage_path: (f.storage_path as string) ?? null, comprobante_id: (f.comprobante_id as string) ?? null,
+    }));
+    const subgrupos = planMetodos(facMin, ov);
+    const multiMetodo = subgrupos.length > 1;
+
+    let wl: string[] | null = null;
+    let anySent = false;
+    const entregas: unknown[] = [];
+    for (const sub of subgrupos) {
+      const sgKey = multiMetodo ? `${grupoKey}|${sub.metodo}` : grupoKey;
+      const sub_total = sub.facturas.reduce((s, f) => s + Number(f.total || 0), 0);
+      let estado = "delivered";
+      // deno-lint-ignore no-explicit-any
+      const mensaje: any = await armarMensaje(sub.metodo, sub.facturas, fecha, cfg);
       const st = await tplStatus(mensaje.template);
       mensaje.tpl_status = st;
       if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
-    }
+      if (multiMetodo) mensaje.split_metodo = { metodo: sub.metodo, de_grupo: grupoKey, n_sub: subgrupos.length };
 
-    const total_sum = facturas.reduce((s: number, f: Record<string, unknown>) => s + Number(f.total || 0), 0);
+      // PDF combinado: SÓLO las facturas de este sub-grupo (un PDF por método).
+      const pdf = await combinarPaths(g, srcUsado, sub.facturas.map((f) => f.storage_path).filter(Boolean) as string[], `${grupoKey}|${sub.metodo}`.replace(/[^0-9a-zA-Z]+/g, "_"));
+      mensaje.pdf_combinado = pdf ? { path: pdf.path, n: pdf.n, ok: !!pdf.url } : null;
 
-    // ── Combinación REAL de los PDFs (se prueba de verdad aunque no se envíe) ──
-    let pdfCombinado = null;
-    if (mensaje && !multisource && !metodoMixto) {
-      pdfCombinado = await combinarPdfs(g, srcUsado, cuit, fecha);
-      mensaje.pdf_combinado = pdfCombinado ? { path: pdfCombinado.path, n: pdfCombinado.n, ok: !!pdfCombinado.url } : null;
-    }
-
-    // ── Envío REAL por WhatsApp — SÓLO a números de la lista blanca (imperativo de seguridad) ──
-    // Gate: hay número destino + plantilla lista (estado 'delivered') + número autorizado.
-    // Sin dest_phone (ej. Avisos automáticos) NUNCA se envía: queda en el módulo.
-    let envio = null;
-    if (estado === "delivered" && destPhone) {
-      const wl = await whitelist();
-      if (!wl.includes(destPhone)) {
-        estado = "held_no_whitelist";
-      } else {
-        envio = await enviarWhatsapp(destPhone, mensaje, pdfCombinado?.url ?? null);
-        estado = envio.ok ? "sent_whatsapp" : "error_envio";
-        mensaje.envio = { to: destPhone, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
-        if (estado === "sent_whatsapp") {
-          try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", cuit, source: srcUsado, detalle: { grupo_key: grupoKey, n_facturas: facturas.length, dest: destPhone } }); } catch (_e) { /* log best-effort */ }
+      // ── Envío REAL por WhatsApp — SÓLO a números de la lista blanca (imperativo de seguridad) ──
+      // Sin dest_phone (ej. Avisos automáticos) NUNCA se envía: queda en el módulo.
+      let envio = null;
+      if (estado === "delivered" && destPhone) {
+        if (wl === null) wl = await whitelist();
+        if (!wl.includes(destPhone)) estado = "held_no_whitelist";
+        else {
+          envio = await enviarWhatsapp(destPhone, mensaje, pdf?.url ?? null);
+          estado = envio.ok ? "sent_whatsapp" : "error_envio";
+          mensaje.envio = { to: destPhone, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
+          if (estado === "sent_whatsapp") {
+            anySent = true;
+            try { await g.from("wa_pipeline_log").insert({ event: "aviso_enviado", cuit, source: srcUsado, detalle: { grupo_key: sgKey, n_facturas: sub.facturas.length, dest: destPhone, metodo: sub.metodo } }); } catch (_e) { /* log best-effort */ }
+          }
         }
       }
+
+      // Registrar en el módulo (siempre, para trazabilidad — enviado o no).
+      const { error: inbErr } = await paginalk.from("wa_sim_inbox").insert({
+        source: srcUsado, grupo_key: sgKey, cuit, cod_cliente: cod,
+        business_name: grupo.razon_social ?? "CLIENTE SIMULACIÓN", fecha,
+        n_facturas: sub.facturas.length, total_sum: sub_total, metodo: sub.metodo, estado, mensaje,
+      });
+      if (inbErr) {
+        // Liberamos el claim para reintentar SÓLO si todavía no se envió nada del grupo.
+        if (!anySent) await g.from("wa_grupo_listo").update({ enviado: false, enviado_at: null }).eq("grupo_key", grupoKey);
+        return json({ error: "entrega inbox: " + inbErr.message }, 500);
+      }
+      entregas.push({ grupo_key: sgKey, metodo: sub.metodo, estado, n_facturas: sub.facturas.length, template: mensaje.template, envio });
     }
 
-    // Registrar en el módulo (siempre, para trazabilidad — enviado o no).
-    const { error: inbErr } = await paginalk.from("wa_sim_inbox").insert({
-      source: srcUsado, grupo_key: grupoKey, cuit, cod_cliente: cod,
-      business_name: grupo.razon_social ?? "CLIENTE SIMULACIÓN", fecha,
-      n_facturas: facturas.length, total_sum, metodo, estado, mensaje,
-    });
-    if (inbErr) {
-      // Si NO se envió por WhatsApp, liberamos el claim para reintentar. Si ya se envió, no.
-      if (estado !== "sent_whatsapp") await g.from("wa_grupo_listo").update({ enviado: false, enviado_at: null }).eq("grupo_key", grupoKey);
-      return json({ error: "entrega inbox: " + inbErr.message }, 500);
-    }
-
-    return json({ ok: true, delivered: true, destino: destPhone ? "whatsapp" : modo, estado, grupo_key: grupoKey, multisource, source: srcUsado, n_facturas: facturas.length, dest_phone: destPhone || null, envio, mensaje });
+    return json({ ok: true, delivered: true, destino: destPhone ? "whatsapp" : modo, grupo_key: grupoKey, multisource, source: srcUsado, n_facturas: facturas.length, dest_phone: destPhone || null, split_metodo: multiMetodo, entregas });
   } catch (err) {
     console.error("lk_factura-check error:", err);
     return json({ error: err instanceof Error ? err.message : String(err) }, 500);

@@ -176,7 +176,8 @@ Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $1
 
 `supabase/functions/lk_factura-check` (`armarMensaje`) decide:
 - **Grupo por método** (`wa_metodo_norm` sobre `condicion_venta` de la factura):
-  contado / no_decidido → contado · credito_* → credito · echeq_* → echeq.
+  contado → contado · credito_* → credito · echeq_* → echeq · sin match → `no_decidido`
+  (banda propia; el edge function la resuelve al armar — ver "Método mixto" abajo).
 - **Single vs múltiple**: según cantidad de facturas del pedido.
 - **Descuentos y plazos**: se leen de `app_settings.wa_descuentos_config` (editable en el
   **Panel de Control → 💰 Descuentos por pago**). Defaults: contado 25% (vence a 14 días),
@@ -194,9 +195,24 @@ de la factura + días de contado. Contado muestra "*Total a pagar Contado ({dto}
 Nombres configurables en `app_settings` (PaginaLK): `wa_tpl_contado`, `wa_tpl_credito`,
 `wa_tpl_echeq`, `wa_tpl_contado_multiple`, `wa_tpl_credito_multiple`, `wa_tpl_echeq_multiple`.
 
-**Chequeo de método mixto**: si en un grupo de facturas no todas tienen el mismo método,
-el bot marca `metodo_mixto: true` y pone `estado='held_metodo_mixto'` (no procede al envío
-hasta revisión). Las 6 usan el separador ` / ` para la lista de importes `{{3}}`.
+**Método mixto (reglas implementadas en `lk_factura-check`, helper `planMetodos`)**: `wa_metodo_norm`
+NO colapsa `no_decidido` a contado — deja `no_decidido` como su propia banda. El colapso lo hace el
+edge function al armar el envío:
+
+- **Regla A — un solo método real + `no_decidido`**: las facturas `no_decidido` **adoptan el método
+  real presente** (ej.: crédito 30d + "prefiero no decir" → todo crédito 30d). Un solo mensaje.
+- **Regla B — ≥2 métodos reales distintos** (ej.: crédito + e-cheq): las `no_decidido` pasan a
+  **contado** y el grupo se **PARTE**: un mensaje por cada método distinto, cada uno con sus propias
+  facturas y su **propio PDF** combinado. `mensaje.split_metodo` marca cada parte.
+- **Sin método real** (todo `no_decidido`): se trata como contado (comportamiento previo).
+- **Excepción por cliente** (`wa_descuentos_config.excepciones`): fuerza un método para todas las
+  facturas del cliente e **ignora** el mixto (no parte).
+- `held_metodo_mixto` sólo queda en `handleGrupo` (entrypoint `mode:grupo`) cuando llega el set de
+  métodos **distinto** sin método por-factura (`metodos_fac`) y hay ≥2 reales — ahí no se puede
+  partir con seguridad. Los caminos activos (evento real por `wa_grupos_dia_cuit` y prueba por
+  `wa_factura_grupo`) sí tienen método por factura y **parten** en vez de retener.
+
+Las 6 plantillas usan el separador ` / ` para la lista de importes `{{3}}`.
 
 **Gatillo (dormant)**: `sql/gp_trigger_grupo_listo.sql` (GP) crea el trigger
 `wa_np_facturado_trg` sobre `Facturacion_NP` que, al facturarse la última NP de un grupo
