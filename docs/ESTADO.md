@@ -97,6 +97,15 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 - **FAQ `alta_cliente` (id=6) DESACTIVADA** (sql/054): era `needs_human` y escalaba a un vendedor
   cuando el no-cliente pedía registrarse. Ahora el **intake self-service** (`wa_prospect_leads`, en el
   webhook) toma los datos paso a paso, así que esa FAQ ya no debe interceptar.
+- **Backlog matcher (pulir después, 2026-09-04):** minamos `bot_historial_chat` (712 msgs de
+  usuario). Conclusión: **no hay problema de typos** — las variantes (plurales/conjugaciones) ya las
+  cubre el ancla `\m`; los typos reales son freq-1 e idiosincráticos (no baja el umbral difuso 0.55).
+  Huecos de **vocabulario** reales a agregar (frases, NO palabras sueltas para no pisar intents):
+  (1) `derivame`/`derivar`/`pasame con un humano` → FAQ contacto_vendedor (id=33);
+  (2) `mis pedidos`/`que pedidos tengo`/`pedidos tengo`/`ver mis pedidos` → order_status (id=9).
+  Otros a evaluar: keywords redundantes/ruidosas en `greeting_fallback` (id=40: `puedo`,`necesito`,
+  `consulta`), overlap pago id=15 vs id=42, y decidir prioridad lista-genérica (id=11) vs
+  precio-de-artículo (id=12) cuando el cliente nombra un producto.
 - Registro por CUIT: valida módulo 11; CUIT inválido → avisa; guarda historial.
   Copy no-cliente: *"No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?"*.
 - **Alta de cliente nuevo (webhook, portada de `lk_chat-test` el 2026-09-04):** cuando el
