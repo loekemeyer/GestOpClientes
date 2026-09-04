@@ -2,7 +2,7 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-09-02.
+> Última actualización: 2026-09-04.
 
 ## Dos proyectos Supabase (¡importante!)
 
@@ -61,9 +61,26 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 
 ## Bot de chat (webhook)
 
-- Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). Flujo: whitelist gate → modo humano → FAQ (`wa_faq`) → registro por CUIT → agente IA.
+- Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). **Stateless**: cada mensaje cae por
+  las mismas compuertas. Mapa visual: `docs/mapa-flujo-bot.html`.
+- **Flujo cara-al-cliente (acordado 2026-09-04, `handleMessage` 0→6):**
+  0. **Killswitch** (`wa_bot_solo_whitelist`): envuelve todo; decide si el flujo corre para ese número.
+  1. **Modo humano**: si un vendedor tomó la charla (`modo=humano`), el bot no pisa; retoma al volver a `bot`.
+  2. **ID por número** (`customer_phones`).
+  3. **Request → FAQ** (0 tokens): bifurca cliente (`bot_response`) / no-cliente (`institutional_response`).
+  4. **Sin FAQ**: cliente → agente IA (responde si puede, si no escala a humano); no-cliente → registro por CUIT.
+  - "Request" = cualquier consulta/duda/pedido del cliente.
 - FAQ categorías: AUTO/SEMIAUTO/IA/HUMANO. Pestaña "Preguntas frecuentes" en el front lee `wa_faq` + `wa_faq_lookup_tokens`. Escritura solo vía `lk_faq-admin` (admin). Ver regla de sincronización en `CLAUDE.md`.
 - Registro por CUIT: valida módulo 11; CUIT inválido → avisa; guarda historial.
+  Copy no-cliente: *"No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?"*.
+- **FAQs nuevas (sql/053):** `saludo_inicial` (SEMIAUTO, activa — cliente saluda por nombre, no-cliente
+  pide CUIT) y `datos_transferencia` (SEMIAUTO, **inactiva** hasta deploy — alias/CBU vienen de
+  `wa_descuentos_config.pago`, editables en el Panel; lookup `payment_data` en `faq.ts`).
+- **`faq.ts`**: a un **no-cliente** solo se le sirve `institutional_response` (nunca `bot_response`).
+- **Cables creados sin enchufar (TODO, no conectados):**
+  - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
+  - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
+    avisar al vendedor / botón "Cerrar chat" en el Panel, y retomar el bot al reiniciar el cliente. Requiere idle-sweep + UI.
 
 ## Edge functions que NO están en este repo (solo desplegadas)
 

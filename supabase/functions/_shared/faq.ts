@@ -75,28 +75,37 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     };
   }
 
-  // SEMIAUTO con lookup a Supabase (0 tokens). Requiere cliente.
-  if (top.requires_db_lookup && customer) {
-    const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top);
-    if (lookupReply) {
-      return {
-        reply: lookupReply,
-        intent: top.db_lookup_type || "faq_lookup",
-        automation_level: "semi_auto",
-        faq_id: top.faq_id,
-      };
+  // SEMIAUTO con lookup a Supabase (0 tokens).
+  if (top.requires_db_lookup) {
+    // payment_data (alias/CBU) NO requiere cliente: los datos para transferir
+    // se sirven igual a clientes y no-clientes, tomados de una config editable
+    // (app_settings.wa_descuentos_config → pago.alias / pago.cbu). Nunca hard-coded.
+    if (top.db_lookup_type === "payment_data") {
+      const r = await lookupPaymentData(top, customer);
+      if (r) return { reply: r, intent: "payment_data", automation_level: "semi_auto", faq_id: top.faq_id };
+    } else if (customer) {
+      const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top);
+      if (lookupReply) {
+        return {
+          reply: lookupReply,
+          intent: top.db_lookup_type || "faq_lookup",
+          automation_level: "semi_auto",
+          faq_id: top.faq_id,
+        };
+      }
+      // Si el lookup no aplica, caemos a respuesta estática de más abajo
     }
-    // Si el lookup no aplica, caemos a respuesta estática de más abajo
   }
 
   // ── Elección cliente / no-cliente ──────────────────────────────────────
-  // Cliente identificado    → prioriza bot_response (personalizado)
-  // Sin cliente             → prioriza institutional_response (institucional)
-  // En ambos casos, fallback al otro campo si el preferido está vacío.
+  // Cliente identificado → bot_response (personalizado; fallback a institucional).
+  // Sin cliente          → SOLO institutional_response. Nunca bot_response: ese
+  //   campo puede traer datos/nombre del cliente y no debe filtrarse a un no-cliente.
+  //   Si la FAQ no tiene institucional, devolvemos null → cae al registro (pedir CUIT).
   const isCliente = !!customer;
   const primary = isCliente
     ? (top.bot_response ?? top.institutional_response)
-    : (top.institutional_response ?? top.bot_response);
+    : top.institutional_response;
   if (!primary || !String(primary).trim()) return null;
 
   // web_first_response se antepone solo si el cliente está identificado
@@ -134,6 +143,30 @@ async function handleFaqLookup(
     case "order_modify":       return lookupOrderModify(customer);
     default:                   return null;
   }
+}
+
+// Datos para transferir (alias / CBU). SEMIAUTO editable: el texto se edita en
+// wa_faq (tokens {{alias}} {{cbu}}); los valores salen de app_settings.wa_descuentos_config
+// (pago.alias / pago.cbu), editables desde el Panel de Control. Sirve a cliente y no-cliente.
+const PAGO_ALIAS_FALLBACK = "loeke.srl";
+const PAGO_CBU_FALLBACK = "1910027855002702387450";
+// deno-lint-ignore no-explicit-any
+async function lookupPaymentData(faq: any, customer: Customer): Promise<string | null> {
+  let alias = PAGO_ALIAS_FALLBACK, cbu = PAGO_CBU_FALLBACK;
+  const { data } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
+  try {
+    const cfg = JSON.parse(String(data?.value ?? "{}"));
+    if (cfg?.pago?.alias) alias = String(cfg.pago.alias).trim() || alias;
+    if (cfg?.pago?.cbu) cbu = String(cfg.pago.cbu).trim() || cbu;
+  } catch { /* usa fallbacks */ }
+  const isCliente = !!customer;
+  // Datos de pago son institucionales (no traen dato personal): para no-cliente
+  // se prioriza institutional_response, con fallback a bot_response.
+  const tpl = isCliente
+    ? (faq.bot_response ?? faq.institutional_response)
+    : (faq.institutional_response ?? faq.bot_response);
+  if (!tpl || !String(tpl).trim()) return null;
+  return renderTemplate(String(tpl), { nombre_cliente: customer?.business_name, alias, cbu }).trim();
 }
 
 async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<string> {

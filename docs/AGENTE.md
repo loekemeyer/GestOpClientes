@@ -80,3 +80,18 @@ límite o un permiso. El flujo:
 
 Las consultas se administran desde el submódulo **Consultas** del dashboard
 (tabla `wa_agente_consultas`), no dentro de este texto.
+
+---
+
+## Flujo cara-al-cliente — actualización 2026-09-04
+
+Flujo objetivo acordado (ver mapa: `docs/mapa-flujo-bot.html`, detalle en `docs/ESTADO.md`).
+Cambios de esta tanda:
+
+1. **Saludo** (`wa_faq.saludo_inicial`, SEMIAUTO, activa): cliente → "¡Hola {{nombre_cliente}}! ¿En qué te puedo ayudar?"; no-cliente → pide CUIT para verificar.
+2. **Datos de pago** (`wa_faq.datos_transferencia`, SEMIAUTO, **inactiva** hasta deploy): alias/CBU desde `wa_descuentos_config.pago` (editable en el Panel), lookup `payment_data` en `faq.ts`.
+3. **`faq.ts`**: a un no-cliente solo se le sirve `institutional_response` (nunca `bot_response`).
+4. **Copy no-cliente** en `handleRegistration`: "No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?".
+5. **Cables sin enchufar (TODO):** escalación a humano (`notificarHumano` sin call-site) y cierre por inactividad ~30-40 min (bajar el 8h + aviso/botón al vendedor + retomar bot).
+
+> Requiere deploy de `lk_whatsapp-webhook` (bundlea `_shared/faq.ts`) para que tomen efecto los puntos 2-4. CI deploya al mergear a `main`. Post-deploy: activar `datos_transferencia` (`is_active=true`).

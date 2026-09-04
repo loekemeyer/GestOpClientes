@@ -190,9 +190,8 @@ async function handleRegistration(
     }
     await send(
       `¡Hola${contactName ? " " + contactName : ""}! 👋\n\n` +
-      `Soy el asistente de *Loekemeyer*. ` +
-      `Para poder ayudarte, necesito identificarte.\n\n` +
-      `¿Me pasás tu *CUIT*? (con o sin guiones)`,
+      `No tengo tu número registrado como cliente. ` +
+      `¿Me pasarías tu *CUIT* para verificar? (con o sin guiones)`,
     );
     return;
   }
@@ -715,7 +714,15 @@ async function handleMessage(
   // 1. Marcar como leído (fire-and-forget)
   markRead(cfg.waPhoneId, cfg.waToken, msgId).catch(() => {});
 
-  // 2. Modo humano → no procesamos, solo guardamos para trazabilidad
+  // 2. Modo humano → no procesamos, solo guardamos para trazabilidad. El bot
+  //    retoma cuando el modo vuelve a "bot" (hoy: vencimiento fijo en
+  //    lk_conversaciones, `auto_retomar_bot`).
+  //    ── CABLE (sin enchufar) — cierre por inactividad ──────────────────────
+  //    TODO: bajar el vencimiento de 8h a ~30-40 min de inactividad. Cuando el
+  //    chat lleva ese tiempo sin mensajes, avisar al vendedor ("¿cerramos esta
+  //    conversación?") o darle un botón "Cerrar chat" en el Panel; al cerrar,
+  //    modo vuelve a "bot" y el bot retoma si el cliente reinicia contacto.
+  //    Requiere: cron/edge de barrido (idle sweep) + acción de UI. NO conectado.
   const modo = await getConversationMode(phone);
   if (modo === "humano") {
     await saveMessage(phone, "user", text);

@@ -1,0 +1,214 @@
+<title>Flujo del bot WhatsApp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#f5f4f0; --surface:#ffffff; --surface-2:#faf9f6;
+    --ink:#191b19; --muted:#5d635c; --faint:#8a8f88;
+    --border:#e4e2db; --border-strong:#d4d2c9;
+    --accent:#1f8a5b;
+    --gate:#c2410c; --gate-bg:#fbeee6;
+    --human:#7048d6; --human-bg:#efeafd;
+    --faq:#2563a8; --faq-bg:#e8f0fa;
+    --ai:#1f8a5b; --ai-bg:#e6f3ec;
+    --new:#a15c00; --new-bg:#fbf2df;
+    --stepnum:#3a3d39;
+    --shadow:0 1px 2px rgba(20,22,20,.05),0 2px 8px rgba(20,22,20,.04);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#14171a; --surface:#1c2024; --surface-2:#20252a;
+      --ink:#e9eae6; --muted:#a2a89f; --faint:#767d74;
+      --border:#2b3036; --border-strong:#3a4048;
+      --accent:#37c98a;
+      --gate:#f0894f; --gate-bg:#2c1d15;
+      --human:#a891f5; --human-bg:#211a35;
+      --faq:#6faae6; --faq-bg:#132234;
+      --ai:#37c98a; --ai-bg:#12271d;
+      --new:#e0a63a; --new-bg:#2a2110;
+      --stepnum:#c9cbc6;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 2px 10px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14171a; --surface:#1c2024; --surface-2:#20252a;
+    --ink:#e9eae6; --muted:#a2a89f; --faint:#767d74;
+    --border:#2b3036; --border-strong:#3a4048;
+    --accent:#37c98a;
+    --gate:#f0894f; --gate-bg:#2c1d15;
+    --human:#a891f5; --human-bg:#211a35;
+    --faq:#6faae6; --faq-bg:#132234;
+    --ai:#37c98a; --ai-bg:#12271d;
+    --new:#e0a63a; --new-bg:#2a2110;
+    --stepnum:#c9cbc6;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 2px 10px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:780px;margin:0 auto;padding:44px 22px 72px}
+  header{margin-bottom:28px}
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--accent);font-weight:500;margin:0 0 10px}
+  h1{font-family:"Archivo",sans-serif;font-weight:800;font-size:clamp(27px,5vw,38px);
+    line-height:1.05;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance}
+  .sub{color:var(--muted);font-size:14.5px;max-width:64ch;margin:0}
+  .sub code{font-family:"JetBrains Mono",monospace;font-size:.85em;color:var(--ink);
+    background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:.5px 5px}
+
+  .legend-tags{display:flex;flex-wrap:wrap;gap:7px;margin:16px 0 4px}
+  .tag{font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:500;letter-spacing:.03em;
+    text-transform:uppercase;padding:2px 9px;border-radius:999px;white-space:nowrap}
+  .t-gate{color:var(--gate);background:var(--gate-bg)} .t-human{color:var(--human);background:var(--human-bg)}
+  .t-faq{color:var(--faq);background:var(--faq-bg)} .t-ai{color:var(--ai);background:var(--ai-bg)}
+  .t-step{color:var(--muted);background:var(--surface-2)} .t-new{color:var(--new);background:var(--new-bg)}
+
+  /* gate wrapper */
+  .gate-wrap{border:1.5px dashed var(--gate);border-radius:16px;padding:14px 15px;margin-bottom:8px;
+    background:color-mix(in srgb,var(--gate-bg) 40%,transparent)}
+  .gate-wrap .lbl{display:flex;align-items:center;gap:8px;font-family:"Archivo",sans-serif;
+    font-weight:700;font-size:13px;color:var(--gate);margin:0 0 4px}
+  .gate-wrap p{margin:0;font-size:13px;color:var(--muted)}
+  .gate-wrap code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--ink)}
+
+  .step{position:relative;display:grid;grid-template-columns:40px 1fr;gap:15px;padding-bottom:20px}
+  .rail{display:flex;flex-direction:column;align-items:center}
+  .dot{width:40px;height:40px;flex:none;border-radius:11px;display:grid;place-items:center;
+    font-family:"Archivo",sans-serif;font-weight:700;font-size:15px;
+    background:var(--surface);border:1.5px solid var(--border-strong);color:var(--stepnum);box-shadow:var(--shadow)}
+  .connector{flex:1;width:2px;background:var(--border-strong);margin:3px 0 -3px}
+  .step:last-child .connector{display:none}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .card-body{padding:13px 15px}
+  .card-head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+  .card-title{font-family:"Archivo",sans-serif;font-weight:700;font-size:16px;letter-spacing:-.01em;margin:0}
+  .card-desc{font-size:13px;color:var(--muted);margin:0}
+  .card-desc code,.exit code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--ink);
+    background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:0 4px}
+  .say{font-style:italic;color:var(--ink);background:var(--surface-2);border-left:2px solid var(--accent);
+    border-radius:0 6px 6px 0;padding:5px 10px;margin:7px 0 0;font-size:12.5px}
+
+  .lanes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:2px 0 0}
+  @media(max-width:600px){.lanes{grid-template-columns:1fr}}
+  .lane{border:1px solid var(--border);border-radius:13px;overflow:hidden;background:var(--surface)}
+  .lane-h{font-family:"Archivo",sans-serif;font-weight:700;font-size:13.5px;padding:10px 13px;border-bottom:1px solid var(--border)}
+  .lane-cli .lane-h{color:var(--ai);background:var(--ai-bg)}
+  .lane-no .lane-h{color:var(--gate);background:var(--gate-bg)}
+  .lane-body{padding:11px 13px;display:flex;flex-direction:column;gap:10px}
+  .mini{font-size:12.5px;color:var(--muted)}
+  .mini b{color:var(--ink)}
+  .mini .h{font-family:"JetBrains Mono",monospace;font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--faint);display:block;margin-bottom:2px}
+
+  .exit{display:flex;gap:8px;align-items:flex-start;font-size:12px;padding:7px 15px;border-top:1px dashed var(--border);color:var(--muted)}
+  .exit:first-of-type{border-top:1px solid var(--border)}
+  .exit .arm{font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:500;flex:none;padding-top:1px;color:var(--faint)}
+  .exit b{color:var(--ink);font-weight:600}
+  .pill{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:9.5px;font-weight:500;
+    padding:1px 6px;border-radius:999px;margin-left:1px}
+  .p-fin{color:var(--gate);border:1px solid var(--gate)} .p-human{color:var(--human);border:1px solid var(--human)} .p-go{color:var(--accent);border:1px solid var(--accent)}
+  .foot{margin-top:24px;font-size:11px;color:var(--faint);font-family:"JetBrains Mono",monospace;text-align:center;border-top:1px solid var(--border);padding-top:13px}
+  @media(max-width:520px){.step{grid-template-columns:32px 1fr;gap:11px}.dot{width:32px;height:32px;border-radius:9px;font-size:13px}}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Flujo objetivo · acordado</p>
+    <h1>Cuando un cliente le escribe al bot</h1>
+    <p class="sub">Sin estado por turno: cada mensaje entra por acá. Primero identifica por número;
+      después distingue <b>saludo</b> de <b>request</b> (cualquier consulta, duda o pedido). Se
+      resuelve por el camino más barato — FAQ antes que IA, IA antes que humano. En
+      <span class="t-new tag">naranja</span> lo que cambia respecto de hoy.</p>
+    <div class="legend-tags">
+      <span class="tag t-gate">compuerta</span><span class="tag t-faq">FAQ · sin IA</span>
+      <span class="tag t-ai">IA</span><span class="tag t-human">humano</span><span class="tag t-new">cambio</span>
+    </div>
+  </header>
+
+  <!-- killswitch wrapper -->
+  <div class="gate-wrap">
+    <p class="lbl">🛑 Kill-switch de lista blanca — envuelve todo</p>
+    <p>No es un paso del flujo: decide <b>si el flujo corre o no</b> para ese número.
+      Con <code>wa_bot_solo_whitelist=1</code>, solo los números de <code>wa_envio_contactos</code>
+      entran al mapa. El resto se ignora.</p>
+  </div>
+
+  <!-- human gate -->
+  <div class="gate-wrap" style="border-color:var(--human);background:color-mix(in srgb,var(--human-bg) 40%,transparent)">
+    <p class="lbl" style="color:var(--human)">👤 ¿Un vendedor está atendiendo?</p>
+    <p>Si un humano tomó la charla (<code>modo=humano</code>), el bot <b>no pisa</b>. Cuando el
+      vendedor termina (o vence el modo), el bot vuelve a atender si el cliente reinicia contacto.
+      <span class="pill p-human">→ humano</span> <span class="pill p-fin">FIN</span></p>
+  </div>
+
+  <div>
+    <!-- 1 ID -->
+    <div class="step">
+      <div class="rail"><div class="dot">1</div><div class="connector"></div></div>
+      <div class="card"><div class="card-body">
+        <div class="card-head"><h3 class="card-title">Identifica por número</h3><span class="tag t-step">lookup</span></div>
+        <p class="card-desc">Busca el teléfono en <code>customer_phones</code>. Da igual si el mensaje
+          es un saludo o un request: siempre identifica primero. El resultado abre una de las dos calles.</p>
+      </div></div>
+    </div>
+
+    <!-- 2 lanes -->
+    <div class="step">
+      <div class="rail"><div class="dot">2</div><div class="connector"></div></div>
+      <div style="min-width:0">
+        <p class="card-desc" style="margin:0 0 9px"><b>¿El número es cliente?</b></p>
+        <div class="lanes">
+
+          <!-- CLIENTE -->
+          <div class="lane lane-cli">
+            <div class="lane-h">✅ Es cliente</div>
+            <div class="lane-body">
+              <div class="mini"><span class="h">Si solo saluda</span>
+                Responde una <b>FAQ fija</b> (0 tokens). <span class="tag t-new" style="margin-left:2px">nuevo</span>
+                <div class="say">¡Hola, {nombre}! ¿En qué te puedo ayudar?</div>
+              </div>
+              <div class="mini"><span class="h">Si es un request</span>
+                Va a la <b>FAQ</b> y responde con <code>bot_response</code> (personalizado) o
+                SEMIAUTO con dato real (estado de pedido, precio, descuento…).</div>
+            </div>
+          </div>
+
+          <!-- NO CLIENTE -->
+          <div class="lane lane-no">
+            <div class="lane-h">✋ No es cliente</div>
+            <div class="lane-body">
+              <div class="mini"><span class="h">Si es un request</span>
+                FAQ responde con <code>institutional_response</code> (tono institucional:
+                "¿son Loekemeyer?", horarios, etc.).</div>
+              <div class="mini"><span class="h">Si no reconoce / solo saluda</span>
+                Pide identificarse. <span class="tag t-new" style="margin-left:2px">copy</span>
+                <div class="say">No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?</div>
+                <div style="margin-top:6px">CUIT inválido → avisa · no existe → avisa · válido → vincula y sigue como cliente.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 request routing -->
+    <div class="step">
+      <div class="rail"><div class="dot">3</div><div class="connector"></div></div>
+      <div class="card">
+        <div class="card-body">
+          <div class="card-head"><h3 class="card-title">El request se resuelve por capas</h3><span class="tag t-faq">FAQ→IA→humano</span></div>
+          <p class="card-desc">"Request" = todo lo que el cliente pida o pregunte: "dame el CBU",
+            "¿cuándo llega mi pedido?", "quiero hacer un pedido", "quiero dejar una sugerencia".</p>
+        </div>
+        <div class="exit"><span class="arm">1· FAQ →</span><span><b>AUTO</b> (texto fijo) o <b>SEMIAUTO</b> (plantilla + dato de Supabase). Si resuelve, corta acá. <span class="pill p-fin">FIN</span></span></div>
+        <div class="exit"><span class="arm">2· IA →</span><span>Si la FAQ no cubre, <b>la IA evalúa</b>: si puede, responde (incluye armar pedido); <span class="tag t-ai" style="margin-left:1px">Claude</span></span></div>
+        <div class="exit"><span class="arm">3· humano →</span><span>Si la IA <b>no puede</b> (o el pedido necesita persona), escala a un vendedor con aviso. <span class="pill p-human">→ humano</span></span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="foot">Fuente objetivo · lk_whatsapp-webhook + _shared/faq.ts + bot-conversation.ts</p>
+</div>
