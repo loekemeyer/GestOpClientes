@@ -3,6 +3,7 @@ import { supabase, getSetting } from "../_shared/supabase.ts";
 import { canonPhone } from "../_shared/wa-api.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
+import { requireAdmin } from "../_shared/admin-gate.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,15 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
+
+    // ── Gate de admin (OBLIGATORIO para todo) ──
+    // Esta función se deploya con --no-verify-jwt, o sea que sin este chequeo
+    // es un endpoint anónimo de internet: la consola de test puede leer la
+    // cuenta de cualquier cliente pasando su teléfono en el body, y las
+    // acciones de config/killswitch/whitelist/blacklist son escrituras que
+    // desarman las defensas del bot.
+    const gate = await requireAdmin(body);
+    if (!gate.ok) return json({ error: gate.error }, gate.status);
 
     // ── Stats endpoint (admin cost panel) ──
     if (body.action === "stats") {
@@ -550,17 +560,17 @@ async function handleLinking(phone: string, text: string, apiKey: string): Promi
     customer = byCuit;
   }
 
-  // ── Cliente encontrado → vincular ──
+  // ── Cliente encontrado ──
+  // NO se vincula desde acá. Vincular un teléfono a un cliente es lo que le
+  // da acceso a sus pedidos, direcciones y descuentos, y los códigos de
+  // cliente son enteros secuenciales: un alta automática por código es un
+  // takeover de cuenta enumerable. La vinculación real va por
+  // `bot_register_request_v2` (queda `pending_primary` hasta que un humano la
+  // aprueba), que es el camino que usa el webhook de producción.
   if (customer) {
-    await supabase.from("bot_customer_whatsapps").upsert({
-      customer_id: customer.id,
-      whatsapp: phone,
-      is_primary: true,
-      empresa: "LK",
-      cod_cliente: customer.cod_cliente,
-      permiso_ver_pedidos: true,
-    }, { onConflict: "whatsapp" });
-    return `¡Hola ${customer.business_name}! Ya quedaste vinculado.\n${menuText()}`;
+    return `Encontré a *${customer.business_name}* (código ${customer.cod_cliente}).\n\n` +
+      `⚠️ La consola de test no vincula teléfonos. La vinculación se pide desde ` +
+      `WhatsApp y la tiene que aprobar un humano.`;
   }
 
   // ── CUIT no encontrado → cliente nuevo, arrancar alta ──

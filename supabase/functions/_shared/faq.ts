@@ -216,9 +216,14 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
 
 // deno-lint-ignore no-explicit-any
 async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any): Promise<string | null> {
+  // OJO: la columna es `dto_vol`, no `discount` (que no existe en `customers`).
+  // Con el nombre mal, el select devolvía error, `row` quedaba en null y el bot
+  // le contestaba "Por volumen: 0%" a TODOS — 561 de los 1.273 clientes tienen
+  // descuento no-cero. Y `dto_vol` es una FRACCIÓN (0.25 = 25%, es el mismo
+  // valor que el carrito usa como `(1 - dto_vol)`), así que va × 100.
   const { data: row } = await supabase
-    .from("customers").select("discount").eq("id", customer.id).maybeSingle();
-  const volumeDiscount = row?.discount ?? 0;
+    .from("customers").select("dto_vol").eq("id", customer.id).maybeSingle();
+  const volumeDiscount = Math.round(Number(row?.dto_vol ?? 0) * 1000) / 10;
   // Plantilla editable desde el front: si trae el token {{descuento_volumen}}
   // se renderiza con los datos reales; si no, se usa el texto por defecto.
   const tpl = String(faq?.bot_response ?? "").trim();

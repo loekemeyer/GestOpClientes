@@ -28,9 +28,9 @@ jobs:
           version: latest
 
       # Descubre qué funciones cambiaron. Si cambió algo en `_shared/`, se
-      # despliegan TODAS las funciones que importan shared (por ahora
-      # lk_whatsapp-webhook y lk_chat-test). El resto solo se despliega si
-      # su propio directorio cambió.
+      # despliegan TODAS las funciones que lo importan (el grep de abajo las
+      # detecta solo). El resto solo se despliega si su propio directorio
+      # cambió.
       - name: Detectar funciones a desplegar
         id: detect
         run: |
