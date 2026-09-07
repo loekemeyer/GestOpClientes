@@ -97,10 +97,26 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
   (webhook de Meta: necesita ser público, le falta la firma HMAC), `lk_factura-check`
   (tiene defensa propia: whitelist + ventana + claim atómico), `lk_parse-comprobante`
   y `lk_tpl-check`.
-- ⏳ **RLS apagada** en ~15 tablas `wa_*`/`bot_*` con `anon` full CRUD (`wa_prospect_leads` con
-  PII de altas, `wa_comprobantes`, `wa_alertas_humano`, `wa_clientes_telefono` con 610 teléfonos).
-- ⏳ **14 funciones SECURITY DEFINER ejecutables por `anon`**, entre ellas `bot_submit_order`
-  (crea pedidos a nombre de cualquiera; la única "auth" es el `p_telefono` que pasa el llamador).
+- ✅ **RLS prendida y grants cerrados** en 10 tablas (`sql/056`, aplicada el 07/09):
+  `wa_alertas_humano`, `wa_blacklist`, `wa_clientes_telefono`, `wa_comprobantes`,
+  `wa_factura_consolidada`, `wa_message_status`, `wa_prospect_leads`, `wa_rate_limit`,
+  `bot_reactivacion_config`, `bot_reactivacion_log`. Verificado: `anon` ya no lee ninguna
+  (`has_table_privilege` = false en las 10) y `service_role` sigue entrando.
+- ⏳ **Las 5 tablas `wa_agente_*` quedaron AFUERA a propósito**: el dashboard las lee y
+  escribe **directo con la anon key** (9 lugares en `docs/index.html`), así que prenderles RLS
+  las rompe. Hay que mover esas escrituras a una edge function con gate de admin — se puede
+  colgar de `lk_agente-modelos`, que ya tiene el gate. **Hasta entonces `wa_agente_config`
+  (el documento rector) es escribible por cualquiera: prompt injection persistida el día que
+  se enchufe `_shared/agente.ts`.**
+- ✅ **EXECUTE revocado a `anon`** en las 18 funciones `wa_*`/`bot_*` que lo tenían, entre
+  ellas `bot_submit_order` (creaba pedidos a nombre de cualquiera), `bot_reactivar_inactivos`
+  (spam masivo) y `wa_product_match_with_price` (precios de cualquier cliente). Se revocó de
+  `public` —de donde `anon` hereda— y se re-otorgó a `service_role` explícito, porque si el
+  único grant era el de `public`, revocarlo dejaba afuera también a `service_role`.
+- ✅ **`product_aliases`**: la policy `service_role_all` se llamaba así pero era
+  `roles={public}` con `USING (true)` para ALL — cualquiera podía envenenar el matching de
+  productos. Ahora exige `auth.role() = 'service_role'`; `anon_read` (SELECT de los activos)
+  se dejó como estaba.
 - ⏳ **El webhook no valida `X-Hub-Signature-256`** y `{"action":"flush"}` no pide credencial.
 
 **Funcional — el bot no identifica a NADIE hoy.** El webhook resuelve por
