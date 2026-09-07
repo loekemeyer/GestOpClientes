@@ -60,7 +60,25 @@ async function loadConfig(): Promise<Config> {
   return { waPhoneId, waToken, waVerifyToken, anthropicKey };
 }
 
-// ─── Customer lookup (via RPC bot_cliente_por_whatsapp) ────────────
+// ─── Customer lookup ───────────────────────────────────────────────
+//
+// Dos fuentes, en cascada — el MISMO orden que `lk_chat-test`, para que la
+// consola de prueba y producción identifiquen igual (antes divergían y por eso
+// en el test andaba y en WhatsApp no):
+//
+//   1. `wa_identify_customer` → `wa_clientes_telefono`, el padrón que baja del
+//      ERP (610 teléfonos). Normaliza las variantes 54 / 9 / 15, así que
+//      matchea el `from` de Meta contra el formato con el que está cargado.
+//      Cobertura medida el 2026-09-07: resuelve 547 de los 610, 0 ambiguos
+//      (los 63 restantes son fijos, no líneas de WhatsApp).
+//   2. `bot_cliente_por_whatsapp` → `bot_customer_whatsapps`, la vinculación
+//      explícita que se pide por WhatsApp y aprueba un humano. Hoy tiene 0
+//      filas: por eso el webhook, que consultaba SOLO ésta, no identificaba a
+//      NADIE y todo mensaje caía a la rama de no-cliente.
+//
+// El orden es a pedido del dueño (2026-09-07): que el bot reconozca ya a los
+// teléfonos del ERP. Cuando `bot_customer_whatsapps` se empiece a poblar sigue
+// sirviendo, como override de lo que diga el padrón.
 
 interface CustomerContext {
   customer_id: string;
@@ -69,7 +87,31 @@ interface CustomerContext {
   dto_vol: number;
 }
 
+/** El descuento por volumen no lo devuelve `wa_identify_customer`. */
+async function getDtoVol(customerId: string): Promise<number> {
+  const { data } = await supabase
+    .from("customers").select("dto_vol").eq("id", customerId).maybeSingle();
+  return Number(data?.dto_vol ?? 0);
+}
+
 async function getCustomerContext(phone: string): Promise<CustomerContext | null> {
+  // 1. Padrón del ERP (normaliza variantes de prefijo)
+  const { data: ident, error: identErr } = await supabase.rpc("wa_identify_customer", {
+    p_phone: phone,
+  });
+  if (identErr) console.error("Error en wa_identify_customer:", identErr.message);
+
+  const iRow = ident?.[0];
+  if (iRow?.customer_id) {
+    return {
+      customer_id: iRow.customer_id,
+      cod_cliente: Number(iRow.cod_cliente),
+      business_name: iRow.customer_name,
+      dto_vol: await getDtoVol(iRow.customer_id),
+    };
+  }
+
+  // 2. Vinculación explícita
   const { data, error } = await supabase.rpc("bot_cliente_por_whatsapp", {
     p_telefono: phone,
   });

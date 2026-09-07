@@ -525,7 +525,21 @@ export async function runConversation(
     });
   }
 
-  messages.push({ role: "user", content: userText });
+  // La Messages API exige que el PRIMER mensaje sea `user`. La ventana de 16
+  // filas arranca donde arranca, y en cualquier chat donde el bot habló último
+  // empieza con `assistant` → 400 → el cliente no recibía NADA. Se recorta
+  // hasta el primer `user`.
+  while (messages.length && messages[0].role !== "user") messages.shift();
+
+  // El turno actual puede estar YA en el historial: el webhook hace
+  // `saveMessage(phone, "user", text)` antes de llamar acá (index.ts:1012), así
+  // que pushearlo de nuevo lo mandaba duplicado (tokens de más y el modelo
+  // leyéndolo como repetición). `lk_chat-test`, en cambio, NO guarda antes —
+  // por eso se chequea en vez de asumir.
+  const last = messages[messages.length - 1];
+  if (!(last && last.role === "user" && last.content === userText)) {
+    messages.push({ role: "user", content: userText });
+  }
 
   const allMedia: MediaAction[] = [];
 
@@ -545,7 +559,7 @@ export async function runConversation(
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-6-20250514",
+          model: "claude-sonnet-4-6",
           max_tokens: 1024,
           system: systemPrompt,
           tools: BOT_TOOLS,
@@ -561,7 +575,7 @@ export async function runConversation(
       await notificarHumano({
         tipo: isTimeout ? "llm_timeout" : "llm_error",
         phone,
-        contexto: { userText, iter, error: emsg, model: "claude-sonnet-4-6-20250514" },
+        contexto: { userText, iter, error: emsg, model: "claude-sonnet-4-6" },
       });
       return {
         reply: isTimeout
@@ -580,7 +594,7 @@ export async function runConversation(
       await notificarHumano({
         tipo: "llm_error",
         phone,
-        contexto: { userText, iter, http_status: resp.status, error: errText.slice(0, 500), model: "claude-sonnet-4-6-20250514" },
+        contexto: { userText, iter, http_status: resp.status, error: errText.slice(0, 500), model: "claude-sonnet-4-6" },
       });
       return {
         reply: `⚠️ [LLM_ERROR ${resp.status}] Se avisó a un humano; el cliente no recibió mensaje.`,

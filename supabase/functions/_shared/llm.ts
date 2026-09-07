@@ -22,7 +22,7 @@ const COST_PER_MTOK: Record<string, { input: number; output: number }> = {
   "claude-haiku-4-5":            { input: 1.0,  output: 5.0  },
   "claude-haiku-4-5-20251001":   { input: 1.0,  output: 5.0  },
   "claude-sonnet-4-6":           { input: 3.0,  output: 15.0 },
-  "claude-sonnet-4-6-20250514":  { input: 3.0,  output: 15.0 },
+  "claude-sonnet-5":             { input: 2.0,  output: 10.0 },
   // OpenAI (representativo — se puede ajustar)
   "gpt-4o-mini":                 { input: 0.15, output: 0.60 },
   "gpt-4o":                      { input: 2.50, output: 10.0 },
