@@ -67,3 +67,41 @@ export async function requireAdmin(body: any): Promise<AdminGate> {
 
   return { ok: true, email };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Variante para funciones que además llama otra edge function nuestra.
+//
+// `lk_parse-comprobante` es el caso: lo dispara el webhook (`triggerParser`) con el
+// service_role como Bearer, pero también lo usa el dashboard. Ponerle sólo `requireAdmin`
+// rompería el camino del webhook; dejarlo abierto lo deja como OCR gratis contra nuestras
+// claves de Gemini/Claude para cualquiera que sepa la URL.
+//
+// Se acepta cualquiera de las dos:
+//   · Bearer <service_role>  → es una llamada interna nuestra
+//   · access_token de admin  → es el dashboard
+//
+// La comparación del service_role es en tiempo constante, por lo mismo que la firma de Meta:
+// un `===` filtra en qué byte cortó.
+
+function igualEnTiempoConstante(a: string, b: string): boolean {
+  if (!a || !b || a.length !== b.length) return false;
+  let dif = 0;
+  for (let i = 0; i < a.length; i++) dif |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return dif === 0;
+}
+
+/** ¿El request trae el service_role de este proyecto como Bearer? */
+export function esLlamadaInterna(req: Request): boolean {
+  const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!svc) return false;
+  const auth = req.headers.get("authorization") ?? "";
+  const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
+  return igualEnTiempoConstante(svc, token);
+}
+
+/** Admin del dashboard, o llamada interna con el service_role. */
+// deno-lint-ignore no-explicit-any
+export async function requireAdminOrService(req: Request, body: any): Promise<AdminGate> {
+  if (esLlamadaInterna(req)) return { ok: true, email: "service_role" };
+  return await requireAdmin(body);
+}

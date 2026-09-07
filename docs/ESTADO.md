@@ -72,6 +72,10 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 | `wa_bot_solo_whitelist` | killswitch del bot de chat: `1` = solo responde a `wa_envio_contactos` | `1` |
 | `wa_comprobantes_activo` | flujo de comprobantes entrantes: `0` apagado / `1` on | `0` |
 
+**Secrets de edge function (no van en `app_settings`):** `META_APP_SECRET` (firma de Meta) y
+`LK_INTERNAL_SECRET` (acciones internas del webhook). **Los dos sin cargar al 07/09**: mientras
+falten, esas verificaciones avisan pero no rechazan. Ver la auditoría, sección 0.b.
+
 `wa_envio_contactos` = **lista blanca**: el bot solo envía a estos números. Hoy incluye a Thomy (`5491162521635`) y Luis (`5491125608669`).
 
 ## Auditoría de seguridad y funcionamiento (2026-09-07)
@@ -80,6 +84,20 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 > priorizados, cada uno con archivo:línea y la evidencia. Leelo antes de tocar el bot.
 
 Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
+
+- ✅ **El webhook ya no acepta cualquier POST** (2ª tanda, 07/09 tarde). Se verifica la firma
+  `X-Hub-Signature-256` de Meta sobre el cuerpo crudo (`_shared/webhook-firma.ts`), y las
+  acciones internas (`{"action":"flush"}`) se autentican aparte con `LK_INTERNAL_SECRET`.
+  **Los dos arrancan sin secreto cargado y en ese estado NO rechazan nada, sólo avisan por
+  consola** — prenderlo de golpe dejaría al bot mudo. **Falta que el dueño cargue
+  `META_APP_SECRET`** (Meta → App → Settings → Basic → App Secret) como secret de la edge
+  function; recién ahí queda cerrado.
+- ✅ **Idempotencia por `wamid`** (`sql/057`, aplicada). Meta reintenta los webhooks; sin esto
+  el mismo mensaje se contestaba dos veces y un pedido confirmado se duplicaba. Tabla
+  `wa_inbound_seen`, RLS prendida y sin policies (sólo `service_role`).
+- ✅ **`lk_parse-comprobante` con candado**: admin del dashboard **o** llamada interna con el
+  service_role (que es como lo dispara el webhook). Era OCR gratis contra nuestras claves, y
+  el fallback manda el comprobante al free tier de Gemini.
 
 - ✅ **`lk_chat-test` ahora exige rol admin** (`_shared/admin-gate.ts`, patrón `lk_faq-admin`).
   Antes era un endpoint anónimo que permitía (a) vincular cualquier teléfono a cualquier

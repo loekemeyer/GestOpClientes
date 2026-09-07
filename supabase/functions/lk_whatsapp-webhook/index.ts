@@ -23,6 +23,7 @@ import {
   type MediaAction,
 } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
+import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 
 // ─── Config (app_settings → fallback Deno.env) ─────────────────────
 // Prioridad: app_settings → env var. app_settings es la fuente de verdad —
@@ -890,12 +891,15 @@ function extFromFilename(name?: string): string | null {
  */
 async function triggerParser(comprobanteId: string): Promise<void> {
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/lk_parse-comprobante`;
-  const anonKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  // Es el SERVICE ROLE, no la anon key: se llamaba `anonKey` y eso confundía a cualquiera que
+  // leyera esto (lo marcó la auditoría del 07/09). Y ahora además es lo que usa
+  // `lk_parse-comprobante` para reconocer que la llamada es interna nuestra.
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${anonKey}`,
+      Authorization: `Bearer ${serviceKey}`,
     },
     body: JSON.stringify({ action: "parse", comprobante_id: comprobanteId }),
   });
@@ -1070,7 +1074,52 @@ Deno.serve(async (req: Request) => {
   // ── POST: Mensaje entrante o acción interna ──
   if (req.method === "POST") {
     try {
-      const body = await req.json();
+      // El cuerpo se lee CRUDO: la firma de Meta es un HMAC del texto exacto que llegó, así
+      // que parsear y re-serializar rompería la verificación (cambia espacios y orden).
+      const rawBody = await req.text();
+
+      // deno-lint-ignore no-explicit-any
+      let body: any;
+      try {
+        body = JSON.parse(rawBody || "{}");
+      } catch {
+        console.warn("[webhook] body no es JSON válido");
+        return new Response("OK", { status: 200 });
+      }
+
+      // Por acá entran DOS cosas distintas y cada una se autentica distinto:
+      //   · una acción interna nuestra (`{"action":"flush"}`) → secreto propio
+      //   · un webhook de Meta                                → firma X-Hub-Signature-256
+      // Mezclarlas sería el error clásico: exigirle a Meta un secreto que no tiene, o
+      // dejar la acción interna abierta porque "ya validamos la firma".
+      const esAccionInterna = typeof body?.action === "string" && body.action.length > 0;
+
+      if (esAccionInterna) {
+        // Igual que la firma de Meta, esto arranca en dos pasos: sin `LK_INTERNAL_SECRET`
+        // cargado no rechaza nada (sólo avisa), para no dejar colgada a la llamada que ya
+        // exista hoy. Con el secreto cargado, pasa a exigirlo.
+        const esperado = Deno.env.get("LK_INTERNAL_SECRET") ?? "";
+        if (esperado) {
+          const dado = req.headers.get("x-lk-internal-secret") ?? String(body?.secret ?? "");
+          if (dado !== esperado) {
+            console.warn(`[interno] acción "${body.action}" rechazada: secreto inválido`);
+            return new Response("Forbidden", { status: 403 });
+          }
+        } else {
+          console.warn(`[interno] LK_INTERNAL_SECRET sin cargar — la acción "${body.action}" NO se está verificando.`);
+        }
+      } else {
+        const firma = await verificarFirmaMeta(rawBody, req.headers.get("x-hub-signature-256"));
+        if (!firma.ok) {
+          // Payload que dice ser de Meta y no lo es. Se corta acá, sin procesar.
+          console.warn(`[firma] POST rechazado: ${firma.motivo}`);
+          return new Response("Forbidden", { status: 403 });
+        }
+        if (firma.modo === "sin_secreto") {
+          // Paso 1 de la puesta en marcha: falta cargar META_APP_SECRET (ver webhook-firma.ts).
+          console.warn("[firma] META_APP_SECRET sin cargar — el POST NO se está verificando.");
+        }
+      }
 
       // ── Acción interna: flush outbox (llamada desde pg_cron) ──
       if (body?.action === "flush") {
@@ -1112,6 +1161,25 @@ Deno.serve(async (req: Request) => {
       // Solo procesar mensajes de texto por ahora
       if (msg.type !== "text" || !msg.text.trim()) {
         return new Response("OK", { status: 200 });
+      }
+
+      // ── Candado de idempotencia (sql/057) ──
+      // Meta REINTENTA el webhook si no ve el 200 a tiempo. Sin esto el mismo mensaje se
+      // contesta dos veces y, si era la confirmación de un pedido, el pedido se duplica.
+      // El insert es atómico: si la fila ya estaba, es un reintento y se corta acá.
+      if (msg.msgId) {
+        const { error: dup } = await supabase
+          .from("wa_inbound_seen")
+          .insert({ wamid: msg.msgId, phone: msg.from });
+        if (dup) {
+          // 23505 = unique_violation → ya lo procesamos. Cualquier otro error NO frena el
+          // mensaje: preferimos contestar dos veces antes que no contestar nunca.
+          if (dup.code === "23505") {
+            console.log(`[idem] wamid repetido, se ignora: ${msg.msgId}`);
+            return new Response("OK", { status: 200 });
+          }
+          console.error("[idem] no se pudo registrar el wamid, se sigue igual:", dup.message);
+        }
       }
 
       // Procesar (Meta tolera hasta 20s de respuesta)

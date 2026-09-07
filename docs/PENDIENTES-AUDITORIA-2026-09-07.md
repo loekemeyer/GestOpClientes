@@ -41,6 +41,41 @@ notif-sim v18, templates v10, conversaciones v9, agente-modelos v9) y el dashboa
 rechace una llamada anónima, y que el bot conteste un mensaje real. No hubo tráfico al webhook
 entre el deploy y el cierre de la sesión.
 
+### 0.b — Segunda tanda (2026-09-07, tarde)
+
+Cierra los puntos **5**, **7** y **9**, y la nota suelta del punto 8 sobre `anonKey`.
+
+- **Firma de Meta (`X-Hub-Signature-256`)** — `_shared/webhook-firma.ts`, usado por el POST del
+  webhook. Se lee el cuerpo **crudo** (`req.text()`) porque el HMAC es del texto exacto que
+  llegó; parsear y re-serializar lo rompería. Comparación en **tiempo constante**.
+  **Arranca en dos pasos a propósito**: sin `META_APP_SECRET` cargado no rechaza nada, sólo
+  avisa por consola. Prenderlo de golpe sin el secreto dejaría al bot mudo para todos.
+  **Falta el paso 2, del dueño:** Meta → App → Settings → Basic → App Secret, cargarlo como
+  secret de la edge function con nombre `META_APP_SECRET`. Ahí queda cerrado de verdad.
+- **Acciones internas separadas de Meta.** `{"action":"flush"}` no lleva firma de Meta (no
+  viene de Meta), así que se autentica aparte con `LK_INTERNAL_SECRET` (header
+  `x-lk-internal-secret` o campo `secret`), con el mismo arranque en dos pasos. Hoy ningún cron
+  la llama —el flush del outbox lo hace `lk_outbox-flush`, job 21— así que cargar ese secreto
+  no rompe nada.
+- **Idempotencia por `wamid`** — `sql/057_wa_inbound_idempotencia.sql`, aplicada. Tabla
+  `wa_inbound_seen` (PK `wamid`, RLS prendida y **sin policies**: sólo `service_role`). El
+  webhook intenta insertar el `wamid` **antes** de procesar; si choca (23505) es un reintento
+  de Meta y devuelve 200 sin hacer nada. Si el insert falla por cualquier otro motivo, **el
+  mensaje se procesa igual**: es preferible contestar dos veces a no contestar. Función de
+  limpieza `wa_inbound_seen_limpiar(dias)` (default 7), sin cron todavía.
+- **`lk_parse-comprobante` con candado** — `requireAdminOrService` (nuevo en
+  `_shared/admin-gate.ts`). Acepta el dashboard (admin) **o** una llamada interna con el
+  service_role como Bearer, que es como lo dispara `triggerParser` del webhook. Sin esto era
+  OCR gratis contra nuestras claves, y el fallback manda el comprobante al free tier de Gemini.
+- **`anonKey` renombrada a `serviceKey`** en `triggerParser`: era el service role, no la anon
+  key, y el nombre engañaba (nota del punto 8).
+
+**Verificación:** `tsc --strict --noResolve` limpio sobre los cuatro archivos tocados (los
+errores que quedan en `lk_parse-comprobante` son previos, líneas 130-152). **Ojo con el
+chequeo: sin `--strict` TypeScript no estrecha uniones discriminadas y da falsos positivos en
+`gate.error` / `firma.motivo`.** Deno corre en strict. Sigue sin poder probarse en vivo: el
+contenedor no alcanza `*.supabase.co`.
+
 ---
 
 ## 1. Crítico — del dueño, nadie más puede
@@ -80,24 +115,12 @@ entre el deploy y el cierre de la sesión.
    *Fix*: armar el prompt con `buildAgenteSystem()` en `runConversation` (concatenando el
    bloque de Seguridad) — o borrar `agente.ts` y decir en el doc que el prompt es hardcodeado.
    **Ojo: enchufarlo con el punto 3 abierto convierte el agujero en prompt injection persistida.**
-5. **El webhook no valida `X-Hub-Signature-256`** (`lk_whatsapp-webhook/index.ts:1004-1085`; 0
-   hits de "signature" en el repo). El GET sí valida `hub.verify_token` (:1017). Cualquiera
-   forja un payload de Meta y se hace pasar por el teléfono que quiera. Además
-   `{"action":"flush"}` (:1034) dispara `flushOutbox` sin credencial, y `ingestStatuses`
-   (:1048) escribe filas desde el body.
-   *Fix*: verificar el HMAC-SHA256 del raw body con el App Secret antes de procesar; mover
-   `flush` detrás de un secreto propio.
 6. **`gestop_users.password_hash` legible por `anon`** (policy `anon_read`, SELECT, `USING
    (true)`). Son SHA-256 **sin salt**; el de `vendedor` es el hash conocido de `1234`. Hoy el
    login entra por Google OAuth y la tabla se usa como whitelist de rol (es la que autoriza
    `lk_faq-admin:79` y el gate nuevo), así que no es login activo — pero el hash está
    publicado. *Fix*: dropear la columna si no se usa; si se usa, bcrypt/argon2. Y acotar el
    SELECT a `email, role`.
-7. **`lk_parse-comprobante` sin gate**, y su fallback manda comprobantes de pago al **free
-   tier de Gemini** (`index.ts:233-247`, `sql/048:97` `is_free_tier = true`), cuyos términos
-   permiten usar el contenido para mejorar el producto. Contradice la regla del `CLAUDE.md`
-   ("NUNCA enviar datos sensibles del cliente"). El flujo entrante está apagado
-   (`wa_comprobantes_activo = 0`) pero el endpoint no: sirve de OCR gratis contra nuestras keys.
 8. **`enviar_pedido` sin confirmación server-side.** La exigencia de "confirmación explícita
    del cliente" vive sólo en el prompt (`bot-conversation.ts:200-208`); no hay estado
    persistido que el backend valide. `wa_order_draft` existe y tiene 0 filas / 0 referencias en
@@ -110,13 +133,6 @@ entre el deploy y el cierre de la sesión.
 
 ## 3. Robustez del flujo (lo que rompe la atención)
 
-9. **Cero idempotencia por `message_id` de Meta** en el camino de texto. `wa_message_status`
-   sí tiene `unique(wamid,status)` (`sql/050:24`, con el comentario "Meta reintenta webhooks")
-   y `wa_comprobantes.wamid` es unique — el texto es el único sin protección. `handleMessage`
-   se `await`ea antes del 200 y `runConversation` puede tardar 5 iteraciones × 30 s. Si pasa
-   los ~20 s, Meta reintenta el mismo `wamid`: doble respuesta, doble paso de alta y, si el
-   turno incluía `enviar_pedido`, **pedido duplicado**.
-   *Fix*: tabla `wa_processed_messages(wamid)` con insert-first y salida temprana.
 10. **Rate limit y blacklist sólo existen en `lk_chat-test`** (`:75-95`), no en el webhook real
     (0 hits de `wa_blacklist` / `wa_check_rate_limit` en `lk_whatsapp-webhook`). O sea que
     `sql/012` es tabla + RPC + setting (`wa_rate_limit_enabled=1`) que **no se aplican en

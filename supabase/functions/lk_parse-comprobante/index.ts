@@ -22,6 +22,7 @@
 // verify_jwt=false (llamada interna desde el webhook o desde el dashboard).
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { requireAdminOrService } from "../_shared/admin-gate.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS = {
@@ -420,6 +421,16 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+
+    // Candado (punto 7 de la auditoría del 2026-09-07). El CI deploya con `--no-verify-jwt`,
+    // así que sin esto el endpoint era OCR gratis contra nuestras claves para cualquiera que
+    // supiera la URL — y el fallback manda el comprobante al free tier de Gemini, cuyos
+    // términos permiten usar el contenido para mejorar el producto. Eso choca de frente con
+    // la regla del CLAUDE.md: "NUNCA enviar datos sensibles del cliente".
+    // Pasan el webhook (Bearer service_role, ver `triggerParser`) y el dashboard (admin).
+    const gate = await requireAdminOrService(req, body);
+    if (!gate.ok) return json({ error: gate.error }, gate.status);
+
     const action = String(body.action ?? "");
     if (action === "parse")         return await handleParse(body);
     if (action === "parse_inline")  return await handleParseInline(body);
