@@ -95,6 +95,15 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
 - ✅ **Idempotencia por `wamid`** (`sql/057`, aplicada). Meta reintenta los webhooks; sin esto
   el mismo mensaje se contestaba dos veces y un pedido confirmado se duplicaba. Tabla
   `wa_inbound_seen`, RLS prendida y sin policies (sólo `service_role`).
+- ✅ **Cuatro defectos del flujo** (4ª tanda): (a) `waPost` no lanzaba en error, así que **el
+  outbox marcaba `sent` mensajes que Meta había rechazado** — nadie los reintentaba ni los
+  veía; ahora lanza `WaApiError` con el status y el `code` de Meta. (b) Un 400 por payload
+  malformado llamaba a `markDown` y dejaba **la cadena de modelos entera caída 5 minutos**, con
+  el bot mudo, por un error que ningún reintento arregla; ahora 400/413/422 no penalizan al
+  modelo. (c) Dos leads `pending` del mismo teléfono dejaban el alta en **loop infinito**
+  ("pasame tu CUIT" para siempre): `sql/059` agrega un único parcial y `crearLead` es
+  idempotente. (d) El gate de whitelist insertaba una fila en `wa_alertas_humano` por cada
+  mensaje descartado; ahora una por teléfono y por día.
 - ✅ **Las 5 tablas `wa_agente_*` con RLS** (`sql/058`). A `anon` le queda sólo SELECT, y sólo
   en las cuatro sin datos de cliente; `wa_agente_consultas` (preguntas de clientes) no se lee
   con la anon key. Las escrituras del panel pasaron a `lk_agente-modelos`, que exige admin —

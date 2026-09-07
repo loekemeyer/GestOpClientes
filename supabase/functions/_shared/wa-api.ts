@@ -15,7 +15,34 @@ export function canonPhone(raw: string): string {
   return "54" + cleaned;
 }
 
-/** POST genérico a Meta API. */
+/**
+ * Error de la API de Meta. Lleva el status HTTP y el `code` de Meta (por ejemplo 132001 =
+ * plantilla inexistente o no aprobada en ese idioma), que es lo que hace falta para saber si
+ * conviene reintentar o si hay que ir a arreglar algo en el Business Manager.
+ */
+export class WaApiError extends Error {
+  status: number;
+  code: number | null;
+  constructor(message: string, status: number, code: number | null) {
+    super(message);
+    this.name = "WaApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
+ * POST genérico a Meta API.
+ *
+ * v2 (punto 12 de la auditoría del 2026-09-07) — **antes devolvía `res.json()` pasara lo que
+ * pasara**, así que el cuerpo de error de Meta viajaba como si fuera una respuesta feliz.
+ * Consecuencia medida: el `try/catch` de `flushOutbox` nunca disparaba y el outbox marcaba
+ * `sent` mensajes que Meta había RECHAZADO. Nadie los reintentaba y nadie los veía. Lo mismo en
+ * el camino del webhook: se guardaba en el historial una respuesta que el cliente nunca recibió.
+ *
+ * Ahora lanza `WaApiError` en `!res.ok`. Los que ya tenían `try/catch` (flushOutbox,
+ * sendMediaActions) pasan a hacer lo correcto solos: marcar `failed` con el motivo.
+ */
 export async function waPost(
   phoneNumberId: string,
   token: string,
@@ -31,7 +58,21 @@ export async function waPost(
     },
     body: JSON.stringify(body),
   });
-  return res.json();
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // deno-lint-ignore no-explicit-any
+    const err = (json as any)?.error ?? {};
+    const code = typeof err.code === "number" ? err.code : null;
+    const detalle = [err.message, err.error_data?.details].filter(Boolean).join(" · ") ||
+      JSON.stringify(json).slice(0, 300);
+    throw new WaApiError(
+      `Meta ${res.status}${code ? ` (code ${code})` : ""}: ${detalle}`,
+      res.status,
+      code,
+    );
+  }
+  return json;
 }
 
 /** Envía mensaje de texto simple. */

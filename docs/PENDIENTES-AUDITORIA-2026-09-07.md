@@ -98,6 +98,35 @@ importarse desde ningún lado, así que el prompt que edita el panel **todavía 
 bot**. Ahora sí se puede enchufar sin abrir un agujero —esa era la condición—, pero cambia lo
 que el bot le dice a los clientes, así que es una decisión del dueño, no un fix de seguridad.
 
+### 0.d — Cuarta tanda (2026-09-07, tarde): cuatro defectos del flujo
+
+Cierra los puntos **12** y **14** enteros, el tercer problema del **11** y el tercero del **16**.
+
+- **`waPost` ahora lanza cuando Meta rechaza** (punto 12). Devolvía `res.json()` pasara lo que
+  pasara, así que el cuerpo de error de Meta viajaba como si fuera una respuesta feliz: el
+  `try/catch` de `flushOutbox` nunca disparaba y **el outbox marcaba `sent` mensajes que Meta
+  había rechazado** — nadie los reintentaba y nadie los veía. Se agrega `WaApiError` con el
+  status HTTP y el `code` de Meta (el 132001 del recordatorio sale ahí). Los llamadores que ya
+  tenían `try/catch` pasan a marcar `failed` con el motivo, solos.
+- **Un 400 ya no tumba la cadena de modelos** (punto 14). Cualquier excepción llamaba a
+  `markDown` (estado `caido` + 5 min de cooldown). Un 400 por payload malformado es culpa
+  nuestra y falla idéntico con todos los proveedores, así que la cadena entera quedaba caída y
+  el bot mudo cinco minutos por un bug que ningún reintento arregla. Ahora 400/413/422 no
+  penalizan al modelo y cortan ahí; 401/403/404/429/5xx/timeout sí lo marcan y siguen con el
+  próximo.
+- **Dos leads `pending` ya no dejan el alta en loop** (punto 11c). `sql/059` agrega un índice
+  único **parcial** `(phone) where status='pending'` — parcial a propósito: un unique liso
+  impediría que un cliente se dé de alta dos veces en su vida. `getPendingLead` pasa a
+  `order + limit(1)` y loguea el error en vez de tragárselo (tiene que aguantar duplicados que
+  ya existan), y `crearLead` es idempotente. Medido antes de aplicar: **0 teléfonos con más de
+  un `pending`**, así que el índice entró sin limpiar nada.
+- **El gate de whitelist ya no llena `wa_alertas_humano`** (punto 16c). Insertaba una fila por
+  **cada** mensaje descartado. Lo que se quiere saber es qué números intentaron, no cuántas
+  veces: ahora es una por teléfono y por día.
+
+**Verificación:** `tsc --strict` limpio sobre los tres archivos tocados; los errores que
+quedan en `llm.ts` (líneas 106-108) son previos — verificado con `git stash`.
+
 ---
 
 **Verificación:** `tsc --strict --noResolve` limpio sobre los cuatro archivos tocados (los
@@ -161,7 +190,7 @@ contenedor no alcanza `*.supabase.co`.
     `sql/012` es tabla + RPC + setting (`wa_rate_limit_enabled=1`) que **no se aplican en
     producción**: un número blacklisteado sigue atendido y no hay tope de tokens por número.
     *Fix*: mover los dos chequeos al paso 0 de `handleMessage`, junto al killswitch.
-11. **El alta de cliente nuevo tiene tres problemas** (`lk_whatsapp-webhook/index.ts`):
+11. **El alta de cliente nuevo tiene dos problemas** (el tercero, los leads duplicados, se cerró — ver 0.d) (`lk_whatsapp-webhook/index.ts`):
     - **Sin TTL ni reset** (:930-941, `getPendingLead` no filtra por fecha): quien abandona en
       el campo 4 y vuelve dos semanas después, su "hola, me pasás la lista?" se guarda como
       mail o dirección. Único escape: `RE_ALTA_CANCEL` (:204). *Fix*: expirar `pending` a las
@@ -172,29 +201,12 @@ contenedor no alcanza `*.supabase.co`.
       CUIT para siempre** (no hay paso de CUIT en `ALTA_STEPS`, aunque el comentario de
       :172-173 diga que se pide primero). *Fix*: frases explícitas ancladas + revalidar CUIT en
       cada paso.
-    - **Dos leads `pending` simultáneos matan el alta en silencio**: `getPendingLead` (:223-231)
-      usa `.maybeSingle()` e ignora el `error`, `crearLead` (:332-340) no chequea si ya hay uno,
-      y `sql/013:31` sólo crea índice, **sin unique en `phone`**. Con dos filas, `maybeSingle()`
-      devuelve null con PGRST116 que nadie mira → el paso 3b no intercepta nunca → "pasame tu
-      CUIT" en loop para siempre. *Fix*: unique parcial `(phone) where status='pending'` +
-      `.order().limit(1)`, y `crearLead` idempotente.
-12. **`waPost` nunca lanza en error** (`lk_whatsapp-webhook/wa-api.ts:20-24`): loguea `!resp.ok`
-    y devuelve el JSON de error como si fuera éxito. Por eso el `try/catch` de `flushOutbox`
-    (:519-526) nunca dispara y siempre corre `bot_outbox_mark(status:'sent')` (:515) — el outbox
-    marca como enviados mensajes que Meta rechazó, y nadie los reintenta ni los ve. Sumado a
-    que **no hay ningún chequeo de la ventana de 24 h** antes de mandar texto libre (el
-    comentario de :504 lo afirma pero no lo implementa).
-    *Fix*: `throw` en `!resp.ok`; decidir template vs texto según `wa_message_status`.
 13. **El pre-check de FAQ secuestra conversaciones del agente en curso** (:943-961): `handleFaq`
     corre en todos los mensajes sin mirar si hay un turno pendiente. El agente pregunta
     "¿confirmo el pedido?", el cliente responde "transferencia" → matchea `datos_transferencia`
     → le manda el CBU y el pedido queda colgado; peor, esa respuesta enlatada entra al
     historial. *Fix*: bandera de conversación en curso que saltee el pre-check, o whitelist de
     FAQs que puedan interrumpir.
-14. **Un 400 por payload malformado tumba la cadena de modelos 5 minutos** (`_shared/llm.ts:386-391`):
-    cualquier excepción llama `markDown` → `estado='caido'` + `cooldown_hasta` +5 min. Como el
-    error es del request, falla igual con todos los proveedores → la cadena entera queda
-    "caída". *Fix*: distinguir 4xx de request (no penalizar) de 401/429/5xx (sí).
 15. **`lk_chat-test` sigue divergiendo del webhook en el teléfono**: usa `canonPhone`
     (`_shared/wa-api.ts:4-16`), que **saca el 9** (`5491162521635` → `541162521635`), mientras
     el webhook pasa el `from` crudo de Meta → historial, leads y blacklist quedan bajo claves
@@ -203,8 +215,7 @@ contenedor no alcanza `*.supabase.co`.
 16. **Menores**: saludo duplicado en el camino de FAQ (:955-957 envuelve `faq.reply` con
     `conSaludoSiCorresponde` y la FAQ `saludo_inicial` ya saluda) · la verificación GET lee sólo
     la env var (:1017) mientras `loadConfig` (:47) prioriza `app_settings`, así que rotar el
-    verify token ahí devuelve 403 sin más síntoma · el gate de whitelist inserta una fila en
-    `wa_alertas_humano` **por cada mensaje descartado** (:896-902, :656-665) → crece sin techo.
+    verify token ahí devuelve 403 sin más síntoma. (El tercero —el gate de whitelist llenando `wa_alertas_humano`— se cerró, ver 0.d.)
 
 ---
 

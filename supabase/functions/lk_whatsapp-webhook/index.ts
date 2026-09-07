@@ -263,14 +263,26 @@ function validarAltaCampo(field: string, text: string): string | null {
   return null;
 }
 
+/**
+ * v14.13 — punto 11c de la auditoría del 07/09. Antes esto usaba `.maybeSingle()`, que con DOS
+ * filas `pending` del mismo teléfono devuelve `null` y un error PGRST116 que nadie miraba. El
+ * resultado era el peor posible: el paso que intercepta el alta no se activaba nunca y el bot
+ * contestaba "pasame tu CUIT" **en loop para siempre**, sin forma de salir.
+ *
+ * Ahora se toma el más reciente (`order` + `limit(1)`), así dos filas no rompen nada, y el
+ * error se loguea en vez de tragarse. El índice único parcial de `sql/059` impide que se
+ * vuelvan a crear dos, pero esto tiene que aguantar las que ya existan.
+ */
 async function getPendingLead(phone: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("wa_prospect_leads")
     .select("id, cuit, razon_social, nombre_contacto, telefono, mail, direccion, localidad, expreso_nombre, expreso_direccion, expreso_telefono, tipo_comercio, dimension_comercio, tiene_venta_web, ya_vende_lk, a_quien_compra, como_conoce_marca, alta_step, raw_messages")
     .eq("phone", phone)
     .eq("status", "pending")
-    .maybeSingle();
-  return data;
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) console.error(`[alta] getPendingLead(${phone}) falló:`, error.message);
+  return (data && data[0]) || null;
 }
 
 /** Avisa al vendedor de un alta completa. CABLE SIN ENCHUFAR: solo deja la
@@ -372,14 +384,28 @@ async function handleAltaStep(
 
 /** Crea el lead (status='pending', alta_step=0). No envía nada: el caller
  *  decide el copy de arranque. `cuit` opcional (viene de cuit_not_found). */
+/**
+ * v14.13 — idempotente. Antes insertaba sin mirar si el teléfono ya tenía un alta abierta, que
+ * es exactamente cómo se llegaba a las dos filas `pending` que dejaban el alta en loop.
+ */
 async function crearLead(phone: string, text: string, cuit: string | null): Promise<void> {
-  await supabase.from("wa_prospect_leads").insert({
+  const abierto = await getPendingLead(phone);
+  if (abierto) {
+    console.log(`[alta] ${phone} ya tenía un alta abierta (lead ${abierto.id}); no se crea otra.`);
+    return;
+  }
+  const { error } = await supabase.from("wa_prospect_leads").insert({
     phone,
     cuit,
     alta_step: 0,
     status: "pending",
     raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
   });
+  // 23505 = chocó con el índice único parcial de sql/059: otra entrega del mismo mensaje
+  // ganó la carrera. No es un error: el alta ya existe.
+  if (error && error.code !== "23505") {
+    console.error(`[alta] no se pudo crear el lead de ${phone}:`, error.message);
+  }
 }
 
 /** Maneja el flujo de registro para teléfonos no identificados */
@@ -695,18 +721,9 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
   const soloWhitelist = Number(raw ?? "1") === 1;
   if (soloWhitelist && !(await estaEnWhitelist(phone))) {
     console.warn(`[whitelist-gate] adjunto de ${phone} descartado.`);
-    try {
-      await supabase.from("wa_alertas_humano").insert({
-        tipo: "otro",
-        phone,
-        contexto: {
-          motivo: "whitelist_gate",
-          origen: "adjunto",
-          tipo_adjunto: msg.type,
-          contact_name: msg.name ?? null,
-        },
-      });
-    } catch { /* fire-and-forget */ }
+    await avisarDescartePorWhitelist(phone, {
+      motivo: "whitelist_gate", origen: "adjunto", tipo_adjunto: msg.type, contact_name: msg.name ?? null,
+    });
     return;
   }
 
@@ -912,6 +929,26 @@ async function triggerParser(comprobanteId: string): Promise<void> {
 // Mientras la app está en modo "testing/rollout controlado", el bot solo
 // responde a números en `wa_envio_contactos`. Cuando se decida activar
 // para todos los clientes, poner `app_settings.wa_bot_solo_whitelist = 0`.
+/**
+ * v14.13 — punto 16 de la auditoría del 07/09. Los dos gates de whitelist insertaban una fila en
+ * `wa_alertas_humano` **por cada mensaje descartado**: un número fuera de la lista que escribe
+ * veinte veces deja veinte alertas idénticas, y la tabla crece sin techo. Lo que se quiere saber
+ * es *qué números intentaron*, no cuántas veces — así que se guarda una por teléfono y por día.
+ */
+async function avisarDescartePorWhitelist(phone: string, contexto: Record<string, unknown>): Promise<void> {
+  try {
+    const desde = new Date(); desde.setUTCHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from("wa_alertas_humano")
+      .select("id", { count: "exact", head: true })
+      .eq("phone", phone)
+      .eq("contexto->>motivo", "whitelist_gate")
+      .gte("created_at", desde.toISOString());
+    if ((count ?? 0) > 0) return;   // ya quedó registrado hoy
+    await supabase.from("wa_alertas_humano").insert({ tipo: "otro", phone, contexto });
+  } catch { /* fire-and-forget: no puede frenar el descarte */ }
+}
+
 async function estaEnWhitelist(phone: string): Promise<boolean> {
   const { data } = await supabase
     .from("wa_envio_contactos")
@@ -939,13 +976,9 @@ async function handleMessage(
   const soloWhitelist = Number(raw ?? "1") === 1;
   if (soloWhitelist && !(await estaEnWhitelist(phone))) {
     console.warn(`[whitelist-gate] mensaje de ${phone} descartado (no está en wa_envio_contactos).`);
-    try {
-      await supabase.from("wa_alertas_humano").insert({
-        tipo: "otro",
-        phone,
-        contexto: { motivo: "whitelist_gate", texto_recibido: text.slice(0, 200), contact_name: contactName ?? null },
-      });
-    } catch { /* fire-and-forget */ }
+    await avisarDescartePorWhitelist(phone, {
+      motivo: "whitelist_gate", texto_recibido: text.slice(0, 200), contact_name: contactName ?? null,
+    });
     return;
   }
 

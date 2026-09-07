@@ -227,7 +227,10 @@ async function callAnthropic(
     },
     timeoutMs,
   );
-  if (!r.ok) throw new Error(`Anthropic ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  if (!r.ok) throw Object.assign(
+    new Error(`Anthropic ${r.status}: ${(await r.text()).slice(0, 300)}`),
+    { status: r.status },   // v14: el status se usa para decidir si el modelo tiene la culpa
+  );
   const d = await r.json();
   return {
     text: d.content?.[0]?.text ?? "",
@@ -265,7 +268,10 @@ async function callOpenAI(
     },
     timeoutMs,
   );
-  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  if (!r.ok) throw Object.assign(
+    new Error(`OpenAI ${r.status}: ${(await r.text()).slice(0, 300)}`),
+    { status: r.status },   // v14: el status se usa para decidir si el modelo tiene la culpa
+  );
   const d = await r.json();
   return {
     text: d.choices?.[0]?.message?.content ?? "",
@@ -307,7 +313,10 @@ async function callGoogle(
     },
     timeoutMs,
   );
-  if (!r.ok) throw new Error(`Google ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  if (!r.ok) throw Object.assign(
+    new Error(`Google ${r.status}: ${(await r.text()).slice(0, 300)}`),
+    { status: r.status },   // v14: el status se usa para decidir si el modelo tiene la culpa
+  );
   const d = await r.json();
   // deno-lint-ignore no-explicit-any
   const parts: any[] = d.candidates?.[0]?.content?.parts ?? [];
@@ -385,8 +394,24 @@ export async function llmCall(opts: LlmCallOpts): Promise<LlmCallResult> {
       return res;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // deno-lint-ignore no-explicit-any
+      const status = (e as any)?.status as number | undefined;
       console.error(`[llm] ${row.proveedor}/${row.model_id} falló: ${msg}`);
       errors.push(`${row.proveedor}/${row.model_id}: ${msg}`);
+
+      // v14.13 — punto 14 de la auditoría del 07/09: ANTES cualquier excepción llamaba a
+      // `markDown`, que deja el modelo en `caido` con 5 minutos de cooldown. Un 400 por payload
+      // malformado es culpa NUESTRA, no del modelo: falla idéntico con todos los proveedores,
+      // así que la cadena entera quedaba caída por un bug de request. El bot se queda mudo
+      // cinco minutos por un error que un reintento nunca va a arreglar.
+      //
+      // 400 / 413 / 422 = el request está mal → no se penaliza el modelo y se corta acá,
+      // porque probar el siguiente da exactamente el mismo error.
+      // 401 / 403 / 404 / 429 / 5xx / timeout = problema de ESE modelo (key, cuota, id que no
+      // existe, caída del proveedor) → se marca y se sigue con el próximo de la cadena.
+      const esCulpaDelRequest = status === 400 || status === 413 || status === 422;
+      if (esCulpaDelRequest) throw e;
+
       await markDown(row.id, msg);
       // sigue al próximo
     }
