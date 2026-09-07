@@ -76,6 +76,9 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 
 ## Auditoría de seguridad y funcionamiento (2026-09-07)
 
+> **Lo que FALTA está en `docs/PENDIENTES-AUDITORIA-2026-09-07.md`** — 45 puntos
+> priorizados, cada uno con archivo:línea y la evidencia. Leelo antes de tocar el bot.
+
 Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
 
 - ✅ **`lk_chat-test` ahora exige rol admin** (`_shared/admin-gate.ts`, patrón `lk_faq-admin`).
