@@ -884,15 +884,16 @@ const sbAuth = window.supabase.createClient(AUTH_URL, AUTH_KEY);
 // Toda llamada a lk_chat-test pasa por acá. La edge function exige rol admin
 // server-side (patrón lk_faq-admin): sin el access_token de la sesión Google
 // responde 401. La anon key no alcanza como credencial — es pública.
-async function chatTest(body) {
+async function authedInvoke(fn, body) {
   const { data: { session } } = await sbAuth.auth.getSession();
   if (!session) {
     return { data: null, error: { message: "Sesión expirada — volvé a entrar." } };
   }
-  return await sb.functions.invoke("lk_chat-test", {
+  return await sb.functions.invoke(fn, {
     body: { ...body, access_token: session.access_token },
   });
 }
+async function chatTest(body) { return await authedInvoke("lk_chat-test", body); }
 
 let currentRole = null;
 let currentEmail = null;
@@ -1982,7 +1983,7 @@ const escM = s => (s || "").replace(/</g, "&lt;");
 
 // Invoca la edge function y extrae el mensaje de error real del server.
 async function amInvoke(payload) {
-  const { data, error } = await sb.functions.invoke("lk_agente-modelos", { body: payload });
+  const { data, error } = await authedInvoke("lk_agente-modelos", payload);
   if (error) {
     let msg = error.message || "error";
     try {
@@ -2401,9 +2402,7 @@ async function loadTemplates() {
   const status = document.getElementById("tplLoadStatus");
   status.textContent = "Cargando...";
   try {
-    const { data, error } = await sb.functions.invoke("lk_templates", {
-      body: { action: "templates_list", status: "APPROVED" },
-    });
+    const { data, error } = await authedInvoke("lk_templates", { action: "templates_list", status: "APPROVED" });
     if (error || data?.error) {
       status.textContent = "⚠️ " + (data?.error || error.message || "Error");
       return;
@@ -2479,14 +2478,12 @@ async function sendTemplateTest() {
   const params = Array.from(document.querySelectorAll(".tpl-param")).map((el) => el.value);
   status.textContent = "Enviando...";
   try {
-    const { data, error } = await sb.functions.invoke("lk_templates", {
-      body: {
-        action: "template_send",
-        phone,
-        template_name: tplCurrent.name,
-        language: tplCurrent.language || "es_AR",
-        params,
-      },
+    const { data, error } = await authedInvoke("lk_templates", {
+      action: "template_send",
+      phone,
+      template_name: tplCurrent.name,
+      language: tplCurrent.language || "es_AR",
+      params,
     });
     if (error || data?.ok === false || data?.error) {
       status.textContent = "⚠️ " + (data?.error || error?.message || "Error");
@@ -2507,7 +2504,7 @@ const METODO_LABEL = {
 function grupoDe(m) { m = m || ""; if (m.startsWith("credito")) return "credito"; if (m.startsWith("echeq")) return "echeq"; return "contado"; }
 
 async function notifCall(body) {
-  const { data, error } = await sb.functions.invoke("lk_notif-sim", { body });
+  const { data, error } = await authedInvoke("lk_notif-sim", body);
   if (error) throw new Error(error.message || "error");
   if (data && data.error) throw new Error(data.error);
   return data;
@@ -2673,7 +2670,7 @@ let metaTplCache = null;
 async function ensureMetaTemplates(force) {
   if (metaTplCache && !force) return;
   try {
-    const { data } = await sb.functions.invoke("lk_templates", { body: { action: "templates_list", status: "" } });
+    const { data } = await authedInvoke("lk_templates", { action: "templates_list", status: "" });
     if (data && data.templates) metaTplCache = data.templates;
   } catch (e) { /* sin cache → fallback a reconstrucción */ }
 }
@@ -2719,7 +2716,7 @@ const CANNED = [
   "¡Gracias por escribirnos! Cualquier cosa quedamos a disposición.",
 ];
 async function convCall(body) {
-  const { data, error } = await sb.functions.invoke("lk_conversaciones", { body });
+  const { data, error } = await authedInvoke("lk_conversaciones", body);
   if (error) throw new Error(error.message || "error");
   if (data && data.error) { const e = new Error(data.error); e.note = data.note; throw e; }
   return data;
@@ -2997,6 +2994,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.4</div>
 </body>
 </html>

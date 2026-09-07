@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+import { requireAdmin } from "../_shared/admin-gate.ts";
 
 // lk_notif-sim — DRIVER del simulador end-to-end (PaginaLK).
 //
@@ -171,6 +172,13 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
+
+    // ── Gate de admin (OBLIGATORIO para todo) ──
+    // Se deploya con --no-verify-jwt: sin este chequeo es un endpoint HTTP
+    // anónimo de internet. `descuentos_save` reescribe el alias/CBU que el bot
+    // le da a los clientes para que transfieran.
+    const gate = await requireAdmin(body);
+    if (!gate.ok) return json({ error: gate.error }, gate.status);
 
     // ── Gestión de contactos (lista blanca) — no requiere ISIS ──
     if (action === "contact_list") {

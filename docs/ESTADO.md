@@ -88,9 +88,15 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
 - ⏳ **`lk_wh_stage` v3**: segundo webhook completo, público, sin JWT, **no versionado en el repo**,
   con lógica vieja (umbral FAQ 0.3, sin blindaje anti-jailbreak, sin alta paso a paso).
   Decidir: borrarla o traerla al repo.
-- ⏳ **Gate de admin pendiente** en `lk_notif-sim` (reescribe el CBU que el bot le da a los
-  clientes), `lk_templates` (manda WhatsApp a cualquier número desde el WABA de la empresa)
-  y `lk_conversaciones` (expone y manipula todas las conversaciones).
+- ✅ **Gate de admin también en `lk_notif-sim`** (reescribía el CBU que el bot le da a los
+  clientes), **`lk_templates`** (mandaba WhatsApp a cualquier número desde el WABA de la
+  empresa), **`lk_conversaciones`** (exponía y manipulaba todas las conversaciones) y
+  **`lk_agente-modelos`** (administra la cadena de modelos y sus API keys). Ningún cron las
+  llama —verificado en `cron.job`—, sólo el dashboard, que ahora pasa por `authedInvoke()`.
+  De las 10 edge functions del repo quedan sin gate propio sólo `lk_whatsapp-webhook`
+  (webhook de Meta: necesita ser público, le falta la firma HMAC), `lk_factura-check`
+  (tiene defensa propia: whitelist + ventana + claim atómico), `lk_parse-comprobante`
+  y `lk_tpl-check`.
 - ⏳ **RLS apagada** en ~15 tablas `wa_*`/`bot_*` con `anon` full CRUD (`wa_prospect_leads` con
   PII de altas, `wa_comprobantes`, `wa_alertas_humano`, `wa_clientes_telefono` con 610 teléfonos).
 - ⏳ **14 funciones SECURITY DEFINER ejecutables por `anon`**, entre ellas `bot_submit_order`

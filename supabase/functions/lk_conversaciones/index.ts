@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/admin-gate.ts";
 
 // lk_conversaciones — Bandeja de atención humana (PaginaLK), integrada al bot real.
 //
@@ -46,6 +47,13 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
+
+    // ── Gate de admin (OBLIGATORIO para todo) ──
+    // Se deploya con --no-verify-jwt: sin este chequeo es un endpoint HTTP
+    // anónimo de internet. Expone y manipula TODAS las conversaciones de clientes
+    // (`thread` devuelve 300 mensajes de cualquier teléfono).
+    const gate = await requireAdmin(body);
+    if (!gate.ok) return json({ error: gate.error }, gate.status);
 
     if (action === "list") {
       const { data, error } = await sb.rpc("wa_conversaciones_list");

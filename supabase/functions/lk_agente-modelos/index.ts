@@ -11,6 +11,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/admin-gate.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -130,6 +131,13 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const action = body.action;
+
+    // ── Gate de admin (OBLIGATORIO para todo) ──
+    // Se deploya con --no-verify-jwt: sin este chequeo es un endpoint HTTP
+    // anónimo de internet. Administra la cadena de modelos y sus API keys
+    // (`wa_agente_model_keys`).
+    const gate = await requireAdmin(body);
+    if (!gate.ok) return json({ error: gate.error }, gate.status);
 
     if (action === "check") {
       const key = String(body.api_key ?? "").trim();

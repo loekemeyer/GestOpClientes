@@ -1,8 +1,10 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/admin-gate.ts";
 
 // Función dedicada a plantillas WhatsApp: listar (Meta) + enviar prueba.
-// Autocontenida (no depende de _shared) para no tocar lk_whatsapp-webhook ni lk_chat-test.
+// Sólo depende de _shared/admin-gate.ts (verificación de admin); no toca
+// lk_whatsapp-webhook ni lk_chat-test.
 
 const META_API = "https://graph.facebook.com/v21.0";
 
@@ -91,6 +93,13 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
+
+    // ── Gate de admin (OBLIGATORIO para todo) ──
+    // Se deploya con --no-verify-jwt: sin este chequeo es un endpoint HTTP
+    // anónimo de internet. `template_send` manda WhatsApp desde el número de la
+    // empresa a cualquier destinatario (spam/phishing → baneo del WABA).
+    const gate = await requireAdmin(body);
+    if (!gate.ok) return json({ error: gate.error }, gate.status);
 
     if (body.action === "templates_list") return await handleTemplatesList(body.status);
     if (body.action === "template_send") return await handleTemplateSend(body);
