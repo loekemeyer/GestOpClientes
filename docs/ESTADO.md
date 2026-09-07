@@ -2,7 +2,7 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-09-04.
+> Última actualización: 2026-09-07.
 
 ## 🔑 Accesos, permisos y dónde está cada cosa (LEER PRIMERO)
 
@@ -19,7 +19,7 @@
 | "Costos" | `fxyhvacysnqzzsdvmplx` | No toca el bot. |
 
 **Tokens / secrets — dónde vive cada uno (para NO marear):**
-- **Token de WhatsApp (Meta):** vive en el **secret de Edge Function** `WHATSAPP_ACCESS_TOKEN` (PaginaLK, alcance de proyecto = lo ven todas las funciones). El webhook además usa `LK_WA_TOKEN`. **NO** está en `app_settings` (la copia vieja `wa_token` se borró el 2026-09-04 porque estaba vencida y confundía). **Para chequear si el token vive y si las plantillas están APPROVED: invocar la edge `lk_tpl-check`** (no hay que pedir el token).
+- **Token de WhatsApp (Meta):** vive en el **secret de Edge Function** `WHATSAPP_ACCESS_TOKEN` (PaginaLK, alcance de proyecto = lo ven todas las funciones). El webhook además usa `LK_WA_TOKEN`, que **SÍ está en `app_settings`** (lo que se borró el 2026-09-04 fue la copia vieja `wa_token`, no ésta). ⚠️ **`app_settings` tiene una policy de SELECT abierta a `anon` (`app_settings_select_all`, `USING (true)`) y la anon key es pública** (viaja en `docs/index.html`, servido por GitHub Pages): hoy cualquiera puede leer `LK_WA_TOKEN` y `isis_supabase_service_key`. **Pendiente: rotar los dos y moverlos a secrets de Edge Function** (auditoría 2026-09-07). **Para chequear si el token vive y si las plantillas están APPROVED: invocar la edge `lk_tpl-check`** (no hay que pedir el token).
 - **Datos de pago (alias/CBU):** `app_settings.wa_descuentos_config` → `pago.alias` / `pago.cbu`, editables desde el Panel. Los usa `lk_factura-check` y la FAQ `datos_transferencia`.
 - **Lista blanca de envío:** tabla `wa_envio_contactos` (hoy: Luis, Thomy, N8N-test).
 - **Llave de deploy del CI:** GitHub Actions secret `SUPABASE_ACCESS_TOKEN` (cuenta Supabase → Account → Access Tokens). Es OTRA cosa que el token de WA. Estado: ✅ **cargada el 2026-09-04, VENCE el 2027-05-04 → renovar antes** (regenerar en Supabase y re-pegar en GitHub; Supabase ya no da tokens sin vencimiento).
@@ -73,6 +73,40 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `d
 | `wa_comprobantes_activo` | flujo de comprobantes entrantes: `0` apagado / `1` on | `0` |
 
 `wa_envio_contactos` = **lista blanca**: el bot solo envía a estos números. Hoy incluye a Thomy (`5491162521635`) y Luis (`5491125608669`).
+
+## Auditoría de seguridad y funcionamiento (2026-09-07)
+
+Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
+
+- ✅ **`lk_chat-test` ahora exige rol admin** (`_shared/admin-gate.ts`, patrón `lk_faq-admin`).
+  Antes era un endpoint anónimo que permitía (a) vincular cualquier teléfono a cualquier
+  cliente enumerando el `cod_cliente` — takeover de cuenta — y (b) leer pedidos, descuentos
+  y direcciones de cualquier cliente pasando su teléfono en el body. La auto-vinculación se
+  **eliminó**: vincular va por `bot_register_request_v2`, con aprobación humana.
+  El front manda el `access_token` vía el helper `chatTest()` (13 call sites).
+- ⏳ **Rotar `LK_WA_TOKEN` y `isis_supabase_service_key`** y sacarlos de `app_settings` (ver arriba).
+- ⏳ **`lk_wh_stage` v3**: segundo webhook completo, público, sin JWT, **no versionado en el repo**,
+  con lógica vieja (umbral FAQ 0.3, sin blindaje anti-jailbreak, sin alta paso a paso).
+  Decidir: borrarla o traerla al repo.
+- ⏳ **Gate de admin pendiente** en `lk_notif-sim` (reescribe el CBU que el bot le da a los
+  clientes), `lk_templates` (manda WhatsApp a cualquier número desde el WABA de la empresa)
+  y `lk_conversaciones` (expone y manipula todas las conversaciones).
+- ⏳ **RLS apagada** en ~15 tablas `wa_*`/`bot_*` con `anon` full CRUD (`wa_prospect_leads` con
+  PII de altas, `wa_comprobantes`, `wa_alertas_humano`, `wa_clientes_telefono` con 610 teléfonos).
+- ⏳ **14 funciones SECURITY DEFINER ejecutables por `anon`**, entre ellas `bot_submit_order`
+  (crea pedidos a nombre de cualquiera; la única "auth" es el `p_telefono` que pasa el llamador).
+- ⏳ **El webhook no valida `X-Hub-Signature-256`** y `{"action":"flush"}` no pide credencial.
+
+**Funcional — el bot no identifica a NADIE hoy.** El webhook resuelve por
+`bot_cliente_por_whatsapp` → `bot_customer_whatsapps`, que tiene **0 filas**, así que todo
+mensaje cae a la rama no-cliente. La que sí tiene los 610 teléfonos y normaliza variantes
+54/9/15 es `wa_identify_customer`, y **sólo la usa `lk_chat-test`** (por eso en la consola de
+test anda y en WhatsApp real no).
+
+Otros dos que hacen ruido a diario: `pedido_recordatorio_25` falla contra Meta con
+**#132001 "template does not exist"** (20 fallas/día, el cron 23 la reencola), y hay
+**575 escalaciones `pendiente`** en `wa_alertas_humano` de 57 teléfonos reales bloqueados por
+el killswitch, sin ningún consumidor de esa cola.
 
 ## Bot de chat (webhook)
 

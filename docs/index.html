@@ -881,6 +881,19 @@ const AUTH_URL = "https://hrxfctzncixxqmpfhskv.supabase.co";
 const AUTH_KEY = "sb_publishable_BqpAgZH6ty-9wft10_YMhw_0rcIPuWT";
 const sbAuth = window.supabase.createClient(AUTH_URL, AUTH_KEY);
 
+// Toda llamada a lk_chat-test pasa por acá. La edge function exige rol admin
+// server-side (patrón lk_faq-admin): sin el access_token de la sesión Google
+// responde 401. La anon key no alcanza como credencial — es pública.
+async function chatTest(body) {
+  const { data: { session } } = await sbAuth.auth.getSession();
+  if (!session) {
+    return { data: null, error: { message: "Sesión expirada — volvé a entrar." } };
+  }
+  return await sb.functions.invoke("lk_chat-test", {
+    body: { ...body, access_token: session.access_token },
+  });
+}
+
 let currentRole = null;
 let currentEmail = null;
 let sessionStart = null;
@@ -1051,9 +1064,7 @@ async function sendMessage() {
     const reqBody = { phone: testPhone, text };
     if (aiDisabled) reqBody.noAI = true;
     if (skipRateLimit) reqBody.skipRateLimit = true;
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: reqBody,
-    });
+    const { data, error } = await chatTest(reqBody);
 
     hideTyping();
 
@@ -1161,9 +1172,7 @@ function startAs(mode) {
 // --- Config page ---
 async function loadConfigPage() {
   try {
-    const { data } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "config_get" },
-    });
+    const { data } = await chatTest({ action: "config_get" });
     if (data) {
       document.getElementById("cfgRLLimit").value = data.rate_limit_per_hour || 20;
       const enabled = data.rate_limit_enabled;
@@ -1193,13 +1202,11 @@ async function saveRateLimitConfig() {
   st.textContent = "Guardando...";
   st.className = "config-status";
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: {
+    const { data, error } = await chatTest({
         action: "config_save",
         rate_limit_per_hour: parseInt(document.getElementById("cfgRLLimit").value) || 20,
         rate_limit_enabled: document.getElementById("cfgRLEnabled").checked ? 1 : 0,
-      },
-    });
+      });
     if (error) throw error;
     st.textContent = "✓ Guardado";
     st.className = "config-status ok";
@@ -2172,9 +2179,7 @@ async function removeFromChain(id) {
 async function loadBlacklist() {
   const container = document.getElementById("blTableContainer");
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "blacklist_list" },
-    });
+    const { data, error } = await chatTest({ action: "blacklist_list" });
     if (error) throw error;
     const items = data?.items || [];
     if (!items.length) {
@@ -2208,9 +2213,7 @@ async function addToBlacklist() {
   st.textContent = "Agregando...";
   st.className = "config-status";
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "blacklist_add", phone, reason },
-    });
+    const { data, error } = await chatTest({ action: "blacklist_add", phone, reason });
     if (error) throw error;
     if (data?.error) { st.textContent = "✗ " + data.error; st.className = "config-status err"; return; }
     let msg = "✓ Agregado";
@@ -2229,9 +2232,7 @@ async function addToBlacklist() {
 
 async function removeFromBlacklist(id) {
   try {
-    await sb.functions.invoke("lk_chat-test", {
-      body: { action: "blacklist_remove", id },
-    });
+    await chatTest({ action: "blacklist_remove", id });
     loadBlacklist();
   } catch (e) { /* retry on next load */ }
 }
@@ -2240,9 +2241,7 @@ async function removeFromBlacklist(id) {
 async function loadKillswitchAndWhitelist() {
   // Toggle
   try {
-    const { data } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "killswitch_get" },
-    });
+    const { data } = await chatTest({ action: "killswitch_get" });
     const on = !!data?.solo_whitelist;
     const cb = document.getElementById("cfgKillswitch");
     cb.checked = on;
@@ -2263,18 +2262,14 @@ async function saveKillswitch() {
   const enabled = document.getElementById("cfgKillswitch").checked;
   updateKillswitchStyle(enabled);
   try {
-    await sb.functions.invoke("lk_chat-test", {
-      body: { action: "killswitch_set", enabled },
-    });
+    await chatTest({ action: "killswitch_set", enabled });
   } catch (e) { /* revert visually on error */ }
 }
 
 async function loadWhitelist() {
   const box = document.getElementById("wlTableContainer");
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "whitelist_list" },
-    });
+    const { data, error } = await chatTest({ action: "whitelist_list" });
     if (error) throw error;
     const items = data?.items || [];
     if (!items.length) {
@@ -2308,9 +2303,7 @@ async function addToWhitelist() {
   if (!phone) { st.textContent = "Ingresá un número"; st.className = "config-status err"; return; }
   st.textContent = "Agregando…"; st.className = "config-status";
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "whitelist_add", phone, label },
-    });
+    const { data, error } = await chatTest({ action: "whitelist_add", phone, label });
     if (error) throw error;
     if (data?.error) { st.textContent = "✗ " + data.error; st.className = "config-status err"; return; }
     st.textContent = "✓ Agregado"; st.className = "config-status ok";
@@ -2325,9 +2318,7 @@ async function addToWhitelist() {
 
 async function removeFromWhitelist(id) {
   try {
-    await sb.functions.invoke("lk_chat-test", {
-      body: { action: "whitelist_remove", id },
-    });
+    await chatTest({ action: "whitelist_remove", id });
     loadWhitelist();
   } catch (e) { /* retry on next load */ }
 }
@@ -2349,9 +2340,7 @@ function fmtTok(inp, out) {
 async function refreshCosts() {
   if (currentRole !== "admin") return;
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "stats", since: sessionStart },
-    });
+    const { data, error } = await chatTest({ action: "stats", since: sessionStart });
     if (error || !data) return;
     document.getElementById("costSession").textContent = fmtCost(data.session?.cost);
     document.getElementById("costSessionTok").textContent = fmtTok(data.session?.input_tokens, data.session?.output_tokens);
@@ -2896,9 +2885,7 @@ let _iaLastData = null;
 async function loadIaDash() {
   if (currentRole !== "admin") return;
   try {
-    const { data, error } = await sb.functions.invoke("lk_chat-test", {
-      body: { action: "stats", since: sessionStart },
-    });
+    const { data, error } = await chatTest({ action: "stats", since: sessionStart });
     if (error || !data) return;
     _iaLastData = data;
     renderIaTable();
@@ -3010,6 +2997,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.3</div>
 </body>
 </html>
