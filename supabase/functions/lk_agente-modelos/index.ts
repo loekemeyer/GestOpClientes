@@ -207,6 +207,118 @@ serve(async (req) => {
       return json({ ok: true });
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Escrituras del módulo "Configuración del agente" (punto 3 de la auditoría del 07/09).
+    //
+    // Antes el dashboard escribía DIRECTO en `wa_agente_*` con la anon key, que viaja en
+    // `docs/index.html` y por lo tanto es pública. Las cinco tablas estaban sin RLS y con
+    // `anon` pudiendo hasta TRUNCATE. Lo grave no era perder datos: `wa_agente_config` es el
+    // documento rector del agente, así que cualquiera podía **reescribir el prompt del bot**.
+    //
+    // Ahora esas escrituras entran por acá, que ya exige admin arriba. `sql/058` cierra la
+    // puerta vieja (RLS + revoke). Las lecturas sin datos de cliente (config, historial, evals,
+    // modelos) siguen yendo directo por PostgREST con una policy de SELECT; `wa_agente_consultas`
+    // no, porque son preguntas de clientes reales.
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // — Documento del agente: guarda y versiona en el historial, en un solo viaje.
+    if (action === "config_save") {
+      const contenido = String(body.contenido ?? "");
+      if (!contenido.trim()) return json({ error: "El documento no puede quedar vacío" }, 400);
+      const ts = new Date().toISOString();
+      const { error: e1 } = await sb
+        .from("wa_agente_config")
+        .update({ contenido, updated_at: ts, updated_by: gate.email })
+        .eq("id", 1);
+      if (e1) return json({ error: e1.message }, 500);
+      const { error: e2 } = await sb
+        .from("wa_agente_config_history")
+        .insert({ contenido, motivo: body.motivo ?? null, updated_by: gate.email });
+      if (e2) return json({ error: e2.message }, 500);
+      return json({ ok: true, updated_at: ts, updated_by: gate.email });
+    }
+
+    // — Consultas del agente: son preguntas de clientes, así que ni la lectura sale de acá.
+    if (action === "consultas_list") {
+      let q = sb
+        .from("wa_agente_consultas")
+        .select("id, pregunta, contexto, origen, categoria, respuesta, estado, created_at, answered_at, answered_by")
+        .order("created_at", { ascending: false });
+      const estado = String(body.estado ?? "").trim();
+      if (estado) q = q.eq("estado", estado);
+      const { data, error } = await q;
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, items: data ?? [] });
+    }
+
+    if (action === "consulta_responder") {
+      if (!body.id) return json({ error: "id requerido" }, 400);
+      const { error } = await sb.from("wa_agente_consultas").update({
+        respuesta: String(body.respuesta ?? ""),
+        categoria: body.categoria ?? null,
+        estado: "respondida",
+        answered_at: new Date().toISOString(),
+        answered_by: gate.email,
+      }).eq("id", body.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "consulta_descartar") {
+      if (!body.id) return json({ error: "id requerido" }, 400);
+      const { error } = await sb.from("wa_agente_consultas").update({ estado: "descartada" }).eq("id", body.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    // — Preguntas de evaluación.
+    if (action === "eval_add") {
+      const pregunta = String(body.pregunta ?? "").trim();
+      if (!pregunta) return json({ error: "Falta la pregunta" }, 400);
+      const { error } = await sb
+        .from("wa_agente_evals")
+        .insert({ pregunta, nota_esperada: body.nota_esperada || null });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "eval_save") {
+      const pregunta = String(body.pregunta ?? "").trim();
+      if (!body.id) return json({ error: "id requerido" }, 400);
+      if (!pregunta) return json({ error: "Falta la pregunta" }, 400);
+      const { error } = await sb.from("wa_agente_evals").update({
+        pregunta,
+        nota_esperada: body.nota_esperada || null,
+        activo: !!body.activo,
+        updated_at: new Date().toISOString(),
+      }).eq("id", body.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "eval_delete") {
+      if (!body.id) return json({ error: "id requerido" }, 400);
+      const { error } = await sb.from("wa_agente_evals").delete().eq("id", body.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    // — Orden de la cadena de modelos. Llega la lista entera ya ordenada: se numera 1..N y a
+    //   los que no están se les borra la prioridad, así no queda un hueco de una corrida vieja.
+    if (action === "modelos_prioridad") {
+      const ids = Array.isArray(body.ordered_ids) ? body.ordered_ids : [];
+      const { error: eClear } = await sb
+        .from("wa_agente_modelos")
+        .update({ prioridad: null })
+        .not("prioridad", "is", null);
+      if (eClear) return json({ error: eClear.message }, 500);
+      for (let i = 0; i < ids.length; i++) {
+        const { error } = await sb.from("wa_agente_modelos").update({ prioridad: i + 1 }).eq("id", ids[i]);
+        if (error) return json({ error: error.message }, 500);
+      }
+      return json({ ok: true, en_cadena: ids.length });
+    }
+
     return json({ error: "Acción desconocida" }, 400);
   } catch (e) {
     return json({ error: String(e) }, 500);

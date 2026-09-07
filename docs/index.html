@@ -894,6 +894,10 @@ async function authedInvoke(fn, body) {
   });
 }
 async function chatTest(body) { return await authedInvoke("lk_chat-test", body); }
+// v0.16.5 — todo lo que ESCRIBE en wa_agente_* pasa por acá. Antes el front escribía directo
+// con la anon key, que es pública (viaja en este mismo archivo) y las tablas no tenían RLS:
+// cualquiera podía reescribir el prompt del bot. La función exige rol admin server-side.
+async function agente(body) { return await authedInvoke("lk_agente-modelos", body); }
 
 let currentRole = null;
 let currentEmail = null;
@@ -1697,14 +1701,11 @@ async function saveFaq(id) {
 
 // Guarda el documento completo + versiona en historial. Refresca editores.
 async function saveConfigRaw(md, motivo) {
-  const by = currentEmail || "admin";
-  const ts = new Date().toISOString();
-  const { error } = await sb
-    .from("wa_agente_config")
-    .update({ contenido: md, updated_at: ts, updated_by: by })
-    .eq("id", 1);
+  const { data: res, error } = await agente({ action: "config_save", contenido: md, motivo });
   if (error) throw error;
-  await sb.from("wa_agente_config_history").insert({ contenido: md, motivo, updated_by: by });
+  if (res && res.error) throw new Error(res.error);
+  const ts = (res && res.updated_at) || new Date().toISOString();
+  const by = (res && res.updated_by) || currentEmail || "admin";
   agenteMd = md;
   document.getElementById("mdObjetivo").value = mdGetSection(md, AG_OBJETIVO);
   document.getElementById("mdLimites").value = mdGetSection(md, AG_LIMITES);
@@ -1806,12 +1807,8 @@ async function loadConsultas() {
   const estado = document.getElementById("consultasFiltro").value;
   container.innerHTML = '<div class="bl-empty">Cargando...</div>';
   try {
-    let q = sb.from("wa_agente_consultas")
-      .select("id, pregunta, contexto, origen, categoria, respuesta, estado, created_at, answered_at, answered_by")
-      .order("created_at", { ascending: false });
-    if (estado) q = q.eq("estado", estado);
-    const { data } = await q;
-    const items = data || [];
+    const { data: res } = await agente({ action: "consultas_list", estado });
+    const items = (res && res.items) || [];
     // Badge de pendientes
     const pend = items.filter(i => i.estado === "pendiente").length;
     const badge = document.getElementById("consultasBadge");
@@ -1880,11 +1877,9 @@ async function answerConsulta(id) {
     const md = mdAppendBullet((cfg && cfg.contenido) || agenteMd || "", CAT_HEADING[categoria], respuesta);
     await saveConfigRaw(md, "consulta");
     // 2) Marcar la consulta como respondida + categorizada.
-    const { error } = await sb.from("wa_agente_consultas").update({
-      respuesta, categoria, estado: "respondida",
-      answered_at: new Date().toISOString(), answered_by: currentEmail || "admin",
-    }).eq("id", id);
+    const { data: rc, error } = await agente({ action: "consulta_responder", id, respuesta, categoria });
     if (error) throw error;
+    if (rc && rc.error) throw new Error(rc.error);
     loadConsultas();
   } catch (e) {
     st.textContent = "✗ Error"; st.className = "config-status err";
@@ -1894,7 +1889,7 @@ async function answerConsulta(id) {
 async function deleteConsulta(id) {
   if (!confirm("¿Descartar esta consulta?")) return;
   try {
-    await sb.from("wa_agente_consultas").update({ estado: "descartada" }).eq("id", id);
+    await agente({ action: "consulta_descartar", id });
     loadConsultas();
   } catch (e) { /* silent */ }
 }
@@ -1941,8 +1936,9 @@ async function addEval() {
   if (!pregunta) { st.textContent = "Escribí una pregunta"; st.className = "config-status err"; return; }
   st.textContent = "Agregando..."; st.className = "config-status";
   try {
-    const { error } = await sb.from("wa_agente_evals").insert({ pregunta, nota_esperada: nota || null });
+    const { data: ra, error } = await agente({ action: "eval_add", pregunta, nota_esperada: nota || null });
     if (error) throw error;
+    if (ra && ra.error) throw new Error(ra.error);
     document.getElementById("evalNewPregunta").value = "";
     document.getElementById("evalNewNota").value = "";
     st.textContent = "✓ Agregado"; st.className = "config-status ok";
@@ -1959,10 +1955,9 @@ async function saveEval(id) {
   if (!pregunta) { st.textContent = "Falta pregunta"; st.className = "config-status err"; return; }
   st.textContent = "Guardando..."; st.className = "config-status";
   try {
-    const { error } = await sb.from("wa_agente_evals")
-      .update({ pregunta, nota_esperada: nota || null, activo, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    const { data: rs, error } = await agente({ action: "eval_save", id, pregunta, nota_esperada: nota || null, activo });
     if (error) throw error;
+    if (rs && rs.error) throw new Error(rs.error);
     st.textContent = "✓"; st.className = "config-status ok";
   } catch (e) { st.textContent = "✗ Error"; st.className = "config-status err"; }
   setTimeout(() => { st.textContent = ""; }, 2500);
@@ -1971,7 +1966,7 @@ async function saveEval(id) {
 async function deleteEval(id) {
   if (!confirm("¿Eliminar esta pregunta de evaluación?")) return;
   try {
-    await sb.from("wa_agente_evals").delete().eq("id", id);
+    await agente({ action: "eval_delete", id });
     loadEvals();
   } catch (e) { /* silent */ }
 }
@@ -2156,10 +2151,10 @@ function chainIds() {
   return _modRows.filter(r => r.prioridad != null).sort((a, b) => a.prioridad - b.prioridad).map(r => r.id);
 }
 
+// v0.16.5 — un solo viaje: la función limpia las prioridades viejas y numera 1..N. Antes era
+// un UPDATE por fila desde el front, así que si se cortaba a la mitad la cadena quedaba rota.
 async function writePrioridades(orderedIds) {
-  for (let i = 0; i < orderedIds.length; i++) {
-    await sb.from("wa_agente_modelos").update({ prioridad: i + 1 }).eq("id", orderedIds[i]);
-  }
+  await agente({ action: "modelos_prioridad", ordered_ids: orderedIds });
 }
 
 async function addToChain(id) {
@@ -2170,8 +2165,7 @@ async function addToChain(id) {
 }
 
 async function removeFromChain(id) {
-  await sb.from("wa_agente_modelos").update({ prioridad: null }).eq("id", id);
-  await writePrioridades(chainIds().filter(x => x !== id));
+  await writePrioridades(chainIds().filter(x => x !== id));   // limpia las viejas y renumera
   loadModelos();
 }
 
@@ -2994,6 +2988,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.5</div>
 </body>
 </html>

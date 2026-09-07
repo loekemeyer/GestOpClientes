@@ -70,6 +70,36 @@ Cierra los puntos **5**, **7** y **9**, y la nota suelta del punto 8 sobre `anon
 - **`anonKey` renombrada a `serviceKey`** en `triggerParser`: era el service role, no la anon
   key, y el nombre engañaba (nota del punto 8).
 
+### 0.c — Tercera tanda (2026-09-07, tarde): las tablas del agente
+
+Cierra el punto **3**.
+
+- **`sql/058_wa_agente_rls.sql`** (aplicada). RLS prendida en las cinco `wa_agente_*` y a `anon`
+  le queda **sólo SELECT**, y sólo en las cuatro que no tienen datos de cliente (config,
+  historial, evals, modelos). **`wa_agente_consultas` no**: son preguntas de clientes reales, y
+  ahí ni la lectura sale con la anon key.
+- **Las escrituras se mudaron a `lk_agente-modelos`**, que ya exigía admin: acciones
+  `config_save`, `consultas_list`, `consulta_responder`, `consulta_descartar`, `eval_add`,
+  `eval_save`, `eval_delete`, `modelos_prioridad`. El front las llama con el helper `agente()`
+  (mismo patrón que `chatTest()`), 10 call sites cambiados. Dashboard **v0.16.5**.
+- **De paso, un bug**: `writePrioridades` hacía un UPDATE por fila desde el navegador; si se
+  cortaba a la mitad la cadena de modelos quedaba rota. Ahora es una sola llamada que limpia las
+  prioridades viejas y numera 1..N del lado del servidor.
+
+**Medido después de aplicar**, haciéndose pasar por `anon`: lee config (1), historial (1),
+evals (6) y modelos (42); `wa_agente_consultas` da `42501 permission denied`; los grants de
+`anon` quedaron en `SELECT` y nada más en las cuatro tablas.
+
+**Ojo con el orden**: el SQL y el deploy del front van juntos. Aplicar el SQL con el front
+viejo deja los botones de guardar muertos.
+
+**Lo que sigue abierto del punto 4** (el módulo es decorativo): `_shared/agente.ts` sigue sin
+importarse desde ningún lado, así que el prompt que edita el panel **todavía no es el que usa el
+bot**. Ahora sí se puede enchufar sin abrir un agujero —esa era la condición—, pero cambia lo
+que el bot le dice a los clientes, así que es una decisión del dueño, no un fix de seguridad.
+
+---
+
 **Verificación:** `tsc --strict --noResolve` limpio sobre los cuatro archivos tocados (los
 errores que quedan en `lk_parse-comprobante` son previos, líneas 130-152). **Ojo con el
 chequeo: sin `--strict` TypeScript no estrecha uniones discriminadas y da falsos positivos en
@@ -99,13 +129,6 @@ contenedor no alcanza `*.supabase.co`.
 
 ## 2. Seguridad que queda abierta
 
-3. **Las 5 tablas `wa_agente_*` sin RLS y con `anon` full CRUD.** Quedaron afuera de `sql/056`
-   porque el dashboard las lee y escribe **directo con la anon key** (9 lugares en
-   `docs/index.html`: 1695-1699, 1875, 1889, 1936, 1954, 1966, 2153, 2165). Consecuencia hoy:
-   **`wa_agente_config` —el documento rector del agente— es escribible por cualquiera.**
-   Va junto con el punto 4, que es el que lo vuelve explotable.
-   *Fix*: mover esas escrituras a `lk_agente-modelos` (ya tiene gate de admin) y después
-   prender RLS + policy `service_role`.
 4. **El módulo "Configuración del agente" es decorativo.** `_shared/agente.ts`
    (`getAgenteConfig`, `buildAgenteSystem`, `logAgenteConsulta`) **no lo importa nadie**; el
    system prompt real está hardcodeado en `_shared/bot-conversation.ts:183-218`

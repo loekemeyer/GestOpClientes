@@ -95,6 +95,15 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
 - ✅ **Idempotencia por `wamid`** (`sql/057`, aplicada). Meta reintenta los webhooks; sin esto
   el mismo mensaje se contestaba dos veces y un pedido confirmado se duplicaba. Tabla
   `wa_inbound_seen`, RLS prendida y sin policies (sólo `service_role`).
+- ✅ **Las 5 tablas `wa_agente_*` con RLS** (`sql/058`). A `anon` le queda sólo SELECT, y sólo
+  en las cuatro sin datos de cliente; `wa_agente_consultas` (preguntas de clientes) no se lee
+  con la anon key. Las escrituras del panel pasaron a `lk_agente-modelos`, que exige admin —
+  helper `agente()` en el front, dashboard **v0.16.5**. Antes cualquiera con la anon key podía
+  **reescribir el prompt del bot**.
+  ⚠ **Sigue abierto**: el módulo "Configuración del agente" es decorativo —`_shared/agente.ts`
+  no lo importa nadie y el prompt real está hardcodeado en `_shared/bot-conversation.ts`—, así
+  que lo que se edita en el panel todavía no es lo que usa el bot. Enchufarlo ya no abre un
+  agujero (esa era la condición), pero cambia lo que el bot le dice a los clientes.
 - ✅ **`lk_parse-comprobante` con candado**: admin del dashboard **o** llamada interna con el
   service_role (que es como lo dispara el webhook). Era OCR gratis contra nuestras claves, y
   el fallback manda el comprobante al free tier de Gemini.
