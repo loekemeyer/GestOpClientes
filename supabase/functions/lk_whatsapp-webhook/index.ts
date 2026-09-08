@@ -16,6 +16,7 @@ import {
   markRead,
   extractMessage,
   downloadMediaFromMeta,
+  WaApiError,
 } from "./wa-api.ts";
 import {
   runConversation,
@@ -23,6 +24,7 @@ import {
   type MediaAction,
 } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
+import { notificarHumano } from "../_shared/alertas.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 
 // ─── Config (app_settings → fallback Deno.env) ─────────────────────
@@ -241,8 +243,17 @@ const MSG_ALTA_CANCELADA =
   `Listo, cancelé el registro. Si querés retomarlo más adelante, escribime *registrarme*. 👋`;
 
 // Dispara el alta (aceptar el registro / "soy nuevo").
+//
+// Punto 11 de la auditoría del 07/09: esto matcheaba `alta`, `registro` y —lo peor— `dale`
+// sueltos. Al pedido de CUIT alguien contesta "dale, ya te lo paso" y arrancaba el alta;
+// el CUIT del mensaje siguiente se guardaba como `razon_social`, y como `ALTA_STEPS` no
+// tiene paso de CUIT, ese lead quedaba SIN CUIT para siempre.
+//
+// Ahora son frases explícitas. `dale`/`sí` solos ya no alcanzan: tienen que venir pegados a
+// la intención ("dale, registrame"). Y si el mensaje trae un CUIT, `handleRegistration` ya
+// cortó antes de llegar acá.
 const RE_ALTA_START =
-  /\b(soy nuevo|nuevo cliente|quiero ser cliente|darme de alta|registrar(me|te)?|registro|dar de alta|alta|si\s*,?\s*(dale|quiero|registrame)|dale|quiero registrarme|primera vez)\b/i;
+  /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo))\b/i;
 // Cortar el alta en curso.
 const RE_ALTA_CANCEL = /\b(cancelar|cancelá|salir|dejar|olvidalo|no quiero|parar|basta)\b/i;
 
@@ -273,16 +284,46 @@ function validarAltaCampo(field: string, text: string): string | null {
  * error se loguea en vez de tragarse. El índice único parcial de `sql/059` impide que se
  * vuelvan a crear dos, pero esto tiene que aguantar las que ya existan.
  */
+/**
+ * v14.13 — punto 11a: además, un alta abierta **vence**. Sin vencimiento, quien abandonaba
+ * en el campo 4 y volvía dos semanas después con un "hola, me pasás la lista?" tenía ese
+ * saludo guardado como mail o como dirección: el paso del alta se come cualquier mensaje.
+ * El único escape era `RE_ALTA_CANCEL`, que nadie sabe que existe.
+ *
+ * A las `ALTA_TTL_HORAS` sin tocar, el alta se marca `expired` y el flujo arranca de cero
+ * (el índice único parcial de sql/059 es sobre `status='pending'`, así que expirarla libera
+ * el teléfono para un alta nueva).
+ */
+const ALTA_TTL_HORAS = 48;
+
 async function getPendingLead(phone: string) {
   const { data, error } = await supabase
     .from("wa_prospect_leads")
-    .select("id, cuit, razon_social, nombre_contacto, telefono, mail, direccion, localidad, expreso_nombre, expreso_direccion, expreso_telefono, tipo_comercio, dimension_comercio, tiene_venta_web, ya_vende_lk, a_quien_compra, como_conoce_marca, alta_step, raw_messages")
+    .select("id, cuit, razon_social, nombre_contacto, telefono, mail, direccion, localidad, expreso_nombre, expreso_direccion, expreso_telefono, tipo_comercio, dimension_comercio, tiene_venta_web, ya_vende_lk, a_quien_compra, como_conoce_marca, alta_step, raw_messages, updated_at")
     .eq("phone", phone)
     .eq("status", "pending")
     .order("updated_at", { ascending: false })
     .limit(1);
   if (error) console.error(`[alta] getPendingLead(${phone}) falló:`, error.message);
-  return (data && data[0]) || null;
+  const lead = (data && data[0]) || null;
+  if (!lead) return null;
+
+  const tocado = lead.updated_at ? Date.parse(String(lead.updated_at)) : NaN;
+  if (Number.isFinite(tocado) && Date.now() - tocado > ALTA_TTL_HORAS * 3600_000) {
+    const { error: e2 } = await supabase
+      .from("wa_prospect_leads")
+      .update({ status: "expired" })
+      .eq("id", lead.id)
+      .eq("status", "pending");
+    if (e2) {
+      // No se pudo expirar: mejor seguir con el alta vieja que perder los datos ya cargados.
+      console.error(`[alta] no pude expirar el lead ${lead.id}:`, e2.message);
+      return lead;
+    }
+    console.log(`[alta] lead ${lead.id} de ${phone} vencido (>${ALTA_TTL_HORAS} h sin actividad).`);
+    return null;
+  }
+  return lead;
 }
 
 /** Avisa al vendedor de un alta completa. CABLE SIN ENCHUFAR: solo deja la
@@ -544,6 +585,16 @@ async function sendMediaActions(
 
 // ─── Flush outbox (enviar mensajes pendientes) ─────────────────────
 
+/**
+ * ¿Meta rechazó por idioma? El código 132001 es "Template name does not exist in the
+ * translation": la plantilla existe, pero no en el idioma que le pedimos. Se mira el
+ * `code` de `WaApiError` y, por las dudas, el texto (si algún día llega envuelto).
+ */
+function esErrorDeIdioma(e: unknown): boolean {
+  if (e instanceof WaApiError && e.code === 132001) return true;
+  return /132001|does not exist in the translation/i.test(e instanceof Error ? e.message : String(e));
+}
+
 async function flushOutbox(cfg: Config): Promise<{ sent: number; failed: number }> {
   const { data: batch, error } = await supabase.rpc("bot_flush_outbox", {
     p_limit: 20,
@@ -556,6 +607,10 @@ async function flushOutbox(cfg: Config): Promise<{ sent: number; failed: number 
   let sent = 0;
   let failed = 0;
 
+  // Idioma de las plantillas, configurable desde el Panel sin tocar código.
+  const tplLang = (await getSetting("wa_template_lang")) || "es_AR";
+  const tplLangAlt = (await getSetting("wa_template_lang_fallback")) || "es";
+
   for (const msg of batch) {
     try {
       if (msg.template_name) {
@@ -565,10 +620,23 @@ async function flushOutbox(cfg: Config): Promise<{ sent: number; failed: number 
           const vals = Object.values(msg.template_params);
           for (const v of vals) params.push(String(v));
         }
-        await sendTemplate(
-          cfg.waPhoneId, cfg.waToken, msg.phone,
-          msg.template_name, "es_AR", params,
-        );
+        // Punto 31 de la auditoría del 07/09: el idioma estaba clavado en "es_AR" y
+        // `pedido_recordatorio_25` viene fallando con **#132001 "Template name does not
+        // exist in the translation"**, que es literalmente "existe la plantilla pero no en
+        // ese idioma". Ninguna plantilla se envió nunca con es_AR desde acá (las 12 salidas
+        // son texto libre; la única con template es `hello_world`, en_US).
+        //
+        // Ahora: el idioma sale de `app_settings.wa_template_lang` (default es_AR) y, si
+        // Meta contesta 132001, se reintenta UNA vez con el idioma de respaldo
+        // (`wa_template_lang_fallback`, default "es"). No es adivinar: 132001 identifica
+        // exactamente ese caso, y un solo reintento no puede volverse un loop.
+        try {
+          await sendTemplate(cfg.waPhoneId, cfg.waToken, msg.phone, msg.template_name, tplLang, params);
+        } catch (e) {
+          if (!esErrorDeIdioma(e)) throw e;
+          console.warn(`[outbox] ${msg.template_name} no existe en ${tplLang}; reintento en ${tplLangAlt}.`);
+          await sendTemplate(cfg.waPhoneId, cfg.waToken, msg.phone, msg.template_name, tplLangAlt, params);
+        }
       } else if (msg.body) {
         // Enviar texto libre (dentro de ventana 24h)
         await sendText(cfg.waPhoneId, cfg.waToken, msg.phone, msg.body);
@@ -958,6 +1026,50 @@ async function estaEnWhitelist(phone: string): Promise<boolean> {
   return !!data;
 }
 
+/** ¿El número está en `wa_blacklist`? (sql/012) */
+async function estaEnBlacklist(phone: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("wa_blacklist")
+    .select("phone")
+    .eq("phone", phone)
+    .maybeSingle();
+  // Ante un error de lectura NO bloqueamos: es preferible atender de más que dejar
+  // mudo a un cliente legítimo porque falló una consulta.
+  if (error) { console.error("[blacklist] no pude consultar:", error.message); return false; }
+  return !!data;
+}
+
+/**
+ * Tope de mensajes por hora y por teléfono (`wa_check_rate_limit`, sql/012).
+ * Apagado por defecto: sólo corre si `wa_rate_limit_enabled = 1`.
+ *
+ * Devuelve null si puede seguir. Si pasó el tope devuelve `{ avisar }`, donde
+ * `avisar` es true SÓLO en el primer mensaje por encima del tope: si no, cada
+ * mensaje de más dispara otro aviso y el tope termina generando más tráfico del
+ * que corta. Se mira `bot_historial_chat` para saber en cuál está.
+ */
+async function pasoElTope(phone: string): Promise<{ avisar: boolean } | null> {
+  const habilitado = Number((await getSetting("wa_rate_limit_enabled")) ?? "0") === 1;
+  if (!habilitado) return null;
+  const limite = Number(await getSetting("wa_rate_limit_per_hour")) || 20;
+  const { data: bloqueado, error } = await supabase
+    .rpc("wa_check_rate_limit", { p_phone: phone, p_limit: limite });
+  if (error) { console.error("[rate-limit] no pude consultar:", error.message); return null; }
+  if (bloqueado !== true) return null;
+  // El contador lo lleva la RPC en `wa_rate_limit`, por hora de reloj (date_trunc), y ya
+  // sumó el mensaje de ahora. El primero que pasa el tope es el que deja el contador en
+  // `limite + 1`: sólo ese avisa. No se recalcula por otro lado para no tener dos ventanas
+  // distintas diciendo cosas distintas.
+  const { data: fila } = await supabase
+    .from("wa_rate_limit")
+    .select("msg_count")
+    .eq("phone", phone)
+    .order("window_start", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return { avisar: Number(fila?.msg_count ?? 0) === limite + 1 };
+}
+
 // ─── Handler principal ──────────────────────────────────────────────
 
 async function handleMessage(
@@ -979,6 +1091,38 @@ async function handleMessage(
     await avisarDescartePorWhitelist(phone, {
       motivo: "whitelist_gate", texto_recibido: text.slice(0, 200), contact_name: contactName ?? null,
     });
+    return;
+  }
+
+  // 0b. Blacklist. Punto 10 de la auditoría del 07/09: `wa_blacklist` y
+  //     `wa_check_rate_limit` (sql/012, con su setting `wa_rate_limit_enabled`) existían
+  //     sólo en `lk_chat-test`, o sea en el simulador del Panel. En el webhook real —el
+  //     que atiende a los clientes— no había ni un hit: un número blacklisteado seguía
+  //     siendo atendido y no había tope de mensajes por número.
+  //     Se descarta en silencio, igual que el gate de whitelist: al bloqueado no se le
+  //     contesta nada. Queda la fila en `wa_alertas_humano` para saber que escribió.
+  if (await estaEnBlacklist(phone)) {
+    console.warn(`[blacklist] mensaje de ${phone} descartado.`);
+    await notificarHumano({
+      tipo: "otro",
+      phone,
+      contexto: { motivo: "blacklist", texto_recibido: text.slice(0, 200) },
+    });
+    return;
+  }
+
+  // 0c. Rate limit por teléfono. A diferencia de la blacklist, acá SÍ se le avisa:
+  //     el cliente no hizo nada malo, sólo escribió de más, y dejarlo mudo parece
+  //     que el bot se cayó. Se manda una vez por hora, no en cada mensaje del tope.
+  const rateLimited = await pasoElTope(phone);
+  if (rateLimited) {
+    await saveMessage(phone, "user", text);
+    if (rateLimited.avisar) {
+      const aviso = `⏳ Recibí muchos mensajes seguidos y necesito un rato para procesarlos. ` +
+        `Escribime de nuevo en un ratito, o si es urgente mandanos un mail a ventas@loekemeyer.com 🙏`;
+      await sendText(cfg.waPhoneId, cfg.waToken, phone, aviso);
+      await saveMessage(phone, "assistant", aviso);
+    }
     return;
   }
 
@@ -1031,11 +1175,30 @@ async function handleMessage(
   const faq = await handleFaq(text, faqCustomer);
   if (faq) {
     await saveMessage(phone, "user", text);
-    const reply = customer
+    // `faq.yaSaluda` = la respuesta ya arranca con "Hola…" (la FAQ del saludo inicial).
+    // Sin ese chequeo el cliente recibía el saludo dos veces seguidas.
+    const reply = customer && !faq.yaSaluda
       ? await conSaludoSiCorresponde(faq.reply, phone, customer.business_name)
       : faq.reply;
     await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
     await saveMessage(phone, "assistant", reply);
+    // Punto 21 de la auditoría del 07/09: las FAQ `needs_human` le prometen al cliente
+    // que "te va a contactar un asesor a la brevedad" y NADIE se enteraba — el aviso
+    // estaba escrito como comentario y sin conectar. Era una promesa falsa en producción.
+    // Va después de responder, y con `await` sin `try`: `notificarHumano` nunca lanza.
+    if (faq.automation_level === "needs_human") {
+      await notificarHumano({
+        tipo: "escalation",
+        phone,
+        customerId: customer?.customer_id ?? null,
+        contexto: {
+          faq_id: faq.faq_id ?? null,
+          tema: faq.topic ?? null,
+          texto_recibido: text.slice(0, 200),
+          razon_social: customer?.business_name ?? null,
+        },
+      });
+    }
     return;
   }
 
@@ -1093,11 +1256,15 @@ Deno.serve(async (req: Request) => {
     const challenge = url.searchParams.get("hub.challenge");
 
     if (mode === "subscribe" && challenge) {
-      const expected = Deno.env.get("LK_WA_VERIFY_TOKEN") ?? "";
+      // Punto 16 de la auditoría del 07/09: acá se leía SÓLO la env var, mientras
+      // `loadConfig` (:48) prioriza `app_settings`. O sea que rotar el verify token
+      // desde el Panel dejaba la verificación de Meta devolviendo 403 sin más síntoma
+      // que este log. Se usa el mismo orden que loadConfig.
+      const expected = (await getSetting("LK_WA_VERIFY_TOKEN")) ?? Deno.env.get("LK_WA_VERIFY_TOKEN") ?? "";
       if (expected && token === expected) {
         return new Response(challenge, { status: 200 });
       }
-      console.warn(`[verify] token mismatch. Got: ${token?.slice(0, 8)}…  Env set: ${!!expected}`);
+      console.warn(`[verify] token mismatch. Got: ${token?.slice(0, 8)}…  Configurado: ${!!expected}`);
       return new Response("Forbidden", { status: 403 });
     }
 

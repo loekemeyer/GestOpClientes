@@ -3,11 +3,40 @@
 
 const GRAPH_URL = "https://graph.facebook.com/v21.0";
 
-/** POST genérico a la Graph API */
+/**
+ * Error de la Graph API con el `code` de Meta a mano (ej. 132001 = la plantilla no existe
+ * en ese idioma). Mismo tipo que el de `_shared/wa-api.ts`.
+ */
+export class WaApiError extends Error {
+  status: number;
+  code: number | null;
+  constructor(message: string, status: number, code: number | null) {
+    super(message);
+    this.name = "WaApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
+ * POST genérico a la Graph API.
+ *
+ * ⚠ OJO — ESTE ARCHIVO NO ES `_shared/wa-api.ts`. El webhook importa `./wa-api.ts`, o sea
+ * esta copia local, así que el arreglo del punto 12 de la auditoría (que `waPost` lance en
+ * vez de devolver el cuerpo de error de Meta como si fuera una respuesta feliz) **quedó
+ * aplicado sólo en la copia compartida, que el webhook no usa**. Acá se seguía tragando todo.
+ *
+ * No se cambia el default a "lanzar siempre": la mayoría de los call-sites del webhook
+ * (`sendText` en `handleMessage`, `markRead`) no tienen `try/catch`, y lanzar ahí haría que
+ * el webhook devuelva 500 y Meta reintente el mismo mensaje — peor que el problema.
+ * Así que `lanzar` es opt-in, y lo usa `sendTemplate`, cuyo caller (`flushOutbox`) sí sabe
+ * qué hacer con el error: marcar la fila `failed` con el motivo.
+ */
 async function waPost(
   phoneId: string,
   token: string,
   payload: Record<string, unknown>,
+  lanzar = false,
 ): Promise<unknown> {
   const resp = await fetch(`${GRAPH_URL}/${phoneId}/messages`, {
     method: "POST",
@@ -20,6 +49,15 @@ async function waPost(
   const data = await resp.json();
   if (!resp.ok) {
     console.error("WA API error:", JSON.stringify(data));
+    if (lanzar) {
+      // deno-lint-ignore no-explicit-any
+      const err = (data as any)?.error ?? {};
+      throw new WaApiError(
+        String(err.message ?? `HTTP ${resp.status}`),
+        resp.status,
+        typeof err.code === "number" ? err.code : null,
+      );
+    }
   }
   return data;
 }
@@ -117,7 +155,7 @@ export function sendTemplate(
           ]
         : [],
     },
-  });
+  }, true);   // lanza: flushOutbox necesita el error para marcar `failed` y para el retry de idioma
 }
 
 // ─── Normalización de teléfonos ─────────────────────────────────────

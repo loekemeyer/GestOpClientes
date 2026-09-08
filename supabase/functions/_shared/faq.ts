@@ -18,6 +18,11 @@ export interface FaqResult {
   intent: string;
   automation_level: "full_auto" | "semi_auto" | "needs_human" | "inteligencia" | string;
   faq_id?: number;
+  /** Tema de la FAQ (subcategory). Lo usa el call-site para el aviso al vendedor. */
+  topic?: string;
+  /** true cuando la respuesta YA saluda (la FAQ del saludo inicial): el call-site
+   *  no debe volver a anteponerle "¡Hola X! 👋". */
+  yaSaluda?: boolean;
 }
 
 const STATUS_MAP: Record<string, string> = {
@@ -41,6 +46,15 @@ export function renderTemplate(
     const v = vars[key];
     return v === undefined || v === null ? "" : String(v);
   });
+}
+
+/**
+ * ¿La respuesta ya arranca saludando? El call-site le antepone "¡Hola {cliente}! 👋"
+ * cuando es primer contacto, y la FAQ del saludo inicial ya saluda: sin este chequeo
+ * el cliente recibe el saludo dos veces seguidas.
+ */
+function yaSaluda(reply: string): boolean {
+  return /^\s*[¡!]?\s*(hola|buen[ao]s?\s+(d[ií]as|tardes|noches))\b/i.test(reply);
 }
 
 /**
@@ -71,13 +85,17 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     const reply = tpl
       ? renderTemplate(tpl, { nombre_cliente: customer?.business_name, tema: topic, topic })
       : `📋 *${topic}* necesita atención de un vendedor. Te van a contactar a la brevedad.\n\nTambién podés escribirnos a ventas@loekemeyer.com`;
-    // Punto de cableado (a futuro): acá iría `notificarHumano({ tipo: "escalation", ... })`
-    // de _shared/alertas.ts para avisar al vendedor. Se deja SIN conectar a propósito.
+    // El aviso al vendedor lo dispara el CALL-SITE (el webhook), no esto: acá no
+    // tenemos el teléfono, y además `lk_chat-test` llama a la misma función — si el
+    // insert viviera acá, cada prueba desde el Panel encolaría una alerta falsa.
+    // Se devuelve `topic` para que el call-site tenga el contexto.
     return {
       reply,
       intent: "escalation",
       automation_level: "needs_human",
       faq_id: top.faq_id,
+      topic,
+      yaSaluda: yaSaluda(reply),
     };
   }
 
@@ -93,7 +111,7 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     // (app_settings.wa_descuentos_config → pago.alias / pago.cbu). Nunca hard-coded.
     if (top.db_lookup_type === "payment_data") {
       const r = await lookupPaymentData(top, customer);
-      if (r) return { reply: r, intent: "payment_data", automation_level: "semi_auto", faq_id: top.faq_id };
+      if (r) return { reply: r, intent: "payment_data", automation_level: "semi_auto", faq_id: top.faq_id, yaSaluda: yaSaluda(r) };
     } else if (customer) {
       const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top);
       if (lookupReply) {
@@ -102,6 +120,7 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
           intent: top.db_lookup_type || "faq_lookup",
           automation_level: "semi_auto",
           faq_id: top.faq_id,
+          yaSaluda: yaSaluda(lookupReply),
         };
       }
       // Si el lookup no aplica, caemos a respuesta estática de más abajo
@@ -134,11 +153,14 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // filtrar {{fecha}} literal a un cliente. {{nombre_cliente}} sí se completa.
   reply = renderTemplate(reply, { nombre_cliente: customer?.business_name });
 
+  const final = reply.trim();
   return {
-    reply: reply.trim(),
+    reply: final,
     intent: "faq",
     automation_level: top.automation_level,
     faq_id: top.faq_id,
+    topic: top.subcategory || undefined,
+    yaSaluda: yaSaluda(final),
   };
 }
 

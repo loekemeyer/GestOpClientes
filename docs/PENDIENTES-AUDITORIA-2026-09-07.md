@@ -137,6 +137,74 @@ contenedor no alcanza `*.supabase.co`.
 
 ---
 
+### 0.e — Quinta tanda (2026-09-07, noche): la promesa falsa, el tope que no existía, y una copia que no era la que corre
+
+Cierra los puntos **10**, **21**, los dos que quedaban del **11**, los dos del **16**, y la mitad
+del **31**. Y **reabre el 12**, que estaba dado por cerrado y no lo estaba.
+
+- **⚠ EL PUNTO 12 NO ESTABA ARREGLADO.** El webhook importa `./wa-api.ts` — una **copia local**
+  dentro de `lk_whatsapp-webhook/` — no `../_shared/wa-api.ts`. El `WaApiError` de la tanda 0.d
+  se le puso a la copia compartida, **que el webhook no usa**: en producción `waPost` seguía
+  haciendo `console.error` y devolviendo el cuerpo de error de Meta como si nada. Se agregó
+  `WaApiError` también en la copia local, pero con un `lanzar` **opt-in**, no como default: los
+  call-sites del webhook (`sendText` en `handleMessage`, `markRead`) no tienen `try/catch`, y
+  lanzar ahí devolvería 500 → Meta reintenta el mismo mensaje, peor que el problema. Hoy lo usa
+  sólo `sendTemplate`, cuyo caller sabe qué hacer. **Queda abierto**: unificar las dos copias y
+  proteger los call-sites sueltos.
+- **Las FAQ `needs_human` ahora avisan de verdad** (punto 21). Cinco FAQs activas le prometen al
+  cliente *"te va a contactar un asesor a la brevedad"* y **nadie se enteraba**: el aviso estaba
+  escrito como comentario, sin conectar. Era una promesa falsa en producción. El insert va en el
+  **call-site** (el webhook) y no en `faq.ts`: ahí no hay teléfono, y `lk_chat-test` llama a la
+  misma función — con el insert adentro, cada prueba desde el Panel encolaría una alerta falsa.
+- **Blacklist y tope de mensajes, ahora en el webhook real** (punto 10). `wa_blacklist` y
+  `wa_check_rate_limit` (sql/012) existían sólo en `lk_chat-test`, o sea en el simulador. En el
+  webhook —el que atiende clientes— no había ni un hit. La blacklist descarta en silencio; el
+  tope **sí avisa**, porque el cliente no hizo nada malo y dejarlo mudo parece que el bot se
+  cayó. El aviso sale una sola vez: se mira el contador de `wa_rate_limit` (el que lleva la RPC,
+  por hora de reloj) y sólo avisa el mensaje que lo deja en `limite + 1`. **Ojo: hoy
+  `wa_rate_limit_enabled = 1` y el tope es 20/hora**, así que esto entra en vigencia al
+  deployar. `wa_blacklist` tiene 0 filas.
+- **El alta ya no se dispara con "dale"** (punto 11b). `RE_ALTA_START` matcheaba `alta`,
+  `registro` y `dale` sueltos: al pedido de CUIT alguien contesta *"dale, ya te lo paso"* y
+  arrancaba el alta, con el CUIT del mensaje siguiente guardado como `razon_social` — y como
+  `ALTA_STEPS` no tiene paso de CUIT, ese lead quedaba **sin CUIT para siempre**. Ahora son
+  frases explícitas ancladas.
+- **El alta vence a las 48 h** (punto 11a). Sin vencimiento, quien abandonaba en el campo 4 y
+  volvía dos semanas después con un *"hola, me pasás la lista?"* tenía ese saludo guardado como
+  mail o dirección. A las 48 h sin actividad el lead pasa a `expired` y el flujo arranca de cero
+  (el índice único de sql/059 es parcial sobre `pending`, así que expirar libera el teléfono).
+- **Se fue el saludo duplicado** (punto 16a). La FAQ del saludo ya saluda y el call-site le
+  anteponía otro *"¡Hola X! 👋"*. Ahora `handleFaq` devuelve `yaSaluda` y el webhook no envuelve.
+- **El verify token del GET lee `app_settings`** (punto 16b). Leía sólo la env var mientras
+  `loadConfig` prioriza `app_settings`: rotar el token desde el Panel dejaba la verificación de
+  Meta en 403 sin más síntoma que un log.
+- **El idioma de las plantillas dejó de estar clavado** (mitad del punto 31). Estaba
+  hardcodeado `"es_AR"`, y `pedido_recordatorio_25` falla con **#132001 "Template name does not
+  exist in the translation"**, que es literalmente *"existe, pero no en ese idioma"*. Ninguna
+  plantilla se envió nunca con `es_AR` desde acá (las 12 salidas son texto libre; la única con
+  template es `hello_world`, en_US). Ahora sale de `app_settings.wa_template_lang` (default
+  `es_AR`) y ante un 132001 reintenta **una** vez con `wa_template_lang_fallback` (default `es`).
+
+**Dos cosas que aparecieron mirando esto y hay que saber:**
+
+1. **`bot_encolar_recordatorios_25` está en MODO PRUEBA.** La función tiene
+   `v_test_phone := '5491162521635'` y manda **todo a ese número**, no al cliente. O sea que las
+   20 fallas del recordatorio no le llegaron a nadie: el impacto real es cero hasta que se ponga
+   en `''`. Y no "reencola todas las mañanas" como decía el punto 31 — marca `recordatorio_25_at`
+   y no repite; lo que falla cada día son NP nuevas.
+2. **No se pudo verificar la plantilla contra Meta.** `lk_tpl-check` chequea una lista
+   hardcodeada que **no incluye** `pedido_recordatorio_25`, y consultar la Graph API desde la
+   base con `app_settings.wa_token` devuelve `(#200) Provide valid app ID` — el token bueno está
+   en el secret `WHATSAPP_ACCESS_TOKEN`, que no se lee desde SQL. **Falta**: agregar la plantilla
+   a `NUESTRAS` (o devolver todas) y correr la función.
+
+**Verificación:** `tsc --strict --noResolve` limpio sobre los cuatro archivos tocados — los 9
+errores que quedan en `faq.ts` (líneas 220-233, `lookupOrderStatus`) son **previos**, comprobado
+corriendo el mismo chequeo sobre el `faq.ts` de `HEAD`: mismo set, corrido 22 líneas. Sigue sin
+poder probarse en vivo contra Meta.
+
+---
+
 ## 1. Crítico — del dueño, nadie más puede
 
 1. **Rotar `LK_WA_TOKEN` y `isis_supabase_service_key`.** `app_settings` tiene la policy
