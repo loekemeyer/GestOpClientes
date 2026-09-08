@@ -243,6 +243,16 @@ el killswitch, sin ningún consumidor de esa cola.
 - **`faq.ts`**: no-cliente prioriza `institutional_response` (con fallback a `bot_response`,
   mantenido para no dejar mudas ~23 FAQs institucionales sin institucional cargado). El saludo
   lleva su propio `institutional_response` (pedir CUIT) para no saludar con nombre vacío.
+- **"Configuración del agente" AHORA CABLEADA (2026-09-04):** antes el panel escribía a
+  `wa_agente_config` pero el agente vivo lo ignoraba (usaba un prompt hardcodeado; `agente.ts` que sí
+  leía la tabla era código muerto). Ahora `buildSystemPrompt` (en `_shared/bot-conversation.ts`)
+  **inyecta el doc rector editable** (`getAgenteConfig()` → `wa_agente_config` id=1) como una sección
+  más. Editar el módulo cambia el comportamiento del agente en tiempo real. **Lo que NO es editable**
+  (fijo en código y con PRIORIDAD sobre el rector): las reglas operativas (flujo de pedido, formato) y
+  el **bloque de Seguridad anti-jailbreak** — así una edición del panel no puede desarmar las defensas.
+  - Pendiente (cable aparte): `logAgenteConsulta()` (en `agente.ts`) sigue sin call-site → el agente
+    todavía NO registra solo sus dudas en la cola de Consultas (`wa_agente_consultas`). Las que hay
+    entraron a mano.
 - **Cables creados sin enchufar (TODO, no conectados):**
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
