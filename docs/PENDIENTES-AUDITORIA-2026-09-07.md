@@ -184,6 +184,12 @@ del **31**. Y **reabre el 12**, que estaba dado por cerrado y no lo estaba.
   plantilla se envió nunca con `es_AR` desde acá (las 12 salidas son texto libre; la única con
   template es `hello_world`, en_US). Ahora sale de `app_settings.wa_template_lang` (default
   `es_AR`) y ante un 132001 reintenta **una** vez con `wa_template_lang_fallback` (default `es`).
+  ⚠ **Pero está en la función equivocada, y por eso hoy no cambia nada.** El arreglo entró en
+  el `flushOutbox` del webhook (`action:flush`), y el **cron 21 no llama a eso**: llama a la
+  Edge Function `lk_outbox-flush`, que **no está en este repo** — su `entrypoint_path` es
+  `/tmp/user_fn_…`, o sea deployada a mano, versión 6, del 30/08. Ésa es la que produce las
+  fallas 132001. **Falta**: traer `lk_outbox-flush` al repo (es el punto 36 en otra forma) y
+  llevarle el mismo arreglo, o apuntar el cron 21 al `action:flush` del webhook.
 
 **Dos cosas que aparecieron mirando esto y hay que saber:**
 
