@@ -17,7 +17,7 @@ import {
   extractMessage,
   downloadMediaFromMeta,
   WaApiError,
-} from "./wa-api.ts";
+} from "../_shared/wa-api.ts";
 import {
   runConversation,
   saveMessage,
@@ -461,7 +461,7 @@ async function handleRegistration(
   // debuggear qué mandó el cliente y qué contestó el bot.
   await saveMessage(phone, "user", text);
   const send = async (reply: string): Promise<void> => {
-    await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+    await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", reply);
   };
 
@@ -630,12 +630,18 @@ async function flushOutbox(cfg: Config): Promise<{ sent: number; failed: number 
         // Meta contesta 132001, se reintenta UNA vez con el idioma de respaldo
         // (`wa_template_lang_fallback`, default "es"). No es adivinar: 132001 identifica
         // exactamente ese caso, y un solo reintento no puede volverse un loop.
+        // El modulo compartido recibe los `components` de Meta ya armados (la copia local
+        // que se borro los armaba adentro). Sin parametros no se manda `components`: Meta
+        // rechaza un array vacio en una plantilla que no tiene variables.
+        const comps = params.length
+          ? [{ type: "body", parameters: params.map((p) => ({ type: "text", text: p })) }]
+          : undefined;
         try {
-          await sendTemplate(cfg.waPhoneId, cfg.waToken, msg.phone, msg.template_name, tplLang, params);
+          await sendTemplate(cfg.waPhoneId, cfg.waToken, msg.phone, msg.template_name, tplLang, comps);
         } catch (e) {
           if (!esErrorDeIdioma(e)) throw e;
           console.warn(`[outbox] ${msg.template_name} no existe en ${tplLang}; reintento en ${tplLangAlt}.`);
-          await sendTemplate(cfg.waPhoneId, cfg.waToken, msg.phone, msg.template_name, tplLangAlt, params);
+          await sendTemplate(cfg.waPhoneId, cfg.waToken, msg.phone, msg.template_name, tplLangAlt, comps);
         }
       } else if (msg.body) {
         // Enviar texto libre (dentro de ventana 24h)
@@ -815,7 +821,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
   if (!activo) {
     // ── Modo APAGADO: placeholder + alerta ───────────────────────────
     try {
-      await sendText(cfg.waPhoneId, cfg.waToken, phone, MSG_ADJUNTO_APAGADO);
+      await enviarTexto(cfg, phone, MSG_ADJUNTO_APAGADO);
       await supabase.rpc("bot_guardar_mensaje", {
         p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_APAGADO,
       });
@@ -841,7 +847,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
   if (msg.type === "audio" || msg.type === "video" || msg.type === "sticker" ||
       (msg.type === "document" && !COMPROBANTE_MIMES.has(mime))) {
     try {
-      await sendText(cfg.waPhoneId, cfg.waToken, phone, MSG_ADJUNTO_APAGADO);
+      await enviarTexto(cfg, phone, MSG_ADJUNTO_APAGADO);
       await supabase.rpc("bot_guardar_mensaje", {
         p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_APAGADO,
       });
@@ -931,7 +937,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
 
   // 5. Placeholder "muchas gracias"
   try {
-    await sendText(cfg.waPhoneId, cfg.waToken, phone, MSG_ADJUNTO_GRACIAS);
+    await enviarTexto(cfg, phone, MSG_ADJUNTO_GRACIAS);
     await supabase.rpc("bot_guardar_mensaje", {
       p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_GRACIAS,
     });
@@ -1070,6 +1076,30 @@ async function pasoElTope(phone: string): Promise<{ avisar: boolean } | null> {
   return { avisar: Number(fila?.msg_count ?? 0) === limite + 1 };
 }
 
+
+/**
+ * Envío de texto que NO tumba el webhook. Devuelve true si Meta lo aceptó.
+ *
+ * Hace falta desde que el webhook usa `_shared/wa-api.ts` (2026-09-08), cuyo `waPost` LANZA
+ * cuando Meta rechaza — que es lo correcto, pero acá hay que atajarlo: si una excepción sube
+ * hasta el handler, el webhook devuelve 500 y **Meta reintenta el mismo mensaje**, con lo cual
+ * el cliente recibe la respuesta dos veces o entra en loop. Peor que el problema original.
+ *
+ * Además, devolver el resultado permite NO guardar en el historial una respuesta que el
+ * cliente nunca recibió (eso es exactamente lo que pasaba antes, cuando `waPost` se tragaba
+ * el error: quedaba escrito "el bot contestó X" y el cliente no había visto nada).
+ */
+async function enviarTexto(cfg: Config, phone: string, texto: string): Promise<boolean> {
+  try {
+    await enviarTexto(cfg, phone, texto);
+    return true;
+  } catch (e) {
+    const code = e instanceof WaApiError ? ` (code ${e.code})` : "";
+    console.error(`[enviarTexto] Meta rechazó el mensaje a ${phone}${code}:`, e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
 // ─── Handler principal ──────────────────────────────────────────────
 
 async function handleMessage(
@@ -1120,7 +1150,7 @@ async function handleMessage(
     if (rateLimited.avisar) {
       const aviso = `⏳ Recibí muchos mensajes seguidos y necesito un rato para procesarlos. ` +
         `Escribime de nuevo en un ratito, o si es urgente mandanos un mail a ventas@loekemeyer.com 🙏`;
-      await sendText(cfg.waPhoneId, cfg.waToken, phone, aviso);
+      await enviarTexto(cfg, phone, aviso);
       await saveMessage(phone, "assistant", aviso);
     }
     return;
@@ -1155,7 +1185,7 @@ async function handleMessage(
     if (lead) {
       await saveMessage(phone, "user", text);
       const send = async (reply: string): Promise<void> => {
-        await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+        await enviarTexto(cfg, phone, reply);
         await saveMessage(phone, "assistant", reply);
       };
       await handleAltaStep(phone, text, lead, send);
@@ -1180,7 +1210,7 @@ async function handleMessage(
     const reply = customer && !faq.yaSaluda
       ? await conSaludoSiCorresponde(faq.reply, phone, customer.business_name)
       : faq.reply;
-    await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+    await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", reply);
     // Punto 21 de la auditoría del 07/09: las FAQ `needs_human` le prometen al cliente
     // que "te va a contactar un asesor a la brevedad" y NADIE se enteraba — el aviso
@@ -1235,7 +1265,7 @@ async function handleMessage(
 
   // 8. Enviar respuesta de texto (con saludo si es primer contacto)
   const reply = await conSaludoSiCorresponde(result.reply, phone, customer.business_name);
-  await sendText(cfg.waPhoneId, cfg.waToken, phone, reply);
+  await enviarTexto(cfg, phone, reply);
 
   // 9. Guardar respuesta en historial
   await saveMessage(phone, "assistant", reply);

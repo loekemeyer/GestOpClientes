@@ -149,8 +149,8 @@ del **31**. Y **reabre el 12**, que estaba dado por cerrado y no lo estaba.
   `WaApiError` también en la copia local, pero con un `lanzar` **opt-in**, no como default: los
   call-sites del webhook (`sendText` en `handleMessage`, `markRead`) no tienen `try/catch`, y
   lanzar ahí devolvería 500 → Meta reintenta el mismo mensaje, peor que el problema. Hoy lo usa
-  sólo `sendTemplate`, cuyo caller sabe qué hacer. **Queda abierto**: unificar las dos copias y
-  proteger los call-sites sueltos.
+  sólo `sendTemplate`, cuyo caller sabe qué hacer. ~~Queda abierto: unificar las dos copias y
+  proteger los call-sites sueltos.~~ → **Cerrado el 08/09, ver 0.f.**
 - **Las FAQ `needs_human` ahora avisan de verdad** (punto 21). Cinco FAQs activas le prometen al
   cliente *"te va a contactar un asesor a la brevedad"* y **nadie se enteraba**: el aviso estaba
   escrito como comentario, sin conectar. Era una promesa falsa en producción. El insert va en el
@@ -208,6 +208,33 @@ del **31**. Y **reabre el 12**, que estaba dado por cerrado y no lo estaba.
 errores que quedan en `faq.ts` (líneas 220-233, `lookupOrderStatus`) son **previos**, comprobado
 corriendo el mismo chequeo sobre el `faq.ts` de `HEAD`: mismo set, corrido 22 líneas. Sigue sin
 poder probarse en vivo contra Meta.
+
+---
+
+### 0.f — Sexta tanda (2026-09-08): una sola copia de wa-api
+
+Cierra de verdad el **punto 12** y el **15**.
+
+- **Se borró `lk_whatsapp-webhook/wa-api.ts`.** Queda una sola: `_shared/wa-api.ts`, que ahora
+  es el superconjunto (se le sumaron `sendImage`, `sendDocument`, `extractMessage`,
+  `downloadMediaFromMeta`, `phoneVariants` y los tipos `WaMessage` / `DownloadedMedia`). Se
+  eliminó `parseIncoming`, que hacía lo mismo que `extractMessage` pero sin media y **no la
+  usaba nadie**.
+- **El `waPost` compartido lanza siempre**, así que hubo que atajarlo del lado del webhook:
+  se agregó `enviarTexto(cfg, phone, texto)`, que devuelve `true`/`false` en vez de propagar.
+  Sin eso, una excepción subiendo hasta el handler devuelve **500 y Meta reintenta el mismo
+  mensaje** — el cliente recibe la respuesta dos veces, o el bot entra en loop. Peor que el
+  problema original. Los 9 `sendText` sueltos del webhook pasaron a usarlo; el del `flushOutbox`
+  se dejó lanzando a propósito, porque ahí el `try/catch` es el que marca la fila `failed`.
+- **`sendTemplate` cambió de firma**: el compartido recibe los `components` de Meta ya armados
+  (la copia borrada los armaba adentro). `flushOutbox` los arma ahora, y **manda `undefined` en
+  vez de un array vacío** cuando la plantilla no tiene variables: Meta rechaza `components: []`.
+- Efecto colateral bueno: `enviarTexto` permite **no guardar en el historial una respuesta que
+  el cliente nunca recibió**, que es exactamente lo que pasaba cuando `waPost` se tragaba el error.
+
+**Verificación:** `tsc --strict --noResolve` limpio sobre `lk_whatsapp-webhook/index.ts` y
+`_shared/wa-api.ts` — **cero errores**. Los 7 que quedan en `lk_chat-test` son previos,
+comprobado corriendo el mismo chequeo sobre el archivo de `HEAD`.
 
 ---
 
