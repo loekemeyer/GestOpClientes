@@ -57,6 +57,15 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS/Gestión, mismo proyecto `hrxfctznci
 3. `lk_factura-check` → `handleRealRedirect`: agrupa las facturas del día por **cuit + empresa + dirección**, arma el mensaje + combina PDFs, y **entrega a los números de `wa_real_redirect_to`** (nunca al cliente en modo prueba). Loguea `aviso_enviado` por destinatario.
 4. Backlog manual del día: edge `lk_notif-sim` action **`real_sweep`** (recorre los cuits facturados de hoy y redispara `lk_factura-check`).
 
+**Linkeo NP↔factura (2026-09-09):** `wa_grupos_dia_cuit` ahora arma el par NP↔factura con el
+**cruce de Gestión `gv_cruce_facturacion_nps`** (asignación 1:1 por cajas, reconcilia neto web),
+NO con la vieja `vista_np_factura` (exigía neto≠0 ±5% → fallaba con neto roto=0, ej. NP 98650, y
+con el estimado web fuera del 5%, ej. LK 0011). Enriquece dirección/razón de NP **web** desde
+`PPP_Web_Programacion` (antes sólo ISIS) y la **condición de venta** sale de la factura linkeada
+(`documentos.condicion_venta` → `wa_metodo_norm`). Devuelve `metodos_fac` (método por comprobante,
+alineado) además de `metodos` (set). `vista_np_factura` queda para las funciones legacy
+(`wa_envio_grupos_dia/_pendientes`) hasta retirarlas. Sólo LEE objetos de Gestión.
+
 **Método mixto (Reglas A/B, helper `planMetodos` en `lk_factura-check`):**
 - **Regla A**: si el grupo tiene UN solo método real + facturas `no_decidido` ("prefiero no decir"),
   las `no_decidido` **adoptan ese método** → un solo mensaje (ej.: crédito + no_decidido = todo crédito).
