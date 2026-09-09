@@ -1,8 +1,8 @@
 -- 062 — Las "633 escalaciones pendientes" no eran escalaciones
 -- Proyecto PaginaLK (kwkclwhmoygunqmlegrg) · 2026-09-09
 --
--- ⚠ EL UPDATE DEL FINAL **NO** ESTÁ APLICADO. Espera el OK del dueño (protocolo: no se tocan
---   datos sin permiso explícito). El backup sí está tomado.
+-- ✅ APLICADO el 2026-09-09 con el OK del dueño. 632 filas re-etiquetadas.
+--   Cola: 635 pendientes → **2**. Backup tomado antes (635 filas, la tabla entera).
 --
 -- ── Qué eran en realidad ───────────────────────────────────────────────────────────────────
 -- La cola de "atender a mano" (`wa_alertas_humano`, estado `pendiente`) venía creciendo y se
@@ -56,18 +56,18 @@
 --              from public.bkp_wa_alertas_20260909 b
 --             where b.id = a.id;
 
--- ── PENDIENTE DE OK: sacar las 631 viejas de la cola ───────────────────────────────────────
+-- ── APLICADO: sacar las viejas de la cola ──────────────────────────────────────────────────
 -- No borra nada. Sólo las saca de `pendiente` para que la cola muestre lo que de verdad hay que
 -- atender. Después de correrlo deberían quedar 2 pendientes (el comprobante_error y el
 -- comprobante_recibido del 01/09), no 633.
 
--- update public.wa_alertas_humano
---    set estado = 'descartado',
---        tipo = 'whitelist_gate',
---        atendido_por = 'limpieza 2026-09-09 (no eran escalaciones)',
---        atendido_at = now()
---  where estado = 'pendiente'
---    and contexto->>'motivo' = 'whitelist_gate';
+update public.wa_alertas_humano
+   set estado = 'descartado',
+       tipo = 'whitelist_gate',
+       atendido_por = 'limpieza 2026-09-09 (no eran escalaciones)',
+       atendido_at = now()
+ where estado = 'pendiente'
+   and contexto->>'motivo' = 'whitelist_gate';
 
 -- Comprobar después:
 --   select tipo, estado, count(*) from public.wa_alertas_humano group by 1,2 order by 3 desc;
@@ -78,3 +78,17 @@
 -- son 631 filas. Vale la pena decidir si eso se guarda, y por cuánto tiempo: alcanzaría con
 -- registrar el teléfono y la fecha (que es lo único que se usa: "qué números intentaron") y no
 -- el contenido del mensaje. Es una decisión del dueño, no se tocó nada.
+
+-- ── Resultado medido ───────────────────────────────────────────────────────────────────────
+--   tipo                   estado        antes   después
+--   otro                   pendiente       632         0
+--   whitelist_gate         descartado        1       633
+--   comprobante_error      pendiente         1         1
+--   comprobante_recibido   pendiente         1         1
+--
+-- La cola de "atender a mano" pasó de **635 a 2**, y las 2 que quedan son de verdad.
+--
+-- De paso quedó comprobado que el deploy del webhook anduvo: la fila `whitelist_gate` /
+-- `descartado` que ya existía ANTES de correr este update la escribió el código nuevo, sola,
+-- con un mensaje que entró después del deploy. O sea que la clasificación por cliente / no
+-- cliente está funcionando en vivo, no sólo en el repo.
