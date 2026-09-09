@@ -294,6 +294,15 @@ el killswitch, sin ningún consumidor de esa cola.
     todavía NO registra solo sus dudas en la cola de Consultas (`wa_agente_consultas`). Las que hay
     entraron a mano.
 - **Cables creados sin enchufar (TODO, no conectados):**
+  - ⏳ **AL TOCAR "Configuración del agente" — conectar dos cosas (pedido del dueño, 2026-09-09):**
+    (1) **Logueo de tokens**: `bot-conversation.ts` llama a Claude directo (`api.anthropic.com`,
+    `claude-sonnet-4-6` hardcodeado) y **descarta `data.usage`** → nunca escribe `bot_token_usage`,
+    así que el dashboard **"IA — gastos y uso" queda siempre vacío**. El logger `_shared/llm.ts →
+    logUsage()` existe pero es **código muerto** (nadie importa `llm.ts`). Fix: leer `data.usage`
+    tras cada respuesta (y en la detección de intent) y registrar en `bot_token_usage`, o rutear
+    el bot por `_shared/llm.ts`. (2) **Cadena de modelos**: `bot-conversation.ts` ignora
+    `wa_agente_modelos`/`llm.ts` (modelo fijo), así que la pantalla de selección/fallback de
+    modelos del panel **no afecta al bot real** — cablearla en el mismo cambio.
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
     avisar al vendedor / botón "Cerrar chat" en el Panel, y retomar el bot al reiniciar el cliente. Requiere idle-sweep + UI.
