@@ -238,6 +238,24 @@ comprobado corriendo el mismo chequeo sobre el archivo de `HEAD`.
 
 ---
 
+### 0.g — Séptima tanda (2026-09-09): el hash publicado
+
+Cierra el punto **6** y la nota suelta del **8** (`anonKey`).
+
+- **`gestop_users` endurecida** (`sql/063`, aplicada). El punto 6: `password_hash` (SHA-256 sin
+  salt, el de `vendedor` = hash de "1234") era legible por cualquiera con la anon key. Verificado
+  en vivo que **nadie lo lee** en el código (login es Google OAuth; la tabla es solo whitelist de
+  rol — el front lee `role` por `email` como anon, las edge functions con service_role). Fix:
+  (a) revocadas las escrituras `INSERT/UPDATE/DELETE/TRUNCATE` de `anon`/`authenticated` (estaban
+  tapadas por RLS pero eran footgun), (b) SELECT de `anon` acotado a `(email, role)`, (c)
+  **`password_hash` dropeada**. Medido después: `anon` queda con `email:SELECT, role:SELECT` y
+  nada más; la lectura real del front sigue devolviendo la fila. **Sin cambio funcional.**
+- **La nota del punto 8 (`anonKey`) ya estaba cerrada**: el webhook renombró la variable a
+  `serviceKey` (`lk_whatsapp-webhook/index.ts:985-988`). Lo que queda abierto del 8 es la
+  confirmación server-side de `enviar_pedido` (ver sección 2).
+
+---
+
 ## 1. Crítico — del dueño, nadie más puede
 
 1. **Rotar `LK_WA_TOKEN` y `isis_supabase_service_key`.** `app_settings` tiene la policy
@@ -268,19 +286,13 @@ comprobado corriendo el mismo chequeo sobre el archivo de `HEAD`.
    *Fix*: armar el prompt con `buildAgenteSystem()` en `runConversation` (concatenando el
    bloque de Seguridad) — o borrar `agente.ts` y decir en el doc que el prompt es hardcodeado.
    **Ojo: enchufarlo con el punto 3 abierto convierte el agujero en prompt injection persistida.**
-6. **`gestop_users.password_hash` legible por `anon`** (policy `anon_read`, SELECT, `USING
-   (true)`). Son SHA-256 **sin salt**; el de `vendedor` es el hash conocido de `1234`. Hoy el
-   login entra por Google OAuth y la tabla se usa como whitelist de rol (es la que autoriza
-   `lk_faq-admin:79` y el gate nuevo), así que no es login activo — pero el hash está
-   publicado. *Fix*: dropear la columna si no se usa; si se usa, bcrypt/argon2. Y acotar el
-   SELECT a `email, role`.
 8. **`enviar_pedido` sin confirmación server-side.** La exigencia de "confirmación explícita
    del cliente" vive sólo en el prompt (`bot-conversation.ts:200-208`); no hay estado
    persistido que el backend valide. `wa_order_draft` existe y tiene 0 filas / 0 referencias en
    el código — es el lugar natural para el token de confirmación. Alcance limitado a la cuenta
    de quien escribe, de ahí la prioridad baja, pero permite pedidos no repudiables.
-   Aparte: `index.ts:851` guarda `SUPABASE_SERVICE_ROLE_KEY` en una variable llamada `anonKey`
-   y la manda como Bearer a una función `verify_jwt=false` — innecesario, y la expone en logs.
+   *(La nota vieja sobre `index.ts:851` / `anonKey` YA está cerrada: el webhook renombró la
+   variable a `serviceKey` con comentario, `lk_whatsapp-webhook/index.ts:985-988`.)*
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-09-07.
+> Última actualización: 2026-09-09.
 
 ## 🔑 Accesos, permisos y dónde está cada cosa (LEER PRIMERO)
 
@@ -156,7 +156,13 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
   `roles={public}` con `USING (true)` para ALL — cualquiera podía envenenar el matching de
   productos. Ahora exige `auth.role() = 'service_role'`; `anon_read` (SELECT de los activos)
   se dejó como estaba.
-- ⏳ **El webhook no valida `X-Hub-Signature-256`** y `{"action":"flush"}` no pide credencial.
+- ✅ **`gestop_users` endurecida** (`sql/063`, 2026-09-09, punto 6). El `password_hash`
+  (SHA-256 sin salt, el de `vendedor` = hash de "1234") era legible por `anon`. Verificado que
+  nadie lo lee (login es Google OAuth, la tabla es whitelist de rol). Se dropeó la columna, se
+  acotó el SELECT de `anon` a `(email, role)` y se revocaron sus escrituras. Sin cambio funcional.
+- ⏳ **El webhook no valida `X-Hub-Signature-256`** salvo que el dueño cargue `META_APP_SECRET`
+  (la firma ya está codeada, arranca en modo "avisa pero no rechaza"). Ídem `LK_INTERNAL_SECRET`
+  para `{"action":"flush"}`.
 
 **Funcional — el bot no identifica a NADIE hoy.** El webhook resuelve por
 `bot_cliente_por_whatsapp` → `bot_customer_whatsapps`, que tiene **0 filas**, así que todo
