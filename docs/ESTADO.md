@@ -36,10 +36,13 @@ RPC `wa_dashboard_rango(desde,hasta)` (ISIS/Gestión, mismo proyecto `hrxfctznci
   cuando los pedidos avanzan (se arman y salen), así que se congela a las **00:30 ART** (cron
   `wa-prog-snapshot-diario`, después del job de programación 00:01 de Gestión) para que el número
   no se encoja. Fallback en vivo para días sin foto. `wa_snapshot_programados(p_dia)` toma/rehace
-  la foto (greatest: nunca baja). _(2026-09-09; la fecha de ENTREGA es irrelevante — cuenta lo
-  programado para el día)_
+  la foto (greatest: nunca baja). Cuenta los **DOS universos** de NP (todos válidos): **ISIS
+  remanentes** `9xxxx`/`4xxxx` (`gv_ppp_programacion_diaria`) **+ web-nativas** `LK xxxx`/`CH xxxxx`
+  (`PPP_Web_Programacion`, clave empresa+np; LK/CH comparten el entero np). _(2026-09-09; la fecha
+  de ENTREGA es irrelevante — cuenta lo programado para el día)_
 - **armados** = evento **`TAL`** (armado de la NP) en `Registros_Produccion_Virgilio` por `ts_cliente`
-  (`texto` split 1 = NP). _(cambiado 2026-09-09; antes `vista_cola_impresion`, que es la **cola de
+  (`texto` split 1 = NP). Cuenta los dos universos: el `TAL` trae la etiqueta completa
+  (`98667` ISIS, `LK 0011` web), así que LK/CH web no se pisan ni chocan con ISIS. _(cambiado 2026-09-09; antes `vista_cola_impresion`, que es la **cola de
   impresión** y se vacía al imprimir la NP → daba **0**)_
 - **facturados** = `Facturacion_NP` por `facturado_at` (distinct **NP**)
 - **enviadas** (dashboard: "📤 Mensajes enviados") = `wa_pipeline_log` event `aviso_enviado` — **una fila por (grupo × destinatario)**, NO por NP. Con 2 destinatarios de prueba, cada envío cuenta doble.

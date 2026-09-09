@@ -8,8 +8,10 @@
 --                 Se congela a las 00:30 ART (cron wa-prog-snapshot-diario, después del job de
 --                 programación 00:01 de Gestión) para que NO se encoja cuando los pedidos avanzan
 --                 por el pipeline (se arman y salen de la programación viva). Fallback en vivo
---                 (gv_ppp_programacion_diaria) para días sin foto. Cuenta por NP (no tanda).
---                 [antes: PPP_Programacion_Diaria cruda / luego gv en vivo — se encogía]
+--                 para días sin foto. Cuenta por NP (no tanda) los DOS universos válidos:
+--                 (a) ISIS remanentes 9xxxx/4xxxx (gv_ppp_programacion_diaria) y (b) web-nativas
+--                 'LK xxxx'/'CH xxxxx' (PPP_Web_Programacion, clave empresa+np).
+--                 [antes: PPP_Programacion_Diaria cruda / luego gv en vivo — se encogía y sin web]
 --   armados     = evento TAL (armado de la NP) en Registros_Produccion_Virgilio por ts_cliente.
 --                 [antes: vista_cola_impresion, que es la COLA DE IMPRESIÓN — se vacía al
 --                 imprimir la NP, así que como métrica de "armados por día" daba 0]
@@ -70,10 +72,20 @@ returns int language plpgsql security definer set search_path to 'public' as $$
 declare v_dia date; v_n int;
 begin
   v_dia := coalesce(p_dia, (now() at time zone 'America/Argentina/Buenos_Aires')::date);
-  select count(distinct g.np) into v_n
-  from public.gv_ppp_programacion_diaria g
-  where left(g.fecha_entrega, 10) = to_char(v_dia,'YYYY-MM-DD')
-    and coalesce(g.cod,'')<>'99999' and coalesce(g.np,'') not like '9990%';
+  -- Cuenta los DOS universos de NP válidos (ver comentario del encabezado):
+  --   (a) ISIS remanentes (9xxxx/4xxxx) → gv_ppp_programacion_diaria
+  --   (b) web-nativas ('LK xxxx'/'CH xxxxx') → PPP_Web_Programacion, clave (empresa, np)
+  -- Disjuntos (sin colisión); LK/CH web comparten el entero np → van con empresa en la clave.
+  select count(*) into v_n from (
+    select btrim(g.np) as k
+    from public.gv_ppp_programacion_diaria g
+    where left(g.fecha_entrega, 10) = to_char(v_dia,'YYYY-MM-DD')
+      and coalesce(g.cod,'')<>'99999' and coalesce(g.np,'') not like '9990%'
+    union
+    select w.empresa || ' ' || w.np::text
+    from public."PPP_Web_Programacion" w
+    where w.fecha_entrega = v_dia and coalesce(w.cod_cliente,'')<>'99999'
+  ) u;
   insert into public.wa_prog_snapshot(dia, programados, tomado_at)
   values (v_dia, coalesce(v_n,0), now())
   on conflict (dia) do update
@@ -95,9 +107,14 @@ language sql stable security definer set search_path to 'public' as $$
     -- programados = FOTO al inicio del día (wa_prog_snapshot); fallback en vivo si aún no hay foto
     coalesce(
       (select s.programados from public.wa_prog_snapshot s where s.dia = d),
-      (select count(distinct g.np)::int from public.gv_ppp_programacion_diaria g
-         where left(g.fecha_entrega, 10) = to_char(d,'YYYY-MM-DD')
-           and coalesce(g.cod,'')<>'99999' and coalesce(g.np,'') not like '9990%')
+      (select count(*)::int from (
+         select btrim(g.np) as k from public.gv_ppp_programacion_diaria g
+           where left(g.fecha_entrega, 10) = to_char(d,'YYYY-MM-DD')
+             and coalesce(g.cod,'')<>'99999' and coalesce(g.np,'') not like '9990%'
+         union
+         select w.empresa || ' ' || w.np::text from public."PPP_Web_Programacion" w
+           where w.fecha_entrega = d and coalesce(w.cod_cliente,'')<>'99999'
+       ) u)
     ),
     -- armados = armado de la NP (evento TAL en Registros_Produccion_Virgilio) por día
     (select count(distinct regexp_replace(btrim(split_part(r.texto,'|',1)),'\.0+$',''))::int
