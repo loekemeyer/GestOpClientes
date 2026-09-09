@@ -64,8 +64,9 @@ con el estimado web fuera del 5%, ej. LK 0011). Enriquece dirección/razón de N
 `PPP_Web_Programacion` (antes sólo ISIS) y la **condición de venta** sale de la factura linkeada
 (`documentos.condicion_venta` → `wa_metodo_norm`). Devuelve `metodos_fac` (método por comprobante,
 alineado) además de `metodos` (set). Sólo LEE objetos de Gestión. **Las funciones legacy
-`wa_envio_grupos_dia/_pendientes` se retiraron (2026-09-09, sin uso).** Con eso `vista_np_factura`
-y `vista_grupo_pedido` quedan **huérfanas** (nadie las consume) — se pueden dropear cuando se confirme.
+`wa_envio_grupos_dia/_pendientes` y las vistas `vista_np_factura` + `vista_grupo_pedido` se
+retiraron (2026-09-09, sin uso: 0 dep DB, 0 cron, 0 REST).** Backup restore-ready en
+`sql/backups/vistas_np_factura_grupo_pedido_20260909.sql`.
 
 **Método mixto (Reglas A/B, helper `planMetodos` en `lk_factura-check`):**
 - **Regla A**: si el grupo tiene UN solo método real + facturas `no_decidido` ("prefiero no decir"),
