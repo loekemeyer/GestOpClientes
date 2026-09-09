@@ -1213,7 +1213,8 @@ async function handleMessage(
     if (bl) {
       console.warn(`[blacklist] mensaje de ${phone} descartado.`);
       if (!bl.avisado_at) {
-        const aviso = `Estamos momentáneamente fuera de servicio.`;
+        // Editable desde el Panel (app_settings.wa_blacklist_msg); fallback al default.
+        const aviso = (await getSetting("wa_blacklist_msg"))?.trim() || `Estamos momentáneamente fuera de servicio.`;
         await enviarTexto(cfg, phone, aviso);
         await saveMessage(phone, "user", text);
         await saveMessage(phone, "assistant", aviso);
@@ -1348,7 +1349,8 @@ async function handleMessage(
   const rateLimited = await pasoElTope(phone);
   if (rateLimited) {
     if (rateLimited.avisar) {
-      const aviso = `Estamos con problemas en este momento, probá contactarte de vuelta en una hora.`;
+      // Editable desde el Panel (app_settings.wa_rate_limit_msg); fallback al default.
+      const aviso = (await getSetting("wa_rate_limit_msg"))?.trim() || `Estamos con problemas en este momento, probá contactarte de vuelta en una hora.`;
       await enviarTexto(cfg, phone, aviso);
       await saveMessage(phone, "assistant", aviso);
     }

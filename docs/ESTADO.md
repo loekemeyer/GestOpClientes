@@ -225,13 +225,18 @@ el killswitch, sin ningún consumidor de esa cola.
   - **Rate limit** ahora cuenta **sólo las consultas que llegan al AGENTE (IA)**, no todos los
     mensajes: el gate `pasoElTope` se movió al paso 6 (justo antes de `runConversation`), así
     que `wa_rate_limit_per_hour` es "N consultas de IA/hora por número" (FAQ/AUTO y flujos
-    deterministas no gastan cupo). Al toparse: no llama al agente y avisa **una vez/hora**
-    _"Estamos con problemas en este momento, probá contactarte de vuelta en una hora."_
+    deterministas no gastan cupo). Al toparse: no llama al agente y avisa **una vez/hora**.
     Off por defecto (`wa_rate_limit_enabled`); hoy en vivo = 1, 20/h. Config vía `lk_chat-test`
     (`config_get/save`, service role).
-  - **Blacklist**: al **primer** mensaje tras entrar a la lista responde una vez
-    _"Estamos momentáneamente fuera de servicio."_ y después, silencio (`wa_blacklist.avisado_at`
-    marca el "ya avisé"; sql/064). Antes descartaba siempre en silencio.
+  - **Blacklist**: al **primer** mensaje tras entrar a la lista responde una vez y después,
+    silencio (`wa_blacklist.avisado_at` marca el "ya avisé"; sql/064). Antes descartaba siempre en silencio.
+  - **Los dos avisos son EDITABLES desde el Panel** (Rate Limit / Blacklist), viven en el back
+    (`app_settings.wa_rate_limit_msg` / `wa_blacklist_msg`) y los lee el webhook con fallback al
+    default. Guardan vía `lk_chat-test config_save`; `config_get` devuelve el texto efectivo
+    (guardado o default). _(front v0.16.6, 2026-09-09)_
+  - **Killswitch** (`wa_bot_solo_whitelist`, default ON): `handleMessage` paso 0 descarta en
+    silencio todo número que no esté en `wa_envio_contactos`. Funciona; hoy ON (bot sólo responde
+    a la whitelist).
 - **Matcher de FAQs (RPC `wa_faq_match`, reescrito sql/054 el 2026-09-04):** determinístico, 0 tokens.
   Antes era substring crudo (`LIKE '%kw%'`) sin normalizar → los acentos rompían el match, "ola"
   matcheaba "chocolate" y "?" matcheaba todo. Ahora: normaliza (unaccent + lower + `[a-z0-9 ]`),

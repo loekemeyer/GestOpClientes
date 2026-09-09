@@ -513,9 +513,13 @@
             <span class="hint" id="cfgRLEnabledLabel">Activo — aplica a chat real y test</span>
           </div>
           <div class="config-row">
-            <label>Mensajes por número / hora:</label>
+            <label>Consultas de IA por número / hora:</label>
             <input type="number" id="cfgRLLimit" min="1" max="200" value="20">
-            <span class="hint">Límite antes de bloquear</span>
+            <span class="hint">Tope de consultas al agente antes de bloquear</span>
+          </div>
+          <div class="config-row" style="align-items:flex-start;">
+            <label>Aviso al toparse:</label>
+            <textarea id="cfgRLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos con problemas en este momento, probá contactarte de vuelta en una hora."></textarea>
           </div>
           <div style="margin-top:0.8rem; display:flex; align-items:center;">
             <button class="config-btn primary" onclick="saveRateLimitConfig()">💾 Guardar</button>
@@ -534,6 +538,14 @@
           <span class="config-status" id="blAddStatus"></span>
           <div id="blTableContainer">
             <div class="bl-empty">Cargando...</div>
+          </div>
+          <div class="config-row" style="align-items:flex-start;margin-top:0.9rem;">
+            <label>Aviso al bloqueado (1ª vez):</label>
+            <textarea id="cfgBLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos momentáneamente fuera de servicio."></textarea>
+          </div>
+          <div style="display:flex; align-items:center;">
+            <button class="config-btn primary" onclick="saveBlacklistMsg()">💾 Guardar mensaje</button>
+            <span class="config-status" id="blMsgStatus"></span>
           </div>
         </div>
 
@@ -1183,6 +1195,8 @@ async function loadConfigPage() {
       const enabled = data.rate_limit_enabled;
       document.getElementById("cfgRLEnabled").checked = enabled;
       updateRLEnabledStyle(enabled);
+      if (data.rate_limit_msg !== undefined) document.getElementById("cfgRLMsg").value = data.rate_limit_msg || "";
+      if (data.blacklist_msg !== undefined) document.getElementById("cfgBLMsg").value = data.blacklist_msg || "";
     }
   } catch (e) { /* silent */ }
   loadBlacklist();
@@ -1211,6 +1225,7 @@ async function saveRateLimitConfig() {
         action: "config_save",
         rate_limit_per_hour: parseInt(document.getElementById("cfgRLLimit").value) || 20,
         rate_limit_enabled: document.getElementById("cfgRLEnabled").checked ? 1 : 0,
+        rate_limit_msg: document.getElementById("cfgRLMsg").value,
       });
     if (error) throw error;
     st.textContent = "✓ Guardado";
@@ -1218,6 +1233,23 @@ async function saveRateLimitConfig() {
   } catch (e) {
     st.textContent = "✗ Error";
     st.className = "config-status err";
+  }
+  setTimeout(() => { st.textContent = ""; }, 3000);
+}
+
+// Guarda sólo el aviso de blacklist (app_settings.wa_blacklist_msg vía edge, service role).
+async function saveBlacklistMsg() {
+  const st = document.getElementById("blMsgStatus");
+  st.textContent = "Guardando..."; st.className = "config-status";
+  try {
+    const { error } = await chatTest({
+      action: "config_save",
+      blacklist_msg: document.getElementById("cfgBLMsg").value,
+    });
+    if (error) throw error;
+    st.textContent = "✓ Guardado"; st.className = "config-status ok";
+  } catch (e) {
+    st.textContent = "✗ Error"; st.className = "config-status err";
   }
   setTimeout(() => { st.textContent = ""; }, 3000);
 }
@@ -2988,6 +3020,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.5</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.6</div>
 </body>
 </html>

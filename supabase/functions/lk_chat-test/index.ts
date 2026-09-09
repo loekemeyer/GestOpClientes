@@ -253,12 +253,22 @@ function menuText(nombre?: string): string {
 
 // ── Config & Blacklist handlers ──
 
+// Textos por defecto de los avisos (el webhook usa los mismos como fallback si el setting
+// está vacío). Editables desde el Panel → se guardan en app_settings.
+const DEFAULT_RL_MSG = "Estamos con problemas en este momento, probá contactarte de vuelta en una hora.";
+const DEFAULT_BL_MSG = "Estamos momentáneamente fuera de servicio.";
+
 async function handleConfigGet() {
   const perHour = await getSetting("wa_rate_limit_per_hour");
   const enabled = await getSetting("wa_rate_limit_enabled");
+  const rlMsg = await getSetting("wa_rate_limit_msg");
+  const blMsg = await getSetting("wa_blacklist_msg");
   return json({
     rate_limit_per_hour: Number(perHour) || 20,
     rate_limit_enabled: Number(enabled) === 1,
+    // Devuelve el texto EFECTIVO (guardado, o el default) para que el Panel muestre lo que se envía.
+    rate_limit_msg: (rlMsg && rlMsg.trim()) ? rlMsg : DEFAULT_RL_MSG,
+    blacklist_msg: (blMsg && blMsg.trim()) ? blMsg : DEFAULT_BL_MSG,
   });
 }
 
@@ -275,6 +285,19 @@ async function handleConfigSave(body: Record<string, unknown>) {
     updates.push(
       supabase.from("app_settings")
         .upsert({ key: "wa_rate_limit_enabled", value: body.rate_limit_enabled ? 1 : 0 }, { onConflict: "key" })
+    );
+  }
+  // Avisos editables. Se guarda el texto tal cual (vacío → el webhook cae al default).
+  if (body.rate_limit_msg !== undefined) {
+    updates.push(
+      supabase.from("app_settings")
+        .upsert({ key: "wa_rate_limit_msg", value: String(body.rate_limit_msg ?? "").trim() }, { onConflict: "key" })
+    );
+  }
+  if (body.blacklist_msg !== undefined) {
+    updates.push(
+      supabase.from("app_settings")
+        .upsert({ key: "wa_blacklist_msg", value: String(body.blacklist_msg ?? "").trim() }, { onConflict: "key" })
     );
   }
 
