@@ -11,8 +11,10 @@
 -- wa_cuits_facturados_dia(fecha): enumera los cuits reales con factura ese día. Lo usa el
 --   driver lk_notif-sim (acción real_sweep) para "flushear" el backlog del día disparando el
 --   mismo camino real por cada cuit.
--- wa_envio_grupos_pendientes(): (legacy) grupos reales completos por el linkeo NP↔factura
---   (vista_np_factura, por neto). Se conserva como referencia; el flujo vigente es por día.
+--
+-- (2026-09-09) Se retiraron las funciones legacy wa_envio_grupos_dia(date) y
+--   wa_envio_grupos_pendientes() — linkeaban por la vieja vista_np_factura y no las usaba
+--   nadie (0 crons, 0 dependencias, 0 llamadas). El camino vigente es wa_grupos_dia_cuit.
 
 create or replace function public.wa_cuits_facturados_dia(p_fecha date)
 returns table(source text, cuit text) language sql security definer set search_path to 'public' as $$
@@ -89,29 +91,4 @@ language sql stable security definer set search_path to 'public' as $$
     array_agg(distinct public.wa_metodo_norm(cond)),
     array_agg(public.wa_metodo_norm(cond) order by comprobante_id)
   from base group by empresa, destino;
-$$;
-
-create or replace function public.wa_envio_grupos_pendientes()
-returns table(group_key text, empresa text, cod_cliente text, destino text, dia date, razon_social text,
-  n_facturas int, comprobantes text[], storage_paths text[], totales numeric[], metodos text[])
-language sql security definer set search_path to 'public' as $$
-  with base as (
-    select v.np, v.empresa, v.cod_cliente,
-      public.wa_destino_norm(v.sucursal_entrega,v.direccion) as destino,
-      v.fecha_salida::date as dia, v.razon_social, v.comprobante_id, v.storage_path, v.factura_total, v.doc_id,
-      (select d.condicion_venta from isis_lk.documentos d where d.id=v.doc_id and v.empresa='lk'
-       union all select d.condicion_venta from isis_ch.documentos d where d.id=v.doc_id and v.empresa='chef' limit 1) as cond
-    from public.vista_np_factura v
-    where v.cod_cliente <> '99999'
-  )
-  select empresa||'|'||cod_cliente||'|'||destino||'|'||dia::text,
-    empresa, cod_cliente, destino, dia, max(razon_social),
-    count(*)::int,
-    array_agg(comprobante_id order by comprobante_id),
-    array_agg(storage_path order by comprobante_id),
-    array_agg(factura_total order by comprobante_id),
-    array_agg(distinct public.wa_metodo_norm(cond))
-  from base
-  group by empresa, cod_cliente, destino, dia
-  having bool_and(doc_id is not null) and bool_and(storage_path is not null);
 $$;

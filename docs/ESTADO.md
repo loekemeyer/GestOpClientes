@@ -63,8 +63,9 @@ NO con la vieja `vista_np_factura` (exigía neto≠0 ±5% → fallaba con neto r
 con el estimado web fuera del 5%, ej. LK 0011). Enriquece dirección/razón de NP **web** desde
 `PPP_Web_Programacion` (antes sólo ISIS) y la **condición de venta** sale de la factura linkeada
 (`documentos.condicion_venta` → `wa_metodo_norm`). Devuelve `metodos_fac` (método por comprobante,
-alineado) además de `metodos` (set). `vista_np_factura` queda para las funciones legacy
-(`wa_envio_grupos_dia/_pendientes`) hasta retirarlas. Sólo LEE objetos de Gestión.
+alineado) además de `metodos` (set). Sólo LEE objetos de Gestión. **Las funciones legacy
+`wa_envio_grupos_dia/_pendientes` se retiraron (2026-09-09, sin uso).** Con eso `vista_np_factura`
+y `vista_grupo_pedido` quedan **huérfanas** (nadie las consume) — se pueden dropear cuando se confirme.
 
 **Método mixto (Reglas A/B, helper `planMetodos` en `lk_factura-check`):**
 - **Regla A**: si el grupo tiene UN solo método real + facturas `no_decidido` ("prefiero no decir"),
