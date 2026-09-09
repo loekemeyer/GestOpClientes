@@ -221,6 +221,17 @@ el killswitch, sin ningún consumidor de esa cola.
   4. **Sin FAQ**: cliente → agente IA (responde si puede, si no escala a humano); no-cliente → registro por CUIT.
   - "Request" = cualquier consulta/duda/pedido del cliente.
 - FAQ categorías: AUTO/SEMIAUTO/IA/HUMANO. Pestaña "Preguntas frecuentes" en el front lee `wa_faq` + `wa_faq_lookup_tokens`. Escritura solo vía `lk_faq-admin` (admin). Ver regla de sincronización en `CLAUDE.md`.
+- **Rate limit y blacklist (Panel de Control) — FUNCIONAN, cambios 2026-09-09:**
+  - **Rate limit** ahora cuenta **sólo las consultas que llegan al AGENTE (IA)**, no todos los
+    mensajes: el gate `pasoElTope` se movió al paso 6 (justo antes de `runConversation`), así
+    que `wa_rate_limit_per_hour` es "N consultas de IA/hora por número" (FAQ/AUTO y flujos
+    deterministas no gastan cupo). Al toparse: no llama al agente y avisa **una vez/hora**
+    _"Estamos con problemas en este momento, probá contactarte de vuelta en una hora."_
+    Off por defecto (`wa_rate_limit_enabled`); hoy en vivo = 1, 20/h. Config vía `lk_chat-test`
+    (`config_get/save`, service role).
+  - **Blacklist**: al **primer** mensaje tras entrar a la lista responde una vez
+    _"Estamos momentáneamente fuera de servicio."_ y después, silencio (`wa_blacklist.avisado_at`
+    marca el "ya avisé"; sql/064). Antes descartaba siempre en silencio.
 - **Matcher de FAQs (RPC `wa_faq_match`, reescrito sql/054 el 2026-09-04):** determinístico, 0 tokens.
   Antes era substring crudo (`LIKE '%kw%'`) sin normalizar → los acentos rompían el match, "ola"
   matcheaba "chocolate" y "?" matcheaba todo. Ahora: normaliza (unaccent + lower + `[a-z0-9 ]`),

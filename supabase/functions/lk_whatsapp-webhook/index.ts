@@ -1061,22 +1061,25 @@ async function estaEnWhitelist(phone: string): Promise<boolean> {
   return !!data;
 }
 
-/** ¿El número está en `wa_blacklist`? (sql/012) */
-async function estaEnBlacklist(phone: string): Promise<boolean> {
+/** Fila de `wa_blacklist` del número, o null si no está. `avisado_at` marca si ya se le
+ *  mandó el aviso de "fuera de servicio" (para avisar UNA vez y después silencio). (sql/012) */
+async function blacklistRow(phone: string): Promise<{ avisado_at: string | null } | null> {
   const { data, error } = await supabase
     .from("wa_blacklist")
-    .select("phone")
+    .select("phone, avisado_at")
     .eq("phone", phone)
     .maybeSingle();
   // Ante un error de lectura NO bloqueamos: es preferible atender de más que dejar
   // mudo a un cliente legítimo porque falló una consulta.
-  if (error) { console.error("[blacklist] no pude consultar:", error.message); return false; }
-  return !!data;
+  if (error) { console.error("[blacklist] no pude consultar:", error.message); return null; }
+  return data ? { avisado_at: (data.avisado_at as string | null) ?? null } : null;
 }
 
 /**
- * Tope de mensajes por hora y por teléfono (`wa_check_rate_limit`, sql/012).
- * Apagado por defecto: sólo corre si `wa_rate_limit_enabled = 1`.
+ * Tope de CONSULTAS AL AGENTE (IA) por hora y por teléfono (`wa_check_rate_limit`, sql/012).
+ * Se llama sólo en el paso 6 (justo antes de `runConversation`), así que el contador de
+ * `wa_rate_limit` cuenta únicamente los mensajes que llegan al agente — no las FAQ/AUTO ni
+ * los flujos deterministas. Apagado por defecto: sólo corre si `wa_rate_limit_enabled = 1`.
  *
  * Devuelve null si puede seguir. Si pasó el tope devuelve `{ avisar }`, donde
  * `avisar` es true SÓLO en el primer mensaje por encima del tope: si no, cada
@@ -1202,32 +1205,33 @@ async function handleMessage(
   //     sólo en `lk_chat-test`, o sea en el simulador del Panel. En el webhook real —el
   //     que atiende a los clientes— no había ni un hit: un número blacklisteado seguía
   //     siendo atendido y no había tope de mensajes por número.
-  //     Se descarta en silencio, igual que el gate de whitelist: al bloqueado no se le
-  //     contesta nada. Queda la fila en `wa_alertas_humano` para saber que escribió.
-  if (await estaEnBlacklist(phone)) {
-    console.warn(`[blacklist] mensaje de ${phone} descartado.`);
-    await notificarHumano({
-      tipo: "otro",
-      phone,
-      contexto: { motivo: "blacklist", texto_recibido: text.slice(0, 200) },
-    });
-    return;
+  //     Se descarta. Pedido del dueño (2026-09-09): al PRIMER mensaje después de entrar a
+  //     la blacklist se le responde una vez y después, silencio. `avisado_at` marca ese
+  //     "ya avisé". Queda la fila en `wa_alertas_humano` para saber que escribió.
+  {
+    const bl = await blacklistRow(phone);
+    if (bl) {
+      console.warn(`[blacklist] mensaje de ${phone} descartado.`);
+      if (!bl.avisado_at) {
+        const aviso = `Estamos momentáneamente fuera de servicio.`;
+        await enviarTexto(cfg, phone, aviso);
+        await saveMessage(phone, "user", text);
+        await saveMessage(phone, "assistant", aviso);
+        await supabase.from("wa_blacklist")
+          .update({ avisado_at: new Date().toISOString() }).eq("phone", phone);
+      }
+      await notificarHumano({
+        tipo: "otro",
+        phone,
+        contexto: { motivo: "blacklist", texto_recibido: text.slice(0, 200) },
+      });
+      return;
+    }
   }
 
-  // 0c. Rate limit por teléfono. A diferencia de la blacklist, acá SÍ se le avisa:
-  //     el cliente no hizo nada malo, sólo escribió de más, y dejarlo mudo parece
-  //     que el bot se cayó. Se manda una vez por hora, no en cada mensaje del tope.
-  const rateLimited = await pasoElTope(phone);
-  if (rateLimited) {
-    await saveMessage(phone, "user", text);
-    if (rateLimited.avisar) {
-      const aviso = `⏳ Recibí muchos mensajes seguidos y necesito un rato para procesarlos. ` +
-        `Escribime de nuevo en un ratito, o si es urgente mandanos un mail a ventas@loekemeyer.com 🙏`;
-      await enviarTexto(cfg, phone, aviso);
-      await saveMessage(phone, "assistant", aviso);
-    }
-    return;
-  }
+  // NOTA: el rate limit NO va acá. Cuenta SÓLO las consultas que llegan al agente (IA),
+  // así que su gate vive en el paso 6, justo antes de `runConversation` (más abajo). Las
+  // FAQ/AUTO y los flujos deterministas (alta, identificación) no gastan cupo.
 
   // 1. Marcar como leído (fire-and-forget)
   markRead(cfg.waPhoneId, cfg.waToken, msgId).catch(() => {});
@@ -1336,6 +1340,20 @@ async function handleMessage(
 
   // 6. Cliente identificado, FAQ no matcheó → agente conversacional
   await saveMessage(phone, "user", text);
+
+  // 6a. Rate limit (SÓLO consultas al agente/IA, cualquier modelo). El contador de
+  //     `wa_rate_limit` sólo se incrementa acá, así que el tope `wa_rate_limit_per_hour`
+  //     es "N consultas de IA por hora por número". Si lo pasó, no llamamos al agente
+  //     (ahorra tokens) y se avisa UNA vez por hora (ver `pasoElTope`).
+  const rateLimited = await pasoElTope(phone);
+  if (rateLimited) {
+    if (rateLimited.avisar) {
+      const aviso = `Estamos con problemas en este momento, probá contactarte de vuelta en una hora.`;
+      await enviarTexto(cfg, phone, aviso);
+      await saveMessage(phone, "assistant", aviso);
+    }
+    return;
+  }
 
   const result = await runConversation(
     text,
