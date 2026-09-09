@@ -204,12 +204,12 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
   `wa_factura_consolidada`, `wa_message_status`, `wa_prospect_leads`, `wa_rate_limit`,
   `bot_reactivacion_config`, `bot_reactivacion_log`. Verificado: `anon` ya no lee ninguna
   (`has_table_privilege` = false en las 10) y `service_role` sigue entrando.
-- ⏳ **Las 5 tablas `wa_agente_*` quedaron AFUERA a propósito**: el dashboard las lee y
-  escribe **directo con la anon key** (9 lugares en `docs/index.html`), así que prenderles RLS
-  las rompe. Hay que mover esas escrituras a una edge function con gate de admin — se puede
-  colgar de `lk_agente-modelos`, que ya tiene el gate. **Hasta entonces `wa_agente_config`
-  (el documento rector) es escribible por cualquiera: prompt injection persistida el día que
-  se enchufe `_shared/agente.ts`.**
+- ✅ **Las 5 tablas `wa_agente_*` YA cerradas** (verificado 2026-09-09 con los advisors):
+  `wa_agente_config`, `_config_history`, `_consultas`, `_evals`, `_model_keys`, `_modelos`
+  tienen **RLS ON y SIN escritura para anon/authenticated**. Las escrituras del panel pasan por
+  `lk_agente-modelos` (gate admin). La vieja nota de "prompt injection persistida" quedó saldada:
+  aunque `_shared/agente.ts` ya está enchufado (el bot usa el documento rector), nadie sin admin
+  puede reescribirlo.
 - ✅ **EXECUTE revocado a `anon`** en las 18 funciones `wa_*`/`bot_*` que lo tenían, entre
   ellas `bot_submit_order` (creaba pedidos a nombre de cualquiera), `bot_reactivar_inactivos`
   (spam masivo) y `wa_product_match_with_price` (precios de cualquier cliente). Se revocó de
@@ -241,6 +241,12 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
 - ⏳ **El webhook no valida `X-Hub-Signature-256`** salvo que el dueño cargue `META_APP_SECRET`
   (la firma ya está codeada, arranca en modo "avisa pero no rechaza"). Ídem `LK_INTERNAL_SECRET`
   para `{"action":"flush"}`.
+- 📋 **Backlog de seguridad completo en `docs/PENDIENTES-SEGURIDAD-2026-09-09.md`** (2026-09-09):
+  pasos para activar `META_APP_SECRET` (A), fix de `get_customer_sales_history` (B), y el resultado
+  de correr los advisors de Supabase — 45 funciones ejecutables por anon (la mayoría de OTRAS apps:
+  Milver/PIN, expo, login; revisar `fijar_dto_escala` que ESCRIBE sin gate, `buscar_cliente_ficha`,
+  `get_ficha_cliente`), foreign tables de Chef expuestas, 7 tablas de backup sin RLS (quick win),
+  vistas SECURITY DEFINER, etc. Casi todo es del Supabase compartido (pagina-LK), no del bot.
 
 **Funcional — el bot no identifica a NADIE hoy.** El webhook resuelve por
 `bot_cliente_por_whatsapp` → `bot_customer_whatsapps`, que tiene **0 filas**, así que todo
