@@ -17,6 +17,9 @@
 //   if (!gate.ok) return json({ error: gate.error }, gate.status);
 //   // gate.email tiene el admin autenticado, para logs de auditoría.
 
+// Nota deploy: el CI (deploy-edge-functions.yml) detecta cambios de `_shared`
+// con `git diff HEAD^ HEAD`, así que un cambio a este archivo tiene que ir en el
+// MISMO commit que llega a HEAD para que redeploye las funciones que lo importan.
 import { supabase } from "./supabase.ts";
 
 // Proyecto de auth (Google OAuth). Claves publicables, no secretas: ya viajan
