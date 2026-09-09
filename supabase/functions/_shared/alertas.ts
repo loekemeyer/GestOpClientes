@@ -7,7 +7,13 @@
 
 import { supabase } from "./supabase.ts";
 
-export type TipoAlerta = "llm_timeout" | "llm_error" | "faq_no_match" | "escalation" | "otro";
+export type TipoAlerta =
+  | "llm_timeout"
+  | "llm_error"
+  | "faq_no_match"
+  | "escalation"
+  | "whitelist_gate"   // mensaje descartado por la whitelist (lo inserta el webhook, no este helper)
+  | "otro";
 // "escalation" queda declarado para cablear el aviso de las FAQ categoría
 // HUMANO cuando se decida notificar. Hoy NO hay call-site que lo use.
 

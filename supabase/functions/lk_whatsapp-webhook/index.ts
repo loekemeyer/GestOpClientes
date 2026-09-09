@@ -1008,6 +1008,23 @@ async function triggerParser(comprobanteId: string): Promise<void> {
  * `wa_alertas_humano` **por cada mensaje descartado**: un número fuera de la lista que escribe
  * veinte veces deja veinte alertas idénticas, y la tabla crece sin techo. Lo que se quiere saber
  * es *qué números intentaron*, no cuántas veces — así que se guarda una por teléfono y por día.
+ *
+ * v2 (2026-09-09) — el techo por día no alcanzaba: seguían entrando como `tipo='otro'` y
+ * `estado='pendiente'`, o sea a la MISMA cola que un comprobante que falló. Medido el 09/09:
+ * 633 alertas pendientes, **631 de ellas `whitelist_gate`** (99,7%), de 73 teléfonos de los que
+ * **uno solo es cliente**. 534 salieron de un único evento el 03/09 15:22 — una encuesta mandada
+ * desde esa línea que contestaron 54 personas ("35/40min", "2 hs", "A"/"B"): tráfico ajeno al bot.
+ * Con eso, la cola de "atender a mano" era 99% ruido y lo poco real quedaba enterrado.
+ *
+ * Ahora se separa por QUIÉN escribió, que es lo único que cambia si hay que hacer algo:
+ *
+ *   · teléfono que resuelve a un cliente → `estado='pendiente'`. Un cliente real escribió y el
+ *     bot no le contestó por la whitelist: eso sí lo tiene que ver alguien.
+ *   · cualquier otro                     → `estado='descartado'`. Queda registrado (para saber
+ *     qué números intentaron) pero no ensucia la cola.
+ *
+ * Y va con `tipo='whitelist_gate'` en vez de `'otro'`, para poder filtrarlo sin leer el jsonb.
+ * `descartado` ya estaba en el CHECK de `estado` (sql/044), así que no hace falta tocar la tabla.
  */
 async function avisarDescartePorWhitelist(phone: string, contexto: Record<string, unknown>): Promise<void> {
   try {
@@ -1019,7 +1036,19 @@ async function avisarDescartePorWhitelist(phone: string, contexto: Record<string
       .eq("contexto->>motivo", "whitelist_gate")
       .gte("created_at", desde.toISOString());
     if ((count ?? 0) > 0) return;   // ya quedó registrado hoy
-    await supabase.from("wa_alertas_humano").insert({ tipo: "otro", phone, contexto });
+
+    // Si falla la identificación, se asume que NO es cliente: mejor un aviso de menos en la cola
+    // que volver a llenarla de ruido. La fila queda igual, con el teléfono, para poder revisarla.
+    let cliente: CustomerContext | null = null;
+    try { cliente = await getCustomerContext(phone); } catch { /* no identificado */ }
+
+    await supabase.from("wa_alertas_humano").insert({
+      tipo: "whitelist_gate",
+      phone,
+      customer_id: cliente?.customer_id ?? null,
+      estado: cliente ? "pendiente" : "descartado",
+      contexto: { ...contexto, es_cliente: !!cliente, cod_cliente: cliente?.cod_cliente ?? null },
+    });
   } catch { /* fire-and-forget: no puede frenar el descarte */ }
 }
 
@@ -1100,6 +1129,50 @@ async function enviarTexto(cfg: Config, phone: string, texto: string): Promise<b
   }
 }
 
+// ─── Reporte de gerencia a pedido (idea 6600) ───────────────────────
+//
+// El reporte "💰 HOY" (plata del día + mes a la fecha) ya existe y sale por Telegram todos
+// los días a las 20:00 ART — cron 36 `reporte-hoy-plata-telegram` → `rep_enviar_hoy()` →
+// `rep_texto_hoy(fecha)`. Esto le da la MISMA fuente por WhatsApp, sin duplicar el texto.
+
+/** Fecha de hoy en Argentina (UTC-3 fijo), con corrimiento opcional en días. */
+function fechaArgentina(offsetDias = 0): string {
+  const ms = Date.now() - 3 * 60 * 60 * 1000 + offsetDias * 24 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * ¿Este teléfono puede pedir el reporte? Sale de `app_settings.wa_gerencia_phones`, un array
+ * JSON de teléfonos en el formato de Meta (`["5491162521635"]`).
+ *
+ * **Arranca vacío a propósito: sin esa clave cargada, NADIE puede.** Estar en la whitelist
+ * (`wa_envio_contactos`) no alcanza — esa lista es para que el bot conteste y el día que se
+ * abra a clientes los va a incluir. La plata de la empresa necesita su propia lista.
+ */
+async function esGerencia(phone: string): Promise<boolean> {
+  try {
+    const raw = await getSetting("wa_gerencia_phones");
+    if (!raw) return false;
+    const lista = JSON.parse(raw);
+    if (!Array.isArray(lista)) return false;
+    const d = phone.replace(/\D/g, "");
+    return lista.some((p: unknown) => {
+      const q = String(p).replace(/\D/g, "");
+      // Comparación por los últimos 8 dígitos: evita que un 54/9/15 de más lo haga fallar.
+      return q.length >= 8 && d.length >= 8 && q.slice(-8) === d.slice(-8);
+    });
+  } catch { return false; }
+}
+
+/** "hoy", "plata", "reporte", "ventas" — con o sin acentos, y "… de ayer". */
+function esComandoReporteHoy(text: string): boolean {
+  const t = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // saca acentos
+    .toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+  // La cabeza temporal ("hoy" / "ayer") va sola; el calificativo de día sólo cuelga de un
+  // sustantivo ("reporte de ayer"). Así "hoy ayer" no matchea nada.
+  return /^((plata|reporte|ventas|numeros)( de)?( hoy| ayer)?|hoy|ayer)$/.test(t);
+}
+
 // ─── Handler principal ──────────────────────────────────────────────
 
 async function handleMessage(
@@ -1158,6 +1231,29 @@ async function handleMessage(
 
   // 1. Marcar como leído (fire-and-forget)
   markRead(cfg.waPhoneId, cfg.waToken, msgId).catch(() => {});
+
+  // 1b. Reporte de gerencia a pedido (idea 6600). Va ACÁ, antes del modo humano y del
+  //     FAQ/LLM: es una consulta interna, no gasta tokens y no tiene que competir con
+  //     ninguna FAQ.
+  //
+  //     Por qué "a pedido" y no un push a las 20:00 como el de Telegram: WhatsApp sólo
+  //     deja mandar texto libre DENTRO de la ventana de 24 h que abre el propio usuario
+  //     al escribir. Un mensaje que sale sin que nadie haya escrito necesita una PLANTILLA
+  //     aprobada por Meta, y las 6 que hay (`wa_tpl_*`) son todas de pedidos. Así que el
+  //     push queda esperando esa aprobación, pero esto ya funciona hoy: el dueño escribe
+  //     "hoy" y le llega el mismo texto que manda el cron 36.
+  if (await esGerencia(phone) && esComandoReporteHoy(text)) {
+    const ayer = text.toLowerCase().includes("ayer");
+    const { data: rep, error: repErr } = await supabase.rpc("rep_texto_hoy", {
+      p_fecha: fechaArgentina(ayer ? -1 : 0),
+    });
+    const salida = repErr || !rep
+      ? "No pude armar el reporte ahora. Probá en un rato."
+      : String(rep);
+    if (repErr) console.error("[gerencia] rep_texto_hoy falló:", repErr.message);
+    await enviarTexto(cfg, phone, salida);
+    return;
+  }
 
   // 2. Modo humano → no procesamos, solo guardamos para trazabilidad. El bot
   //    retoma cuando el modo vuelve a "bot" (hoy: vencimiento fijo en
