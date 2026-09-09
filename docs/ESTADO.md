@@ -193,7 +193,13 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
 - ✅ **`gestop_users` endurecida** (`sql/063`, 2026-09-09, punto 6). El `password_hash`
   (SHA-256 sin salt, el de `vendedor` = hash de "1234") era legible por `anon`. Verificado que
   nadie lo lee (login es Google OAuth, la tabla es whitelist de rol). Se dropeó la columna, se
-  acotó el SELECT de `anon` a `(email, role)` y se revocaron sus escrituras. Sin cambio funcional.
+  acotó el SELECT de `anon` a `(email, role)` y se revocaron sus escrituras.
+  - ⚠️ **Rompió el login (2026-09-09, corregido el mismo día):** tras `sql/063`, `anon` quedó SIN
+    SELECT efectivo sobre `gestop_users` (daba "permission denied for **table**", no por columna →
+    el `grant select (email, role)` no estaba aplicado). El login (`checkSession` en `docs/index.html`
+    lee la whitelist con la ANON key ANTES de tener sesión) recibía null → "Email no autorizado".
+    Fix: `grant select (email, role) on public.gestop_users to anon;` (verificado como `anon` que la
+    query exacta del front devuelve el rol). **El login depende de este grant** — no revocarlo.
 - ⏳ **El webhook no valida `X-Hub-Signature-256`** salvo que el dueño cargue `META_APP_SECRET`
   (la firma ya está codeada, arranca en modo "avisa pero no rechaza"). Ídem `LK_INTERNAL_SECRET`
   para `{"action":"flush"}`.
