@@ -105,6 +105,33 @@ falten, esas verificaciones avisan pero no rechazan. Ver la auditoría, sección
 > **Lo que FALTA está en `docs/PENDIENTES-AUDITORIA-2026-09-07.md`** — 45 puntos
 > priorizados, cada uno con archivo:línea y la evidencia. Leelo antes de tocar el bot.
 
+### 🔒 Qué falta de SEGURIDAD (handoff al 2026-09-09)
+
+Resumen para otra sesión — el detalle y la evidencia siguen en el PENDIENTES.
+
+**Solo el dueño (nadie más puede):**
+1. **Rotar** `LK_WA_TOKEN` (Meta) + `isis_supabase_service_key` (service_role de ISIS). Siguen en
+   `app_settings`; la fuga por `anon` ya está cerrada (sql/061) pero estuvieron legibles antes →
+   regenerar, mover a secret de Edge Function, borrar las filas. (PENDIENTES punto 1)
+2. **Cargar `META_APP_SECRET`** (+ `LK_INTERNAL_SECRET`) como secrets de Edge Function. La firma
+   `X-Hub-Signature-256` ya está codeada pero arranca en modo "avisa y no rechaza": hasta cargar
+   el secret, el webhook acepta cualquier POST. (PENDIENTES punto 5/0.b)
+3. **Borrar `lk_wh_stage`** (v4, ACTIVE, sin JWT — 2º webhook completo) y decidir la legacy
+   `whatsapp-webhook` **v154** (ACTIVE, sin JWT, 0 menciones). Dashboard → Edge Functions →
+   Delete (no hay tool MCP). (PENDIENTES punto 2)
+
+**Decisiones (no son agujero abierto, pero cambian comportamiento):**
+4. **Módulo "Config del agente" decorativo** (`_shared/agente.ts` sin importar) — enchufar o
+   borrar. Enchufarlo cambia lo que el bot le dice al cliente. (PENDIENTES punto 4)
+5. **`enviar_pedido` sin confirmación server-side** — la confirmación vive solo en el prompt;
+   `wa_order_draft` (0 filas) es el lugar natural para un token. Feature real, no testeable desde
+   el contenedor. (PENDIENTES punto 8)
+
+**Ya cerrado (no re-hacer):** gates de admin (5 fn), RLS + revokes (sql/056/058), firma+wamid+
+parse-gate (0.b/0.c), sql/061 (deny secrets a anon + revoke escrituras), `wa_agente_*` RLS +
+escrituras tras gate, y **punto 6** — `gestop_users.password_hash` dropeado + grants cerrados
+(sql/063, 2026-09-09, en prod, sin cambio funcional).
+
 Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
 
 - ✅ **El webhook ya no acepta cualquier POST** (2ª tanda, 07/09 tarde). Se verifica la firma
