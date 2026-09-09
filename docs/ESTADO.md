@@ -130,7 +130,9 @@ Resumen para otra sesión — el detalle y la evidencia siguen en el PENDIENTES.
 **Ya cerrado (no re-hacer):** gates de admin (5 fn), RLS + revokes (sql/056/058), firma+wamid+
 parse-gate (0.b/0.c), sql/061 (deny secrets a anon + revoke escrituras), `wa_agente_*` RLS +
 escrituras tras gate, y **punto 6** — `gestop_users.password_hash` dropeado + grants cerrados
-(sql/063, 2026-09-09, en prod, sin cambio funcional).
+(sql/063, 2026-09-09, en prod). ⚠️ sql/063 rompió el login (revocó el SELECT de `authenticated`,
+que es como el front lee tras el login de Google); restaurado en vivo y versionado en **sql/065**
+(grant + policy `authenticated_read` sobre `(email, role)`). El drop de password_hash se mantiene.
 
 Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
 
