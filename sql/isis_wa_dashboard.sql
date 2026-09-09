@@ -4,8 +4,13 @@
 --   'factura_generada' lo escribe el trigger real wa_factura_notificar (por cada factura nueva).
 --   'aviso_enviado'    lo escribe lk_factura-check al enviar (modo grupo / redirección).
 -- wa_dashboard_rango(desde,hasta): métricas por día (excluye simulación):
---   programados = PPP_Programacion_Diaria por fecha_entrega
---   armados     = vista_cola_impresion por armado_ts
+--   programados = gv_ppp_programacion_diaria por fecha_entrega — programación diaria de
+--                 Gestión-Virgilio, override-aware (la fecha real de entrega vive en
+--                 GV_PPP_Prog_Override; la base cruda PPP_Programacion_Diaria queda vieja al
+--                 reprogramar y daba 0). [antes: PPP_Programacion_Diaria cruda]
+--   armados     = evento TAL (armado de la NP) en Registros_Produccion_Virgilio por ts_cliente.
+--                 [antes: vista_cola_impresion, que es la COLA DE IMPRESIÓN — se vacía al
+--                 imprimir la NP, así que como métrica de "armados por día" daba 0]
 --   facturados  = Facturacion_NP por facturado_at (distinct NP)
 --   enviadas    = wa_pipeline_log event='aviso_enviado' (mensajes: 1 por grupo × destinatario)
 --   facturas_enviadas = facturas cubiertas por avisos enviados, dedup por grupo
@@ -50,10 +55,15 @@ returns table(dia date, programados int, armados int, facturados int, enviadas i
 language sql stable security definer set search_path to 'public' as $$
   with dias as (select generate_series(p_desde, p_hasta, interval '1 day')::date d)
   select d,
-    (select count(distinct np)::int from public."PPP_Programacion_Diaria" p
-       where p.fecha_entrega = to_char(d,'YYYY-MM-DD') and coalesce(p.cod,'')<>'99999' and coalesce(p.np,'') not like '9990%'),
-    (select count(distinct np)::int from public.vista_cola_impresion v
-       where v.armado_ts::date = d and coalesce(v.np,'') not like '9990%'),
+    -- programados = programación diaria de Gestión (override-aware) por fecha de entrega
+    (select count(distinct g.np)::int from public.gv_ppp_programacion_diaria g
+       where left(g.fecha_entrega, 10) = to_char(d,'YYYY-MM-DD')
+         and coalesce(g.cod,'')<>'99999' and coalesce(g.np,'') not like '9990%'),
+    -- armados = armado de la NP (evento TAL en Registros_Produccion_Virgilio) por día
+    (select count(distinct regexp_replace(btrim(split_part(r.texto,'|',1)),'\.0+$',''))::int
+       from public."Registros_Produccion_Virgilio" r
+       where r.opcion = 'TAL' and r.ts_cliente::date = d
+         and regexp_replace(btrim(split_part(r.texto,'|',1)),'\.0+$','') not like '9990%'),
     (select count(distinct np)::int from public."Facturacion_NP" f
        where f.facturado_at::date = d and coalesce(f.cod_cliente,'')<>'99999' and coalesce(f.np,'') not like '9990%'),
     -- enviadas = mensajes (una fila de log por grupo × destinatario)

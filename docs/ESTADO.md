@@ -30,9 +30,14 @@ El dashboard de la página lee del **pipeline de facturas que vive en ISIS**. Si
 
 ## Dashboard "Pipeline de facturas" — de dónde sale cada número
 
-RPC `wa_dashboard_rango(desde,hasta)` (ISIS), vía edge `lk_notif-sim` action `dashboard`:
-- **programados** = `PPP_Programacion_Diaria` por `fecha_entrega`
-- **armados** = `vista_cola_impresion` por `armado_ts`
+RPC `wa_dashboard_rango(desde,hasta)` (ISIS/Gestión, mismo proyecto `hrxfctzncixxqmpfhskv`), vía edge `lk_notif-sim` action `dashboard`:
+- **programados** = `gv_ppp_programacion_diaria` por `fecha_entrega` — **programación diaria de
+  Gestión-Virgilio, override-aware**. La fecha real de entrega vive en `GV_PPP_Prog_Override`
+  (Gestión reprograma ahí); la base cruda `PPP_Programacion_Diaria` queda vieja y daba **0**.
+  _(cambiado 2026-09-09; antes leía la base cruda)_
+- **armados** = evento **`TAL`** (armado de la NP) en `Registros_Produccion_Virgilio` por `ts_cliente`
+  (`texto` split 1 = NP). _(cambiado 2026-09-09; antes `vista_cola_impresion`, que es la **cola de
+  impresión** y se vacía al imprimir la NP → daba **0**)_
 - **facturados** = `Facturacion_NP` por `facturado_at` (distinct **NP**)
 - **enviadas** (dashboard: "📤 Mensajes enviados") = `wa_pipeline_log` event `aviso_enviado` — **una fila por (grupo × destinatario)**, NO por NP. Con 2 destinatarios de prueba, cada envío cuenta doble.
 - **facturas_enviadas** = facturas cubiertas por avisos enviados, **dedup por grupo** (mismo grupo a 2 destinatarios cuenta 1 vez). El front lo muestra como `(x de y)` = `(facturas_enviadas de facturados)` al lado de Mensajes enviados.
