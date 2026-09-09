@@ -117,6 +117,18 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
   service_role (que es como lo dispara el webhook). Era OCR gratis contra nuestras claves, y
   el fallback manda el comprobante al free tier de Gemini.
 
+- ✅ **`_shared/admin-gate.ts` tolera sesión purgada del server (2026-09-09).** El gate valida
+  el `access_token` contra GoTrue `/auth/v1/user` (proyecto de auth ISIS). El proyecto es legacy
+  HS256 y purga sesiones del lado servidor mientras el navegador conserva un JWT todavía vigente:
+  `/user` entonces responde **403 `session_not_found`** y el gate devolvía 401 → **TODAS las edge
+  functions admin del dashboard rotas a la vez** ("Edge Function returned a non-2xx"). Fix: si
+  `/user` responde `session_not_found` (error POSTERIOR a validar la firma — firma inválida da 401
+  `bad_jwt`), se lee el email del claim del JWT y se sigue; el email igual tiene que ser `admin` en
+  `gestop_users`. Mismo fix en la copia propia de `lk_faq-admin`. **Ojo con el CI**
+  (`deploy-edge-functions.yml`): detecta cambios de `_shared` con `git diff HEAD^ HEAD`, así que un
+  cambio a `_shared` tiene que ir en el commit que queda en HEAD para que redeploye a las funciones
+  que lo importan (si queda en HEAD^ no las redeploya).
+
 - ✅ **`lk_chat-test` ahora exige rol admin** (`_shared/admin-gate.ts`, patrón `lk_faq-admin`).
   Antes era un endpoint anónimo que permitía (a) vincular cualquier teléfono a cualquier
   cliente enumerando el `cod_cliente` — takeover de cuenta — y (b) leer pedidos, descuentos
