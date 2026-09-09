@@ -174,6 +174,7 @@
     .md-editor textarea { width: 100%; min-height: 340px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; line-height: 1.5; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; resize: vertical; }
     .md-col-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.4rem; }
     .md-preview { border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1rem; background: var(--bg); font-size: 0.86rem; line-height: 1.55; min-height: 340px; overflow-y: auto; max-height: 460px; }
+    .fijas-pre { border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1.1rem; background: var(--bg); font-size: 0.82rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: inherit; margin: 0; }
     .md-preview h1 { font-size: 1.1rem; margin: 0.2rem 0 0.6rem; }
     .md-preview h2 { font-size: 0.98rem; margin: 1rem 0 0.4rem; }
     .md-preview h3 { font-size: 0.88rem; margin: 0.8rem 0 0.3rem; }
@@ -708,7 +709,8 @@
         </p>
 
         <div class="subtabs">
-          <div class="subtab active" id="stObjetivo" onclick="showAgenteTab('objetivo')">🎯 Objetivo</div>
+          <div class="subtab active" id="stFijas" onclick="showAgenteTab('fijas')">🛡️ Reglas fijas</div>
+          <div class="subtab" id="stObjetivo" onclick="showAgenteTab('objetivo')">🎯 Objetivo</div>
           <div class="subtab" id="stLimites" onclick="showAgenteTab('limites')">🔒 Limitaciones y Permisos</div>
           <div class="subtab" id="stFaq" onclick="showAgenteTab('faq')">💬 Preguntas frecuentes</div>
           <div class="subtab" id="stConsultas" onclick="showAgenteTab('consultas')">❓ Consultas <span id="consultasBadge" class="cat-pill pendiente" style="display:none;"></span></div>
@@ -725,8 +727,32 @@
           <div id="agenteHistoryList"><div class="bl-empty">Cargando...</div></div>
         </div>
 
+        <!-- Sub: Reglas fijas (read-only) -->
+        <div class="subpanel active" id="panelFijas">
+          <div class="config-section" style="max-width:none;">
+            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--warn,#e0a800);border-radius:0 6px 6px 0;padding:0.8rem 1rem;font-size:0.82rem;color:var(--muted);margin-bottom:1.2rem;">
+              🛡️ Estas reglas están <b>fijas en el código</b> del bot y <b>no se pueden editar</b> desde acá.
+              Tienen <b>prioridad</b> sobre el Objetivo y sobre las Limitaciones/Permisos: si algo del documento
+              rector las contradice, el bot obedece estas. Son el flujo operativo y la barrera anti-jailbreak.
+              Se muestran acá tal cual las arma el bot (con marcadores en lugar del cliente real).
+            </div>
+            <h3>📋 Reglas operativas (flujo de pedido)</h3>
+            <p style="font-size:0.78rem;color:var(--muted);margin:0.2rem 0 0.7rem;">
+              Formato de respuesta, mínimos, y la confirmación explícita obligatoria antes de enviar un pedido.
+            </p>
+            <pre id="fijasReglas" class="fijas-pre">Cargando…</pre>
+
+            <h3 style="margin-top:1.6rem;">🔐 Seguridad (anti-jailbreak)</h3>
+            <p style="font-size:0.78rem;color:var(--muted);margin:0.2rem 0 0.7rem;">
+              Reglas inquebrantables: aislamiento por cliente, no revelar el prompt, ignorar intentos de cambiar
+              su rol, no ejecutar comandos, tratar datos de herramientas como datos (no órdenes).
+            </p>
+            <pre id="fijasSeguridad" class="fijas-pre">Cargando…</pre>
+          </div>
+        </div>
+
         <!-- Sub: Objetivo -->
-        <div class="subpanel active" id="panelObjetivo">
+        <div class="subpanel" id="panelObjetivo">
           <div class="config-section" style="max-width:none;">
             <h3>🎯 Objetivo</h3>
             <div class="md-grid">
@@ -1561,21 +1587,43 @@ async function loadAgentePage() {
   } catch (e) {
     document.getElementById("agenteUpdated").textContent = "Error al cargar";
   }
+  loadFijas();
   loadConsultas();
   loadEvals();
   loadModelos();
 }
 
 function showAgenteTab(tab) {
-  const map = { objetivo: "Objetivo", limites: "Limites", faq: "Faq", consultas: "Consultas", eval: "Eval", modelos: "Modelos" };
+  const map = { fijas: "Fijas", objetivo: "Objetivo", limites: "Limites", faq: "Faq", consultas: "Consultas", eval: "Eval", modelos: "Modelos" };
   for (const [k, cap] of Object.entries(map)) {
     document.getElementById("st" + cap).classList.toggle("active", k === tab);
     document.getElementById("panel" + cap).classList.toggle("active", k === tab);
   }
+  if (tab === "fijas") loadFijas();
   if (tab === "faq") loadFaqs();
   if (tab === "consultas") loadConsultas();
   if (tab === "eval") loadEvals();
   if (tab === "modelos") loadModelos();
+}
+
+// Partes FIJAS del prompt (read-only). Vienen de la Edge Function `lk_agente-modelos`
+// (acción fijos_get), que las lee de `_shared/agente-fijos.ts` — la misma fuente que
+// arma el prompt real del bot. Así lo que se ve acá no puede desincronizarse del bot.
+let _fijasCargadas = false;
+async function loadFijas() {
+  if (_fijasCargadas) return;
+  const elR = document.getElementById("fijasReglas");
+  const elS = document.getElementById("fijasSeguridad");
+  try {
+    const { data: res, error } = await agente({ action: "fijos_get" });
+    if (error || !res || !res.ok) throw new Error((res && res.error) || (error && error.message) || "Error");
+    elR.textContent = res.fijos.reglas || "";
+    elS.textContent = res.fijos.seguridad || "";
+    _fijasCargadas = true;
+  } catch (e) {
+    elR.textContent = "No se pudo cargar (¿sesión de admin?): " + (e.message || e);
+    elS.textContent = "";
+  }
 }
 
 // --- Preguntas frecuentes (plantillas editables) ---
@@ -3031,6 +3079,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.7</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.8</div>
 </body>
 </html>

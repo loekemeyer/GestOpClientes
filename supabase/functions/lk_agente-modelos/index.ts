@@ -12,6 +12,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
+import { fijosParaPanel } from "../_shared/agente-fijos.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -138,6 +139,13 @@ serve(async (req) => {
     // (`wa_agente_model_keys`).
     const gate = await requireAdmin(body);
     if (!gate.ok) return json({ error: gate.error }, gate.status);
+
+    // — Partes FIJAS del prompt (read-only). Vienen de `_shared/agente-fijos.ts`,
+    //   la MISMA fuente que arma el prompt real del bot, así que lo que ve el
+    //   admin es exactamente lo que corre (con placeholders en vez del cliente).
+    if (action === "fijos_get") {
+      return json({ ok: true, fijos: fijosParaPanel() });
+    }
 
     if (action === "check") {
       const key = String(body.api_key ?? "").trim();
