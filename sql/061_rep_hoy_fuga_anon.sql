@@ -63,3 +63,33 @@ grant  execute on function public.rep_enviar_hoy()    to service_role;
 -- `get_customer_history` valida `auth.uid()` contra `customers`/`admins` antes de devolver nada.
 -- Pero nadie las revisó una por una. Estas dos aparecieron de casualidad. Hace falta pasar la
 -- lista completa y separar "expuesta a propósito y con chequeo adentro" de "expuesta de más".
+
+-- ── Anexo (mismo día) — `app_settings` publicaba la lista de gerencia ──────────────────────
+-- Al cargar `wa_gerencia_phones` (la lista de quién puede pedir el reporte por WhatsApp,
+-- idea 6600) se comprobó que `anon` la leía: la policy `app_settings_select_all` es una
+-- LISTA NEGRA por nombre de clave —`token|secret|service_key|service_role|api_key|apikey|
+-- password|passwd|clave`— y "gerencia" no cae en ninguno.
+--
+-- Medido con `set local role anon`: devolvía `["5491162521635"]`.
+--
+-- No da acceso a nada por sí solo —el bot valida el `from` que manda Meta, que un cliente web
+-- no puede falsificar— pero es una lista de autorizados: publicarla es decirle a cualquiera
+-- exactamente qué número conviene suplantar o al que conviene ir por ingeniería social.
+--
+-- Se agregan `gerencia` y `whitelist` al patrón. Verificado que ningún front lee esas claves
+-- (grep sobre `admin.js`, `script.js`, `admin-supercot.js`: cero hits); las leen las Edge
+-- Functions con `service_role`, que saltea la RLS.
+
+drop policy app_settings_select_all on public.app_settings;
+
+create policy app_settings_select_all on public.app_settings
+  for select to anon, authenticated
+  using (key !~* '(token|secret|service_key|service_role|api_key|apikey|password|passwd|clave|gerencia|whitelist)');
+
+-- Comprobado como anon: wa_gerencia_phones → 0 filas; wa_descuentos_config → sigue visible
+-- (el front la necesita para mostrarle al cliente el CBU y el alias); 21 claves visibles.
+--
+-- ⚠ La lista negra es frágil por diseño: cada clave sensible nueva hay que acordarse de que
+-- matchee el patrón, y si no, se publica sola. Lo correcto sería una lista BLANCA de las
+-- claves que el front necesita. No se hace ahora porque hay que relevar qué lee cada front y
+-- una equivocación deja la página sin datos; queda anotado.
