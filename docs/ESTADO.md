@@ -200,6 +200,15 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
     lee la whitelist con la ANON key ANTES de tener sesión) recibía null → "Email no autorizado".
     Fix: `grant select (email, role) on public.gestop_users to anon;` (verificado como `anon` que la
     query exacta del front devuelve el rol). **El login depende de este grant** — no revocarlo.
+  - ⚠️⚠️ **Y también lo necesita `authenticated`** (2026-09-09): el front (`checkSession`) lee la
+    whitelist con el cliente `sb`, pero supabase-js hace `detectSessionInUrl` y **levanta el token de
+    OAuth del hash también en el cliente de ESTE proyecto**, así que la request pega como rol
+    **`authenticated`**, NO `anon`. Con RLS prendida, `authenticated` necesita DOS cosas o da 403/`[]`
+    → "Email no autorizado": (1) `grant select (email, role) on public.gestop_users to authenticated;`
+    y (2) una policy de SELECT para `authenticated` (`create policy authenticated_read ... for select to
+    authenticated using (true)`). `sql/063` había revocado a `authenticated` de ambas. **El login
+    necesita anon Y authenticated con lectura de `(email, role)`** — restaurado y verificado con
+    `set role authenticated` (devuelve el rol). Síntoma en el navegador: request a `gestop_users` = 403.
 - ⏳ **El webhook no valida `X-Hub-Signature-256`** salvo que el dueño cargue `META_APP_SECRET`
   (la firma ya está codeada, arranca en modo "avisa pero no rechaza"). Ídem `LK_INTERNAL_SECRET`
   para `{"action":"flush"}`.
