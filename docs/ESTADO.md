@@ -315,6 +315,12 @@ el killswitch, sin ningún consumidor de esa cola.
   más. Editar el módulo cambia el comportamiento del agente en tiempo real. **Lo que NO es editable**
   (fijo en código y con PRIORIDAD sobre el rector): las reglas operativas (flujo de pedido, formato) y
   el **bloque de Seguridad anti-jailbreak** — así una edición del panel no puede desarmar las defensas.
+  - **Fuente única + sub-tab read-only (2026-09-09, v0.16.8):** esas partes fijas viven en
+    `_shared/agente-fijos.ts` (`REGLAS_OPERATIVAS`, `bloqueSeguridad(cliente, cod)`). `bot-conversation.ts`
+    arma el prompt desde ahí (sin cambio de texto), y `lk_agente-modelos` acción **`fijos_get`** (admin)
+    las sirve al panel. En "Configuración del agente" hay un sub-tab **"🛡️ Reglas fijas"** (primero,
+    read-only) que las muestra tal cual corren, con la nota de que no se editan y priman sobre el rector.
+    Al editar el texto fijo, tocar SOLO `agente-fijos.ts` (los dos consumidores quedan sincronizados solos).
   - Pendiente (cable aparte): `logAgenteConsulta()` (en `agente.ts`) sigue sin call-site → el agente
     todavía NO registra solo sus dudas en la cola de Consultas (`wa_agente_consultas`). Las que hay
     entraron a mano.
