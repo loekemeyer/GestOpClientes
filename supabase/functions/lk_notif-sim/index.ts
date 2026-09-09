@@ -362,9 +362,9 @@ serve(async (req) => {
         key: String(r?.key || `credito_x${i + 1}`), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
       })).filter((r: { label: string }) => r.label !== "");
       // deno-lint-ignore no-explicit-any
-      const echeq = (Array.isArray(c?.echeq) ? c.echeq : DEFAULT_DESCUENTOS.echeq).map((r: any) => ({
-        key: String(r?.key || "").trim(), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
-      })).filter((r: { key: string }) => r.key !== "");
+      const echeq = (Array.isArray(c?.echeq) ? c.echeq : DEFAULT_DESCUENTOS.echeq).map((r: any, i: number) => ({
+        key: String(r?.key || `echeq_x${i + 1}`).trim(), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
+      })).filter((r: { label: string }) => r.label !== "");
       // Excepciones por cliente, keyed por método (band). Solo se conservan bandas válidas.
       const validKeys = new Set<string>(["contado", ...credito.map((r: { key: string }) => r.key), ...echeq.map((r: { key: string }) => r.key)]);
       const excSrc = (c?.excepciones && typeof c.excepciones === "object") ? c.excepciones : {};

@@ -237,6 +237,15 @@ el killswitch, sin ningún consumidor de esa cola.
   - **Killswitch** (`wa_bot_solo_whitelist`, default ON): `handleMessage` paso 0 descarta en
     silencio todo número que no esté en `wa_envio_contactos`. Funciona; hoy ON (bot sólo responde
     a la whitelist).
+- **Descuentos por pago (`app_settings.wa_descuentos_config`) — FUENTE ÚNICA, funciona.** Editable
+  desde el Panel (orden 2026-09-09: Datos de pago → Contado → Crédito (tabla add/quitar/editar) →
+  E-cheq (idem) → Excepciones). Lo consumen: (1) las **plantillas de factura proactivas**
+  (`lk_factura-check → loadDtoCfg`: %, plazos, alias/CBU); (2) la **respuesta del bot por WhatsApp**
+  (`faq.ts lookupCustomerDiscount` → `pagoDiscountBlock()` arma "Por pago" desde la tabla — antes
+  estaba **hardcodeada** 25/20/10/5, se conectó el 2026-09-09; token editable `{{descuentos_pago}}`
+  en `wa_faq_lookup_tokens`); (3) la FAQ de alias/CBU (`lookupPaymentData`). Crédito/e-cheq: las
+  `key` son vocabulario controlado (deben matchear `wa_metodo_norm`); filas nuevas con `key` propia
+  sólo afectan display/FAQ salvo que ISIS emita esa condición. Front v0.16.7.
 - **Matcher de FAQs (RPC `wa_faq_match`, reescrito sql/054 el 2026-09-04):** determinístico, 0 tokens.
   Antes era substring crudo (`LIKE '%kw%'`) sin normalizar → los acentos rompían el match, "ola"
   matcheaba "chocolate" y "?" matcheaba todo. Ahora: normaliza (unaccent + lower + `[a-z0-9 ]`),

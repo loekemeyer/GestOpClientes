@@ -246,16 +246,40 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
   const { data: row } = await supabase
     .from("customers").select("dto_vol").eq("id", customer.id).maybeSingle();
   const volumeDiscount = Math.round(Number(row?.dto_vol ?? 0) * 1000) / 10;
-  // Plantilla editable desde el front: si trae el token {{descuento_volumen}}
-  // se renderiza con los datos reales; si no, se usa el texto por defecto.
+  // Descuentos por pago: SALEN DE LA TABLA del Panel (app_settings.wa_descuentos_config),
+  // no hardcodeados. Así lo que el vendedor edita en "Descuentos por pago" es lo que el bot
+  // le responde al cliente — la misma fuente que usan las plantillas de factura.
+  const pagoBlock = await pagoDiscountBlock();
+  // Plantilla editable desde el front: si trae {{descuento_volumen}} o {{descuentos_pago}}
+  // se renderiza con los datos reales; si no, se usa el texto por defecto (también dinámico).
   const tpl = String(faq?.bot_response ?? "").trim();
-  if (tpl.includes("{{descuento_volumen}}")) {
+  if (tpl.includes("{{descuento_volumen}}") || tpl.includes("{{descuentos_pago}}")) {
     return renderTemplate(tpl, {
       nombre_cliente: customer.business_name,
       descuento_volumen: volumeDiscount,
+      descuentos_pago: pagoBlock,
     });
   }
-  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}%\n💻 *Por compra web*: 2% adicional\n💰 *Por pago*:\n  • Contado (0-14 días): 25%\n  • 30 días: 20%\n  • 60 días: 10%\n  • 90 días: 5%\n\nEstos se aplican sobre el precio base de la web. 💡`;
+  const pago = pagoBlock ? `\n💰 *Por pago*:\n${pagoBlock}` : "";
+  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}%\n💻 *Por compra web*: 2% adicional${pago}\n\nEstos se aplican sobre el precio base de la web. 💡`;
+}
+
+// Bloque "Por pago" armado desde wa_descuentos_config (contado + crédito[] + e-cheq[]).
+// Fuente única compartida con las plantillas de factura (lk_factura-check). Editable en el Panel.
+async function pagoDiscountBlock(): Promise<string> {
+  try {
+    const { data } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
+    // deno-lint-ignore no-explicit-any
+    const cfg: any = JSON.parse(String(data?.value ?? "{}"));
+    const pct = (d: unknown) => Math.round((Number(d) || 0) * 100);
+    const lines: string[] = [];
+    if (cfg?.contado) lines.push(`  • Contado (hasta ${Number(cfg.contado.dias_limite) || 0} días): ${pct(cfg.contado.dto)}%`);
+    // deno-lint-ignore no-explicit-any
+    for (const r of (cfg?.credito ?? [])) if (r?.label) lines.push(`  • Crédito ${r.label} días: ${pct(r.dto)}%`);
+    // deno-lint-ignore no-explicit-any
+    for (const r of (cfg?.echeq ?? [])) if (r?.label) lines.push(`  • E-cheq ${r.label} días: ${pct(r.dto)}%`);
+    return lines.join("\n");
+  } catch { return ""; }
 }
 
 async function lookupProductPrice(customer: NonNullable<Customer>, message: string): Promise<string | null> {

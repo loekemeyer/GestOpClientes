@@ -584,32 +584,12 @@
             accidentales). El bot lee de Supabase apenas guardás. <b>↺ Restaurar</b> abajo descarta lo no guardado.
           </p>
 
-          <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.1rem;">
-            <div style="display:flex;align-items:flex-end;gap:0.35rem;">
-              <div>
-                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Descuento contado (%)</label>
-                <input type="number" id="dtoContado" min="0" max="100" step="1" style="width:110px;" readonly>
-              </div>
-              <button class="config-btn small" id="dtoContado_edit" title="Editar" onclick="fieldEdit('dtoContado')">✏️</button>
-              <button class="config-btn primary" id="dtoContado_save" title="Guardar" onclick="fieldSave('dtoContado')" style="display:none;">💾</button>
-              <span class="config-status" id="dtoContado_st"></span>
-            </div>
-            <div style="display:flex;align-items:flex-end;gap:0.35rem;">
-              <div>
-                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Días para pago contado</label>
-                <input type="number" id="dtoContadoDias" min="0" max="90" step="1" style="width:110px;" readonly>
-              </div>
-              <button class="config-btn small" id="dtoContadoDias_edit" title="Editar" onclick="fieldEdit('dtoContadoDias')">✏️</button>
-              <button class="config-btn primary" id="dtoContadoDias_save" title="Guardar" onclick="fieldSave('dtoContadoDias')" style="display:none;">💾</button>
-              <span class="config-status" id="dtoContadoDias_st"></span>
-            </div>
-          </div>
-
+          <!-- 1) Datos de pago (Alias / CBU) -->
           <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Datos de pago</div>
           <p class="hint" style="display:block;margin:-0.2rem 0 0.5rem;line-height:1.4;">
             Alias y CBU se completan como <b>variables</b> en el pie de las 6 plantillas — sin re-editar Meta.
           </p>
-          <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.2rem;">
+          <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.3rem;">
             <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:1;min-width:230px;">
               <div style="flex:1;">
                 <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Alias</label>
@@ -627,6 +607,29 @@
               <button class="config-btn small" id="pagoCbu_edit" title="Editar" onclick="fieldEdit('pagoCbu')">✏️</button>
               <button class="config-btn primary" id="pagoCbu_save" title="Guardar" onclick="fieldSave('pagoCbu')" style="display:none;">💾</button>
               <span class="config-status" id="pagoCbu_st"></span>
+            </div>
+          </div>
+
+          <!-- 2) Contado (descuento % + plazo) -->
+          <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Contado</div>
+          <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.2rem;">
+            <div style="display:flex;align-items:flex-end;gap:0.35rem;">
+              <div>
+                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Descuento contado (%)</label>
+                <input type="number" id="dtoContado" min="0" max="100" step="1" style="width:110px;" readonly>
+              </div>
+              <button class="config-btn small" id="dtoContado_edit" title="Editar" onclick="fieldEdit('dtoContado')">✏️</button>
+              <button class="config-btn primary" id="dtoContado_save" title="Guardar" onclick="fieldSave('dtoContado')" style="display:none;">💾</button>
+              <span class="config-status" id="dtoContado_st"></span>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:0.35rem;">
+              <div>
+                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Plazo — días para pago contado</label>
+                <input type="number" id="dtoContadoDias" min="0" max="90" step="1" style="width:110px;" readonly>
+              </div>
+              <button class="config-btn small" id="dtoContadoDias_edit" title="Editar" onclick="fieldEdit('dtoContadoDias')">✏️</button>
+              <button class="config-btn primary" id="dtoContadoDias_save" title="Guardar" onclick="fieldSave('dtoContadoDias')" style="display:none;">💾</button>
+              <span class="config-status" id="dtoContadoDias_st"></span>
             </div>
           </div>
 
@@ -656,9 +659,11 @@
             <thead><tr>
               <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
               <th style="text-align:left;padding:3px 6px;width:130px;color:var(--muted);font-weight:600;">Descuento %</th>
+              <th style="width:44px;"></th>
             </tr></thead>
             <tbody></tbody>
           </table>
+          <button class="config-btn small" id="dtoEcheqAdd" onclick="addEcheqRow()" style="margin-top:0.45rem;display:none;">+ Agregar fila</button>
 
           <div style="display:flex;align-items:center;gap:0.5rem;margin:1.3rem 0 0.35rem;">
             <div style="font-weight:600;">Excepciones por cliente</div>
@@ -1332,11 +1337,11 @@ function collectCreditoRows() {
 }
 function collectEcheqRows() {
   const pct = (el) => Math.min(1, Math.max(0, (Number(el.value) || 0) / 100));
-  return Array.from(document.querySelectorAll("#dtoEcheqTable tbody tr")).map((tr) => ({
-    key: tr.dataset.key || "",
+  return Array.from(document.querySelectorAll("#dtoEcheqTable tbody tr")).map((tr, i) => ({
+    key: tr.dataset.key || ("echeq_x" + (i + 1)),
     label: tr.querySelector(".dto-label").value.trim(),
     dto: pct(tr.querySelector(".dto-pct")),
-  })).filter((r) => r.key !== "");
+  })).filter((r) => r.label !== "");
 }
 async function tableSave(name) {
   const st = document.getElementById("tbl" + name + "_st");
@@ -1370,8 +1375,9 @@ function dtoRowEcheq(r) {
   const tr = document.createElement("tr");
   tr.dataset.key = (r && r.key) || "";
   tr.innerHTML =
-    '<td style="padding:3px 6px;"><input type="text" class="dto-label" value="' + esc((r && r.label) || "") + '" style="width:100%;" oninput="renderExcepciones()"></td>' +
-    '<td style="padding:3px 6px;">' + dtoPctInput(r && r.dto) + '</td>';
+    '<td style="padding:3px 6px;"><input type="text" class="dto-label" value="' + esc((r && r.label) || "") + '" style="width:100%;" placeholder="ej: 90" oninput="renderExcepciones()"></td>' +
+    '<td style="padding:3px 6px;">' + dtoPctInput(r && r.dto) + '</td>' +
+    '<td style="padding:3px 6px;text-align:center;"><button class="config-btn small" title="Quitar fila" onclick="this.closest(\'tr\').remove();renderExcepciones()">✕</button></td>';
   return tr;
 }
 
@@ -1396,6 +1402,11 @@ function renderDescuentos(cfg) {
 
 function addCreditoRow() {
   document.querySelector("#dtoCreditoTable tbody").appendChild(dtoRowCredito({ key: "credito_x" + Date.now(), label: "", dto: 0 }));
+  renderExcepciones();
+}
+
+function addEcheqRow() {
+  document.querySelector("#dtoEcheqTable tbody").appendChild(dtoRowEcheq({ key: "echeq_x" + Date.now(), label: "", dto: 0 }));
   renderExcepciones();
 }
 
@@ -3020,6 +3031,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.6</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.7</div>
 </body>
 </html>
