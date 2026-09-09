@@ -191,6 +191,7 @@ serve(async (req) => {
         customerRow.cod_cliente,
         customerRow.dto_vol,
         anthropicKey,
+        "lk_chat-test",
       );
       // Timeout / error del LLM → en producción NO se envía nada al
       // cliente (se avisa a un humano). Acá levantamos una alerta visible

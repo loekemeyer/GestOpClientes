@@ -5,8 +5,15 @@ import { supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { REGLAS_OPERATIVAS, bloqueSeguridad } from "./agente-fijos.ts";
-
-const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
+import {
+  callModel,
+  esCulpaDelRequest,
+  logUsage,
+  markModelDown,
+  type NormMsg,
+  type ResolvedModel,
+  resolveChain,
+} from "./bot-llm.ts";
 
 // ─── Tool definitions (mapean a RPCs bot_*) ────────────────────────
 
@@ -506,140 +513,114 @@ export async function runConversation(
   codCliente: number,
   dtoVol: number,
   apiKey: string,
+  fuente = "lk_whatsapp-webhook",
 ): Promise<ConversationResult> {
   const systemPrompt = await buildSystemPrompt(customerName, codCliente, dtoVol);
 
   const rawHistory = await loadHistory(phone, 16);
-  // deno-lint-ignore no-explicit-any
-  const messages: Array<{ role: string; content: any }> = [];
-
+  // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
+  // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor
+  // en cualquier iteración sin romper el formato.
+  const history: NormMsg[] = [];
   for (let i = rawHistory.length - 1; i >= 0; i--) {
     const h = rawHistory[i];
-    messages.push({
-      role: h.rol === "user" ? "user" : "assistant",
-      content: h.contenido,
-    });
+    if (h.rol === "user") history.push({ role: "user", text: h.contenido });
+    else history.push({ role: "assistant", text: h.contenido, toolCalls: [] });
   }
 
-  // La Messages API exige que el PRIMER mensaje sea `user`. La ventana de 16
-  // filas arranca donde arranca, y en cualquier chat donde el bot habló último
-  // empieza con `assistant` → 400 → el cliente no recibía NADA. Se recorta
-  // hasta el primer `user`.
-  while (messages.length && messages[0].role !== "user") messages.shift();
+  // El primer mensaje tiene que ser `user` (lo exigen Anthropic y Gemini). La
+  // ventana de 16 filas puede arrancar con `assistant` → se recorta hasta el
+  // primer `user`.
+  while (history.length && history[0].role !== "user") history.shift();
 
   // El turno actual puede estar YA en el historial: el webhook hace
-  // `saveMessage(phone, "user", text)` antes de llamar acá (index.ts:1012), así
-  // que pushearlo de nuevo lo mandaba duplicado (tokens de más y el modelo
-  // leyéndolo como repetición). `lk_chat-test`, en cambio, NO guarda antes —
-  // por eso se chequea en vez de asumir.
-  const last = messages[messages.length - 1];
-  if (!(last && last.role === "user" && last.content === userText)) {
-    messages.push({ role: "user", content: userText });
+  // `saveMessage(phone, "user", text)` antes de llamar acá, así que pushearlo de
+  // nuevo lo duplica. `lk_chat-test` NO guarda antes — por eso se chequea.
+  const last = history[history.length - 1];
+  if (!(last && last.role === "user" && last.text === userText)) {
+    history.push({ role: "user", text: userText });
+  }
+
+  // Cadena de modelos (prioridad ASC) + fallback duro al env ANTHROPIC_API_KEY con
+  // Sonnet, para que el bot siga contestando aunque la cadena esté vacía o toda caída.
+  const candidates: ResolvedModel[] = await resolveChain();
+  if (apiKey) {
+    candidates.push({ id: 0, provider: "anthropic", model: "claude-sonnet-4-6", key: apiKey, isFreeTier: false });
+  }
+  if (!candidates.length) {
+    await notificarHumano({ tipo: "llm_error", phone, contexto: { userText, error: "Sin modelos en la cadena ni ANTHROPIC_API_KEY" } });
+    return { reply: "⚠️ [LLM_ERROR] No hay modelos configurados. Se avisó a un humano.", media: [], llmError: true };
   }
 
   const allMedia: MediaAction[] = [];
+  const downThisTurn = new Set<number>(); // modelos que ya fallaron en este turno
 
   for (let iter = 0; iter < 5; iter++) {
-    // Timeout duro: si Anthropic no responde en 30s, abortamos, encolamos
-    // una alerta humana y salimos SIN enviar mensaje al cliente. El
-    // vendedor lo agarra desde el sistema de aviso (a construir).
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(new Error("LLM timeout 30s")), 30_000);
-    let resp: Response;
-    try {
-      resp = await fetch(CLAUDE_URL, {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1024,
-          system: systemPrompt,
-          tools: BOT_TOOLS,
-          messages,
-        }),
-        signal: ctrl.signal,
-      });
-    } catch (e) {
-      clearTimeout(timer);
-      const emsg = e instanceof Error ? e.message : String(e);
-      console.error(`Claude API fetch falló: ${emsg}`);
-      const isTimeout = emsg.includes("timeout") || emsg.includes("aborted");
-      await notificarHumano({
-        tipo: isTimeout ? "llm_timeout" : "llm_error",
-        phone,
-        contexto: { userText, iter, error: emsg, model: "claude-sonnet-4-6" },
-      });
+    let res = null as Awaited<ReturnType<typeof callModel>> | null;
+    let used: ResolvedModel | null = null;
+    let lastErr = "";
+    let lastStatus: number | undefined;
+
+    // Failover: probamos la cadena en orden hasta que un modelo responda.
+    for (const cand of candidates) {
+      if (downThisTurn.has(cand.id)) continue;
+      try {
+        res = await callModel(cand, systemPrompt, BOT_TOOLS, history, 30_000);
+        used = cand;
+        break;
+      } catch (e) {
+        const emsg = e instanceof Error ? e.message : String(e);
+        // deno-lint-ignore no-explicit-any
+        lastStatus = (e as any)?.status as number | undefined;
+        lastErr = emsg;
+        console.error(`[runConversation] ${cand.provider}/${cand.model} falló: ${emsg}`);
+
+        // Con cadena multi-proveedor, SIEMPRE probamos el próximo candidato: un 400 puede
+        // ser un schema que ESE proveedor no acepta (y otro sí), no un error universal.
+        // Lo saltamos este turno igual (reintentar el mismo da el mismo error).
+        downThisTurn.add(cand.id);
+
+        // Sólo penalizamos con cooldown persistente si la culpa es del modelo
+        // (401/403/404/429/5xx/timeout). Un 400/413/422 es del request → no cooldown,
+        // así no dejamos caído un modelo bueno por un payload puntual.
+        if (!esCulpaDelRequest(lastStatus)) {
+          markModelDown(cand.id, emsg).catch(() => {});
+        }
+      }
+    }
+
+    if (!res || !used) {
+      // Toda la cadena cayó (incluido el fallback de env).
+      const isTimeout = /timeout|abort/i.test(lastErr);
+      await notificarHumano({ tipo: isTimeout ? "llm_timeout" : "llm_error", phone, contexto: { userText, iter, error: lastErr.slice(0, 500) } });
       return {
         reply: isTimeout
           ? "⏳ [TIMEOUT] El LLM no respondió a tiempo. Se avisó a un humano; el cliente no recibió mensaje."
-          : `⚠️ [LLM_ERROR] ${emsg}. Se avisó a un humano; el cliente no recibió mensaje.`,
-        media: [],
+          : `⚠️ [LLM_ERROR] ${lastErr}. Se avisó a un humano; el cliente no recibió mensaje.`,
+        media: allMedia,
         timeout: isTimeout,
         llmError: !isTimeout,
       };
     }
-    clearTimeout(timer);
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      console.error(`Claude API ${resp.status}: ${errText}`);
-      await notificarHumano({
-        tipo: "llm_error",
-        phone,
-        contexto: { userText, iter, http_status: resp.status, error: errText.slice(0, 500), model: "claude-sonnet-4-6" },
-      });
-      return {
-        reply: `⚠️ [LLM_ERROR ${resp.status}] Se avisó a un humano; el cliente no recibió mensaje.`,
-        media: [],
-        llmError: true,
-      };
+    // Log de tokens/costo (alimenta el panel "IA — gastos y uso").
+    logUsage(res, used.isFreeTier, phone, fuente);
+
+    if (!res.toolCalls.length) {
+      return { reply: res.text || "¿En qué más te puedo ayudar?", media: allMedia };
     }
 
-    const data = await resp.json();
-    // deno-lint-ignore no-explicit-any
-    const content: any[] = data.content ?? [];
-    const stopReason: string = data.stop_reason;
+    // El modelo pidió herramientas: las ejecutamos y devolvemos los resultados.
+    history.push({ role: "assistant", text: res.text, toolCalls: res.toolCalls });
 
-    if (stopReason !== "tool_use") {
-      // deno-lint-ignore no-explicit-any
-      const textBlock = content.find((b: any) => b.type === "text");
-      return {
-        reply: textBlock?.text ?? "¿En qué más te puedo ayudar?",
-        media: allMedia,
-      };
-    }
-
-    messages.push({ role: "assistant", content });
-
-    // deno-lint-ignore no-explicit-any
-    const toolResults: any[] = [];
-
-    for (const block of content) {
-      if (block.type !== "tool_use") continue;
-
-      const result = await executeTool(block.name, block.input ?? {}, phone);
-
+    const results: { id: string; name: string; content: string }[] = [];
+    for (const tc of res.toolCalls) {
+      const result = await executeTool(tc.name, tc.input ?? {}, phone);
       if (result.media) allMedia.push(...result.media);
-
-      auditTool(
-        phone,
-        block.name,
-        block.input ?? {},
-        JSON.stringify(result.data).slice(0, 500),
-      ).catch(() => {});
-
-      toolResults.push({
-        type: "tool_result",
-        tool_use_id: block.id,
-        content: JSON.stringify(result.data),
-      });
+      auditTool(phone, tc.name, tc.input ?? {}, JSON.stringify(result.data).slice(0, 500)).catch(() => {});
+      results.push({ id: tc.id, name: tc.name, content: JSON.stringify(result.data) });
     }
-
-    messages.push({ role: "user", content: toolResults });
+    history.push({ role: "tool", results });
   }
 
   return {

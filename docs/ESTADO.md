@@ -324,16 +324,35 @@ el killswitch, sin ningún consumidor de esa cola.
   - Pendiente (cable aparte): `logAgenteConsulta()` (en `agente.ts`) sigue sin call-site → el agente
     todavía NO registra solo sus dudas en la cola de Consultas (`wa_agente_consultas`). Las que hay
     entraron a mano.
+- **CADENA DE MODELOS + GASTOS IA — CABLEADAS (2026-09-09, pedido del dueño):** antes
+  `bot-conversation.ts` llamaba a Claude directo con `claude-sonnet-4-6` hardcodeado y **descartaba
+  `data.usage`** (panel "IA — gastos y uso" siempre vacío, y la selección/fallback de modelos del
+  panel no afectaba al bot). Ahora el bot corre sobre un motor nuevo **`_shared/bot-llm.ts`**:
+  - **Multi-proveedor con TOOLS**: anthropic / google (Gemini) / openai en el MISMO loop agéntico.
+    El historial se mantiene NORMALIZADO (agnóstico de proveedor) y cada adaptador lo traduce entero
+    en cada llamada, así el failover puede cambiar de proveedor en cualquier iteración.
+  - **Cadena real desde `wa_agente_modelos`** (prioridad ASC), con fallback duro al env
+    `ANTHROPIC_API_KEY`+Sonnet si la cadena está vacía o toda caída (el bot nunca queda mudo).
+    Un modelo que falla por su culpa (401/403/404/429/5xx/timeout) se marca `caido` con cooldown 5';
+    un 400/413/422 NO penaliza (es del request) pero igual salta al próximo proveedor (un schema que
+    un proveedor rechaza otro puede aceptarlo). **Un 400 NUNCA aborta el turno** (esa lógica vieja,
+    pensada para un solo modelo, mutaba el bot si el #1 fallaba).
+  - **Gastos IA reales**: cada llamada loguea a `bot_token_usage` (`model`, tokens, costo estimado,
+    `function_name`, `phone`). El webhook loguea como `lk_whatsapp-webhook`, el test como `lk_chat-test`
+    (para no ensuciar los costos reales). Free-tier va en $0 por su flag.
+  - **Estado de la cadena hoy** (validado 2026-09-09 contra la API real vía pg_net): #1
+    `gemini-3.5-flash-lite` (free) **anda con tools** — PERO Gemini 3.x **exige devolver el
+    `thoughtSignature`** de cada `functionCall` en el turno siguiente (si no, 400), ya contemplado en
+    `NormToolCall.thoughtSignature`; y **no deja apagar el thinking** (`thinkingBudget:0` → 400), así
+    que responde **lento (~15-20s)** en el round-trip con herramientas. #2/#20 `gemini-2.5-flash`
+    están **muertos** (404 "no longer available") → el failover los saltea y marca caídos. #3 Sonnet /
+    #10 Haiku de respaldo. Si el dueño quiere respuestas más ágiles en WhatsApp, reordenar la cadena
+    (Anthropic #1) desde el panel — es un cambio de datos, sin tocar código.
+  - Nota latencia: el webhook hace `await handleMessage` antes del 200, pero el candado
+    `wa_inbound_seen` evita que un reintento de Meta (>20s) reprocese → no duplica pedidos.
+  - `_shared/llm.ts` (chain SOLO-texto, sin tools) + `_shared/claude.ts` quedaron como **código muerto**
+    (nadie los importa); el bot usa `bot-llm.ts`. Se pueden borrar en una limpieza.
 - **Cables creados sin enchufar (TODO, no conectados):**
-  - ⏳ **AL TOCAR "Configuración del agente" — conectar dos cosas (pedido del dueño, 2026-09-09):**
-    (1) **Logueo de tokens**: `bot-conversation.ts` llama a Claude directo (`api.anthropic.com`,
-    `claude-sonnet-4-6` hardcodeado) y **descarta `data.usage`** → nunca escribe `bot_token_usage`,
-    así que el dashboard **"IA — gastos y uso" queda siempre vacío**. El logger `_shared/llm.ts →
-    logUsage()` existe pero es **código muerto** (nadie importa `llm.ts`). Fix: leer `data.usage`
-    tras cada respuesta (y en la detección de intent) y registrar en `bot_token_usage`, o rutear
-    el bot por `_shared/llm.ts`. (2) **Cadena de modelos**: `bot-conversation.ts` ignora
-    `wa_agente_modelos`/`llm.ts` (modelo fijo), así que la pantalla de selección/fallback de
-    modelos del panel **no afecta al bot real** — cablearla en el mismo cambio.
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
     avisar al vendedor / botón "Cerrar chat" en el Panel, y retomar el bot al reiniciar el cliente. Requiere idle-sweep + UI.
