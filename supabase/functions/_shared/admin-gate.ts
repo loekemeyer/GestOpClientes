@@ -28,16 +28,47 @@ export type AdminGate =
   | { ok: true; email: string }
   | { ok: false; error: string; status: number };
 
+// Lee el claim `email` del JWT SIN volver a verificar la firma. Sólo se llama
+// cuando GoTrue YA validó la firma (respondió con `session_not_found`, ver abajo),
+// así que el claim es confiable. Chequea `exp` por las dudas.
+function emailFromJwtClaims(jwt: string): string | null {
+  try {
+    const part = String(jwt).split(".")[1];
+    if (!part) return null;
+    let b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    b64 += "=".repeat((4 - (b64.length % 4)) % 4);
+    const claims = JSON.parse(atob(b64));
+    if (claims?.exp && (Date.now() / 1000) > Number(claims.exp)) return null; // expirado
+    const email = claims?.email ?? claims?.user_metadata?.email ?? null;
+    return email ? String(email).toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Valida el access_token contra el proyecto de auth y devuelve el email. */
 async function getAuthedEmail(accessToken: string): Promise<string | null> {
   try {
     const r = await fetch(`${AUTH_URL}/auth/v1/user`, {
       headers: { apikey: AUTH_KEY, Authorization: `Bearer ${accessToken}` },
     });
-    if (!r.ok) return null;
-    const u = await r.json();
-    const email = u?.email ?? u?.user?.email ?? null;
-    return email ? String(email).toLowerCase() : null;
+    if (r.ok) {
+      const u = await r.json();
+      const email = u?.email ?? u?.user?.email ?? null;
+      return email ? String(email).toLowerCase() : null;
+    }
+    // Sesión purgada del lado servidor (proyecto legacy HS256): el navegador
+    // conserva un JWT vigente cuya sesión GoTrue ya no existe, y `/user`
+    // responde 403 `session_not_found`. Ese error es POSTERIOR a validar la
+    // firma del token (una firma inválida da 401 `bad_jwt`), así que el email
+    // del claim es confiable: caemos a leerlo del propio JWT en vez de romper
+    // el gate en toda sesión que el server ya no tiene. Sin esto el dashboard
+    // entero ("todas las edge functions rotas") queda inutilizable hasta que
+    // cada admin se re-loguea.
+    let bodyTxt = "";
+    try { bodyTxt = await r.text(); } catch { /* ignore */ }
+    if (bodyTxt.includes("session_not_found")) return emailFromJwtClaims(accessToken);
+    return null;
   } catch {
     return null;
   }
