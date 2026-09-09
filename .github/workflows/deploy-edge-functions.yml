@@ -15,6 +15,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read      # sólo para que setup-cli consulte releases autenticado
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_ID: kwkclwhmoygunqmlegrg
@@ -23,9 +25,20 @@ jobs:
         with:
           fetch-depth: 2  # necesitamos el commit anterior para detectar cambios
 
+      # `version: latest` hace que setup-cli le pregunte a la API de GitHub cuál es el
+      # último release, SIN autenticar. Esa API es 60 req/h por IP compartida entre todos
+      # los runners, así que en horas cargadas devuelve 403 y el job muere antes de compilar
+      # nada: "Failed to resolve latest Supabase CLI release: rate limit exceeded".
+      # Pasó el 2026-09-09 a las 00:21 UTC y tiró abajo un deploy que no tenía nada malo.
+      #
+      # `GITHUB_TOKEN` autentica esa consulta (5.000 req/h en vez de 60) y lo arregla sin
+      # congelar la versión. El token lo emite el propio run y sólo necesita leer releases
+      # públicos, por eso `permissions: contents: read`.
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Descubre qué funciones cambiaron. Si cambió algo en `_shared/`, se
       # despliegan TODAS las funciones que lo importan (el grep de abajo las
