@@ -31,10 +31,13 @@ El dashboard de la página lee del **pipeline de facturas que vive en ISIS**. Si
 ## Dashboard "Pipeline de facturas" — de dónde sale cada número
 
 RPC `wa_dashboard_rango(desde,hasta)` (ISIS/Gestión, mismo proyecto `hrxfctzncixxqmpfhskv`), vía edge `lk_notif-sim` action `dashboard`:
-- **programados** = `gv_ppp_programacion_diaria` por `fecha_entrega` — **programación diaria de
-  Gestión-Virgilio, override-aware**. La fecha real de entrega vive en `GV_PPP_Prog_Override`
-  (Gestión reprograma ahí); la base cruda `PPP_Programacion_Diaria` queda vieja y daba **0**.
-  _(cambiado 2026-09-09; antes leía la base cruda)_
+- **programados** = **FOTO al inicio del día** (`wa_prog_snapshot`) de la programación de
+  Gestión-Virgilio (distinct **NP**). La programación viva (`gv_ppp_programacion_diaria`) DRENA
+  cuando los pedidos avanzan (se arman y salen), así que se congela a las **00:30 ART** (cron
+  `wa-prog-snapshot-diario`, después del job de programación 00:01 de Gestión) para que el número
+  no se encoja. Fallback en vivo para días sin foto. `wa_snapshot_programados(p_dia)` toma/rehace
+  la foto (greatest: nunca baja). _(2026-09-09; la fecha de ENTREGA es irrelevante — cuenta lo
+  programado para el día)_
 - **armados** = evento **`TAL`** (armado de la NP) en `Registros_Produccion_Virgilio` por `ts_cliente`
   (`texto` split 1 = NP). _(cambiado 2026-09-09; antes `vista_cola_impresion`, que es la **cola de
   impresión** y se vacía al imprimir la NP → daba **0**)_

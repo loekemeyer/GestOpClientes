@@ -4,10 +4,12 @@
 --   'factura_generada' lo escribe el trigger real wa_factura_notificar (por cada factura nueva).
 --   'aviso_enviado'    lo escribe lk_factura-check al enviar (modo grupo / redirección).
 -- wa_dashboard_rango(desde,hasta): métricas por día (excluye simulación):
---   programados = gv_ppp_programacion_diaria por fecha_entrega — programación diaria de
---                 Gestión-Virgilio, override-aware (la fecha real de entrega vive en
---                 GV_PPP_Prog_Override; la base cruda PPP_Programacion_Diaria queda vieja al
---                 reprogramar y daba 0). [antes: PPP_Programacion_Diaria cruda]
+--   programados = FOTO al inicio del día (wa_prog_snapshot) de la programación de Gestión-Virgilio.
+--                 Se congela a las 00:30 ART (cron wa-prog-snapshot-diario, después del job de
+--                 programación 00:01 de Gestión) para que NO se encoja cuando los pedidos avanzan
+--                 por el pipeline (se arman y salen de la programación viva). Fallback en vivo
+--                 (gv_ppp_programacion_diaria) para días sin foto. Cuenta por NP (no tanda).
+--                 [antes: PPP_Programacion_Diaria cruda / luego gv en vivo — se encogía]
 --   armados     = evento TAL (armado de la NP) en Registros_Produccion_Virgilio por ts_cliente.
 --                 [antes: vista_cola_impresion, que es la COLA DE IMPRESIÓN — se vacía al
 --                 imprimir la NP, así que como métrica de "armados por día" daba 0]
@@ -49,16 +51,54 @@ begin
   return null;
 end $$;
 
+-- ── Foto de "programados" al inicio del día ──────────────────────────────────
+-- La programación viva (gv_ppp_programacion_diaria) DRENA a medida que los pedidos
+-- avanzan (se arman y salen), así que como métrica del día se encoge. Solución
+-- (pedido del usuario): tomar una FOTO al inicio del día y congelar el número.
+create table if not exists public.wa_prog_snapshot(
+  dia date primary key,
+  programados int not null default 0,
+  tomado_at timestamptz not null default now()
+);
+alter table public.wa_prog_snapshot enable row level security;  -- sólo definer/service_role
+
+-- Cuenta distinct NP programados para un día (Gestión, override-aware) y congela el número.
+-- greatest(): una corrida posterior nunca BAJA la foto (la programación viva drena durante el
+-- día); sólo la sube si Gestión programó más. p_dia null = hoy en hora Argentina.
+create or replace function public.wa_snapshot_programados(p_dia date default null)
+returns int language plpgsql security definer set search_path to 'public' as $$
+declare v_dia date; v_n int;
+begin
+  v_dia := coalesce(p_dia, (now() at time zone 'America/Argentina/Buenos_Aires')::date);
+  select count(distinct g.np) into v_n
+  from public.gv_ppp_programacion_diaria g
+  where left(g.fecha_entrega, 10) = to_char(v_dia,'YYYY-MM-DD')
+    and coalesce(g.cod,'')<>'99999' and coalesce(g.np,'') not like '9990%';
+  insert into public.wa_prog_snapshot(dia, programados, tomado_at)
+  values (v_dia, coalesce(v_n,0), now())
+  on conflict (dia) do update
+    set programados = greatest(public.wa_prog_snapshot.programados, excluded.programados),
+        tomado_at = now();
+  return coalesce(v_n,0);
+end $$;
+revoke all on function public.wa_snapshot_programados(date) from public, anon, authenticated;
+
+-- Cron diario: 03:30 UTC = 00:30 ART (después del job de programación 00:01 de Gestión).
+select cron.schedule('wa-prog-snapshot-diario', '30 3 * * *', $$select public.wa_snapshot_programados();$$);
+
 drop function if exists public.wa_dashboard_rango(date, date);
 create or replace function public.wa_dashboard_rango(p_desde date, p_hasta date)
 returns table(dia date, programados int, armados int, facturados int, enviadas int, facturas_enviadas int)
 language sql stable security definer set search_path to 'public' as $$
   with dias as (select generate_series(p_desde, p_hasta, interval '1 day')::date d)
   select d,
-    -- programados = programación diaria de Gestión (override-aware) por fecha de entrega
-    (select count(distinct g.np)::int from public.gv_ppp_programacion_diaria g
-       where left(g.fecha_entrega, 10) = to_char(d,'YYYY-MM-DD')
-         and coalesce(g.cod,'')<>'99999' and coalesce(g.np,'') not like '9990%'),
+    -- programados = FOTO al inicio del día (wa_prog_snapshot); fallback en vivo si aún no hay foto
+    coalesce(
+      (select s.programados from public.wa_prog_snapshot s where s.dia = d),
+      (select count(distinct g.np)::int from public.gv_ppp_programacion_diaria g
+         where left(g.fecha_entrega, 10) = to_char(d,'YYYY-MM-DD')
+           and coalesce(g.cod,'')<>'99999' and coalesce(g.np,'') not like '9990%')
+    ),
     -- armados = armado de la NP (evento TAL en Registros_Produccion_Virgilio) por día
     (select count(distinct regexp_replace(btrim(split_part(r.texto,'|',1)),'\.0+$',''))::int
        from public."Registros_Produccion_Virgilio" r
