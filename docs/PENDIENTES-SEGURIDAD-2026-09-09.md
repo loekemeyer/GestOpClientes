@@ -32,7 +32,10 @@ Mismo patrón "avisa, no rechaza". **Ojo:** si se carga el secret hay que ACTUAL
 `pg_cron` que dispara el flush para que mande el header `x-lk-internal-secret`, o el outbox deja de
 mandar. Hacerlo junto, no suelto.
 
-## B. 🟠 `get_customer_sales_history` — la ejecuta cualquier `authenticated`
+## B. ✅ YA RESUELTO (verificado 2026-09-10) — `get_customer_sales_history`
+> Al leer la definición, la función **ya tiene** el gate `if not exists (admins) raise` adentro.
+> No hay leak. Salió del backlog. (El resto de esta sección es el análisis histórico.)
+
 `SECURITY DEFINER`, ejecutable por `authenticated` (verificado 2026-09-09). Un cliente mayorista
 logueado en la web LK puede leer el histórico de compras de OTRO pasando su código.
 - Fix SIN romper: NO revocar el EXECUTE (rompe los paneles admin que la usan). Agregar el chequeo
@@ -59,16 +62,33 @@ logueado en la web LK puede leer el histórico de compras de OTRO pasando su có
 ### Triage de las 45 ejecutables por anon
 - **La mayoría son intencionales**: `milver_*` (app Milver, auth por **PIN dentro** de la función,
   arg `p_pin`), `lookup_cuit_by_username` (login LK, tiene que ser anon), expo. NO tocar sin entender.
-- **Revisar SÍ o SÍ (sin auth aparente, filtran/escriben datos):**
-  - `fijar_dto_escala(p_customer_id, p_dto)` — **ESCRIBE un descuento**, sin pin/gate → anon podría
-    cambiar descuentos. 🔴 Confirmar si tiene gate interno; si no, revocar anon o agregar gate.
-  - `buscar_cliente_ficha(p_q)` — busca fichas de cliente → leak.
-  - `get_ficha_cliente(p_cod)` — ficha por código → leak.
-  - `fn_ventas_mensuales_virgilio(p_cod, p_meses)` — ventas mensuales por código → leak.
+- **Revisadas 2026-09-10 (leyendo `pg_get_functiondef`) — casi todas YA gatean adentro:**
+  - `fijar_dto_escala(p_customer_id, p_dto)` — ✅ **NO es vulnerable**: exige `auth.uid()` = el propio
+    cliente o admin (+ `escala_activa`). Anon → `RAISE 'no autorizado'`. Revocar anon rompería el
+    auto-servicio de escala. **No tocar.**
+  - `buscar_cliente_ficha(p_q)` — ✅ gate `admins` adentro. No tocar.
+  - `get_ficha_cliente(p_cod)` — ✅ gate `admins` adentro. No tocar.
+  - `get_customer_sales_history(p_customer_code)` — ✅ gate `admins` adentro (el ítem B ya estaba
+    resuelto; salió del backlog).
+  - `fn_ventas_mensuales_virgilio(p_cod, p_meses)` — ❌ **SIN gate** → leak real (volúmenes mensuales
+    por código; no nombres/CUIT). PERO **lo consume Gestión-Virgilio** por REST contra la anon key de
+    LK (`Gestion-Virgilio/index.html`, runbook `pendiente_8436_http_ssrf`). Revocar anon **rompe
+    Virgilio** → coordinar: darle un gate que contemple ese acceso, o que Virgilio use service key y
+    recién ahí revocar. **Pendiente, NO revocar a ciegas.**
   - `registrar_descarga_fotos`, `fotos_descarga_estado`, `virgilio_volumen_map` — revisar, probablemente benignos.
   - `trg_*` (3) son funciones de trigger, no deberían estar expuestas como RPC (inocuo pero sucio).
+- **Lección**: el advisor marca "ejecutable por anon" pero NO ve el gate interno. Antes de revocar,
+  leer la definición (`pg_get_functiondef`) — la mayoría de las 45 gatean adentro (o por PIN, milver_*).
 
-### `foreign_table_in_api` (4) — leak del padrón de Chef 🟠
+### `foreign_table_in_api` (4) — ✅ HECHO (2026-09-10)
+> Revocado `all` a `anon` + `authenticated` en `chef_customers`, `chef_customer_delivery_addresses`,
+> `chef_sales_lines`, `chef_orders`. `service_role` intacto. Verificado: anon bloqueado.
+> **Era GRAVE**: `chef_orders` tenía `anon` con INSERT/UPDATE/DELETE/TRUNCATE (vía FDW, escribía a Chef).
+> Confirmado antes de tocar que NO rompe nada: el bot no las usa (y usa service_role, no anon), 0
+> `.from("chef_")` en los 4 repos, y las 6 funciones que las leen son SECURITY DEFINER (corren como
+> owner). Histórico abajo.
+
+### `foreign_table_in_api` (4) — leak del padrón de Chef (histórico) 🟠
 `chef_customers`, `chef_customer_delivery_addresses`, `chef_sales_lines`, `chef_orders` son foreign
 tables (FDW) accesibles por la API y **NO respetan RLS** → anon podría leer todo el padrón/ventas de
 Chef vía REST. Fix: revocar SELECT a anon/authenticated sobre esas foreign tables (las usan RPCs
@@ -105,5 +125,16 @@ configurado como webhook activo.
 edge function + rotar. Grepear todos los lectores antes.
 
 ---
-**Prioridad sugerida:** A (dueño, alto impacto) → `fijar_dto_escala` + foreign tables Chef (leaks/escritura
-anon reales) → B → quick-win backup tables → C/D/E.
+## Estado al 2026-09-10
+- ✅ **A** — firma del webhook (`META_APP_SECRET`) activa y verificada (403 en forjado).
+- ✅ **Backups sin RLS (7)** — cerradas (RLS + revoke anon/auth).
+- ✅ **Foreign tables Chef (4)** — revocado anon/auth (era GRAVE: DELETE/TRUNCATE por anon).
+- ✅ **B `get_customer_sales_history`** — ya tenía gate admin. `fijar_dto_escala`, `buscar_cliente_ficha`,
+  `get_ficha_cliente` — ya gatean adentro (NO tocar).
+
+**Quedan (por prioridad):**
+1. ⚠️ `fn_ventas_mensuales_virgilio` — leak real pero **coordinar con Gestión-Virgilio** (lo consume por anon).
+2. 🟡 MVs `mv_chef_*` legibles por anon (`materialized_view_in_api`) — leak de agregados de ventas.
+3. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
+4. 🟡 `sales-agent` (rol solo-lectura), `lk_wh_stage` (borrar/traer), rotar `LK_WA_TOKEN`/`isis_supabase_service_key`.
+5. 🟢 `function_search_path_mutable` (121) / `security_definer_view` (7) / `extension_in_public` (3) — hardening de fondo, bajo riesgo.
