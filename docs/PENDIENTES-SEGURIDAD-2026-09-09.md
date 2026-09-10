@@ -121,10 +121,19 @@ dependan de correr como owner para saltear RLS a propósito).
 Edge function que le pasa SQL generado por IA a `exec_raw_sql` con service_role; filtro por texto
 flojo. Detrás de gate admin (alcance limitado). Fix: correr con rol solo-lectura + endurecer parser.
 
-## D. `lk_wh_stage` — webhook fantasma
-Segundo webhook público, sin JWT, NO versionado en el repo, con lógica vieja del bot (sin
-anti-jailbreak). Decidir borrarlo o traerlo al repo. Antes de borrar: confirmar que Meta no lo tenga
-configurado como webhook activo.
+## D. ✅ HECHO (2026-09-10) — `lk_wh_stage` neutralizado
+> Segundo webhook público con lógica vieja del bot. **Verificado que nada lo usa**: Meta apunta a
+> `lk_whatsapp-webhook` (probado — los mensajes de Luis crearon `wa_inbound_seen` y recibieron la
+> respuesta post-fix de `enviarTexto`, ambos código del webhook real; Meta = 1 callback URL), 0 crons,
+> 0 referencias en los 4 repos, no versionado (deploy manual). Se **redeployó como stub 410 Gone**
+> (v8, y quedó `verify_jwt=true`) → lógica vieja muerta, superficie cerrada. Probado: POST → 410.
+> **No se pudo BORRAR del todo por MCP** (no hay delete_edge_function); el borrado final es opcional
+> desde el dashboard de Supabase (cosmético — ya está inerte).
+
+> ⚠️ **Fantasma nuevo detectado (pendiente): `whatsapp-webhook` (v157, sin prefijo `lk_`, verify_jwt=off)**
+> — el webhook ORIGINAL, anterior a `lk_whatsapp-webhook`. Versión 157 (fue muy usado). Hay que
+> verificar igual que lk_wh_stage (Meta no lo usa, 0 crons/refs) y neutralizarlo. NO tocar sin repetir
+> la verificación.
 
 ## E. Tokens en `app_settings`
 `LK_WA_TOKEN` e `isis_supabase_service_key` viven en una tabla en vez del Vault. Mover a secrets de
@@ -143,8 +152,13 @@ edge function + rotar. Grepear todos los lectores antes.
 - ✅ **MVs `mv_chef_sales_loke` / `mv_loke_sales_agg` / `mv_chef_customers_resolved`** (2026-09-10) —
   revocado anon/auth (`service_role` intacto). Verificado: 0 fronts las leen, 0 vistas dependen, las
   6 funciones que las usan son SECURITY DEFINER. Cierra `materialized_view_in_api`.
+- ✅ **`lk_wh_stage`** (2026-09-10) — neutralizado a stub 410 (nada lo usaba; Meta va a
+  `lk_whatsapp-webhook`). Borrado final opcional desde el dashboard.
 
 **Quedan (por prioridad):**
-1. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
-4. 🟡 `sales-agent` (rol solo-lectura), `lk_wh_stage` (borrar/traer), rotar `LK_WA_TOKEN`/`isis_supabase_service_key`.
+1. 🟠 **`whatsapp-webhook` (v157, sin `lk_`)** — el webhook ORIGINAL, fantasma. Verificar igual que
+   lk_wh_stage y neutralizar.
+2. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
+3. 🟡 `sales-agent` (rol solo-lectura), rotar `LK_WA_TOKEN`/`isis_supabase_service_key`.
+4. 🟢 hardening de fondo (`function_search_path_mutable` 121, `security_definer_view` 7, `extension_in_public` 3).
 5. 🟢 `function_search_path_mutable` (121) / `security_definer_view` (7) / `extension_in_public` (3) — hardening de fondo, bajo riesgo.
