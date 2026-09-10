@@ -27,10 +27,16 @@ Riesgo: secret equivocado → bot mudo, pero **100% reversible** (borrar el secr
 El código: si la firma no coincide → `return 403` sin procesar (`index.ts` ~1458). Setear
 `META_APP_SECRET` **no afecta** el flush del outbox (eso va por `LK_INTERNAL_SECRET`, rama aparte).
 
-## A.bis `LK_INTERNAL_SECRET` (acciones internas tipo `{"action":"flush"}`)
-Mismo patrón "avisa, no rechaza". **Ojo:** si se carga el secret hay que ACTUALIZAR TAMBIÉN el
-`pg_cron` que dispara el flush para que mande el header `x-lk-internal-secret`, o el outbox deja de
-mandar. Hacerlo junto, no suelto.
+## A.bis ✅ HECHO (2026-09-10) — `LK_INTERNAL_SECRET` ya no hace falta (puerta muerta retirada)
+> Al investigar, la acción interna `{"action":"flush"}` del webhook (lo que `LK_INTERNAL_SECRET`
+> gateaba) era **código muerto**: el flush del outbox lo hace el cron `wa_outbox_flush` → edge
+> `lk_outbox-flush`, NO el webhook (0 crons/repos activos la llamaban; la def vieja quedó sólo en
+> `sql/005`, reemplazada). En vez de cargar un secreto para una puerta sin uso, se **retiró la rama
+> de acción interna** del webhook (`lk_whatsapp-webhook/index.ts`): ahora TODO POST pasa por la firma
+> de Meta. Verificado: `{"action":"flush"}` forjado → **403**. Sin secreto nuevo, sin tocar crons.
+> ⚠️ **Nuevo ítem menor**: `lk_outbox-flush` (el flusher real) es un endpoint público sin auth
+> (`verify_jwt=off`, lo llama el cron con body `{}` sin secreto). Riesgo bajo (solo dispara un vaciado
+> de cola), pero conviene gatearlo (secret propio o verify_jwt). Anotado abajo.
 
 ## B. ✅ YA RESUELTO (verificado 2026-09-10) — `get_customer_sales_history`
 > Al leer la definición, la función **ya tiene** el gate `if not exists (admins) raise` adentro.
@@ -168,9 +174,10 @@ edge function + rotar. Grepear todos los lectores antes.
   verificado leyendo el código deployado. Sin acción.
 
 - ✅ **`sales-agent`** (2026-09-10) — SQL del LLM ahora corre read-only (RPC `sales_agent_ro`); ya no usa `exec_raw_sql`.
+- ✅ **`LK_INTERNAL_SECRET` / acción interna del webhook** (2026-09-10) — era código muerto; se retiró la rama, todo POST exige firma de Meta. Verificado `action=flush` → 403.
 
 **Quedan (por prioridad):**
-1. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso). Requiere tu mano.
-2. 🟡 Rotar `LK_WA_TOKEN`/`isis_supabase_service_key` (app_settings → Vault). Requiere tu mano.
-3. 🟢 hardening de fondo (`function_search_path_mutable` 121, `security_definer_view` 7, `extension_in_public` 3). Lo puedo hacer solo.
+1. 🟡 Rotar `LK_WA_TOKEN`/`isis_supabase_service_key` (app_settings → Vault). **Requiere tu mano.**
+2. 🟢 `lk_outbox-flush` — endpoint público sin auth (flusher real del outbox). Gatearlo (secret o verify_jwt). Riesgo bajo. **Lo puedo hacer solo** (ojo: hay que actualizar el cron `wa_outbox_flush` en el mismo paso).
+3. 🟢 hardening de fondo (`function_search_path_mutable` 121, `security_definer_view` 7, `extension_in_public` 3). **Lo puedo hacer solo.**
 5. 🟢 `function_search_path_mutable` (121) / `security_definer_view` (7) / `extension_in_public` (3) — hardening de fondo, bajo riesgo.
