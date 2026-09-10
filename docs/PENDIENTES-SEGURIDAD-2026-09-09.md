@@ -5,7 +5,9 @@
 > **La mayoría de los hallazgos son de esas otras apps, NO del bot** — fijar cada uno requiere
 > conocer el diseño de la app dueña. No tocar a ciegas: un revoke mal puesto rompe un flujo público.
 
-## A. 🔴 Activar la firma del webhook de Meta (`META_APP_SECRET`) — ACCIÓN DEL DUEÑO
+## A. ✅ HECHO (2026-09-10) — Firma del webhook de Meta (`META_APP_SECRET`) ACTIVA
+> El dueño cargó el secret; verificado con un POST de firma inválida → **403**, y tráfico real pasa.
+> Rechaza falsificaciones (ya no en modo "avisa"). Detalle abajo (histórico).
 El webhook `lk_whatsapp-webhook` es público y hoy **acepta cualquier POST**. El código YA valida
 `X-Hub-Signature-256` (`_shared/webhook-firma.ts`) pero arranca en modo "avisa, no rechaza" hasta
 que exista el secret `META_APP_SECRET`. Sin eso, cualquiera que sepa la URL inyecta mensajes falsos.

@@ -238,9 +238,17 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
     authenticated using (true)`). `sql/063` había revocado a `authenticated` de ambas. **El login
     necesita anon Y authenticated con lectura de `(email, role)`** — restaurado y verificado con
     `set role authenticated` (devuelve el rol). Síntoma en el navegador: request a `gestop_users` = 403.
-- ⏳ **El webhook no valida `X-Hub-Signature-256`** salvo que el dueño cargue `META_APP_SECRET`
-  (la firma ya está codeada, arranca en modo "avisa pero no rechaza"). Ídem `LK_INTERNAL_SECRET`
-  para `{"action":"flush"}`.
+- ✅ **Firma del webhook (`X-Hub-Signature-256`) ACTIVA** (2026-09-10): el dueño cargó
+  `META_APP_SECRET` en los secrets de Edge Function de PaginaLK. **Verificado**: un POST con firma
+  inválida recibe **403** (probado vía pg_net contra `/functions/v1/lk_whatsapp-webhook`) y el
+  tráfico real de Meta pasa (bot contesta). Ya no está en modo "avisa" — rechaza falsificaciones.
+  ⏳ Queda `LK_INTERNAL_SECRET` para `{"action":"flush"}` (sigue en modo avisa; al cargarlo hay que
+  actualizar también el `pg_cron` del flush para que mande el header, o corta el envío del outbox).
+- 🐛 **FIX crítico (2026-09-10): `enviarTexto` se llamaba a sí misma** (recursión infinita →
+  el bot NUNCA enviaba respuestas de texto, mudo desde el refactor a `_shared/wa-api.ts` del
+  2026-09-08). Marcaba leído (usa `markRead` directo) y logueaba la respuesta en
+  `bot_historial_chat`, pero nada salía a Meta. Fix: llamar a `sendText(...)`. Afectaba TODAS las
+  respuestas (FAQ, registro, blacklist, rate-limit, gerencia, agente).
 - 📋 **Backlog de seguridad completo en `docs/PENDIENTES-SEGURIDAD-2026-09-09.md`** (2026-09-09):
   pasos para activar `META_APP_SECRET` (A), fix de `get_customer_sales_history` (B), y el resultado
   de correr los advisors de Supabase — 45 funciones ejecutables por anon (la mayoría de OTRAS apps:
