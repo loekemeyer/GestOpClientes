@@ -46,7 +46,12 @@ interface Config {
 
 async function loadConfig(): Promise<Config> {
   const waPhoneId = (await getSetting("LK_WA_PHONE_ID")) ?? Deno.env.get("LK_WA_PHONE_ID") ?? "";
-  const waToken = (await getSetting("LK_WA_TOKEN")) ?? Deno.env.get("LK_WA_TOKEN") ?? "";
+  // Token de envío de WhatsApp. Prioriza el secret del Vault `WHATSAPP_ACCESS_TOKEN` (el mismo
+  // que ya usan lk_factura-check / lk_templates), y deja `LK_WA_TOKEN` (app_settings/env) como
+  // respaldo. Objetivo: sacar el token de `app_settings` y tener UNA sola fuente en el Vault
+  // (2026-09-10, seguridad). Rotarlo pasa a ser sólo actualizar ese secret.
+  const waToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN")
+    ?? (await getSetting("LK_WA_TOKEN")) ?? Deno.env.get("LK_WA_TOKEN") ?? "";
   const waVerifyToken = (await getSetting("LK_WA_VERIFY_TOKEN")) ?? Deno.env.get("LK_WA_VERIFY_TOKEN") ?? "";
   const anthropicKey = (await getSetting("ANTHROPIC_API_KEY")) ?? Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 
