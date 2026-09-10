@@ -248,7 +248,8 @@ Cinco revisiones en paralelo sobre el bot. Lo cerrado y lo que queda:
   el bot NUNCA enviaba respuestas de texto, mudo desde el refactor a `_shared/wa-api.ts` del
   2026-09-08). Marcaba leído (usa `markRead` directo) y logueaba la respuesta en
   `bot_historial_chat`, pero nada salía a Meta. Fix: llamar a `sendText(...)`. Afectaba TODAS las
-  respuestas (FAQ, registro, blacklist, rate-limit, gerencia, agente).
+  respuestas (FAQ, registro, blacklist, rate-limit, gerencia, agente). **Éste era el único
+  culpable del "no contesta" — el `META_APP_SECRET` estuvo bien copiado desde el primer intento.**
 - 📋 **Backlog de seguridad completo en `docs/PENDIENTES-SEGURIDAD-2026-09-09.md`** (2026-09-09):
   pasos para activar `META_APP_SECRET` (A), fix de `get_customer_sales_history` (B), y el resultado
   de correr los advisors de Supabase — 45 funciones ejecutables por anon (la mayoría de OTRAS apps:

@@ -16,9 +16,12 @@ Pasos:
 1. Meta: developers.facebook.com → app de WhatsApp LK → **App settings → Basic → App Secret** (Show) → copiar.
 2. Supabase → proyecto `kwkclwhmoygunqmlegrg` → **Edge Functions → Secrets** → Add: `META_APP_SECRET` = (el valor). Save.
 3. Esperar ~1 min. Mandar un WhatsApp de prueba desde un número de la whitelist (`wa_envio_contactos`).
-4. Verificar: el bot contesta = OK. No contesta = secret mal → **borrar el secret** (vuelve al estado seguro actual) y reintentar.
-5. Verificación por logs (una sesión Claude): que el webhook deje de loguear `META_APP_SECRET sin cargar`
-   y que NO aparezca `[firma] POST rechazado: firma no coincide` con tráfico real de Meta.
+4. Verificar SIN ambigüedad (el "no contesta" NO sirve para probar el secret — el envío de la
+   respuesta es un camino aparte): mandar un POST **forjado** con firma inválida al webhook y
+   confirmar que da **403**; y que el tráfico real de Meta siga dejando filas nuevas en
+   `wa_inbound_seen`. Hecho el 2026-09-10 vía pg_net: forjado → 403, real → pasa. ✅
+   > Nota: el secret estuvo bien desde el primer intento. El "no contestaba" del 2026-09-10 era
+   > un bug aparte (`enviarTexto` recursiva, ver más abajo), NO el secret.
 
 Riesgo: secret equivocado → bot mudo, pero **100% reversible** (borrar el secret).
 El código: si la firma no coincide → `return 403` sin procesar (`index.ts` ~1458). Setear
