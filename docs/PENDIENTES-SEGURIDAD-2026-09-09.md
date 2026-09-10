@@ -74,7 +74,12 @@ tables (FDW) accesibles por la API y **NO respetan RLS** → anon podría leer t
 Chef vía REST. Fix: revocar SELECT a anon/authenticated sobre esas foreign tables (las usan RPCs
 internas con service_role, no el front directo — verificar antes).
 
-### `rls_disabled_in_public` (7) — 🟢 QUICK WIN SEGURO (pendiente de OK)
+### `rls_disabled_in_public` (7) — ✅ HECHO (2026-09-10)
+> Cerradas: `enable row level security` + `revoke all from anon, authenticated` en las 7. Verificado:
+> `anon`/`authenticated` ya no leen, `service_role` sigue (bypassrls). Los `_rank_*` tenían 368 filas
+> con valorización de clientes. Detalle histórico abajo.
+
+### `rls_disabled_in_public` (7) — QUICK WIN SEGURO (histórico)
 Son todas tablas de **backup/temporales** legibles por anon, sin uso en ninguna app:
 `_rank_antes_20260904`, `_rank_despues_20260904`, `wa_faq_bkp_20260908`, `wa_faq_bkp_20260908_faq15`,
 `_backup_funcdefs_20260903`, `_backup_funcdefs_20260904`, `_migracion_precios_20260904`.
