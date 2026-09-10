@@ -1433,48 +1433,20 @@ Deno.serve(async (req: Request) => {
         return new Response("OK", { status: 200 });
       }
 
-      // Por acá entran DOS cosas distintas y cada una se autentica distinto:
-      //   · una acción interna nuestra (`{"action":"flush"}`) → secreto propio
-      //   · un webhook de Meta                                → firma X-Hub-Signature-256
-      // Mezclarlas sería el error clásico: exigirle a Meta un secreto que no tiene, o
-      // dejar la acción interna abierta porque "ya validamos la firma".
-      const esAccionInterna = typeof body?.action === "string" && body.action.length > 0;
-
-      if (esAccionInterna) {
-        // Igual que la firma de Meta, esto arranca en dos pasos: sin `LK_INTERNAL_SECRET`
-        // cargado no rechaza nada (sólo avisa), para no dejar colgada a la llamada que ya
-        // exista hoy. Con el secreto cargado, pasa a exigirlo.
-        const esperado = Deno.env.get("LK_INTERNAL_SECRET") ?? "";
-        if (esperado) {
-          const dado = req.headers.get("x-lk-internal-secret") ?? String(body?.secret ?? "");
-          if (dado !== esperado) {
-            console.warn(`[interno] acción "${body.action}" rechazada: secreto inválido`);
-            return new Response("Forbidden", { status: 403 });
-          }
-        } else {
-          console.warn(`[interno] LK_INTERNAL_SECRET sin cargar — la acción "${body.action}" NO se está verificando.`);
-        }
-      } else {
-        const firma = await verificarFirmaMeta(rawBody, req.headers.get("x-hub-signature-256"));
-        if (!firma.ok) {
-          // Payload que dice ser de Meta y no lo es. Se corta acá, sin procesar.
-          console.warn(`[firma] POST rechazado: ${firma.motivo}`);
-          return new Response("Forbidden", { status: 403 });
-        }
-        if (firma.modo === "sin_secreto") {
-          // Paso 1 de la puesta en marcha: falta cargar META_APP_SECRET (ver webhook-firma.ts).
-          console.warn("[firma] META_APP_SECRET sin cargar — el POST NO se está verificando.");
-        }
+      // TODO POST tiene que venir firmado por Meta (X-Hub-Signature-256). La vieja "acción
+      // interna" `{"action":"flush"}` con `LK_INTERNAL_SECRET` se RETIRÓ (2026-09-10): era código
+      // muerto — el flush del outbox lo hace el cron `wa_outbox_flush` → edge `lk_outbox-flush`,
+      // no este webhook (verificado: 0 crons/repos la llamaban). Dejarla abierta era una puerta
+      // pública sin uso. Ahora un POST que no sea un webhook legítimo de Meta se corta acá.
+      const firma = await verificarFirmaMeta(rawBody, req.headers.get("x-hub-signature-256"));
+      if (!firma.ok) {
+        // Payload que dice ser de Meta y no lo es. Se corta acá, sin procesar.
+        console.warn(`[firma] POST rechazado: ${firma.motivo}`);
+        return new Response("Forbidden", { status: 403 });
       }
-
-      // ── Acción interna: flush outbox (llamada desde pg_cron) ──
-      if (body?.action === "flush") {
-        const cfg = await loadConfig();
-        const result = await flushOutbox(cfg);
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+      if (firma.modo === "sin_secreto") {
+        // Falta cargar META_APP_SECRET (ver webhook-firma.ts). Hoy YA está cargado.
+        console.warn("[firma] META_APP_SECRET sin cargar — el POST NO se está verificando.");
       }
 
       // ── Statuses de Meta (delivery: sent/delivered/read/failed) ──
