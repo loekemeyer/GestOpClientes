@@ -140,9 +140,11 @@ edge function + rotar. Grepear todos los lectores antes.
 
 - ✅ **`fn_ventas_mensuales_virgilio`** — cerrado con gate por header secreto (`virgilio_feed_secret`);
   Virgilio actualizado para mandarlo. anon sin secreto → `[]`. Verificado en ambos lados.
+- ✅ **MVs `mv_chef_sales_loke` / `mv_loke_sales_agg` / `mv_chef_customers_resolved`** (2026-09-10) —
+  revocado anon/auth (`service_role` intacto). Verificado: 0 fronts las leen, 0 vistas dependen, las
+  6 funciones que las usan son SECURITY DEFINER. Cierra `materialized_view_in_api`.
 
 **Quedan (por prioridad):**
-1. 🟡 MVs `mv_chef_*` legibles por anon (`materialized_view_in_api`) — leak de agregados de ventas.
-3. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
+1. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
 4. 🟡 `sales-agent` (rol solo-lectura), `lk_wh_stage` (borrar/traer), rotar `LK_WA_TOKEN`/`isis_supabase_service_key`.
 5. 🟢 `function_search_path_mutable` (121) / `security_definer_view` (7) / `extension_in_public` (3) — hardening de fondo, bajo riesgo.
