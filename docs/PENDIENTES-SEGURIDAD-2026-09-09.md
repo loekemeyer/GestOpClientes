@@ -130,10 +130,11 @@ flojo. Detrás de gate admin (alcance limitado). Fix: correr con rol solo-lectur
 > **No se pudo BORRAR del todo por MCP** (no hay delete_edge_function); el borrado final es opcional
 > desde el dashboard de Supabase (cosmético — ya está inerte).
 
-> ⚠️ **Fantasma nuevo detectado (pendiente): `whatsapp-webhook` (v157, sin prefijo `lk_`, verify_jwt=off)**
-> — el webhook ORIGINAL, anterior a `lk_whatsapp-webhook`. Versión 157 (fue muy usado). Hay que
-> verificar igual que lk_wh_stage (Meta no lo usa, 0 crons/refs) y neutralizarlo. NO tocar sin repetir
-> la verificación.
+> ✅ **`whatsapp-webhook` (v157) — YA neutralizado (verificado 2026-09-10, sin acción).** Al leer el
+> código deployado, es el **stub documentado** (`legacy/whatsapp-webhook-v151/`, stubeado 2026-09-01):
+> GET → challenge sólo si el verify_token coincide; POST de Meta → `200 ok` y **descarta el payload
+> sin procesar nada** (probado: POST falso → 0 rastros en ninguna tabla); POST `x-internal-resume` →
+> 503. `verify_jwt=off` a propósito (para que la verificación GET de Meta siga viva). Nada que hacer.
 
 ## E. Tokens en `app_settings`
 `LK_WA_TOKEN` e `isis_supabase_service_key` viven en una tabla en vez del Vault. Mover a secrets de
@@ -155,10 +156,11 @@ edge function + rotar. Grepear todos los lectores antes.
 - ✅ **`lk_wh_stage`** (2026-09-10) — neutralizado a stub 410 (nada lo usaba; Meta va a
   `lk_whatsapp-webhook`). Borrado final opcional desde el dashboard.
 
+- ✅ **`whatsapp-webhook` (v157)** (2026-09-10) — ya era el stub documentado (neutralizado 2026-09-01);
+  verificado leyendo el código deployado. Sin acción.
+
 **Quedan (por prioridad):**
-1. 🟠 **`whatsapp-webhook` (v157, sin `lk_`)** — el webhook ORIGINAL, fantasma. Verificar igual que
-   lk_wh_stage y neutralizar.
-2. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
-3. 🟡 `sales-agent` (rol solo-lectura), rotar `LK_WA_TOKEN`/`isis_supabase_service_key`.
-4. 🟢 hardening de fondo (`function_search_path_mutable` 121, `security_definer_view` 7, `extension_in_public` 3).
+1. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
+2. 🟡 `sales-agent` (rol solo-lectura), rotar `LK_WA_TOKEN`/`isis_supabase_service_key`.
+3. 🟢 hardening de fondo (`function_search_path_mutable` 121, `security_definer_view` 7, `extension_in_public` 3).
 5. 🟢 `function_search_path_mutable` (121) / `security_definer_view` (7) / `extension_in_public` (3) — hardening de fondo, bajo riesgo.
