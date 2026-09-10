@@ -70,11 +70,17 @@ logueado en la web LK puede leer el histórico de compras de OTRO pasando su có
   - `get_ficha_cliente(p_cod)` — ✅ gate `admins` adentro. No tocar.
   - `get_customer_sales_history(p_customer_code)` — ✅ gate `admins` adentro (el ítem B ya estaba
     resuelto; salió del backlog).
-  - `fn_ventas_mensuales_virgilio(p_cod, p_meses)` — ❌ **SIN gate** → leak real (volúmenes mensuales
-    por código; no nombres/CUIT). PERO **lo consume Gestión-Virgilio** por REST contra la anon key de
-    LK (`Gestion-Virgilio/index.html`, runbook `pendiente_8436_http_ssrf`). Revocar anon **rompe
-    Virgilio** → coordinar: darle un gate que contemple ese acceso, o que Virgilio use service key y
-    recién ahí revocar. **Pendiente, NO revocar a ciegas.**
+  - `fn_ventas_mensuales_virgilio(p_cod, p_meses)` — ✅ **CERRADO (2026-09-10)** con gate por header
+    secreto compartido. La función es `LANGUAGE sql`: se le agregó un CTE `gate` que compara el header
+    `x-feed-secret` (PostgREST lo expone en `current_setting('request.headers')`) contra
+    `app_settings.virgilio_feed_secret` (LK), y un cross-join → si no matchea, 0 filas (fail-closed,
+    devuelve `[]`, no rompe). Del lado Virgilio, `ventas_mensuales_cod` (proyecto `hrxfctzncixxqmpfhskv`)
+    ahora manda ese header en su llamada `http()`. **Rollout sin downtime**: primero Virgilio empezó a
+    mandar el header (LK viejo lo ignoraba), después LK pasó a exigirlo. Verificado: anon sin secreto →
+    `[]`; con secreto → datos; `ventas_mensuales_cod('505',6)` de Virgilio → 6 meses OK.
+    Secreto en `app_settings` key `virgilio_feed_secret` (anon NO lo lee, sql/061 lo tapa) y embebido
+    en la función de Virgilio (mismo nivel que la anon key que ya vivía ahí). **anon quedó con EXECUTE
+    pero inútil** (el gate está adentro; mismo patrón que `fijar_dto_escala`).
   - `registrar_descarga_fotos`, `fotos_descarga_estado`, `virgilio_volumen_map` — revisar, probablemente benignos.
   - `trg_*` (3) son funciones de trigger, no deberían estar expuestas como RPC (inocuo pero sucio).
 - **Lección**: el advisor marca "ejecutable por anon" pero NO ve el gate interno. Antes de revocar,
@@ -132,9 +138,11 @@ edge function + rotar. Grepear todos los lectores antes.
 - ✅ **B `get_customer_sales_history`** — ya tenía gate admin. `fijar_dto_escala`, `buscar_cliente_ficha`,
   `get_ficha_cliente` — ya gatean adentro (NO tocar).
 
+- ✅ **`fn_ventas_mensuales_virgilio`** — cerrado con gate por header secreto (`virgilio_feed_secret`);
+  Virgilio actualizado para mandarlo. anon sin secreto → `[]`. Verificado en ambos lados.
+
 **Quedan (por prioridad):**
-1. ⚠️ `fn_ventas_mensuales_virgilio` — leak real pero **coordinar con Gestión-Virgilio** (lo consume por anon).
-2. 🟡 MVs `mv_chef_*` legibles por anon (`materialized_view_in_api`) — leak de agregados de ventas.
+1. 🟡 MVs `mv_chef_*` legibles por anon (`materialized_view_in_api`) — leak de agregados de ventas.
 3. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
 4. 🟡 `sales-agent` (rol solo-lectura), `lk_wh_stage` (borrar/traer), rotar `LK_WA_TOKEN`/`isis_supabase_service_key`.
 5. 🟢 `function_search_path_mutable` (121) / `security_definer_view` (7) / `extension_in_public` (3) — hardening de fondo, bajo riesgo.
