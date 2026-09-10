@@ -1123,7 +1123,7 @@ async function pasoElTope(phone: string): Promise<{ avisar: boolean } | null> {
  */
 async function enviarTexto(cfg: Config, phone: string, texto: string): Promise<boolean> {
   try {
-    await enviarTexto(cfg, phone, texto);
+    await sendText(cfg.waPhoneId, cfg.waToken, phone, texto);
     return true;
   } catch (e) {
     const code = e instanceof WaApiError ? ` (code ${e.code})` : "";
