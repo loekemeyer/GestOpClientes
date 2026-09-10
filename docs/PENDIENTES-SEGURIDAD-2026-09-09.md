@@ -117,9 +117,17 @@ service_role) o dropearlas si ya no se necesitan. Cero impacto funcional (ningun
 `expo_dashboard_stats`, `leads_overview`. Recrearlas con `security_invoker = true` (revisar que no
 dependan de correr como owner para saltear RLS a propósito).
 
-## C. `sales-agent` — SQL de un LLM con service_role (pagina-LK)
-Edge function que le pasa SQL generado por IA a `exec_raw_sql` con service_role; filtro por texto
-flojo. Detrás de gate admin (alcance limitado). Fix: correr con rol solo-lectura + endurecer parser.
+## C. ✅ HECHO (2026-09-10) — `sales-agent` ya no corre SQL write-capable
+> Antes: el SQL del LLM se ejecutaba con `exec_raw_sql` (service_role, write-capable) y el único
+> filtro era texto (flojo: no bloqueaba TRUNCATE/ALTER/GRANT ni sentencias apiladas). Ahora corre por
+> la RPC nueva **`sales_agent_ro(p_sql)`** (SECURITY INVOKER; `revoke` a public/anon/authenticated,
+> `grant` sólo a service_role) que: (1) exige SELECT/WITH de UNA sentencia (sin `;` apilado), y
+> (2) **`set local transaction_read_only = on` + statement_timeout 15s** → cualquier escritura falla
+> EN EL MOTOR, aunque se cuele por el texto. Verificado: SELECT válido devuelve datos; `nextval()`
+> (write que pasa el filtro de texto) → `ERROR: cannot execute nextval() in a read-only transaction`.
+> Edge `sales-agent` redeployada (v15) para usar la RPC + filtro de texto endurecido como
+> pre-chequeo. Sigue admin-only. Ningún front la consume (era huérfana). `exec_raw_sql` sin cambios
+> (lo usan otros con service_role); sales-agent ya no lo toca.
 
 ## D. ✅ HECHO (2026-09-10) — `lk_wh_stage` neutralizado
 > Segundo webhook público con lógica vieja del bot. **Verificado que nada lo usa**: Meta apunta a
@@ -159,8 +167,10 @@ edge function + rotar. Grepear todos los lectores antes.
 - ✅ **`whatsapp-webhook` (v157)** (2026-09-10) — ya era el stub documentado (neutralizado 2026-09-01);
   verificado leyendo el código deployado. Sin acción.
 
+- ✅ **`sales-agent`** (2026-09-10) — SQL del LLM ahora corre read-only (RPC `sales_agent_ro`); ya no usa `exec_raw_sql`.
+
 **Quedan (por prioridad):**
-1. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso).
-2. 🟡 `sales-agent` (rol solo-lectura), rotar `LK_WA_TOKEN`/`isis_supabase_service_key`.
-3. 🟢 hardening de fondo (`function_search_path_mutable` 121, `security_definer_view` 7, `extension_in_public` 3).
+1. 🟡 `LK_INTERNAL_SECRET` (cargar + tocar el cron del flush en el mismo paso). Requiere tu mano.
+2. 🟡 Rotar `LK_WA_TOKEN`/`isis_supabase_service_key` (app_settings → Vault). Requiere tu mano.
+3. 🟢 hardening de fondo (`function_search_path_mutable` 121, `security_definer_view` 7, `extension_in_public` 3). Lo puedo hacer solo.
 5. 🟢 `function_search_path_mutable` (121) / `security_definer_view` (7) / `extension_in_public` (3) — hardening de fondo, bajo riesgo.
