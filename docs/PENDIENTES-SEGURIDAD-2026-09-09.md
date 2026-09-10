@@ -176,8 +176,16 @@ edge function + rotar. Grepear todos los lectores antes.
 - ✅ **`sales-agent`** (2026-09-10) — SQL del LLM ahora corre read-only (RPC `sales_agent_ro`); ya no usa `exec_raw_sql`.
 - ✅ **`LK_INTERNAL_SECRET` / acción interna del webhook** (2026-09-10) — era código muerto; se retiró la rama, todo POST exige firma de Meta. Verificado `action=flush` → 403.
 
+- ✅ **`LK_WA_TOKEN` fuera de `app_settings`** (2026-09-10) — el webhook ahora lee el token de envío
+  de WhatsApp del Vault (`WHATSAPP_ACCESS_TOKEN`, el mismo que facturas/plantillas); se borró la fila
+  `LK_WA_TOKEN` de `app_settings`. Backup en `public._bkp_lk_wa_token_20260910` (RLS, sin anon).
+  Verificado con "hola" que el bot manda igual. **Falta (tu mano, parte 2): rotar el token en Meta**
+  (estuvo expuesto pre-parche) → actualizar el secret `WHATSAPP_ACCESS_TOKEN` y revocar el viejo;
+  con eso rota bot+facturas de una. Después, dropear la tabla de backup.
+
 **Quedan (por prioridad):**
-1. 🟡 Rotar `LK_WA_TOKEN`/`isis_supabase_service_key` (app_settings → Vault). **Requiere tu mano.**
+1. 🟡 Rotar `isis_supabase_service_key` (app_settings → Vault) — la otra mitad. **Requiere tu mano.**
+   Y la parte 2 de arriba (rotar `WHATSAPP_ACCESS_TOKEN` en Meta).
 2. 🟢 `lk_outbox-flush` — endpoint público sin auth (flusher real del outbox). Gatearlo (secret o verify_jwt). Riesgo bajo. **Lo puedo hacer solo** (ojo: hay que actualizar el cron `wa_outbox_flush` en el mismo paso).
 3. 🟢 hardening de fondo (`function_search_path_mutable` 121, `security_definer_view` 7, `extension_in_public` 3). **Lo puedo hacer solo.**
 5. 🟢 `function_search_path_mutable` (121) / `security_definer_view` (7) / `extension_in_public` (3) — hardening de fondo, bajo riesgo.
