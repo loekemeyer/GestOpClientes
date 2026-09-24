@@ -29,6 +29,8 @@ const STATUS_MAP: Record<string, string> = {
   pendiente: "📝 recibido, en proceso de preparación",
   recibido:  "📦 recibido, siendo preparado",
   programado:"🚚 programado para despacho",
+  "en preparacion": "🛠️ en preparación en el depósito",
+  facturado: "🧾 facturado, por salir",
   entregado: "✅ entregado",
 };
 
@@ -211,26 +213,32 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
     .from("orders")
     .select("id, created_at, total, status")
     .eq("customer_id", customer.id)
+    .or("sheets_sent.is.null,sheets_sent.eq.true")   // un pedido que nunca se envió no tiene estado
     .gte("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
     .order("created_at", { ascending: false })
     .limit(5);
   if (!orders?.length) {
     return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, decime.`;
   }
-  const orderIds = orders.map((o) => String(o.id));
-  const { data: tracking } = await supabase
-    .from("order_tracking")
-    .select("np_number, status, fecha_entrega")
-    .in("np_number", orderIds);
-  const trackingMap = new Map((tracking ?? []).map((t) => [t.np_number, t]));
+  // Estado real del pedido en Gestión Virgilio (RPC bot_estado_pedidos_gv, sql/066). Para
+  // los pedidos anteriores a Gestión cae sola a order_tracking. Antes se leía order_tracking
+  // directo, que llenaba la planilla de Producción y dejó de traer programados/entregados.
+  const { data: estados, error: estErr } = await supabase
+    .rpc("bot_estado_pedidos_gv", { p_ids: orders.map((o) => o.id) });
+  if (estErr) console.error("Error en bot_estado_pedidos_gv:", estErr.message);
+  // deno-lint-ignore no-explicit-any
+  const estadoMap = new Map((estados ?? []).map((e: any) => [String(e.order_id), e]));
+  const fmt = (d: string) => new Date(String(d).slice(0, 10) + "T12:00:00").toLocaleDateString("es-AR");
   const lines = orders.map((o, i) => {
-    const t = trackingMap.get(String(o.id));
+    // deno-lint-ignore no-explicit-any
+    const t: any = estadoMap.get(String(o.id));
     const fecha = new Date(o.created_at).toLocaleDateString("es-AR");
     const rawStatus = t?.status ?? o.status;
     const statusText = STATUS_MAP[rawStatus] || rawStatus;
     let line = `${i + 1}️⃣ NP-${o.id} (${fecha}) — ${statusText}`;
-    if (t?.fecha_entrega && rawStatus === "programado") line += ` para el ${t.fecha_entrega}`;
-    if (t?.fecha_entrega && rawStatus === "entregado")  line += ` el ${t.fecha_entrega}`;
+    if (t?.fecha_entrega && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado"))
+      line += ` para el ${fmt(t.fecha_entrega)}`;
+    if (t?.fecha_entrega && rawStatus === "entregado") line += ` el ${fmt(t.fecha_entrega)}`;
     return line;
   });
   return `${customer.business_name}, acá está el estado de tus pedidos:\n\n${lines.join("\n")}\n\n¿Necesitás más detalle de alguno?`;

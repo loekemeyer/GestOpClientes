@@ -34,7 +34,7 @@ wa_outbox ← triggers order_tracking / pg_cron inactivos
 | Proyecto | Repo | Relación |
 |----------|------|----------|
 | PaginaLK | `loekemeyer/PaginaLK` | Supabase host (kwkclwhmoygunqmlegrg), tablas orders/products/customers |
-| Virgilio | `loekemeyer/Produccion-Virgilio` | Tablas whatsapp_clientes, patrón outbox, tracking |
+| Gestión Virgilio | `loekemeyer/Gestion-Virgilio` | Programación / estado de pedidos (`gv_pedido_web_estado_pagina` vía FDW, ver sql/066), facturas ISIS, patrón outbox |
 | Planify  | (sin repo git aún) | Template webhook WhatsApp + Claude API |
 
 **Este repo**: `loekemeyer/GestOpClientes` (privado)
