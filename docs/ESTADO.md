@@ -2,7 +2,7 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-09-09.
+> Última actualización: 2026-09-24.
 
 ## 🔑 Accesos, permisos y dónde está cada cosa (LEER PRIMERO)
 
@@ -267,6 +267,25 @@ Otros dos que hacen ruido a diario: `pedido_recordatorio_25` falla contra Meta c
 **#132001 "template does not exist"** (20 fallas/día, el cron 23 la reencola), y hay
 **575 escalaciones `pendiente`** en `wa_alertas_humano` de 57 teléfonos reales bloqueados por
 el killswitch, sin ningún consumidor de esa cola.
+
+## Estado de pedidos del bot — sale de GESTIÓN, no de la planilla (2026-09-24, sql/066)
+
+- `order_tracking` la llena la planilla **"PPP Online"** (Apps Script `syncTrackingToSupabase`,
+  cada 5 min → `sync_order_tracking_from_sheet`). La armaba **Producción Virgilio**: desde la
+  migración a Gestión no trae programados ni entregados (pedidos ≥ 1400: 0 programado,
+  0 entregado, 61 `#VALUE!`). **No usarla como fuente de pedidos nuevos.**
+- La fuente es **`bot_estado_pedidos_gv(ids)`** → `virgilio.gv_pedido_web_estado_pagina` (FDW,
+  la misma que `gv_estado_mis_pedidos` de la página). Estados: recibido · programado ·
+  en preparacion · facturado · entregado. Pedidos anteriores a Gestión (< 1340) caen a
+  `order_tracking`; el `#VALUE!` no se muestra nunca. La usan `bot_mi_entrega` y
+  `faq.ts → lookupOrderStatus`.
+- ⚠ **No apagar la planilla todavía**: `sync_order_tracking_from_sheet` también BORRA filas, y
+  las páginas + la solapa Tracking del admin la usan de respaldo para pedidos viejos.
+- ⚠ **`bot_customer_whatsapps` vacía es INTENCIONAL** (Luis, 24/09): las herramientas del bot
+  con IA (`bot_mi_entrega`, `bot_mis_pedidos`, …) sólo responden a teléfonos vinculados
+  explícitamente ahí. **No "arreglarlo"** cambiándolas a `wa_identify_customer`.
+- Pendiente: los avisos WA de programado/entregado (`bot_pending_notifications`) siguen
+  encolándose desde la planilla → cortados desde el 02/09.
 
 ## Bot de chat (webhook)
 
