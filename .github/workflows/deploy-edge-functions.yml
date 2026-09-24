@@ -7,6 +7,11 @@ on:
       - 'supabase/functions/**'
       - '.github/workflows/deploy-edge-functions.yml'
   workflow_dispatch:  # permite disparo manual desde la UI de Actions
+    inputs:
+      funciones:
+        description: "Funciones a desplegar separadas por espacio, o 'todas'. Vacío = las que cambiaron en el último commit."
+        required: false
+        default: ""
 
 concurrency:
   group: deploy-edge-functions
@@ -23,7 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # necesitamos el commit anterior para detectar cambios
+          # Historia completa: el diff se hace contra el commit que había ANTES del push
+          # (github.event.before), no contra HEAD^. Con HEAD^ un push de varios commits sólo
+          # miraba el último: el 24/09 un cambio en _shared/faq.ts no se desplegó porque el
+          # commit de arriba era de docs ("Sin cambios").
+          fetch-depth: 0
 
       # `version: latest` hace que setup-cli le pregunte a la API de GitHub cuál es el
       # último release, SIN autenticar. Esa API es 60 req/h por IP compartida entre todos
@@ -51,8 +60,24 @@ jobs:
           # Todas las funciones bajo supabase/functions/ (menos _shared)
           ALL_FNS=$(ls supabase/functions | grep -v '^_shared$' || true)
 
-          # Diff contra el commit anterior en main
-          CHANGED=$(git diff --name-only HEAD^ HEAD -- supabase/functions/ || true)
+          # Disparo manual con lista explícita
+          MANUAL="${{ github.event.inputs.funciones }}"
+          if [ -n "$MANUAL" ]; then
+            if [ "$MANUAL" = "todas" ]; then MANUAL="$ALL_FNS"; fi
+            FNS=$(echo $MANUAL | xargs)
+            echo "functions=$FNS" >> "$GITHUB_OUTPUT"
+            echo "Manual: $FNS"
+            exit 0
+          fi
+
+          # Diff contra lo que había en main ANTES del push (todos los commits del push)
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="HEAD^"
+          fi
+          echo "Base del diff: $BASE"
+          CHANGED=$(git diff --name-only "$BASE" HEAD -- supabase/functions/ || true)
 
           # ¿Cambió shared?
           SHARED_CHANGED=$(echo "$CHANGED" | grep -E '^supabase/functions/_shared/' || true)
