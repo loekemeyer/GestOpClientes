@@ -66,3 +66,10 @@ la whitelist; la barrera real hoy es que `bot_customer_whatsapps` está vacía. 
 `wa_envio_contactos` · `1` producción), fail-closed, en el paso que despacha. `sql/068`.
 **No se cargan teléfonos de clientes** en tablas del bot hasta que Luis lo decida.
 
+**Aplicado el 25/09 (con el sí de Luis):** `sql/068` (llave en `0`, probado en transacción
+abortada: con `0` no despacha, con `prueba` sólo Thomy y el resto queda `held_no_whitelist`);
+`notify-tracking-status` respeta la misma llave (fuente versionada acá desde ahora); cron
+`bot-recordatorio-25` **apagado** hasta que alguien defina para qué es (la plantilla
+`pedido_recordatorio_25` además no existe en Meta). Whitelist de prueba = **sólo Thomy**.
+Rollback del cron: `select cron.alter_job(jobid, active := true) from cron.job where jobname='bot-recordatorio-25';`
+
