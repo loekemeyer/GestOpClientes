@@ -108,6 +108,7 @@ serve(async (req) => {
     if (body.action === "templates_sync") return await handleTemplatesSync(body, gate.email);
     // Definiciones del repo (plantillas-meta.ts), sin consultar a Meta: el panel las muestra
     // aunque el token esté caído.
+    if (body.action === "templates_preview") return await handleTemplatesPreview(body);
     if (body.action === "templates_defs") {
       return json({ ok: true, plantillas: PLANTILLAS.map((p) => ({ ...p, errores: validar(p) })) });
     }
@@ -287,4 +288,92 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
   }
 
   return json({ ok: true, aplicado: aplicar, waba_id: wabaId, waba_source: wabaSource, plan });
+}
+
+// ── templates_preview: chat de prueba de plantillas (dashboard) ──
+// Sin order_id: lista los últimos pedidos web LK para elegir. Con order_id: arma la
+// secuencia de avisos que recibiría ese cliente (texto real de plantillas-meta.ts con
+// sus datos). Sólo lee: no encola ni manda nada.
+const fechaCorta = (d?: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "");
+const fechaLarga = (d?: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : "");
+function masDias(d: string | null, n: number): string | null {
+  if (!d) return null;
+  const x = new Date(d + "T12:00:00Z");
+  x.setUTCDate(x.getUTCDate() + n);
+  return x.toISOString().slice(0, 10);
+}
+// deno-lint-ignore no-explicit-any
+function modoDe(np: any): "propio" | "expreso" | "retira" {
+  if (np.retiro_fecha || /retira/i.test(np.nombre_expreso ?? "")) return "retira";
+  return np.nombre_expreso ? "expreso" : "propio";
+}
+
+async function handleTemplatesPreview(body: Record<string, unknown>) {
+  const orderId = Number(body.order_id) || 0;
+  if (!orderId) {
+    const { data, error } = await supabase.from("v_pedidos_web_np")
+      .select("order_id,razon_social,nombre_expreso,retiro_fecha")
+      .eq("empresa", "lk").order("order_id", { ascending: false }).limit(150);
+    if (error) return json({ ok: false, error: error.message }, 200);
+    const vistos = new Set<number>();
+    const pedidos = [];
+    for (const r of data ?? []) {
+      if (vistos.has(r.order_id)) continue;
+      vistos.add(r.order_id);
+      pedidos.push({ order_id: r.order_id, razon_social: r.razon_social, modo: modoDe(r) });
+      if (pedidos.length >= 40) break;
+    }
+    return json({ ok: true, pedidos });
+  }
+
+  const [{ data: nps, error: e1 }, { data: ord }, { data: est }] = await Promise.all([
+    supabase.from("v_pedidos_web_np")
+      .select("order_id,np_idx,razon_social,direccion,localidad,nombre_expreso,retiro_fecha,fecha_recep")
+      .eq("empresa", "lk").eq("order_id", orderId).order("np_idx"),
+    supabase.from("orders").select("created_at").eq("id", orderId).maybeSingle(),
+    supabase.rpc("bot_estado_pedidos_gv", { p_ids: [orderId] }),
+  ]);
+  if (e1) return json({ ok: false, error: e1.message }, 200);
+  const np = nps?.[0];
+  if (!np) return json({ ok: false, error: `No encontré el pedido web LK ${orderId}.` }, 200);
+
+  const modo = modoDe(np);
+  const estado = est?.[0] ?? null;
+  const pedidoEl = (ord?.created_at ?? np.fecha_recep ?? "").slice(0, 10);
+  const salida = modo === "retira" ? (np.retiro_fecha ?? estado?.fecha_entrega ?? null) : (estado?.fecha_entrega ?? null);
+  const rs = np.razon_social ?? "";
+  const fp = fechaCorta(pedidoEl);
+  const sal = fechaLarga(salida) || "(sin fecha todavía)";
+  const nueva = fechaLarga(masDias(salida, 2)) || "(nueva fecha)";
+  const expreso = np.nombre_expreso ?? "";
+  const direccion = [np.direccion, np.localidad].filter(Boolean).join(", ");
+
+  const P = (etapa: string, name: string, params: string[], opcional = false) => {
+    const def = PLANTILLAS.find((x) => x.name === name);
+    const texto = (def?.body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => params[Number(n) - 1] ?? m);
+    return { etapa, template: name, params, texto, opcional };
+  };
+  const pasos = modo === "expreso"
+    ? [P("Programado", "pedido_programado_expreso", [rs, fp, sal, expreso]),
+       P("Cambio de fecha", "pedido_reprogramado", [rs, fp, nueva], true),
+       P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
+       { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
+       P("Carga camión", "pedido_en_viaje_expreso", [rs, fp, expreso])]
+    : modo === "retira"
+    ? [P("Programado", "pedido_programado_retira", [rs, fp, sal]),
+       P("Cambio de fecha", "pedido_reprogramado", [rs, fp, nueva], true),
+       P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
+       { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
+       P("Facturado · listo", "pedido_listo_retirar", [rs, fp])]
+    : [P("Programado", "pedido_programado", [rs, fp, sal]),
+       P("Cambio de fecha", "pedido_reprogramado", [rs, fp, nueva], true),
+       P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
+       { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
+       P("Carga camión", "pedido_en_viaje", [rs, fp, direccion])];
+
+  return json({
+    ok: true,
+    pedido: { order_id: orderId, razon_social: rs, modo, pedido_el: pedidoEl, salida, expreso, direccion, estado_actual: estado?.status ?? null, nps: nps?.length ?? 0 },
+    pasos,
+  });
 }

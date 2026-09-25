@@ -185,6 +185,9 @@
       .sidebar a:hover, .sidebar a.active, .sidebar div[onclick]:hover, .sidebar div.active { border-bottom-color: var(--primary); }
       .sidebar .user-info { border-top: none; white-space: nowrap; }
       .main { min-height: 0; }
+      .chat-tab-content.active { flex-direction: column; overflow-y: auto; }
+      .chat-tab-content .chat-container { min-height: 70vh; flex: none; }
+      .chat-tab-content .control-panel { width: auto; border-left: none; border-top: 1px solid var(--border); }
       #pageConfig .config-page { padding: 1rem; }
       #pageConfig .config-row label { min-width: 0; }
       #pageConfig .bl-add-row input { max-width: none !important; min-width: 0; }
@@ -342,6 +345,7 @@
       <div class="tab-bar" id="chatTabBar">
         <button class="tab active" data-tab="testChat" onclick="switchChatTab('testChat')">💬 Chat de prueba</button>
         <button class="tab" data-tab="realConv" onclick="switchChatTab('realConv')">👥 Conversaciones reales</button>
+        <button class="tab" data-tab="tplChat" onclick="switchChatTab('tplChat')">📨 Prueba de plantillas</button>
       </div>
 
       <!-- Tab 1: Chat de prueba (sandbox contra el bot) -->
@@ -389,6 +393,41 @@
             </label>
           </div>
           <div class="ai-status on" id="rlStatus">🛡️ Rate limit activo</div>
+        </div>
+      </div>
+
+      <!-- Tab: Prueba de plantillas (avisos de seguimiento de un pedido real, sin enviar) -->
+      <div class="chat-tab-content" id="tabTplChat">
+        <div class="chat-container">
+          <div class="chat-header">
+            <div class="avatar">🏬</div>
+            <div class="info">
+              <h2 id="tplChatTitle">Elegí un pedido</h2>
+              <span id="tplChatSub">Vista del cliente · no se envía nada</span>
+            </div>
+            <button class="clear-btn" onclick="tplChatReset()">🔄 Reiniciar</button>
+          </div>
+          <div class="chat-messages" id="tplChatMessages"></div>
+        </div>
+
+        <div class="control-panel">
+          <h4>📨 Prueba de plantillas</h4>
+          <div class="toggle-desc" style="margin-bottom:0.6rem;">Elegí un pedido web LK y avanzá etapa por etapa: ves el aviso que le llegaría al cliente con sus datos reales. Sólo lectura.</div>
+          <select id="tplChatOrder" onchange="tplChatLoad()" style="width:100%;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;background:var(--card);color:var(--text);">
+            <option value="">Cargando pedidos…</option>
+          </select>
+          <div style="display:flex;gap:0.4rem;margin-top:0.4rem;">
+            <input type="number" id="tplChatOrderId" placeholder="o N° de pedido" style="flex:1;min-width:0;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+            <button class="config-btn small" onclick="tplChatLoad(document.getElementById('tplChatOrderId').value)">Ver</button>
+          </div>
+          <div id="tplChatInfo" class="toggle-desc" style="margin-top:0.7rem;line-height:1.5;"></div>
+          <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;margin-top:0.6rem;">
+            <input type="checkbox" id="tplChatReprog" onchange="tplChatReset()"> Incluir cambio de fecha
+          </label>
+          <div style="display:flex;gap:0.4rem;margin-top:0.7rem;flex-wrap:wrap;">
+            <button class="config-btn primary" id="tplChatNext" onclick="tplChatNext()" disabled>▶ Siguiente etapa</button>
+            <button class="config-btn" onclick="tplChatAll()">⏩ Todo</button>
+          </div>
         </div>
       </div>
 
@@ -1106,10 +1145,94 @@ function switchChatTab(tab) {
   bar.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
   document.getElementById("tabTestChat").classList.toggle("active", tab === "testChat");
   document.getElementById("tabRealConv").classList.toggle("active", tab === "realConv");
+  document.getElementById("tabTplChat").classList.toggle("active", tab === "tplChat");
+  if (tab === "tplChat" && !_tplChatPedidos) tplChatList();
   if (tab === "realConv") {
     loadConversaciones();
     _convLoaded = true;
   }
+}
+
+// --- Prueba de plantillas: avisos de seguimiento de un pedido real (lk_templates · templates_preview) ---
+var _tplChatPedidos = null, _tplChat = null, _tplChatIdx = 0;
+const TPL_MODO = { propio: "🚚 camión propio", expreso: "📦 expreso", retira: "🏬 retira" };
+
+async function tplChatList() {
+  const sel = document.getElementById("tplChatOrder");
+  try {
+    const { data, error } = await authedInvoke("lk_templates", { action: "templates_preview" });
+    if (error || !data?.ok) { sel.innerHTML = '<option value="">⚠️ ' + esc(data?.error || error?.message || "Error") + "</option>"; return; }
+    _tplChatPedidos = data.pedidos || [];
+    sel.innerHTML = '<option value="">Elegí un pedido…</option>' + _tplChatPedidos.map((p) =>
+      `<option value="${p.order_id}">#${p.order_id} · ${esc(p.razon_social || "")} · ${TPL_MODO[p.modo] || p.modo}</option>`).join("");
+  } catch (e) {
+    sel.innerHTML = '<option value="">⚠️ ' + esc(e.message) + "</option>";
+  }
+}
+
+async function tplChatLoad(id) {
+  id = id || document.getElementById("tplChatOrder").value;
+  if (!id) return;
+  const box = document.getElementById("tplChatMessages");
+  box.innerHTML = '<div class="msg system">Cargando pedido…</div>';
+  try {
+    const { data, error } = await authedInvoke("lk_templates", { action: "templates_preview", order_id: Number(id) });
+    if (error || !data?.ok) { box.innerHTML = '<div class="msg system">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+    _tplChat = data;
+    const p = data.pedido;
+    document.getElementById("tplChatTitle").textContent = p.razon_social || ("Pedido " + p.order_id);
+    document.getElementById("tplChatSub").textContent = `Pedido #${p.order_id} · ${TPL_MODO[p.modo] || p.modo} · no se envía nada`;
+    document.getElementById("tplChatInfo").innerHTML =
+      `<b>Hoy en Gestión:</b> ${esc(p.estado_actual || "sin dato")}<br>` +
+      `<b>Pedido el:</b> ${esc(p.pedido_el || "—")} · <b>Salida:</b> ${esc(p.salida || "sin fecha")}<br>` +
+      (p.modo === "expreso" ? `<b>Expreso:</b> ${esc(p.expreso)}<br>` : "") +
+      (p.modo === "propio" ? `<b>Dirección:</b> ${esc(p.direccion || "—")}<br>` : "") +
+      `<b>NPs:</b> ${p.nps} (un solo aviso por etapa)`;
+    tplChatReset();
+  } catch (e) {
+    box.innerHTML = '<div class="msg system">⚠️ ' + esc(e.message) + "</div>";
+  }
+}
+
+function tplChatPasos() {
+  if (!_tplChat) return [];
+  const reprog = document.getElementById("tplChatReprog").checked;
+  return _tplChat.pasos.filter((x) => !x.opcional || reprog);
+}
+
+function tplChatReset() {
+  _tplChatIdx = 0;
+  const box = document.getElementById("tplChatMessages");
+  box.innerHTML = _tplChat
+    ? '<div class="msg system">Pedido recibido por la web · el cliente todavía no recibió avisos</div>'
+    : '<div class="msg system">Elegí un pedido a la derecha para ver sus avisos</div>';
+  const btn = document.getElementById("tplChatNext");
+  btn.disabled = !_tplChat;
+  btn.textContent = "▶ Siguiente etapa";
+}
+
+function tplChatNext() {
+  const pasos = tplChatPasos();
+  const box = document.getElementById("tplChatMessages");
+  const btn = document.getElementById("tplChatNext");
+  if (_tplChatIdx >= pasos.length) return;
+  const x = pasos[_tplChatIdx++];
+  box.insertAdjacentHTML("beforeend", `<div class="msg system">⚙️ ${esc(x.etapa)}</div>`);
+  if (x.nota) {
+    box.insertAdjacentHTML("beforeend", `<div class="msg system" style="background:#eef2ff;color:#3730a3;">🧾 ${esc(x.nota)}</div>`);
+  } else {
+    const t = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    box.insertAdjacentHTML("beforeend", `<div class="msg in"><div style="white-space:pre-wrap;">${esc(x.texto)}</div>` +
+      `<div style="font-size:0.66rem;color:var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(x.template)}</div>` +
+      `<span class="time">${t}</span></div>`);
+  }
+  box.scrollTop = box.scrollHeight;
+  if (_tplChatIdx >= pasos.length) { btn.disabled = true; btn.textContent = "✓ Fin del recorrido"; }
+}
+
+function tplChatAll() {
+  if (!_tplChat) return;
+  while (_tplChatIdx < tplChatPasos().length) tplChatNext();
 }
 
 // --- Chat ---
@@ -3196,6 +3319,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.10</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.11</div>
 </body>
 </html>
