@@ -62,7 +62,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "Idem pedido_programado, cuando el cliente retira en depósito.",
     variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día en que está listo (día de semana + dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} va a estar listo para retirar el {{3}}.\nTe avisamos cuando esté preparado.",
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} va a estar listo para retirar el {{3}}.\nTe confirmamos por este medio cuando puedas pasar a buscarlo.",
     ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "miércoles 30/09"],
   },
   {
