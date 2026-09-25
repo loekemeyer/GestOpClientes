@@ -3,9 +3,9 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 
-// Función dedicada a plantillas WhatsApp: listar (Meta) + enviar prueba.
-// Sólo depende de _shared/admin-gate.ts (verificación de admin); no toca
-// lk_whatsapp-webhook ni lk_chat-test.
+// Función dedicada a plantillas WhatsApp: listar (Meta), crear/enviar a
+// revisión y enviar prueba. Sólo depende de _shared/admin-gate.ts
+// (verificación de admin); no toca lk_whatsapp-webhook ni lk_chat-test.
 
 const META_API = "https://graph.facebook.com/v21.0";
 
@@ -104,6 +104,7 @@ serve(async (req) => {
 
     if (body.action === "templates_list") return await handleTemplatesList(body.status);
     if (body.action === "template_send") return await handleTemplateSend(body);
+    if (body.action === "template_create") return await handleTemplateCreate(body);
 
     return json({ error: "action desconocida" }, 400);
   } catch (err) {
@@ -112,13 +113,12 @@ serve(async (req) => {
   }
 });
 
-async function handleTemplatesList(statusFilter?: string) {
-  const token = await metaToken();
-  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
-
-  // WABA id — prioridad: secret explícito → DERIVADO del número vinculado (N8N) →
-  // app_settings (último recurso; ese valor puede haber quedado del WABA viejo).
-  const phoneNumberId = await metaPhoneNumberId();
+// WABA id — prioridad: secret explícito → DERIVADO del número vinculado (N8N) →
+// app_settings (último recurso; ese valor puede haber quedado del WABA viejo).
+async function resolveWabaId(
+  token: string,
+  phoneNumberId: string,
+): Promise<{ wabaId: string; wabaSource: string; error?: string }> {
   let wabaId = metaWabaIdEnv();
   let wabaSource = wabaId ? "secret" : "";
   if (!wabaId) {
@@ -130,8 +130,22 @@ async function handleTemplatesList(statusFilter?: string) {
     if (wabaId) wabaSource = "app_settings";
   }
   if (!wabaId) {
-    return json({ ok: false, error: "No se pudo determinar el WABA. Falta WHATSAPP_PHONE_NUMBER_ID válido o WA_BUSINESS_ACCOUNT_ID." }, 200);
+    return {
+      wabaId: "",
+      wabaSource: "",
+      error: "No se pudo determinar el WABA. Falta WHATSAPP_PHONE_NUMBER_ID válido o WA_BUSINESS_ACCOUNT_ID.",
+    };
   }
+  return { wabaId, wabaSource };
+}
+
+async function handleTemplatesList(statusFilter?: string) {
+  const token = await metaToken();
+  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
+
+  const phoneNumberId = await metaPhoneNumberId();
+  const { wabaId, wabaSource, error } = await resolveWabaId(token, phoneNumberId);
+  if (!wabaId) return json({ ok: false, error }, 200);
 
   const params = new URLSearchParams({ limit: "100" });
   if (statusFilter ?? "APPROVED") params.set("status", statusFilter ?? "APPROVED");
@@ -164,6 +178,68 @@ async function handleTemplatesList(statusFilter?: string) {
   }));
 
   return json({ templates, count: templates.length, waba_id: wabaId, waba_source: wabaSource });
+}
+
+const TEMPLATE_CATEGORIES = ["MARKETING", "UTILITY", "AUTHENTICATION"];
+
+// Crea una plantilla y la manda a Meta para revisión. Queda en status PENDING
+// hasta que Meta la aprueba/rechaza (minutos a horas) — no envía nada a
+// clientes: esto sólo registra contenido, no pasa por wa-guard.
+async function handleTemplateCreate(body: Record<string, unknown>) {
+  const { name, category, language, header, body: bodyText, footer, body_examples } = body as {
+    name?: string; category?: string; language?: string;
+    header?: string; body?: string; footer?: string; body_examples?: unknown[];
+  };
+  if (!name || !category || !bodyText?.trim()) {
+    return json({ ok: false, error: "Faltan campos: name, category y body son requeridos." }, 200);
+  }
+  if (!/^[a-z0-9_]+$/.test(name)) {
+    return json({ ok: false, error: "El nombre debe ser snake_case en minúsculas (a-z, 0-9, _)." }, 200);
+  }
+  if (!TEMPLATE_CATEGORIES.includes(category)) {
+    return json({ ok: false, error: `category debe ser una de: ${TEMPLATE_CATEGORIES.join(", ")}` }, 200);
+  }
+
+  const token = await metaToken();
+  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
+  const phoneNumberId = await metaPhoneNumberId();
+  const { wabaId, error: wabaErr } = await resolveWabaId(token, phoneNumberId);
+  if (!wabaId) return json({ ok: false, error: wabaErr }, 200);
+
+  const lang = language || "es_AR";
+  // deno-lint-ignore no-explicit-any
+  const components: any[] = [];
+
+  if (header?.trim()) components.push({ type: "HEADER", format: "TEXT", text: header.trim() });
+
+  const bodyClean = bodyText.trim();
+  // deno-lint-ignore no-explicit-any
+  const bodyComp: any = { type: "BODY", text: bodyClean };
+  const placeholderCount = new Set(
+    (bodyClean.match(/\{\{\s*\d+\s*\}\}/g) ?? []).map((m) => m.replace(/\D/g, "")),
+  ).size;
+  if (placeholderCount > 0) {
+    const examples = Array.isArray(body_examples) ? body_examples.map((v) => String(v ?? "")) : [];
+    const filled = Array.from({ length: placeholderCount }, (_, i) => examples[i] || `ejemplo${i + 1}`);
+    bodyComp.example = { body_text: [filled] };
+  }
+  components.push(bodyComp);
+
+  if (footer?.trim()) components.push({ type: "FOOTER", text: footer.trim() });
+
+  const res = await fetch(`${META_API}/${wabaId}/message_templates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name, category, language: lang, components }),
+  });
+  const result = await res.json();
+  if (result.error) {
+    const e = result.error;
+    const msg = `Meta (#${e.code ?? "?"}${e.error_subcode ? "/" + e.error_subcode : ""}): ${e.message ?? JSON.stringify(e)}`;
+    return json({ ok: false, error: msg }, 200);
+  }
+
+  return json({ ok: true, id: result.id, status: result.status ?? "PENDING", category: result.category ?? category, name, language: lang });
 }
 
 async function handleTemplateSend(body: Record<string, unknown>) {

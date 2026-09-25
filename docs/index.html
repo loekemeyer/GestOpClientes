@@ -577,6 +577,72 @@
           </div>
         </div>
 
+        <!-- Plantillas WhatsApp -->
+        <div class="config-section" style="max-width:none;">
+          <h3>📋 Plantillas WhatsApp (Meta)</h3>
+          <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
+            Se crean acá y se mandan a Meta para revisión. Quedan en <b>PENDING</b> hasta que Meta
+            las aprueba o rechaza (minutos a horas) — actualizá la lista para ver el estado.
+          </p>
+
+          <div style="border:1px solid var(--border);border-radius:8px;padding:0.8rem 1rem;margin-bottom:1rem;">
+            <div style="font-weight:600;margin-bottom:0.5rem;">+ Nueva plantilla</div>
+            <div class="config-row">
+              <label>Nombre (snake_case):</label>
+              <input type="text" id="tplNewName" placeholder="ej: aviso_pedido_listo" style="min-width:220px;">
+            </div>
+            <div class="config-row">
+              <label>Categoría:</label>
+              <select id="tplNewCategory">
+                <option value="UTILITY">UTILITY (transaccional)</option>
+                <option value="MARKETING">MARKETING</option>
+                <option value="AUTHENTICATION">AUTHENTICATION</option>
+              </select>
+              <label style="margin-left:1rem;">Idioma:</label>
+              <input type="text" id="tplNewLanguage" value="es_AR" style="max-width:100px;">
+            </div>
+            <div class="config-row" style="align-items:flex-start;">
+              <label>Encabezado (opcional):</label>
+              <input type="text" id="tplNewHeader" placeholder="Texto fijo, sin variables" style="flex:1;min-width:220px;">
+            </div>
+            <div class="config-row" style="align-items:flex-start;">
+              <label>Cuerpo:</label>
+              <textarea id="tplNewBody" rows="3" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Hola {{1}}, tu pedido está listo para retirar."></textarea>
+            </div>
+            <div class="config-row" style="align-items:flex-start;">
+              <label>Ejemplos variables:</label>
+              <input type="text" id="tplNewExamples" placeholder="En orden de {{1}}, {{2}}... separados por coma. Ej: Juan, 12345" style="flex:1;min-width:220px;">
+            </div>
+            <div class="config-row" style="align-items:flex-start;">
+              <label>Pie (opcional):</label>
+              <input type="text" id="tplNewFooter" placeholder="Texto fijo al pie" style="flex:1;min-width:220px;">
+            </div>
+            <div style="margin-top:0.6rem;display:flex;align-items:center;">
+              <button class="config-btn primary" onclick="createTemplate()">📤 Enviar a Meta</button>
+              <span class="config-status" id="tplCreateStatus"></span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem;">
+            <button class="config-btn small" onclick="loadTemplates()">🔄 Actualizar lista / estado</button>
+            <span class="config-status" id="tplLoadStatus"></span>
+          </div>
+          <div id="tplList"><div class="bl-empty">Cargando...</div></div>
+
+          <div id="tplComposeSection" style="display:none;border:1px solid var(--border);border-radius:8px;padding:0.8rem 1rem;margin-top:0.8rem;">
+            <div style="font-weight:600;">Probar: <span id="tplComposeName"></span></div>
+            <div id="tplParams" style="margin-top:0.4rem;"></div>
+            <div style="background:var(--bg);border-radius:6px;padding:0.6rem 0.8rem;margin:0.6rem 0;font-size:0.85rem;" id="tplPreview"></div>
+            <div class="config-row">
+              <label>Enviar prueba a:</label>
+              <input type="text" id="tplPhone" placeholder="5491112345678">
+              <button class="config-btn primary" onclick="sendTemplateTest()">📨 Enviar</button>
+              <button class="config-btn small" onclick="closeTemplateCompose()">Cerrar</button>
+            </div>
+            <span class="config-status" id="tplSendStatus"></span>
+          </div>
+        </div>
+
         <!-- Descuentos por pago -->
         <div class="config-section" style="max-width:none;">
           <h3>💰 Descuentos por pago</h3>
@@ -1233,6 +1299,7 @@ async function loadConfigPage() {
   loadBlacklist();
   loadKillswitchAndWhitelist();
   loadDescuentos();
+  loadTemplates();
 }
 
 function updateRLEnabledStyle(enabled) {
@@ -2487,7 +2554,9 @@ async function loadTemplates() {
   const status = document.getElementById("tplLoadStatus");
   status.textContent = "Cargando...";
   try {
-    const { data, error } = await authedInvoke("lk_templates", { action: "templates_list", status: "APPROVED" });
+    // status:"" trae TODOS los estados (pending/approved/rejected), no sólo aprobadas —
+    // el punto de esta lista es justo ver en qué quedó cada una.
+    const { data, error } = await authedInvoke("lk_templates", { action: "templates_list", status: "" });
     if (error || data?.error) {
       status.textContent = "⚠️ " + (data?.error || error.message || "Error");
       return;
@@ -2501,27 +2570,69 @@ async function loadTemplates() {
   }
 }
 
+const TPL_STATUS_COLOR = {
+  APPROVED: "var(--success)", PENDING: "var(--warn, #e0a800)",
+  REJECTED: "var(--danger)", PAUSED: "var(--muted)", DISABLED: "var(--muted)",
+};
+
 function renderTemplateList() {
   const box = document.getElementById("tplList");
   if (!tplCache.length) {
-    box.innerHTML = '<div class="bl-empty">No hay plantillas aprobadas.</div>';
+    box.innerHTML = '<div class="bl-empty">No hay plantillas todavía.</div>';
     return;
   }
   box.innerHTML = tplCache.map((t, i) => {
     const n = tplParamCount(t);
+    const st = (t.status || "?").toUpperCase();
+    const color = TPL_STATUS_COLOR[st] || "var(--muted)";
     return `<div style="border:1px solid var(--border);border-radius:8px;padding:0.7rem 0.9rem;margin-bottom:0.6rem;cursor:pointer;" onclick="openTemplateCompose(${i})">
-      <div style="font-weight:600;">${esc(t.name)} <span style="font-size:0.7rem;color:var(--muted);font-weight:400;">${esc(t.language || "")} · ${esc(t.category || "")}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+        <div style="font-weight:600;">${esc(t.name)} <span style="font-size:0.7rem;color:var(--muted);font-weight:400;">${esc(t.language || "")} · ${esc(t.category || "")}</span></div>
+        <span style="font-size:0.7rem;font-weight:700;color:${color};white-space:nowrap;">${esc(st)}</span>
+      </div>
       <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(tplBody(t))}</div>
       <div style="font-size:0.72rem;color:var(--primary);margin-top:0.25rem;">${n} parámetro(s)</div>
     </div>`;
   }).join("");
 }
 
+async function createTemplate() {
+  const status = document.getElementById("tplCreateStatus");
+  const name = document.getElementById("tplNewName").value.trim();
+  const category = document.getElementById("tplNewCategory").value;
+  const language = document.getElementById("tplNewLanguage").value.trim() || "es_AR";
+  const header = document.getElementById("tplNewHeader").value.trim();
+  const body = document.getElementById("tplNewBody").value.trim();
+  const footer = document.getElementById("tplNewFooter").value.trim();
+  const examplesRaw = document.getElementById("tplNewExamples").value.trim();
+  const body_examples = examplesRaw ? examplesRaw.split(",").map((s) => s.trim()) : [];
+  if (!name || !body) { status.textContent = "⚠️ Falta nombre o cuerpo"; return; }
+  status.textContent = "Enviando a Meta...";
+  try {
+    const { data, error } = await authedInvoke("lk_templates", {
+      action: "template_create", name, category, language, header, body, footer, body_examples,
+    });
+    if (error || data?.ok === false || data?.error) {
+      status.textContent = "⚠️ " + (data?.error || error?.message || "Error");
+      return;
+    }
+    status.textContent = "✅ Enviada — queda \"" + (data.status || "PENDING") + "\" hasta que Meta la revise.";
+    ["tplNewName", "tplNewHeader", "tplNewBody", "tplNewFooter", "tplNewExamples"].forEach((id) => {
+      document.getElementById(id).value = "";
+    });
+    loadTemplates();
+  } catch (e) {
+    status.textContent = "⚠️ " + e.message;
+  }
+}
+
 function openTemplateCompose(i) {
   tplCurrent = tplCache[i];
   document.getElementById("tplComposeName").textContent = tplCurrent.name;
   document.getElementById("tplComposeSection").style.display = "";
-  document.getElementById("tplSendStatus").textContent = "";
+  const st = (tplCurrent.status || "").toUpperCase();
+  document.getElementById("tplSendStatus").textContent =
+    st && st !== "APPROVED" ? `⚠️ Estado actual: ${st} — Meta puede rechazar el envío hasta que esté APPROVED.` : "";
   const n = tplParamCount(tplCurrent);
   const params = document.getElementById("tplParams");
   let html = "";
