@@ -2,6 +2,7 @@ import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
+import { PLANTILLAS, componentesMeta, validar } from "./plantillas-meta.ts";
 
 // Función dedicada a plantillas WhatsApp: listar (Meta) + enviar prueba.
 // Sólo depende de _shared/admin-gate.ts (verificación de admin); no toca
@@ -104,6 +105,7 @@ serve(async (req) => {
 
     if (body.action === "templates_list") return await handleTemplatesList(body.status);
     if (body.action === "template_send") return await handleTemplateSend(body);
+    if (body.action === "templates_sync") return await handleTemplatesSync(body, gate.email);
 
     return json({ error: "action desconocida" }, 400);
   } catch (err) {
@@ -112,12 +114,9 @@ serve(async (req) => {
   }
 });
 
-async function handleTemplatesList(statusFilter?: string) {
-  const token = await metaToken();
-  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
-
-  // WABA id — prioridad: secret explícito → DERIVADO del número vinculado (N8N) →
-  // app_settings (último recurso; ese valor puede haber quedado del WABA viejo).
+// WABA id — prioridad: secret explícito → DERIVADO del número vinculado (N8N) →
+// app_settings (último recurso; ese valor puede haber quedado del WABA viejo).
+async function resolveWaba(token: string) {
   const phoneNumberId = await metaPhoneNumberId();
   let wabaId = metaWabaIdEnv();
   let wabaSource = wabaId ? "secret" : "";
@@ -129,6 +128,14 @@ async function handleTemplatesList(statusFilter?: string) {
     wabaId = (await getSetting("wa_business_account_id")) ?? "";
     if (wabaId) wabaSource = "app_settings";
   }
+  return { phoneNumberId, wabaId, wabaSource };
+}
+
+async function handleTemplatesList(statusFilter?: string) {
+  const token = await metaToken();
+  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
+
+  const { phoneNumberId, wabaId, wabaSource } = await resolveWaba(token);
   if (!wabaId) {
     return json({ ok: false, error: "No se pudo determinar el WABA. Falta WHATSAPP_PHONE_NUMBER_ID válido o WA_BUSINESS_ACCOUNT_ID." }, 200);
   }
@@ -207,4 +214,72 @@ async function handleTemplateSend(body: Record<string, unknown>) {
   ]).then(() => {}).catch((e: unknown) => console.error("conv log err:", e));
 
   return json({ ok: true, to, template_name, language: lang, result });
+}
+
+// ── templates_sync: sube a Meta las plantillas de plantillas-meta.ts ──
+// Por defecto es un SIMULACRO: compara el archivo con lo que hay en Meta y
+// devuelve el plan (crear / editar / igual) sin tocar nada. Sólo con
+// `aplicar: true` crea o edita. `solo: ["nombre", …]` limita a esas plantillas.
+// Crear/editar plantillas no manda mensajes (no pasa por wa-guard).
+// deno-lint-ignore no-explicit-any
+function bodyDe(t: any): string {
+  // deno-lint-ignore no-explicit-any
+  return (t?.components ?? []).find((c: any) => c.type === "BODY")?.text ?? "";
+}
+
+async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: string) {
+  const aplicar = body.aplicar === true;
+  const solo = Array.isArray(body.solo) ? (body.solo as unknown[]).map(String) : null;
+
+  const token = await metaToken();
+  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
+  const { wabaId, wabaSource } = await resolveWaba(token);
+  if (!wabaId) return json({ ok: false, error: "No se pudo determinar el WABA." }, 200);
+
+  const res = await fetch(
+    `${META_API}/${wabaId}/message_templates?limit=250&fields=id,name,status,language,category,components`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  const data = await res.json();
+  if (data.error) {
+    return json({ ok: false, error: `Meta (#${data.error.code ?? "?"}): ${data.error.message ?? ""}`, waba_id: wabaId }, 200);
+  }
+  // deno-lint-ignore no-explicit-any
+  const enMeta = new Map<string, any>((data.data ?? []).map((t: any) => [`${t.name}|${t.language}`, t]));
+
+  const plan = [];
+  for (const p of PLANTILLAS) {
+    if (solo && !solo.includes(p.name)) continue;
+    const errores = validar(p);
+    const actual = enMeta.get(`${p.name}|${p.language}`);
+    const accion = errores.length ? "invalida" : !actual ? "crear" : bodyDe(actual) === p.body ? "igual" : "editar";
+    // deno-lint-ignore no-explicit-any
+    const fila: Record<string, any> = {
+      name: p.name, accion, estado_meta: actual?.status ?? "NO_EXISTE",
+      ...(errores.length ? { errores } : {}),
+      ...(accion === "editar" ? { texto_meta: bodyDe(actual), texto_nuevo: p.body } : {}),
+      ...(accion === "editar" && actual?.status === "APPROVED"
+        ? { aviso: "aprobada: vuelve a revisión y consume 1 de las ediciones (1/24 h, 10/30 días)" } : {}),
+    };
+
+    if (aplicar && (accion === "crear" || accion === "editar")) {
+      const url = accion === "crear" ? `${META_API}/${wabaId}/message_templates` : `${META_API}/${actual.id}`;
+      const payload = accion === "crear"
+        ? { name: p.name, language: p.language, category: p.category, components: componentesMeta(p) }
+        : { components: componentesMeta(p) };
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const out = await r.json();
+      fila.resultado = out.error
+        ? { ok: false, error: `Meta (#${out.error.code ?? "?"}${out.error.error_subcode ? "/" + out.error.error_subcode : ""}): ${out.error.error_user_msg ?? out.error.message ?? ""}` }
+        : { ok: true, id: out.id ?? actual?.id ?? null, status: out.status ?? "PENDING", category: out.category ?? null };
+      console.log(`templates_sync ${accion} ${p.name} por ${adminEmail}:`, JSON.stringify(fila.resultado));
+    }
+    plan.push(fila);
+  }
+
+  return json({ ok: true, aplicado: aplicar, waba_id: wabaId, waba_source: wabaSource, plan });
 }

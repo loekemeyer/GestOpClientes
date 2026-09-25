@@ -2,7 +2,7 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-09-24.
+> Última actualización: 2026-09-25.
 
 ## 🔑 Accesos, permisos y dónde está cada cosa (LEER PRIMERO)
 
@@ -27,6 +27,9 @@
 **Cómo se deploya una edge function:** push a `main` → CI (`.github/workflows/deploy-edge-functions.yml`) la sube. Funciones chicas también se pueden subir a mano con MCP `deploy_edge_function`. El webhook (`lk_whatsapp-webhook`, ~1500 líneas + `_shared`) es demasiado grande para transcribir a mano con fidelidad → **debe ir por CI.**
 
 El dashboard de la página lee del **pipeline de facturas que vive en ISIS**. Si algo de facturación no cuadra, la data está en ISIS, no en PaginaLK.
+
+- **⚠ Token de WhatsApp CAÍDO (2026-09-25):** `lk_tpl-check` devuelve **190 "session has been invalidated"**. El secret `WHATSAPP_ACCESS_TOKEN` era del **22/04/2026** y andaba al menos hasta el 11/09 (Meta contestaba 132001 a `pedido_recordatorio_25`, o sea auth OK). Meta pidió verificación de cuenta en el usuario del sistema `Gestopclientes-Bot`; se está generando uno nuevo (permanente, `whatsapp_business_messaging` + `whatsapp_business_management`). Hasta cargarlo, **nada sale a Meta**. Después: revocar los tokens viejos de ese usuario del sistema.
+- **Plantillas de seguimiento de pedido (2026-09-25):** definidas en `supabase/functions/lk_templates/plantillas-meta.ts` (8: `pedido_programado[_expreso|_retira]`, `pedido_reprogramado`, `pedido_preparando`, `pedido_en_viaje[_expreso]`, `pedido_listo_retirar`). Se suben con `lk_templates` action **`templates_sync`** (admin): sin `aplicar:true` es simulacro y devuelve el plan crear/editar/igual. Todavía **no** están cableadas a ningún disparador; el trigger `order_tracking_wa_notify` sigue encolando texto libre (sin plantilla), que fuera de las 24 h Meta rechaza.
 
 ## Dashboard "Pipeline de facturas" — de dónde sale cada número
 
