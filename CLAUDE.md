@@ -67,7 +67,7 @@ Empleados activos con Planify (`planify.employees`): Marianela Becker **38**, Lu
 **52**, Gastón Dalponte **61**, Tomás Beviglia **20**, Gonzalez Tomas 16, Elías Irace 1,
 Nazareno Rodríguez 27, Angely Asuaje 22, Viviana Gauna 4, Alan Gonzalez 5, Diego Mollo 44,
 Nora Heredia 33, Juan Cruz Karaygan 51, Pablo Martos 6, Martín Cornejo 34, Martín Pregelj 15,
-Romina Maturano 55, Iván Meta 58, Jhonny Cartaya 46. Si el nombre no está, buscar:
+Romina Maturano 55, Iván Meta 58, Jhonny Cartaya 46, Pablo Olejavetzky 64. Si el nombre no está, buscar:
 `select id, nombre from planify.employees where activo and nombre ilike '%<apellido>%'`.
 
 ```sql
