@@ -87,3 +87,18 @@ en el paso que despacha. Todo productor de mensajes automáticos encola en `wa_o
 salidas que hoy le hablan directo a Meta se migran a la cola (deuda, inventario abajo).
 El detalle operativo está al principio de `CLAUDE.md`.
 
+
+**Inventario de salidas a Meta (25/09, lectura sin tocar nada).** Pasan por la llave:
+`wa_outbox → lk_outbox-flush` (y todo lo que encola: triggers de `orders`, `order_tracking`,
+`ppp_facturacion`, crons 22 y 23) y `notify-tracking-status`. **NO pasan por la llave (deuda):**
+
+| salida | cómo se dispara | freno hoy |
+|---|---|---|
+| `asoc-timeout-cron` | cron 3, cada hora, **activo** | ninguno: le escribe a quien pidió registrarse y esperó > 24 h (hoy 0 en espera) |
+| `notify-order-created` | HTTP con secreto; nadie la llama hoy | ninguno |
+| `inbox-api` / `inbox-register` | manual, con contraseña (sin uso desde 07/07) | ninguno |
+| `lk_templates` (`template_send`) | manual, admin del panel | sólo admin |
+| `lk_conversaciones` | manual, panel | whitelist + ventana 24 h |
+| `lk_whatsapp-webhook` (respuestas) | le escribe alguien | `wa_bot_solo_whitelist` |
+| `lk_factura-check` | cron 69 de Virgilio + triggers ISIS | whitelist / sin `dest_phone` no manda |
+| `notify-new-address` | carrito de la página | sólo al número interno de Ventas |
