@@ -16,6 +16,10 @@
 //   - {{n}} numeradas desde 1, sin saltos, y el cuerpo no puede empezar ni
 //     terminar con una variable.
 //
+// Criterio de texto (Pablo, 25/09): saludo "Hola {{1}}, te escribimos de Loekemeyer." y sin
+// pie (el nombre del negocio ya lo muestra WhatsApp). Fechas sin año: la del pedido "dd/mm" y
+// la de salida con día de la semana ("miércoles 30/09").
+//
 // Crear o editar plantillas NO manda mensajes a nadie (no pasa por wa-guard ni
 // por la llave `wa_envio_automatico`).
 
@@ -41,33 +45,33 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_programado",
     language: ES, category: UT,
     disparo: "La NP entra a una tanda con fecha de salida en la Programación. Camión propio.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (dd/mm/aa)"],
-    body: "Hola {{1}}, tu pedido del {{2}} ya tiene fecha: lo entregamos el {{3}}.\nTe avisamos cuando salga en el camión.",
-    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "30/09/26"],
+    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} ya tiene fecha: lo entregamos el {{3}}.\nTe avisamos cuando salga en el camión.",
+    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "miércoles 30/09"],
   },
   {
     name: "pedido_programado_expreso",
     language: ES, category: UT,
     disparo: "Idem pedido_programado, cuando el pedido sale por expreso.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (dd/mm/aa)", "expreso"],
-    body: "Hola {{1}}, tu pedido del {{2}} ya tiene fecha: lo despachamos el {{3}} por {{4}}.\nTe avisamos cuando lo entreguemos al expreso.",
-    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "30/09/26", "Expreso Arias"],
+    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)", "expreso"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} ya tiene fecha: lo despachamos el {{3}} por {{4}}.\nTe avisamos cuando lo entreguemos al expreso.",
+    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "miércoles 30/09", "Expreso Arias"],
   },
   {
     name: "pedido_programado_retira",
     language: ES, category: UT,
     disparo: "Idem pedido_programado, cuando el cliente retira en depósito.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día en que está listo (dd/mm/aa)"],
-    body: "Hola {{1}}, tu pedido del {{2}} va a estar listo para retirar el {{3}}.\nTe avisamos cuando esté preparado.",
-    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "30/09/26"],
+    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día en que está listo (día de semana + dd/mm)"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} va a estar listo para retirar el {{3}}.\nTe avisamos cuando esté preparado.",
+    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "miércoles 30/09"],
   },
   {
     name: "pedido_reprogramado",
     language: ES, category: UT,
     disparo: "Cambia la fecha de salida de una NP ya avisada como programada.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "nueva fecha de salida (dd/mm/aa)"],
-    body: "Hola {{1}}, cambió la fecha de tu pedido del {{2}}: ahora sale el {{3}}.\nDisculpá las molestias.",
-    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "02/10/26"],
+    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "nueva fecha de salida (día de semana + dd/mm)"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nCambió la fecha de tu pedido del {{2}}: ahora sale el {{3}}.\nDisculpá las molestias.",
+    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "viernes 02/10"],
   },
 
   // ── 2 · Estamos preparando tu pedido ────────────────────────────────────
@@ -75,9 +79,9 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_preparando",
     language: ES, category: UT,
     disparo: "Primer EP (inicio de picking) de la tanda de la NP. Todos los modos. Si cae el mismo día que la programación, va sólo éste.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (dd/mm/aa)"],
-    body: "Hola {{1}}, estamos preparando tu pedido del {{2}} en el depósito.\nSale el {{3}}.",
-    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "30/09/26"],
+    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nEstamos preparando tu pedido del {{2}} en el depósito.\nSale el {{3}}.",
+    ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "miércoles 30/09"],
   },
 
   // ── 4 · Tu pedido está en viaje ─────────────────────────────────────────
@@ -86,7 +90,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "Carga Camión de la NP. Camión propio.",
     variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "dirección de entrega"],
-    body: "Hola {{1}}, tu pedido del {{2}} ya salió en el camión hacia {{3}}.\nLo recibís en el día.",
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} ya salió en el camión hacia {{3}}.\nLo recibís en el día.",
     ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "Av. Corrientes 3864"],
   },
   {
@@ -94,7 +98,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "Carga Camión de la NP, cuando sale por expreso (se entrega al expreso).",
     variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "expreso"],
-    body: "Hola {{1}}, tu pedido del {{2}} ya salió hacia {{3}}.\nDesde ahí el expreso te lo lleva con sus tiempos de entrega.",
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} ya salió hacia {{3}}.\nDesde ahí el expreso te lo lleva con sus tiempos de entrega.",
     ejemplos: ["Bazar Rosemblit S.R.L", "22/09", "Expreso Arias"],
   },
   {
@@ -102,7 +106,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "Retira en depósito: sale al facturar (la Carga Camión de un Retira es el cliente llevándoselo).",
     variables: ["razón social", "fecha en que hizo el pedido (dd/mm)"],
-    body: "Hola {{1}}, tu pedido del {{2}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 10 a 12 y de 13 a 16 h.",
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 10 a 12 y de 13 a 16 h.",
     ejemplos: ["Bazar Rosemblit S.R.L", "22/09"],
   },
 ];

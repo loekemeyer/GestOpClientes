@@ -295,7 +295,10 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
 // secuencia de avisos que recibiría ese cliente (texto real de plantillas-meta.ts con
 // sus datos). Sólo lee: no encola ni manda nada.
 const fechaCorta = (d?: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "");
-const fechaLarga = (d?: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : "");
+const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+// "miércoles 30/09": fecha de salida con día de la semana, sin año.
+const fechaLarga = (d?: string | null) =>
+  d ? `${DIAS[new Date(d.slice(0, 10) + "T12:00:00Z").getUTCDay()]} ${fechaCorta(d)}` : "";
 function masDias(d: string | null, n: number): string | null {
   if (!d) return null;
   const x = new Date(d + "T12:00:00Z");
