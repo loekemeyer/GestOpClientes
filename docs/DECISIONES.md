@@ -43,3 +43,26 @@
 **Razón**: Aislamiento total entre bot de clientes y bot interno (Planify). Sin necesidad de router/proxy. Cada bot tiene su webhook independiente.
 
 **Consecuencia**: Configurar webhook de Meta apuntando a `lk_whatsapp-webhook`. Secrets necesarios: `WA_TOKEN`, `WA_VERIFY_TOKEN`, `WA_PHONE_NUMBER_ID`.
+
+---
+
+## D006 — Envíos automáticos: sólo a números de prueba, y con llave general (2026-09-25)
+
+**Registro (Luis, 25/09):** los mensajes automáticos que salieron entre el 27/08 y el 04/09
+(26 de `notify-tracking-status` y 13 de `wa_outbox`) fueron **a números de testeo**. No se contactó
+a ningún cliente. No es un incidente.
+
+**Decisión (Luis):** todavía no se contacta clientes. El bot **no debe tener acceso a ningún
+teléfono más que los cargados de prueba**, y sin número cargado no puede mandar. Además tiene que
+haber una **llave general de "no mandar nada"** como segunda barrera.
+
+**Medido el 25/09:** los que despachan solos (`lk_outbox-flush`, `notify-tracking-status`) no miran
+la whitelist; la barrera real hoy es que `bot_customer_whatsapps` está vacía. Pero
+`wa_clientes_telefono` tiene **963 teléfonos reales**, que leen `bot_encolar_recordatorios_25`
+(frenado sólo por `v_test_phone` hardcodeado) y `bot_reactivar_inactivos` (frenado por
+`bot_reactivacion_config.enabled = false`). `customers.whatsapp` tiene 8.
+
+**Consecuencia:** llave `app_settings.wa_envio_automatico` (`0` nada · `prueba` sólo
+`wa_envio_contactos` · `1` producción), fail-closed, en el paso que despacha. `sql/068`.
+**No se cargan teléfonos de clientes** en tablas del bot hasta que Luis lo decida.
+
