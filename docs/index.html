@@ -577,6 +577,22 @@
           </div>
         </div>
 
+        <!-- Plantillas de seguimiento → Meta (lk_templates · templates_sync) -->
+        <div class="config-section" style="max-width:none;">
+          <h3>📨 Plantillas de seguimiento → Meta</h3>
+          <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
+            Compara las plantillas definidas en el repo (<code>lk_templates/plantillas-meta.ts</code>) con las de Meta.
+            <b>Ver plan</b> no toca nada. <b>Subir</b> crea las que faltan y edita las que cambiaron; Meta las revisa
+            (minutos a 24 h). Una aprobada se edita máx. 1 vez/24 h y 10/30 días. No manda mensajes a nadie.
+          </p>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+            <button class="config-btn" onclick="tplSync(false)">🔍 Ver plan</button>
+            <button class="config-btn primary" onclick="tplSync(true)">⬆️ Subir a Meta</button>
+            <span id="tplSyncStatus" class="hint"></span>
+          </div>
+          <div id="tplSyncOut" style="margin-top:0.8rem;overflow-x:auto;"></div>
+        </div>
+
         <!-- Descuentos por pago -->
         <div class="config-section" style="max-width:none;">
           <h3>💰 Descuentos por pago</h3>
@@ -2459,6 +2475,33 @@ async function refreshCosts() {
   } catch (e) { /* silent */ }
 }
 
+// --- Plantillas de seguimiento → Meta (templates_sync) ---
+const TPL_SYNC_ACCION = { crear: "➕ crear", editar: "✏️ editar", igual: "✓ igual", invalida: "⚠️ inválida" };
+async function tplSync(aplicar) {
+  const st = document.getElementById("tplSyncStatus");
+  const out = document.getElementById("tplSyncOut");
+  if (aplicar && !confirm("¿Subir a Meta las plantillas que faltan o cambiaron? Las ediciones de plantillas aprobadas vuelven a revisión.")) return;
+  st.textContent = aplicar ? "Subiendo…" : "Comparando…";
+  out.innerHTML = "";
+  try {
+    const { data, error } = await authedInvoke("lk_templates", { action: "templates_sync", aplicar });
+    if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
+    const plan = data.plan || [];
+    const pend = plan.filter((f) => f.accion === "crear" || f.accion === "editar").length;
+    st.textContent = aplicar ? `Listo · ${plan.length} plantilla(s)` : `${pend} para subir de ${plan.length}`;
+    out.innerHTML = `<table style="border-collapse:collapse;font-size:0.8rem;">
+      <tr style="text-align:left;color:var(--muted);"><th style="padding:2px 10px 2px 0;">Plantilla</th><th style="padding:2px 10px 2px 0;">Acción</th><th style="padding:2px 10px 2px 0;">En Meta</th><th style="padding:2px 0;">Resultado</th></tr>
+      ${plan.map((f) => {
+        const r = f.resultado ? (f.resultado.ok ? `✅ ${esc(f.resultado.status || "")}` : `❌ ${esc(f.resultado.error || "")}`)
+          : esc(f.aviso || (f.errores || []).join("; "));
+        return `<tr><td style="padding:2px 10px 2px 0;"><code>${esc(f.name)}</code></td><td style="padding:2px 10px 2px 0;">${TPL_SYNC_ACCION[f.accion] || esc(f.accion)}</td><td style="padding:2px 10px 2px 0;">${esc(f.estado_meta)}</td><td style="padding:2px 0;">${r}</td></tr>`;
+      }).join("")}
+    </table>`;
+  } catch (e) {
+    st.textContent = "⚠️ " + e.message;
+  }
+}
+
 // --- Plantillas WhatsApp ---
 let tplCache = [];
 let tplCurrent = null;
@@ -3079,6 +3122,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.8</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.9</div>
 </body>
 </html>
