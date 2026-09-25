@@ -110,8 +110,6 @@ Gestión, backup `zz_backups.bkp_order_tracking_20260925`), `sql/070` (decisión
 (asoc-timeout-cron, notify-order-created, inbox-api, inbox-register, lk_outbox-flush,
 notify-tracking-status, lk_templates, lk_conversaciones, lk_whatsapp-webhook, lk_chat-test).
 Las 5 que vivían sólo en el proyecto quedaron versionadas acá.
-⚠ **Pendiente: `lk_factura-check`.** Lo deployado (v33, manual) NO es lo del repo (el repo tiene
-723 líneas y cosas que la v33 no): redeployar desde el repo cambiaría su comportamiento. Hoy
-sólo manda a números de la whitelist; el import del guardián se agrega cuando alguien
-reconcilie repo ↔ deployado.
+`lk_factura-check` también (25/09): lo deployado v33 era el HEAD del repo (deploy 04/09 13:17, commit
+62db211 13:13); la sospecha de que diferían fue un error de conteo.
 
