@@ -2,7 +2,7 @@
 -- Pedido de Luis, 2026-09-25: "debería tener un switch de no mandar nada como otra barrera de
 -- protección" · "no debería tener acceso a ningún teléfono más que los que se cargaron de prueba".
 --
--- ESTADO: ESCRITO, NO APLICADO. Se aplica con el "sí" de Luis.
+-- ESTADO: APLICADO el 2026-09-25 con el "sí" de Luis.
 --
 -- Medido el 25/09 antes de escribir esto:
 --   * Los que despachan solos son DOS: lk_outbox-flush (lee wa_outbox vía bot_flush_outbox) y
@@ -73,5 +73,16 @@ $function$;
 -- Chequeo:
 --   select value from public.app_settings where key = 'wa_envio_automatico';   -- '0'
 --   select count(*) from public.bot_flush_outbox(20);                          -- 0 con la llave en '0'
--- Rollback: volver a la definición de bot_flush_outbox sin el bloque de la llave (está en 002/005)
---   y  delete from public.app_settings where key = 'wa_envio_automatico';
+-- Rollback (definición VIVA antes de 068, tomada con pg_get_functiondef el 25/09):
+--   CREATE OR REPLACE FUNCTION public.bot_flush_outbox(p_limit integer DEFAULT 20)
+--    RETURNS TABLE(id bigint, phone text, body text, template_name text, template_params jsonb)
+--    LANGUAGE plpgsql SECURITY DEFINER
+--   AS $function$
+--   BEGIN
+--     RETURN QUERY
+--     WITH batch AS (SELECT o.id FROM wa_outbox o WHERE o.status = 'pending'
+--         AND o.attempts < o.max_attempts ORDER BY o.created_at LIMIT p_limit FOR UPDATE SKIP LOCKED)
+--     UPDATE wa_outbox o SET status = 'sending', attempts = attempts + 1 FROM batch b
+--     WHERE o.id = b.id RETURNING o.id, o.phone, o.body, o.template_name, o.template_params;
+--   END; $function$;
+--   delete from public.app_settings where key = 'wa_envio_automatico';
