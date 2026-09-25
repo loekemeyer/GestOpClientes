@@ -169,7 +169,8 @@
     .subtab.active { color: var(--primary); border-bottom-color: var(--primary); }
     .subpanel { display: none; }
     .subpanel.active { display: block; }
-    #pageConfig .config-section { max-width: 860px; }
+    #pageConfig .config-section { max-width: 860px; min-width: 0; }
+    #pageConfig, #pageConfig .config-page { min-width: 0; }
     #pageConfig .config-row, #pageConfig .bl-add-row { flex-wrap: wrap; }
     #pageConfig .config-row label.switch { min-width: 0; }
     #pageConfig .config-section > p.hint { font-size: 0.8rem; color: var(--muted); }
@@ -571,6 +572,7 @@
           <div class="subtab" id="cfgTabLimite" onclick="showConfigTab('limite')">🛡️ Rate limit</div>
           <div class="subtab" id="cfgTabPagos" onclick="showConfigTab('pagos')">💰 Descuentos</div>
           <div class="subtab" id="cfgTabPlantillas" onclick="showConfigTab('plantillas')">📨 Plantillas</div>
+          <div class="subtab" id="cfgTabVinculos" onclick="showConfigTab('vinculos')">🔐 Vinculaciones <span id="vincBadge" class="cat-pill pendiente" style="display:none;"></span></div>
         </div>
 
         <div class="subpanel active" id="cfgPanelAcceso">
@@ -766,6 +768,23 @@
               <button class="config-btn small" onclick="loadDescuentos()">↺ Restaurar guardado</button>
               <span class="config-status" id="dtoSaveStatus"></span>
             </div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="cfgPanelVinculos">
+          <div class="config-section">
+            <h3>🔐 Teléfonos nuevos pendientes de aprobación</h3>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
+              Cuando un número que no está en el padrón del ERP escribe el CUIT de un cliente, <b>no se vincula solo</b>:
+              queda acá hasta que alguien confirme que el número es de esa empresa (por ejemplo, llamando a un teléfono del ERP).
+              Al aprobar o rechazar, al número se le encola un aviso (sale detrás de la llave de envíos). Si el cliente ya
+              tenía un número principal, a ése también se le avisa.
+            </p>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
+              <button class="config-btn small" onclick="loadVinculos()">↻ Actualizar</button>
+              <span id="vincStatus" class="hint"></span>
+            </div>
+            <div id="vincList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
           </div>
         </div>
 
@@ -2645,12 +2664,70 @@ async function refreshCosts() {
 // Panel de Control: pestañas. Los datos los sigue cargando loadConfigPage() al abrir la página;
 // la de Plantillas trae además las definiciones del repo (no depende de Meta).
 function showConfigTab(tab) {
-  const map = { acceso: "Acceso", limite: "Limite", pagos: "Pagos", plantillas: "Plantillas" };
+  const map = { acceso: "Acceso", limite: "Limite", pagos: "Pagos", plantillas: "Plantillas", vinculos: "Vinculos" };
   for (const [k, cap] of Object.entries(map)) {
     document.getElementById("cfgTab" + cap).classList.toggle("active", k === tab);
     document.getElementById("cfgPanel" + cap).classList.toggle("active", k === tab);
   }
   if (tab === "plantillas") loadTplDefs();
+  if (tab === "vinculos") loadVinculos();
+}
+
+// --- Vinculaciones: aprobación humana de teléfonos nuevos (lk_vinculaciones, sql/072) ---
+const telCorto = (t) => (t ? "…" + String(t).slice(-4) : "—");
+async function loadVinculos() {
+  const box = document.getElementById("vincList");
+  const st = document.getElementById("vincStatus");
+  const badge = document.getElementById("vincBadge");
+  st.textContent = "Cargando…";
+  try {
+    const { data, error } = await authedInvoke("lk_vinculaciones", { action: "list" });
+    if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
+    const rows = data.pendientes || [];
+    st.textContent = rows.length ? `${rows.length} pendiente(s)` : "";
+    badge.style.display = rows.length ? "" : "none";
+    badge.textContent = rows.length;
+    if (!rows.length) { box.innerHTML = '<div class="bl-empty">No hay solicitudes pendientes.</div>'; return; }
+    box.innerHTML = `<table style="border-collapse:collapse;font-size:0.8rem;">
+      <tr style="text-align:left;color:var(--muted);">
+        <th style="padding:3px 10px 3px 0;">Pedido el</th><th style="padding:3px 10px 3px 0;">Número que escribió</th>
+        <th style="padding:3px 10px 3px 0;">Dice ser</th><th style="padding:3px 10px 3px 0;">Tel. del ERP</th>
+        <th style="padding:3px 10px 3px 0;">Principal actual</th><th style="padding:3px 10px 3px 0;">CUITs 24 h</th><th></th></tr>
+      ${rows.map((r) => `<tr style="border-top:1px solid var(--border);">
+        <td style="padding:4px 10px 4px 0;white-space:nowrap;">${esc(new Date(r.creado_en).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td>
+        <td style="padding:4px 10px 4px 0;white-space:nowrap;"><code>${esc(r.telefono)}</code>${r.tipo === "pedidos_access" ? '<br><span class="hint">acceso a pedidos</span>' : ""}</td>
+        <td style="padding:4px 10px 4px 0;">${esc(r.business_name || "")}<br><span class="hint">cód. ${esc(String(r.cod_cliente ?? ""))} · CUIT ${esc(r.cuit_normalizado || "")}</span></td>
+        <td style="padding:4px 10px 4px 0;">${(r.telefonos_erp || []).map((t) => `<code>${esc(t)}</code>`).join("<br>") || '<span class="hint">sin teléfonos</span>'}</td>
+        <td style="padding:4px 10px 4px 0;">${r.principal_actual ? `<code>${esc(telCorto(r.principal_actual))}</code>` : '<span class="hint">ninguno</span>'}</td>
+        <td style="padding:4px 10px 4px 0;${(r.intentos_24h || 0) > 1 ? "color:var(--danger);font-weight:600;" : ""}">${r.intentos_24h ?? 0}</td>
+        <td style="padding:4px 0;white-space:nowrap;">
+          <button class="config-btn small primary" onclick="decideVinculo(${r.id}, 'approve')">✓ Aprobar</button>
+          <button class="config-btn small" onclick="decideVinculo(${r.id}, 'reject')">✕ Rechazar</button>
+        </td></tr>`).join("")}
+    </table>`;
+  } catch (e) {
+    st.textContent = "⚠️ " + e.message;
+  }
+}
+
+async function decideVinculo(id, decision) {
+  let motivo = "";
+  if (decision === "approve") {
+    if (!confirm("¿Confirmaste que este número es de la empresa? Al aprobar, el número puede ver pedidos y datos de ese cliente.")) return;
+  } else {
+    motivo = (prompt("Motivo del rechazo (se le informa al número):") || "").trim();
+    if (!motivo) return;
+  }
+  const st = document.getElementById("vincStatus");
+  st.textContent = "Guardando…";
+  try {
+    const { data, error } = await authedInvoke("lk_vinculaciones", { action: "decide", request_id: id, decision, motivo });
+    if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
+    await loadVinculos();
+    st.textContent = decision === "approve" ? "✓ Aprobada" : "✓ Rechazada";
+  } catch (e) {
+    st.textContent = "⚠️ " + e.message;
+  }
 }
 
 async function loadTplDefs() {
@@ -3319,6 +3396,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.11</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.17.0</div>
 </body>
 </html>

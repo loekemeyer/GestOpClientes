@@ -2,17 +2,26 @@
 
 ## Flujo 1: Primer contacto (vinculación)
 
+Desde sql/072 (25/09) un número nuevo **nunca** queda vinculado sólo por escribir un CUIT (el CUIT
+es público). Tres caminos:
+
+- **Número en el padrón del ERP** (`wa_clientes_telefono`): el bot lo reconoce directo, sin preguntar.
+- **Número nuevo + CUIT de un cliente** → queda **pendiente**; un admin lo aprueba o rechaza en el
+  dashboard (Panel de Control → 🔐 Vinculaciones, edge `lk_vinculaciones`). El aviso de resultado se
+  encola en `wa_outbox`. Si el cliente ya tenía principal, el nuevo entra como secundario y al
+  principal se le avisa.
+- **3 CUITs distintos en 24 h desde el mismo número** → `too_many_attempts`, se deriva a ventas.
+
 ```
 CLIENTE: Hola
-BOT: ¡Hola! Soy el asistente de Loekemeyer. Para poder ayudarte, necesito
-     identificarte. ¿Me pasás tu código de cliente o tu CUIT?
-CLIENTE: 1234
-BOT: ¡Hola {nombre_empresa}! Ya quedaste vinculado a este número.
-     Podés consultarme por:
-     📦 Estado de tus pedidos
-     🛒 Hacer un pedido nuevo
-     🚚 Saber si podés pasar a retirar
-     💬 Cualquier otra consulta
+BOT: Todavía no te tengo registrado como cliente. ¿Me pasás tu CUIT…?
+CLIENTE: 30-71234567-8
+BOT: Encontré la cuenta de *Comercial Ejemplo S.R.L*. 👍
+     Por seguridad, un asesor tiene que confirmar que este número es de la empresa
+     antes de vincularlo. Te avisamos por acá apenas quede listo. 🙏
+(admin aprueba en el dashboard)
+BOT: Hola Comercial Ejemplo S.R.L, te escribimos de Loekemeyer.
+     Ya vinculamos este número a tu cuenta: podés consultar tus pedidos, descuentos y fechas de entrega.
 ```
 
 ## Flujo 2: Consulta de pedido
