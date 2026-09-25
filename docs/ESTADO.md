@@ -279,7 +279,9 @@ el killswitch, sin ningún consumidor de esa cola.
   en preparacion · facturado · entregado. Pedidos anteriores a Gestión (< 1340) caen a
   `order_tracking`; el `#VALUE!` no se muestra nunca. La usan `bot_mi_entrega` y
   `faq.ts → lookupOrderStatus`.
-- ⚠ **No apagar la planilla todavía**: `sync_order_tracking_from_sheet` también BORRA filas, y
+- ✅ **25/09 (Luis): la planilla quedó CORTADA** — `sync_order_tracking_from_sheet` ya no escribe ni borra
+  (sql/071); `order_tracking` la alimenta Gestión cada 15 min (sql/069). Lo de abajo es historia.
+- ~~No apagar la planilla todavía~~: `sync_order_tracking_from_sheet` también BORRA filas, y
   las páginas + la solapa Tracking del admin la usan de respaldo para pedidos viejos.
 - ⚠ **`bot_customer_whatsapps` vacía es INTENCIONAL** (Luis, 24/09): las herramientas del bot
   con IA (`bot_mi_entrega`, `bot_mis_pedidos`, …) sólo responden a teléfonos vinculados
