@@ -18,6 +18,19 @@ que le habla a Meta.
 | alimentar las tablas de estado (ej. `order_tracking` desde Gestión) aunque disparen avisos: quedan en cola detrás de la llave | dejar datos sin cargar para que "no dispare nada" |
 | números de prueba: **sólo Thomy** en `wa_envio_contactos` | cargar teléfonos de clientes en tablas que lean los que mandan (`bot_customer_whatsapps`, `customers.whatsapp`, `wa_clientes_telefono`) sin que Luis lo pida |
 
+**Dónde está el corte (uno en la base, uno en el código, la misma decisión):**
+- **Base:** `public.wa_puede_enviar(phone)` (sql/070) es LA decisión. `bot_flush_outbox` la usa.
+- **Código:** `supabase/functions/_shared/wa-guard.ts` envuelve `fetch` y le pregunta a
+  `wa_puede_enviar` antes de cualquier POST a `graph.facebook.com/.../messages`. **Toda edge que le
+  hable a Meta lo importa** (`import "../_shared/wa-guard.ts";`), incluidas las respuestas del
+  webhook vía `_shared/wa-api.ts`. Una función nueva que mande WhatsApp sin importarlo es una
+  salida sin corte.
+
+**Canal de prueba ÚNICO (Luis, 25/09): Thomy.** Está en `wa_envio_contactos` (el webhook le
+contesta y le llegan los automáticos) y asociado al **cliente de prueba LK 99862** en
+`bot_customer_whatsapps`, así los avisos de pedidos de ese cliente le llegan a él. Llave en
+`prueba`. Para cambiar quién prueba: cambiar la fila de `wa_envio_contactos` (una sola).
+
 **Para arrancar con clientes es UN update:** `update app_settings set value='1' where key='wa_envio_automatico';`
 (y para probar punta a punta, `'prueba'`). Si arrancar exige prender otras 20 cosas, el
 principio se rompió en algún lado.

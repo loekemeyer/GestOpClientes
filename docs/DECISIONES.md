@@ -102,3 +102,16 @@ El detalle operativo está al principio de `CLAUDE.md`.
 | `lk_whatsapp-webhook` (respuestas) | le escribe alguien | `wa_bot_solo_whitelist` |
 | `lk_factura-check` | cron 69 de Virgilio + triggers ISIS | whitelist / sin `dest_phone` no manda |
 | `notify-new-address` | carrito de la página | sólo al número interno de Ventas |
+
+**Cerrado el 25/09 (sí de Luis a todo):** `sql/069` aplicado (feed de `order_tracking` desde
+Gestión, backup `zz_backups.bkp_order_tracking_20260925`), `sql/070` (decisión única
+`wa_puede_enviar`, aviso de cambio de fecha, canal de prueba Thomy ↔ cliente 99862, llave en
+`prueba`) y `_shared/wa-guard.ts` importado por **todas** las edges que le hablan a Meta
+(asoc-timeout-cron, notify-order-created, inbox-api, inbox-register, lk_outbox-flush,
+notify-tracking-status, lk_templates, lk_conversaciones, lk_whatsapp-webhook, lk_chat-test).
+Las 5 que vivían sólo en el proyecto quedaron versionadas acá.
+⚠ **Pendiente: `lk_factura-check`.** Lo deployado (v33, manual) NO es lo del repo (el repo tiene
+723 líneas y cosas que la v33 no): redeployar desde el repo cambiaría su comportamiento. Hoy
+sólo manda a números de la whitelist; el import del guardián se agrega cuando alguien
+reconcilie repo ↔ deployado.
+

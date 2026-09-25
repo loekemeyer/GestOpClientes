@@ -1,3 +1,4 @@
+import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase, getSetting } from "../_shared/supabase.ts";
 import { canonPhone } from "../_shared/wa-api.ts";

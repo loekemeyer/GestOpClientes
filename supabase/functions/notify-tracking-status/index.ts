@@ -21,6 +21,7 @@
 // Hasta esta versión mandaba directo a customers.whatsapp sin mirar nada.
 // Fuente versionada desde acá (antes vivía sólo en el proyecto: v33).
 
+import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;

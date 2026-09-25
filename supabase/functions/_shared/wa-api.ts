@@ -7,6 +7,7 @@
 // siguió sin él**. Se dio por cerrado un punto que en producción seguía abierto.
 //
 // Ahora hay una sola. Si hace falta algo nuevo, va acá.
+import "./wa-guard.ts"; // D007: corte único de envíos a Meta
 const META_API = "https://graph.facebook.com/v21.0";
 
 /** Normaliza teléfono argentino a formato canónico (sin +, con 54). */

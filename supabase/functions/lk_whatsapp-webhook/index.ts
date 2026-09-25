@@ -7,6 +7,7 @@
 // Usa RPCs bot_* para todo acceso a datos (no queries directos).
 // Claude tool-use para conversación inteligente.
 
+import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import { supabase, getSetting } from "../_shared/supabase.ts";
 import {
   sendText,
