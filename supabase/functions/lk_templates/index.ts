@@ -106,6 +106,11 @@ serve(async (req) => {
     if (body.action === "templates_list") return await handleTemplatesList(body.status);
     if (body.action === "template_send") return await handleTemplateSend(body);
     if (body.action === "templates_sync") return await handleTemplatesSync(body, gate.email);
+    // Definiciones del repo (plantillas-meta.ts), sin consultar a Meta: el panel las muestra
+    // aunque el token esté caído.
+    if (body.action === "templates_defs") {
+      return json({ ok: true, plantillas: PLANTILLAS.map((p) => ({ ...p, errores: validar(p) })) });
+    }
 
     return json({ error: "action desconocida" }, 400);
   } catch (err) {

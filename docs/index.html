@@ -169,6 +169,31 @@
     .subtab.active { color: var(--primary); border-bottom-color: var(--primary); }
     .subpanel { display: none; }
     .subpanel.active { display: block; }
+    #pageConfig .config-section { max-width: 860px; }
+    #pageConfig .config-row, #pageConfig .bl-add-row { flex-wrap: wrap; }
+    #pageConfig .config-row label.switch { min-width: 0; }
+    #pageConfig .config-section > p.hint { font-size: 0.8rem; color: var(--muted); }
+    #pageConfig .config-section input[type="text"], #pageConfig .config-section input[type="number"],
+    #pageConfig .config-section select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; outline: none; background: var(--card); color: var(--text); }
+    #pageConfig .config-section input[readonly] { background: var(--bg); color: var(--muted); }
+    #pageConfig .config-section input:focus, #pageConfig .config-section select:focus { border-color: var(--primary); }
+    @media (max-width: 640px) {
+      .app { flex-direction: column; }
+      .sidebar { width: auto; flex-direction: row; align-items: center; padding: 0; overflow-x: auto; flex-shrink: 0; }
+      .sidebar h3, .sidebar .spacer { display: none; }
+      .sidebar a, .sidebar div.active, .sidebar div[onclick] { white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
+      .sidebar a:hover, .sidebar a.active, .sidebar div[onclick]:hover, .sidebar div.active { border-bottom-color: var(--primary); }
+      .sidebar .user-info { border-top: none; white-space: nowrap; }
+      .main { min-height: 0; }
+      #pageConfig .config-page { padding: 1rem; }
+      #pageConfig .config-row label { min-width: 0; }
+      #pageConfig .bl-add-row input { max-width: none !important; min-width: 0; }
+    }
+    .tpl-def { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; }
+    .tpl-def .tpl-body { font-size: 0.84rem; white-space: pre-wrap; margin-top: 0.3rem; }
+    .tpl-def .tpl-var { background: var(--border); border-radius: 4px; padding: 0 3px; font-weight: 600; }
+    .tpl-def .tpl-meta { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
+    .tpl-def .hint { font-size: 0.72rem; color: var(--muted); }
     .md-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     @media (max-width: 860px) { .md-grid { grid-template-columns: 1fr; } }
     .md-editor textarea { width: 100%; min-height: 340px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; line-height: 1.5; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; resize: vertical; }
@@ -502,208 +527,227 @@
       <div class="config-page">
         <h2>⚙️ Panel de Control</h2>
 
-        <!-- Rate Limit -->
-        <div class="config-section">
-          <h3>🛡️ Rate Limit</h3>
-          <div class="config-row">
-            <label>Estado global:</label>
-            <label class="switch">
-              <input type="checkbox" id="cfgRLEnabled" checked>
-              <span class="slider" style="background: var(--success);"></span>
-            </label>
-            <span class="hint" id="cfgRLEnabledLabel">Activo — aplica a chat real y test</span>
-          </div>
-          <div class="config-row">
-            <label>Consultas de IA por número / hora:</label>
-            <input type="number" id="cfgRLLimit" min="1" max="200" value="20">
-            <span class="hint">Tope de consultas al agente antes de bloquear</span>
-          </div>
-          <div class="config-row" style="align-items:flex-start;">
-            <label>Aviso al toparse:</label>
-            <textarea id="cfgRLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos con problemas en este momento, probá contactarte de vuelta en una hora."></textarea>
-          </div>
-          <div style="margin-top:0.8rem; display:flex; align-items:center;">
-            <button class="config-btn primary" onclick="saveRateLimitConfig()">💾 Guardar</button>
-            <span class="config-status" id="rlSaveStatus"></span>
-          </div>
+        <div class="subtabs">
+          <div class="subtab active" id="cfgTabAcceso" onclick="showConfigTab('acceso')">🛑 Acceso</div>
+          <div class="subtab" id="cfgTabLimite" onclick="showConfigTab('limite')">🛡️ Rate limit</div>
+          <div class="subtab" id="cfgTabPagos" onclick="showConfigTab('pagos')">💰 Descuentos</div>
+          <div class="subtab" id="cfgTabPlantillas" onclick="showConfigTab('plantillas')">📨 Plantillas</div>
         </div>
 
-        <!-- Blacklist -->
-        <div class="config-section">
-          <h3>🚫 Blacklist de teléfonos</h3>
-          <div class="bl-add-row">
-            <input type="text" id="blPhoneInput" placeholder="Número de teléfono (ej: 5491112345678)">
-            <input type="text" id="blReasonInput" placeholder="Motivo (opcional)" style="max-width:180px;">
-            <button class="config-btn primary" onclick="addToBlacklist()">+ Agregar</button>
-          </div>
-          <span class="config-status" id="blAddStatus"></span>
-          <div id="blTableContainer">
-            <div class="bl-empty">Cargando...</div>
-          </div>
-          <div class="config-row" style="align-items:flex-start;margin-top:0.9rem;">
-            <label>Aviso al bloqueado (1ª vez):</label>
-            <textarea id="cfgBLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos momentáneamente fuera de servicio."></textarea>
-          </div>
-          <div style="display:flex; align-items:center;">
-            <button class="config-btn primary" onclick="saveBlacklistMsg()">💾 Guardar mensaje</button>
-            <span class="config-status" id="blMsgStatus"></span>
-          </div>
-        </div>
-
-        <!-- Bot: Kill switch + Whitelist -->
-        <div class="config-section">
-          <h3>🛑 Kill switch del bot · Whitelist</h3>
-          <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
-            Mientras el <b>kill switch</b> esté <b>ON</b>, el bot <b>solo</b> responde a los números listados abajo.
-            Todos los demás mensajes se descartan silenciosamente (quedan registrados en <code>wa_alertas_humano</code> con motivo <code>whitelist_gate</code> para auditoría).
-            Cuando quieras abrir a todos los clientes, poné el toggle en <b>OFF</b>.
-          </p>
-          <div class="config-row">
-            <label>Kill switch:</label>
-            <label class="switch">
-              <input type="checkbox" id="cfgKillswitch" onchange="saveKillswitch()">
-              <span class="slider" style="background: var(--success);"></span>
-            </label>
-            <span class="hint" id="cfgKillswitchLabel">Cargando…</span>
-          </div>
-          <div class="bl-add-row" style="margin-top:0.8rem;">
-            <input type="text" id="wlPhoneInput" placeholder="Número (ej: 5491112345678)">
-            <input type="text" id="wlLabelInput" placeholder="Etiqueta (opcional — ej: Nico celular)" style="max-width:220px;">
-            <button class="config-btn primary" onclick="addToWhitelist()">+ Agregar</button>
-          </div>
-          <span class="config-status" id="wlAddStatus"></span>
-          <div id="wlTableContainer">
-            <div class="bl-empty">Cargando...</div>
-          </div>
-        </div>
-
-        <!-- Plantillas de seguimiento → Meta (lk_templates · templates_sync) -->
-        <div class="config-section" style="max-width:none;">
-          <h3>📨 Plantillas de seguimiento → Meta</h3>
-          <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
-            Compara las plantillas definidas en el repo (<code>lk_templates/plantillas-meta.ts</code>) con las de Meta.
-            <b>Ver plan</b> no toca nada. <b>Subir</b> crea las que faltan y edita las que cambiaron; Meta las revisa
-            (minutos a 24 h). Una aprobada se edita máx. 1 vez/24 h y 10/30 días. No manda mensajes a nadie.
-          </p>
-          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-            <button class="config-btn" onclick="tplSync(false)">🔍 Ver plan</button>
-            <button class="config-btn primary" onclick="tplSync(true)">⬆️ Subir a Meta</button>
-            <span id="tplSyncStatus" class="hint"></span>
-          </div>
-          <div id="tplSyncOut" style="margin-top:0.8rem;overflow-x:auto;"></div>
-        </div>
-
-        <!-- Descuentos por pago -->
-        <div class="config-section" style="max-width:none;">
-          <h3>💰 Descuentos por pago</h3>
-          <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
-            Cada campo está <b>bloqueado</b>: tocá <b>✏️</b> para editar y <b>💾</b> para guardar (evita cambios
-            accidentales). El bot lee de Supabase apenas guardás. <b>↺ Restaurar</b> abajo descarta lo no guardado.
-          </p>
-
-          <!-- 1) Datos de pago (Alias / CBU) -->
-          <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Datos de pago</div>
-          <p class="hint" style="display:block;margin:-0.2rem 0 0.5rem;line-height:1.4;">
-            Alias y CBU se completan como <b>variables</b> en el pie de las 6 plantillas — sin re-editar Meta.
-          </p>
-          <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.3rem;">
-            <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:1;min-width:230px;">
-              <div style="flex:1;">
-                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Alias</label>
-                <input type="text" id="pagoAlias" placeholder="loeke.srl" style="width:100%;" readonly>
-              </div>
-              <button class="config-btn small" id="pagoAlias_edit" title="Editar" onclick="fieldEdit('pagoAlias')">✏️</button>
-              <button class="config-btn primary" id="pagoAlias_save" title="Guardar" onclick="fieldSave('pagoAlias')" style="display:none;">💾</button>
-              <span class="config-status" id="pagoAlias_st"></span>
+        <div class="subpanel active" id="cfgPanelAcceso">
+          <!-- Bot: Kill switch + Whitelist -->
+          <div class="config-section">
+            <h3>🛑 Kill switch del bot · Whitelist</h3>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
+              Mientras el <b>kill switch</b> esté <b>ON</b>, el bot <b>solo</b> responde a los números listados abajo.
+              Todos los demás mensajes se descartan silenciosamente (quedan registrados en <code>wa_alertas_humano</code> con motivo <code>whitelist_gate</code> para auditoría).
+              Cuando quieras abrir a todos los clientes, poné el toggle en <b>OFF</b>.
+            </p>
+            <div class="config-row">
+              <label>Kill switch:</label>
+              <label class="switch">
+                <input type="checkbox" id="cfgKillswitch" onchange="saveKillswitch()">
+                <span class="slider" style="background: var(--success);"></span>
+              </label>
+              <span class="hint" id="cfgKillswitchLabel">Cargando…</span>
             </div>
-            <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:2;min-width:290px;">
-              <div style="flex:1;">
-                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">CBU</label>
-                <input type="text" id="pagoCbu" placeholder="1910027855002702387450" style="width:100%;" readonly>
-              </div>
-              <button class="config-btn small" id="pagoCbu_edit" title="Editar" onclick="fieldEdit('pagoCbu')">✏️</button>
-              <button class="config-btn primary" id="pagoCbu_save" title="Guardar" onclick="fieldSave('pagoCbu')" style="display:none;">💾</button>
-              <span class="config-status" id="pagoCbu_st"></span>
+            <div class="bl-add-row" style="margin-top:0.8rem;">
+              <input type="text" id="wlPhoneInput" placeholder="Número (ej: 5491112345678)">
+              <input type="text" id="wlLabelInput" placeholder="Etiqueta (opcional — ej: Nico celular)" style="max-width:220px;">
+              <button class="config-btn primary" onclick="addToWhitelist()">+ Agregar</button>
+            </div>
+            <span class="config-status" id="wlAddStatus"></span>
+            <div id="wlTableContainer">
+              <div class="bl-empty">Cargando...</div>
             </div>
           </div>
 
-          <!-- 2) Contado (descuento % + plazo) -->
-          <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Contado</div>
-          <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.2rem;">
-            <div style="display:flex;align-items:flex-end;gap:0.35rem;">
-              <div>
-                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Descuento contado (%)</label>
-                <input type="number" id="dtoContado" min="0" max="100" step="1" style="width:110px;" readonly>
-              </div>
-              <button class="config-btn small" id="dtoContado_edit" title="Editar" onclick="fieldEdit('dtoContado')">✏️</button>
-              <button class="config-btn primary" id="dtoContado_save" title="Guardar" onclick="fieldSave('dtoContado')" style="display:none;">💾</button>
-              <span class="config-status" id="dtoContado_st"></span>
+          <!-- Blacklist -->
+          <div class="config-section">
+            <h3>🚫 Blacklist de teléfonos</h3>
+            <div class="bl-add-row">
+              <input type="text" id="blPhoneInput" placeholder="Número de teléfono (ej: 5491112345678)">
+              <input type="text" id="blReasonInput" placeholder="Motivo (opcional)" style="max-width:180px;">
+              <button class="config-btn primary" onclick="addToBlacklist()">+ Agregar</button>
             </div>
-            <div style="display:flex;align-items:flex-end;gap:0.35rem;">
-              <div>
-                <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Plazo — días para pago contado</label>
-                <input type="number" id="dtoContadoDias" min="0" max="90" step="1" style="width:110px;" readonly>
-              </div>
-              <button class="config-btn small" id="dtoContadoDias_edit" title="Editar" onclick="fieldEdit('dtoContadoDias')">✏️</button>
-              <button class="config-btn primary" id="dtoContadoDias_save" title="Guardar" onclick="fieldSave('dtoContadoDias')" style="display:none;">💾</button>
-              <span class="config-status" id="dtoContadoDias_st"></span>
+            <span class="config-status" id="blAddStatus"></span>
+            <div id="blTableContainer">
+              <div class="bl-empty">Cargando...</div>
+            </div>
+            <div class="config-row" style="align-items:flex-start;margin-top:0.9rem;">
+              <label>Aviso al bloqueado (1ª vez):</label>
+              <textarea id="cfgBLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos momentáneamente fuera de servicio."></textarea>
+            </div>
+            <div style="display:flex; align-items:center;">
+              <button class="config-btn primary" onclick="saveBlacklistMsg()">💾 Guardar mensaje</button>
+              <span class="config-status" id="blMsgStatus"></span>
             </div>
           </div>
 
-          <div style="display:flex;align-items:center;gap:0.5rem;margin:0.4rem 0 0.35rem;">
-            <div style="font-weight:600;">Crédito</div>
-            <button class="config-btn small" id="tblCredito_edit" onclick="tableEdit('Credito')">✏️ Editar</button>
-            <button class="config-btn primary" id="tblCredito_save" onclick="tableSave('Credito')" style="display:none;">💾 Guardar</button>
-            <span class="config-status" id="tblCredito_st"></span>
-          </div>
-          <table id="dtoCreditoTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
-            <thead><tr>
-              <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
-              <th style="text-align:left;padding:3px 6px;width:130px;color:var(--muted);font-weight:600;">Descuento %</th>
-              <th style="width:44px;"></th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
-          <button class="config-btn small" id="dtoCreditoAdd" onclick="addCreditoRow()" style="margin-top:0.45rem;display:none;">+ Agregar fila</button>
+        </div>
 
-          <div style="display:flex;align-items:center;gap:0.5rem;margin:1.1rem 0 0.35rem;">
-            <div style="font-weight:600;">E-cheq</div>
-            <button class="config-btn small" id="tblEcheq_edit" onclick="tableEdit('Echeq')">✏️ Editar</button>
-            <button class="config-btn primary" id="tblEcheq_save" onclick="tableSave('Echeq')" style="display:none;">💾 Guardar</button>
-            <span class="config-status" id="tblEcheq_st"></span>
+        <div class="subpanel" id="cfgPanelLimite">
+          <!-- Rate Limit -->
+          <div class="config-section">
+            <h3>🛡️ Rate Limit</h3>
+            <div class="config-row">
+              <label>Estado global:</label>
+              <label class="switch">
+                <input type="checkbox" id="cfgRLEnabled" checked>
+                <span class="slider" style="background: var(--success);"></span>
+              </label>
+              <span class="hint" id="cfgRLEnabledLabel">Activo — aplica a chat real y test</span>
+            </div>
+            <div class="config-row">
+              <label>Consultas de IA por número / hora:</label>
+              <input type="number" id="cfgRLLimit" min="1" max="200" value="20">
+              <span class="hint">Tope de consultas al agente antes de bloquear</span>
+            </div>
+            <div class="config-row" style="align-items:flex-start;">
+              <label>Aviso al toparse:</label>
+              <textarea id="cfgRLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos con problemas en este momento, probá contactarte de vuelta en una hora."></textarea>
+            </div>
+            <div style="margin-top:0.8rem; display:flex; align-items:center;">
+              <button class="config-btn primary" onclick="saveRateLimitConfig()">💾 Guardar</button>
+              <span class="config-status" id="rlSaveStatus"></span>
+            </div>
           </div>
-          <table id="dtoEcheqTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
-            <thead><tr>
-              <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
-              <th style="text-align:left;padding:3px 6px;width:130px;color:var(--muted);font-weight:600;">Descuento %</th>
-              <th style="width:44px;"></th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
-          <button class="config-btn small" id="dtoEcheqAdd" onclick="addEcheqRow()" style="margin-top:0.45rem;display:none;">+ Agregar fila</button>
 
-          <div style="display:flex;align-items:center;gap:0.5rem;margin:1.3rem 0 0.35rem;">
-            <div style="font-weight:600;">Excepciones por cliente</div>
-            <button class="config-btn small" id="excEditBtn" onclick="excEdit()">✏️ Editar</button>
-            <button class="config-btn primary" id="excSaveBtn" onclick="excSave()" style="display:none;">💾 Guardar</button>
-            <span class="config-status" id="excSt"></span>
-          </div>
-          <p class="hint" style="display:block;margin:-0.25rem 0 0.6rem;line-height:1.4;">
-            Si agregás un cliente acá, el bot usa <b>siempre</b> ese método para sus facturas,
-            ignorando la condición de venta de la factura. Match por CUIT (solo dígitos) o razón social exacta.
-          </p>
-          <div id="excAddRow" style="display:none;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
-            <select id="excMetodo" style="min-width:160px;"></select>
-            <select id="excTipo"><option value="cuit">CUIT</option><option value="razon">Razón social</option></select>
-            <input type="text" id="excValor" placeholder="CUIT o razón social" style="min-width:220px;flex:1;">
-            <button class="config-btn small" onclick="addExcepcion()">+ Agregar</button>
-          </div>
-          <div id="excList"></div>
+        </div>
 
-          <div style="margin-top:1.1rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-            <button class="config-btn small" onclick="loadDescuentos()">↺ Restaurar guardado</button>
-            <span class="config-status" id="dtoSaveStatus"></span>
+        <div class="subpanel" id="cfgPanelPagos">
+          <!-- Descuentos por pago -->
+          <div class="config-section">
+            <h3>💰 Descuentos por pago</h3>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
+              Cada campo está <b>bloqueado</b>: tocá <b>✏️</b> para editar y <b>💾</b> para guardar (evita cambios
+              accidentales). El bot lee de Supabase apenas guardás. <b>↺ Restaurar</b> abajo descarta lo no guardado.
+            </p>
+
+            <!-- 1) Datos de pago (Alias / CBU) -->
+            <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Datos de pago</div>
+            <p class="hint" style="display:block;margin:-0.2rem 0 0.5rem;line-height:1.4;">
+              Alias y CBU se completan como <b>variables</b> en el pie de las 6 plantillas — sin re-editar Meta.
+            </p>
+            <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.3rem;">
+              <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:1;min-width:230px;">
+                <div style="flex:1;">
+                  <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Alias</label>
+                  <input type="text" id="pagoAlias" placeholder="loeke.srl" style="width:100%;" readonly>
+                </div>
+                <button class="config-btn small" id="pagoAlias_edit" title="Editar" onclick="fieldEdit('pagoAlias')">✏️</button>
+                <button class="config-btn primary" id="pagoAlias_save" title="Guardar" onclick="fieldSave('pagoAlias')" style="display:none;">💾</button>
+                <span class="config-status" id="pagoAlias_st"></span>
+              </div>
+              <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:2;min-width:290px;">
+                <div style="flex:1;">
+                  <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">CBU</label>
+                  <input type="text" id="pagoCbu" placeholder="1910027855002702387450" style="width:100%;" readonly>
+                </div>
+                <button class="config-btn small" id="pagoCbu_edit" title="Editar" onclick="fieldEdit('pagoCbu')">✏️</button>
+                <button class="config-btn primary" id="pagoCbu_save" title="Guardar" onclick="fieldSave('pagoCbu')" style="display:none;">💾</button>
+                <span class="config-status" id="pagoCbu_st"></span>
+              </div>
+            </div>
+
+            <!-- 2) Contado (descuento % + plazo) -->
+            <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Contado</div>
+            <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.2rem;">
+              <div style="display:flex;align-items:flex-end;gap:0.35rem;">
+                <div>
+                  <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Descuento contado (%)</label>
+                  <input type="number" id="dtoContado" min="0" max="100" step="1" style="width:110px;" readonly>
+                </div>
+                <button class="config-btn small" id="dtoContado_edit" title="Editar" onclick="fieldEdit('dtoContado')">✏️</button>
+                <button class="config-btn primary" id="dtoContado_save" title="Guardar" onclick="fieldSave('dtoContado')" style="display:none;">💾</button>
+                <span class="config-status" id="dtoContado_st"></span>
+              </div>
+              <div style="display:flex;align-items:flex-end;gap:0.35rem;">
+                <div>
+                  <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Plazo — días para pago contado</label>
+                  <input type="number" id="dtoContadoDias" min="0" max="90" step="1" style="width:110px;" readonly>
+                </div>
+                <button class="config-btn small" id="dtoContadoDias_edit" title="Editar" onclick="fieldEdit('dtoContadoDias')">✏️</button>
+                <button class="config-btn primary" id="dtoContadoDias_save" title="Guardar" onclick="fieldSave('dtoContadoDias')" style="display:none;">💾</button>
+                <span class="config-status" id="dtoContadoDias_st"></span>
+              </div>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:0.5rem;margin:0.4rem 0 0.35rem;">
+              <div style="font-weight:600;">Crédito</div>
+              <button class="config-btn small" id="tblCredito_edit" onclick="tableEdit('Credito')">✏️ Editar</button>
+              <button class="config-btn primary" id="tblCredito_save" onclick="tableSave('Credito')" style="display:none;">💾 Guardar</button>
+              <span class="config-status" id="tblCredito_st"></span>
+            </div>
+            <table id="dtoCreditoTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
+              <thead><tr>
+                <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
+                <th style="text-align:left;padding:3px 6px;width:130px;color:var(--muted);font-weight:600;">Descuento %</th>
+                <th style="width:44px;"></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+            <button class="config-btn small" id="dtoCreditoAdd" onclick="addCreditoRow()" style="margin-top:0.45rem;display:none;">+ Agregar fila</button>
+
+            <div style="display:flex;align-items:center;gap:0.5rem;margin:1.1rem 0 0.35rem;">
+              <div style="font-weight:600;">E-cheq</div>
+              <button class="config-btn small" id="tblEcheq_edit" onclick="tableEdit('Echeq')">✏️ Editar</button>
+              <button class="config-btn primary" id="tblEcheq_save" onclick="tableSave('Echeq')" style="display:none;">💾 Guardar</button>
+              <span class="config-status" id="tblEcheq_st"></span>
+            </div>
+            <table id="dtoEcheqTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
+              <thead><tr>
+                <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
+                <th style="text-align:left;padding:3px 6px;width:130px;color:var(--muted);font-weight:600;">Descuento %</th>
+                <th style="width:44px;"></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+            <button class="config-btn small" id="dtoEcheqAdd" onclick="addEcheqRow()" style="margin-top:0.45rem;display:none;">+ Agregar fila</button>
+
+            <div style="display:flex;align-items:center;gap:0.5rem;margin:1.3rem 0 0.35rem;">
+              <div style="font-weight:600;">Excepciones por cliente</div>
+              <button class="config-btn small" id="excEditBtn" onclick="excEdit()">✏️ Editar</button>
+              <button class="config-btn primary" id="excSaveBtn" onclick="excSave()" style="display:none;">💾 Guardar</button>
+              <span class="config-status" id="excSt"></span>
+            </div>
+            <p class="hint" style="display:block;margin:-0.25rem 0 0.6rem;line-height:1.4;">
+              Si agregás un cliente acá, el bot usa <b>siempre</b> ese método para sus facturas,
+              ignorando la condición de venta de la factura. Match por CUIT (solo dígitos) o razón social exacta.
+            </p>
+            <div id="excAddRow" style="display:none;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
+              <select id="excMetodo" style="min-width:160px;"></select>
+              <select id="excTipo"><option value="cuit">CUIT</option><option value="razon">Razón social</option></select>
+              <input type="text" id="excValor" placeholder="CUIT o razón social" style="min-width:220px;flex:1;">
+              <button class="config-btn small" onclick="addExcepcion()">+ Agregar</button>
+            </div>
+            <div id="excList"></div>
+
+            <div style="margin-top:1.1rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+              <button class="config-btn small" onclick="loadDescuentos()">↺ Restaurar guardado</button>
+              <span class="config-status" id="dtoSaveStatus"></span>
+            </div>
           </div>
+        </div>
+
+        <div class="subpanel" id="cfgPanelPlantillas">
+          <!-- Plantillas de seguimiento → Meta (lk_templates · templates_sync) -->
+          <div class="config-section">
+            <h3>📨 Plantillas de seguimiento → Meta</h3>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
+              Compara las plantillas definidas en el repo (<code>lk_templates/plantillas-meta.ts</code>) con las de Meta.
+              <b>Ver plan</b> no toca nada. <b>Subir</b> crea las que faltan y edita las que cambiaron; Meta las revisa
+              (minutos a 24 h). Una aprobada se edita máx. 1 vez/24 h y 10/30 días. No manda mensajes a nadie.
+            </p>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+              <button class="config-btn" onclick="tplSync(false)">🔍 Ver plan</button>
+              <button class="config-btn primary" onclick="tplSync(true)">⬆️ Subir a Meta</button>
+              <span id="tplSyncStatus" class="hint"></span>
+            </div>
+            <div id="tplSyncOut" style="margin-top:0.8rem;overflow-x:auto;"></div>
+            <div id="tplDefs" style="margin-top:1rem;"><div class="bl-empty">Cargando…</div></div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -2475,6 +2519,36 @@ async function refreshCosts() {
   } catch (e) { /* silent */ }
 }
 
+// Panel de Control: pestañas. Los datos los sigue cargando loadConfigPage() al abrir la página;
+// la de Plantillas trae además las definiciones del repo (no depende de Meta).
+function showConfigTab(tab) {
+  const map = { acceso: "Acceso", limite: "Limite", pagos: "Pagos", plantillas: "Plantillas" };
+  for (const [k, cap] of Object.entries(map)) {
+    document.getElementById("cfgTab" + cap).classList.toggle("active", k === tab);
+    document.getElementById("cfgPanel" + cap).classList.toggle("active", k === tab);
+  }
+  if (tab === "plantillas") loadTplDefs();
+}
+
+async function loadTplDefs() {
+  const box = document.getElementById("tplDefs");
+  try {
+    const { data, error } = await authedInvoke("lk_templates", { action: "templates_defs" });
+    if (error || !data?.ok) { box.innerHTML = '<div class="bl-empty">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+    box.innerHTML = (data.plantillas || []).map((p) => {
+      const body = esc(p.body).replace(/\{\{(\d+)\}\}/g, (m, n) =>
+        `<span class="tpl-var" title="${esc(p.variables[n - 1] || "")}">${esc(p.ejemplos[n - 1] || m)}</span>`);
+      return `<div class="tpl-def">
+        <div><code>${esc(p.name)}</code> <span class="hint">${esc(p.language)} · ${esc(p.category)}</span></div>
+        <div class="tpl-body">${body}</div>
+        <div class="tpl-meta">Se dispara: ${esc(p.disparo)}</div>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    box.innerHTML = '<div class="bl-empty">⚠️ ' + esc(e.message) + "</div>";
+  }
+}
+
 // --- Plantillas de seguimiento → Meta (templates_sync) ---
 const TPL_SYNC_ACCION = { crear: "➕ crear", editar: "✏️ editar", igual: "✓ igual", invalida: "⚠️ inválida" };
 async function tplSync(aplicar) {
@@ -3122,6 +3196,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.9</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.16.10</div>
 </body>
 </html>
