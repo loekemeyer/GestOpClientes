@@ -69,7 +69,21 @@ la whitelist; la barrera real hoy es que `bot_customer_whatsapps` está vacía. 
 **Aplicado el 25/09 (con el sí de Luis):** `sql/068` (llave en `0`, probado en transacción
 abortada: con `0` no despacha, con `prueba` sólo Thomy y el resto queda `held_no_whitelist`);
 `notify-tracking-status` respeta la misma llave (fuente versionada acá desde ahora); cron
-`bot-recordatorio-25` **apagado** hasta que alguien defina para qué es (la plantilla
-`pedido_recordatorio_25` además no existe en Meta). Whitelist de prueba = **sólo Thomy**.
+`bot-recordatorio-25` se apagó y se **volvió a prender el mismo día** por el principio de abajo
+(encola en `wa_outbox`, así que la llave ya lo corta; la plantilla `pedido_recordatorio_25`
+además no existe en Meta). Whitelist de prueba = **sólo Thomy**.
 Rollback del cron: `select cron.alter_job(jobid, active := true) from cron.job where jobname='bot-recordatorio-25';`
+
+---
+
+## D007 — Principio rector: vasectomía, un solo corte en la salida (2026-09-25)
+
+**Luis, textual:** *"miralo como una vasectomía. Quiero armarlo cosa de que todo el sistema
+funcione pero esté con el corte en el lugar indicado para que no contacte a nadie hasta que
+arranquemos a usarlo. No quiero apagar 20 cosas diferentes, prefiero cortes quirúrgicos."*
+
+**Decisión:** nada se apaga para evitar contactos; el corte es la llave `wa_envio_automatico`
+en el paso que despacha. Todo productor de mensajes automáticos encola en `wa_outbox`. Las
+salidas que hoy le hablan directo a Meta se migran a la cola (deuda, inventario abajo).
+El detalle operativo está al principio de `CLAUDE.md`.
 

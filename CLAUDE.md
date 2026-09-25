@@ -1,5 +1,38 @@
 # BotWA-LK — Instrucciones para Claude Code
 
+## 🟥🟥🟥 PRINCIPIO RECTOR (Luis, 2026-09-25): VASECTOMÍA — todo funciona, se corta sólo la SALIDA
+
+> ## **"Miralo como una vasectomía. Todo el sistema funciona, pero con el corte en el lugar
+> ## indicado para que no contacte a nadie hasta que arranquemos a usarlo. No quiero apagar
+> ## 20 cosas diferentes: prefiero cortes quirúrgicos."**
+
+Hasta que Luis diga que se arranca con clientes, **el bot no contacta a nadie**. Pero eso NO se
+logra apagando crons, triggers, tablas o funciones: todo eso sigue corriendo, encolando,
+calculando y registrando **como si fuera producción**. Lo único cortado es el último paso, el
+que le habla a Meta.
+
+| se hace | NO se hace |
+|---|---|
+| un corte único en el punto de salida: la llave **`app_settings.wa_envio_automatico`** (`0` nada · `prueba` sólo `wa_envio_contactos` · `1` producción; sin fila = `0`) | apagar crons (`cron.alter_job(… active := false)`), triggers, feeds o funciones "por las dudas" |
+| todo mensaje automático nuevo **encola en `wa_outbox`** y lo despacha `lk_outbox-flush`, que pasa por la llave (`bot_flush_outbox`) | un productor nuevo que le pegue directo a `graph.facebook.com` — es una salida sin corte |
+| alimentar las tablas de estado (ej. `order_tracking` desde Gestión) aunque disparen avisos: quedan en cola detrás de la llave | dejar datos sin cargar para que "no dispare nada" |
+| números de prueba: **sólo Thomy** en `wa_envio_contactos` | cargar teléfonos de clientes en tablas que lean los que mandan (`bot_customer_whatsapps`, `customers.whatsapp`, `wa_clientes_telefono`) sin que Luis lo pida |
+
+**Para arrancar con clientes es UN update:** `update app_settings set value='1' where key='wa_envio_automatico';`
+(y para probar punta a punta, `'prueba'`). Si arrancar exige prender otras 20 cosas, el
+principio se rompió en algún lado.
+
+⚠ **Salidas que todavía hablan directo con Meta sin pasar por la cola** son deuda: se migran a
+encolar en `wa_outbox` (o, mientras tanto, leen la misma llave). `notify-tracking-status` lee la
+llave desde el 25/09. El inventario vivo está en `docs/DECISIONES.md` D006/D007.
+
+⚠ **Las respuestas del bot a quien le escribe** (webhook) no son "contactar": son conversación y
+las filtra `wa_bot_solo_whitelist` (hoy sólo contesta a la whitelist). Eso queda como está.
+
+Los mensajes que salieron entre el 27/08 y el 04/09 fueron **a números de testeo** (Luis, 25/09):
+no hubo contacto con clientes.
+
+
 ## ⚠ REGLA: preguntar QUIÉN habla y dejar cada pedido como tarea en su Planify
 
 **Vale para TODOS los repos** (LK, Gestión Virgilio, Planify y cualquiera nuevo: copiar este
