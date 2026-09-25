@@ -81,7 +81,8 @@ async function loadConfig(): Promise<Config> {
 //      Cobertura medida el 2026-09-07: resuelve 547 de los 610, 0 ambiguos
 //      (los 63 restantes son fijos, no líneas de WhatsApp).
 //   2. `bot_cliente_por_whatsapp` → `bot_customer_whatsapps`, la vinculación
-//      explícita que se pide por WhatsApp y aprueba un humano. Hoy tiene 0
+//      explícita que se pide por WhatsApp y aprueba un humano (desde sql/072 de verdad:
+//      antes bot_register_request_v2 auto-vinculaba sólo con el CUIT). Hoy tiene 0
 //      filas: por eso el webhook, que consultaba SOLO ésta, no identificaba a
 //      NADIE y todo mensaje caía a la rama de no-cliente.
 //
@@ -545,6 +546,26 @@ async function handleRegistration(
         `Si querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. ` +
         `Te pregunto de a uno (para cortar, escribí *cancelar*):\n\n` +
         `📋 ¿Cuál es tu *razón social*?`,
+      );
+      break;
+    }
+
+    case "pending_review": {
+      // sql/072: un número nuevo nunca se vincula sólo con el CUIT; lo aprueba una persona
+      // desde el dashboard (lk_vinculaciones). El aviso de aprobado/rechazado sale por wa_outbox.
+      await send(
+        `Encontré la cuenta de *${result.business_name}*. 👍\n\n` +
+        `Por seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. ` +
+        `Te avisamos por acá apenas quede listo. 🙏\n\n` +
+        `Si es urgente, escribinos a ventas@loekemeyer.com o al WhatsApp 11 3118 1021.`,
+      );
+      break;
+    }
+
+    case "too_many_attempts": {
+      await send(
+        `Probaste varios CUIT desde este número en poco tiempo, así que por seguridad no puedo seguir con la vinculación por acá.\n\n` +
+        `Escribinos a ventas@loekemeyer.com o al WhatsApp 11 3118 1021 y lo resolvemos.`,
       );
       break;
     }
