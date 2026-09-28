@@ -683,7 +683,8 @@ function tkPintarDetalle() {
       ["CUIT", gesc(l.cuit || "")], ["Domicilio", gesc([l.direccion, l.localidad].filter(Boolean).join(" · "))], ["Teléfono", gesc(l.telefono || "")],
       ["Mail", gesc(l.mail || "")], ["Expreso", gesc(l.expreso_nombre || "")], ["Tipo de comercio", gesc(l.tipo_comercio || "")],
       ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
-      <div class="aviso">El alta se carga en el ERP a mano. Aprobar o rechazar con aviso automático al cliente todavía no existe: avisale desde la conversación.</div>`;
+      <div class="aviso">El alta se carga en el ERP a mano. Después aprobala acá: se le avisa al cliente por WhatsApp (sale según la llave).</div>
+      <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
   } else {
     cuerpo = a.texto ? `<h4>Último mensaje del cliente</h4><div class="cita">${gesc(a.texto)}</div>` : "";
   }
@@ -814,4 +815,41 @@ function slPintar() {
         <div class="nota">Retenidos = la llave no los dejó salir (modo prueba o apagado).</div></div>
     </div>
     ${r.respuesta.length ? `<div class="sl-card"><h4>Tasa de respuesta por tipo de aviso</h4><div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Categoría</th><th>Entregados</th><th>Respondidos en 24 h</th><th>%</th></tr></thead><tbody>${r.respuesta.map((x) => `<tr><td>${x.categoria === "utility" ? "Utilidad" : "Marketing"}</td>${celda(x.enviados)}${celda(x.respondidos)}<td>${pct(x.respondidos, x.enviados)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`;
+}
+
+// Alta de cliente: aprobar / rechazar con aviso (lk_alertas alta_decidir). El texto que se muestra es el que
+// arma el backend (avisos_alta); el código de cliente es opcional y se suma al mensaje si se carga.
+function tkVentanaNota(a) {
+  const min = a.ultimo_in_at ? minDesde(a.ultimo_in_at) : null;
+  if (min !== null && min < 1440) return "";
+  return `<div class="nota" style="background:var(--wait-bg);color:var(--wait-fg)">${min === null ? "No hay mensajes del cliente registrados" : `El cliente escribió por última vez hace ${dur(min)}`}: pasadas 24 h, Meta no deja mandar texto libre y el aviso va a fallar. La decisión se guarda igual; avisale por teléfono.</div>`;
+}
+function tkModalAlta(decision) {
+  const t = tkActual(); if (!t || t.tipo !== "alta") return;
+  const a = t.a, l = a.alta || {}, av = a.avisos_alta || {}, aprobar = decision === "approve";
+  modal(`<h3>${aprobar ? "Aprobar alta de cliente" : "Rechazar alta de cliente"}</h3>
+    <div class="kv"><span>Comercio</span><span><b>${gesc(l.razon_social || a.cliente || "—")}</b></span><span>CUIT</span><span>${gesc(l.cuit || "—")}</span><span>Teléfono</span><span>+${gesc(a.phone || "")}</span></div>
+    ${aprobar ? `<label style="font-size:12px;color:var(--g-muted)">Código de cliente en el ERP (opcional, va en el mensaje)</label>
+      <input id="tkCod" inputmode="numeric" oninput="tkPrevAlta()" style="padding:8px;border:1px solid var(--line);background:var(--g-bg);color:var(--ink);border-radius:2px" placeholder="ej. 4312">` : ""}
+    <div style="font-size:12px;color:var(--g-muted)">Mensaje que se le manda:</div>
+    <div class="texto" id="tkAvisoTxt">${gesc(aprobar ? av.aprobar : av.rechazar)}</div>${tkVentanaNota(a)}${notaLlaveCola()}
+    <div class="botones"><button class="g-btn" onclick="cerrarModal()">Cancelar</button><button class="g-btn prim" id="tkDecidirOk" onclick="tkDecidirAlta('${decision}')">${aprobar ? "Aprobar" : "Rechazar"}</button></div>`);
+}
+function tkPrevAlta() {
+  const t = tkActual(), av = t.a.avisos_alta || {};
+  const cod = (document.getElementById("tkCod")?.value || "").replace(/\D/g, "");
+  document.getElementById("tkAvisoTxt").textContent = cod ? av.aprobar_con_codigo.replace("{{cod}}", cod) : av.aprobar;
+}
+async function tkDecidirAlta(decision) {
+  const t = tkActual(); if (!t) return;
+  const b = document.getElementById("tkDecidirOk");
+  const cod = (document.getElementById("tkCod")?.value || "").replace(/\D/g, "");
+  b.disabled = true; b.textContent = "Guardando…";
+  try {
+    const r = await tkInvoke("lk_alertas", { action: "alta_decidir", id: t.a.id, decision, cod_cliente: cod || undefined });
+    cerrarModal();
+    toast((decision === "approve" ? "Alta aprobada. " : "Alta rechazada. ") + (r.aviso_encolado ? "El aviso quedó en la cola." : "No se pudo encolar el aviso: " + (r.error_aviso || "")));
+    G.tareaSel = null; tkVolver();
+    await tkCargar();
+  } catch (e) { b.disabled = false; b.textContent = "Reintentar"; toast("No se pudo: " + e.message); }
 }

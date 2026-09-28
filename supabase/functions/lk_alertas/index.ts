@@ -8,6 +8,9 @@ import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimiento
 //
 //   {action:"list", incluir_resueltas?, incluir_ruido?}  → alertas + vencimiento calculado
 //   {action:"resolver", id, estado: "atendido"|"descartado"}
+//   {action:"alta_decidir", id, decision:"approve"|"reject", cod_cliente?} → decide la solicitud de alta
+//        (wa_prospect_leads.status approved/rejected), encola el aviso al cliente en wa_outbox (sale según la
+//        llave) y cierra la alerta y su tarea de Planify.
 //   {action:"adjunto", comprobante_id} → link firmado (10 min) al archivo del comprobante (bucket privado)
 //   {action:"config_get"} / {action:"config_save", vencimientos:{categoria: minutos}}
 //
@@ -24,6 +27,17 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const SETTING = SETTING_VENCIMIENTO;
+
+// Textos del aviso de alta (prototipo de Claude Design, 28/09; validar con el negocio). El front los muestra
+// tal cual en el modal de confirmación, por eso se arman acá y se devuelven en list.
+function avisoAlta(decision: string, razon: string, cod: string): string {
+  if (decision === "approve") {
+    return `¡Bienvenido a Loekemeyer! Ya dimos de alta a ${razon || "tu comercio"} como cliente.` +
+      (cod ? ` Tu código es ${cod}` : "") + (cod ? " y un vendedor se va a comunicar con vos." : " Un vendedor se va a comunicar con vos.");
+  }
+  return "Gracias por escribirnos. Por ahora no podemos darte de alta como cliente. Si querés más información, respondé este mensaje.";
+}
+const ult10 = (p: unknown) => String(p ?? "").replace(/\D/g, "").slice(-10);
 
 // Cierra la tarea de Planify de la alerta (lk_alerta-planify). Nunca frena la respuesta al dashboard.
 async function llamarPlanify(body: Record<string, unknown>): Promise<void> {
@@ -117,6 +131,14 @@ serve(async (req) => {
           .in("id", compIds);
         for (const c of cs ?? []) comps[c.id] = c;
       }
+      // Último mensaje del cliente (ventana de 24 h de Meta: fuera de ella no sale texto libre).
+      const tels = [...new Set((data ?? []).map((a) => String(a.phone ?? "")).filter(Boolean))];
+      const ultIn: Record<string, string> = {};
+      if (tels.length) {
+        const { data: ins } = await supabase.from("wa_conversations").select("phone, created_at")
+          .eq("direction", "in").in("phone", tels).order("created_at", { ascending: false }).limit(1000);
+        for (const i of ins ?? []) { const k = ult10(i.phone); if (!ultIn[k]) ultIn[k] = i.created_at; }
+      }
       const ahora = Date.now();
       const alertas = (data ?? []).map((a) => {
         const cat = categoria(a);
@@ -136,6 +158,12 @@ serve(async (req) => {
           espera_min: Math.round((ahora - new Date(a.created_at).getTime()) / 60000),
           motivo: ctx.motivo ?? null,
           alta: leads[Number(ctx.lead_id)] ?? null,
+          ultimo_in_at: ultIn[ult10(a.phone)] ?? null,
+          avisos_alta: ctx.lead_id ? {
+            aprobar: avisoAlta("approve", String(leads[Number(ctx.lead_id)]?.razon_social ?? ctx.razon_social ?? ""), ""),
+            aprobar_con_codigo: avisoAlta("approve", String(leads[Number(ctx.lead_id)]?.razon_social ?? ctx.razon_social ?? ""), "{{cod}}"),
+            rechazar: avisoAlta("reject", "", ""),
+          } : null,
           comprobante: ctx.comprobante_id ? (comps[String(ctx.comprobante_id)] ?? { id: ctx.comprobante_id }) : null,
           error_detalle: a.tipo === "comprobante_error" ? (ctx.error ?? ctx.motivo ?? null) : null,
         };
@@ -162,6 +190,36 @@ serve(async (req) => {
       if (!data?.length) return json({ ok: false, error: "La alerta ya estaba resuelta." }, 200);
       await llamarPlanify({ action: "cerrar", alerta_id: id });   // si tenía tarea en Planify, se cierra
       return json({ ok: true });
+    }
+
+    if (body.action === "alta_decidir") {
+      const id = Number(body.id);
+      const decision = String(body.decision ?? "");
+      const cod = String(body.cod_cliente ?? "").replace(/\D/g, "");
+      if (!id || !["approve", "reject"].includes(decision)) return json({ ok: false, error: "parámetros inválidos" }, 400);
+      const { data: a } = await supabase.from("wa_alertas_humano").select("id, phone, contexto, estado").eq("id", id).maybeSingle();
+      const leadId = Number(a?.contexto?.lead_id);
+      if (!a || !leadId) return json({ ok: false, error: "La alerta no es una solicitud de alta." }, 200);
+      if (!["pendiente", "notificado"].includes(a.estado)) return json({ ok: false, error: "La alerta ya estaba resuelta." }, 200);
+      const { data: lead } = await supabase.from("wa_prospect_leads").select("id, phone, razon_social, status").eq("id", leadId).maybeSingle();
+      if (!lead) return json({ ok: false, error: "No encontré la solicitud de alta." }, 200);
+      if (["approved", "rejected"].includes(String(lead.status))) return json({ ok: false, error: `La solicitud ya estaba ${lead.status === "approved" ? "aprobada" : "rechazada"}.` }, 200);
+
+      const { error: eL } = await supabase.from("wa_prospect_leads")
+        .update({ status: decision === "approve" ? "approved" : "rejected", updated_at: new Date().toISOString() }).eq("id", leadId);
+      if (eL) return json({ ok: false, error: eL.message }, 200);
+      const texto = avisoAlta(decision, String(lead.razon_social ?? ""), cod);
+      const { error: eO } = await supabase.from("wa_outbox").insert({
+        phone: lead.phone ?? a.phone, body: texto,
+        context: decision === "approve" ? "alta_aprobada" : "alta_rechazada", ref_id: String(leadId),
+      });
+      await supabase.from("wa_alertas_humano").update({
+        estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
+        contexto: { ...a.contexto, decision_alta: decision, cod_cliente_asignado: cod || null },
+      }).eq("id", id);
+      await llamarPlanify({ action: "cerrar", alerta_id: id });
+      console.log(`lk_alertas: alta ${decision} lead ${leadId} por ${gate.email}`);
+      return json({ ok: true, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
     }
 
     if (body.action === "adjunto") {

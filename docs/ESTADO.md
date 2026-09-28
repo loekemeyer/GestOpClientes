@@ -473,7 +473,7 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.21.1`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.21.2`). Bumpear con cada cambio de front.
 
 **Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
 - `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
@@ -491,8 +491,8 @@ Un commit que sólo toca docs NO dispara deploy.
   que va a `wa_outbox` detrás de la llave), *Cobranzas* (comprobante recibido/con error; importe/fecha leídos de
   `wa_comprobantes` y link firmado de 10 min al adjunto, `lk_alertas` action `adjunto`), *Derivaciones* (resto de
   las alertas) y *Alta de cliente* (datos de `wa_prospect_leads`). Acciones: tomar y abrir la charla, marcar
-  resuelta, descartar. Sin salidas nuevas a Meta. **No existe todavía**: aprobar/rechazar un alta con aviso
-  automático, cruzar el comprobante contra la factura, "Asignar a…". "Vencimientos…" abre la página vieja de alertas.
+  resuelta, descartar. Sin salidas nuevas a Meta. Desde v0.21.2 el alta se aprueba/rechaza con aviso (`alta_decidir`, ver AGENTE.md).
+  **No existe todavía**: cruzar el comprobante contra la factura, "Asignar a…". "Vencimientos…" abre la página vieja de alertas.
 - **Etapa 4 (v0.21.0) — Centro de mensajes › Salientes** (`lk_conversaciones` action `salientes`, lógica en
   `_shared/salientes.ts`, sólo lectura): lo que salió del número según Meta (`wa_message_status`, CUALQUIER origen)
   por día y categoría (utilidad / marketing / conversación), entregados, leídos, fallidos por motivo
