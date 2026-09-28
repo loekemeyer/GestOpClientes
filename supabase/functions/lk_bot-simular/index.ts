@@ -57,6 +57,9 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY") ?? Deno.env.get("CLAUDE_API_KEY") ?? (await getSetting("anthropic_api_key")) ?? "";
 
+    // Opcional: teléfono real del cliente, para que las herramientas de consulta (pedidos, entregas) encuentren
+    // sus datos. Sigue en modo SIM: no se guarda historial ni corren herramientas con efecto.
+    const telSim = String(body.telefono ?? "").replace(/\D/g, "") || TEL_SIMULADO;
     SIM.activo = true;
     SIM.historial = [];
     const salida: Array<Record<string, unknown>> = [];
@@ -102,7 +105,7 @@ serve(async (req) => {
       // 6. agente IA
       SIM.historial.push({ rol: "user", contenido: text, creado_en: ahora() });
       if (!reply) {
-        const r = await runConversation(text, TEL_SIMULADO, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular");
+        const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular");
         via = r.timeout ? "agente (timeout: en producción no se contesta nada)" : r.llmError ? "agente (error: en producción no se contesta nada)" : "agente IA";
         reply = r.reply;
       }

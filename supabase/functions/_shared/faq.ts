@@ -266,7 +266,10 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
     const x = new Date(String(d).slice(0, 10) + "T12:00:00");
     return `${DIAS[x.getDay()]} ${String(x.getDate()).padStart(2, "0")}/${String(x.getMonth() + 1).padStart(2, "0")}`;
   };
-  const ddmm = (iso: string) => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }).format(new Date(iso));
+  const ddmm = (iso: string) => {   // armado a mano: es-AR ignora el 2-digit del mes ("25/9")
+    const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso));
+    return `${p.slice(8, 10)}/${p.slice(5, 7)}`;
+  };
   const lines = orders.map((o, i) => {
     // deno-lint-ignore no-explicit-any
     const t: any = estadoMap.get(String(o.id));
@@ -391,7 +394,8 @@ async function lookupOrderModify(customer: NonNullable<Customer>): Promise<strin
   if (!vivos.length) return `No tenés pedidos recientes que modificar. ¿Quieres hacer uno nuevo?`;
   const latest = vivos[0];
   const canModify = ["pendiente", "recibido"].includes(latest.status || "");
-  const del = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }).format(new Date(latest.created_at));
+  const pd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(latest.created_at));
+  const del = `${pd.slice(8, 10)}/${pd.slice(5, 7)}`;
   if (!canModify) return `Tu último pedido (el del ${del}) ya no se puede modificar desde acá.\n\nDerivamos tu solicitud a un vendedor para que evalúe opciones.`;
   return `Tu pedido del ${del} aún puede modificarse. ¿Qué cambios necesitás?\n📝 Indicame:\n• Artículos que quieres agregar/quitar\n• Cantidades\n\nUn vendedor va a confirmar los cambios.`;
 }
