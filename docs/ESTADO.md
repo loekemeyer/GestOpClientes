@@ -483,7 +483,7 @@ Un commit que sólo toca docs NO dispara deploy.
   `thread`, y acciones `tomar` / `devolver` / `resolver` / `ficha` / `llave_get` / `llave_set`.
 - **Cambiar la llave desde el dashboard: SÓLO admins**; producción exige tipear PRODUCCIÓN. Cada cambio se
   registra ANTES en `wa_llave_cambios` (`sql/080`); si la tabla no existe `llave_set` se niega.
-  ⚠ `sql/080` pendiente de aplicar (requiere “sí”).
+  `sql/080` aplicada el 28/09.
 - Fuente: Inter alojada en `docs/assets/fonts/` (v0.19.1; Helvetica caía a Arial en Windows).
 - `_shared/admin-gate.ts`: caché token→email 5 min y tope de 6 s al login de Gestión (el 28/09 17:11 la base de Gestión se colgó y cada llamada tardó 90 s).
 - Faltan etapas 3 (Tareas unificadas), 4 (Salientes), 5 (restyle Dashboard/Panel/Agente + oscuro), 6 (facturas en ficha).

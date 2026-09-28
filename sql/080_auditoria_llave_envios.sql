@@ -1,4 +1,4 @@
--- 080 — (PENDIENTE de aplicar) Auditoría de la llave de envíos (proyecto LK)
+-- 080 — Auditoría de la llave de envíos (proyecto LK)
 -- Pedido de Pablo Olejavetzky (28/09): la llave (app_settings.wa_envio_automatico) se puede cambiar desde
 -- el dashboard, SÓLO admins (lk_conversaciones → llave_set, requireAdmin). Cada cambio queda registrado acá
 -- ANTES de aplicarse: si no se puede registrar, el cambio no se hace.
