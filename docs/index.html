@@ -183,6 +183,8 @@
     .al-pill.ok { background: #dcfce7; color: #166534; }
     .al-pill.cerrada { background: var(--bg); color: var(--muted); }
     .al-pill.urgente { background: #dc2626; color: #fff; }
+    .al-pill.amarillo { background: #fef08a; color: #713f12; }
+    .al-pill.verde { background: #dcfce7; color: #166534; }
     .al-urgente td:first-child { border-left: 3px solid #dc2626; padding-left: 6px; }
     /* Aviso global: clientes esperando a una persona (arriba de todas las páginas, sólo admins) */
     .sidebar div.espera-banner[onclick], .sidebar div.espera-banner[onclick]:hover { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.8rem 0.6rem 0; border-left: 1px solid #fdba74; padding: 0.5rem 0.55rem; font-size: 0.76rem; color: #7c2d12; background: #fff7ed; }
@@ -617,8 +619,9 @@
           <h3>Esperando a una persona</h3>
           <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
             Lo que el bot no resolvió solo: cambios o cancelaciones de pedidos, pedidos de hablar con alguien,
-            clientes molestos, comprobantes, fallas del bot. Primero las <b>urgentes</b> (cliente molesto, cambio de
-            pedido, reclamo o apuro), después las vencidas. Tocá el cliente o <b>💬 Charla</b> para abrir la conversación y contestar.
+            clientes molestos, comprobantes, fallas del bot. Semáforo: 🔴 urgente (cliente molesto, cambio de pedido,
+            reclamo o apuro) · 🟡 contestar pronto (pidió hablar con alguien, consulta sin stock) · 🟢 puede esperar.
+            Van primero las rojas, después las amarillas y las verdes. Tocá el cliente o <b>💬 Charla</b> para abrir la conversación y contestar.
             Cada tipo tiene un <b>tiempo de vencimiento</b> (editable abajo).
           </p>
           <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.6rem;">
@@ -1272,7 +1275,9 @@ async function loadAlertas() {
         const acciones = abierta
           ? `${charla}<button class="config-btn small primary" onclick="resolverAlerta(${a.id},'atendido')">✓ Atendida</button> <button class="config-btn small" onclick="resolverAlerta(${a.id},'descartado')">✕ Descartar</button>`
           : `${charla}<span class="hint">${esc(a.atendido_por || "")}</span>`;
-        const urg = (abierta && a.urgente ? ` <span class="al-pill urgente">urgente</span>` : "") +
+        const SEM = { rojo: ["🔴", "urgente", "urgente"], amarillo: ["🟡", "contestar pronto", "amarillo"], verde: ["🟢", "puede esperar", "verde"] };
+        const sem = SEM[a.nivel] || (a.urgente ? SEM.rojo : SEM.verde);
+        const urg = (abierta ? ` <span class="al-pill ${sem[2]}">${sem[0]} ${sem[1]}</span>` : "") +
           (abierta && a.tomada_por ? `<br><span class="hint">✋ la tomó ${esc(a.tomada_por)}</span>` : "");
         const fila = abierta && a.urgente ? "al-urgente" : abierta && a.vencida ? "al-vencida" : "";
         return `<tr class="${fila}"><td>${pill}</td><td>${esc(a.label)}${urg}</td><td>${quien || "—"}</td><td>${que || "—"}</td><td style="white-space:nowrap;">${entro}</td><td style="white-space:nowrap;">${acciones}</td></tr>`;
@@ -1315,7 +1320,8 @@ function pintarEsperaBanner(abiertas) {
   const chips = abiertas.slice(0, 4).map((a) => {
     const quien = a.cliente || (a.phone ? "…" + String(a.phone).slice(-4) : "sin identificar");
     const click = a.phone ? ` onclick="abrirCharla('${esc(String(a.phone))}', event)" title="Abrir la charla"` : "";
-    return `<span class="espera-chip${a.urgente ? " urg" : ""}"${click}>${a.urgente ? "🔴 " : ""}${esc(quien)}<small>${esc(a.label)} · hace ${durTexto((a.espera_min || 0) * 60000)}${a.tomada_por ? ` · ✋ ${esc(a.tomada_por)}` : ""}</small></span>`;
+    const circulo = { rojo: "🔴", amarillo: "🟡", verde: "🟢" }[a.nivel] || (a.urgente ? "🔴" : "🟢");
+    return `<span class="espera-chip${a.urgente ? " urg" : ""}"${click}>${circulo} ${esc(quien)}<small>${esc(a.label)} · hace ${durTexto((a.espera_min || 0) * 60000)}${a.tomada_por ? ` · ✋ ${esc(a.tomada_por)}` : ""}</small></span>`;
   }).join("");
   const mas = `<span class="espera-todas" onclick="event.stopPropagation();showPage('alertas')">${abiertas.length > 4 ? `y ${abiertas.length - 4} más · ` : ""}ver todas en 🔔 Alertas →</span>`;
   el.className = "espera-banner" + (urg ? " hay-urgente" : "");
@@ -3630,6 +3636,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.5</div>
 </body>
 </html>

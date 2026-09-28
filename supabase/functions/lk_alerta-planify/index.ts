@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, supabase } from "../_shared/supabase.ts";
-import { categoria, urgente } from "../_shared/alertas-vencimiento.ts";
+import { categoria, nivel, SEMAFORO, urgente } from "../_shared/alertas-vencimiento.ts";
 
 // lk_alerta-planify — cada alerta que necesita a una persona se vuelve TAREA en Planify.
 // Pedido de Pablo Olejavetzky (28/09). Planify vive en el proyecto de Gestión (schema planify);
@@ -16,6 +16,9 @@ import { categoria, urgente } from "../_shared/alertas-vencimiento.ts";
 // Cartel (Pablo, 28/09): las tareas salen con broadcast=true → Planify abre el aviso centrado que no se
 // cierra con la ✕ y tiene "✋ Me encargo yo" (planify_claim_task). Con department_id (ej. 8 Ventas) le
 // aparece a todo el sector y gana el primero; sin department_id, a la persona de employee_id.
+// Destino según la llave de envío (Pablo, 28/09): en prueba (wa_envio_automatico ≠ '1') va SIEMPRE a
+// employee_id (quien desarrolla); en producción ('1') a department_id si está, si no a employee_id.
+// Semáforo en el nombre: 🔴 / 🟡 / 🟢 (ver nivel() en _shared/alertas-vencimiento.ts).
 
 const SECRET_NAME = "LK_FN_CRON_SECRET";
 const CONFIG_KEY = "wa_alertas_planify";
@@ -59,6 +62,11 @@ async function crear(alertaId: number) {
   if (!a) return { ok: false, error: "alerta no encontrada" };
   const cat = categoria(a);
   const esUrg = urgente(a);
+  const niv = nivel(a);
+  const { data: llaveRow } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
+  const produccion = llaveRow?.value === "1";
+  const aSector = produccion && !!cfg.department_id;
+  if (!aSector && !cfg.employee_id) return { ok: true, creada: false, motivo: "sin destinatario en prueba (employee_id)" };
   // Lo urgente (cliente molesto, cambio de pedido, reclamo…) va siempre a Planify.
   if (!cfg.categorias.includes(cat) && !esUrg) return { ok: true, creada: false, motivo: `categoría ${cat} no va a Planify` };
   const ctx = a.contexto ?? {};
@@ -75,12 +83,12 @@ async function crear(alertaId: number) {
     if (o?.created_at) pedido = `pedido del ${fmt(new Date(o.created_at), { day: "2-digit", month: "2-digit" }).split("-").reverse().join("/")}`;
   }
   const texto = String(ctx.texto_recibido ?? ctx.texto ?? "").trim();
-  const nombre = `${esUrg ? "🔴 " : ""}Bot: ${CORTO[cat] ?? cat} — ${cliente || a.phone || "sin identificar"}`.slice(0, 60);
+  const nombre = `${SEMAFORO[niv]} ${CORTO[cat] ?? cat} — ${cliente || a.phone || "sin identificar"}`.slice(0, 60);
   const nota = [
     texto ? `Escribió: "${texto.slice(0, 200)}"` : "",
     a.phone ? `Tel ${a.phone}` : "",
     pedido,
-  ].filter(Boolean).join(" · ") + " — alerta del bot de WhatsApp." +
+  ].filter(Boolean).join(" · ") + ` — alerta del bot de WhatsApp (${niv === "rojo" ? "urgente" : niv === "amarillo" ? "contestar pronto" : "puede esperar"}).` +
     (a.phone ? ` Abrir la charla: https://loekemeyer.github.io/GestOpClientes/?charla=${String(a.phone).replace(/\D/g, "")}` : "");
 
   const ahora = new Date(a.created_at);
@@ -90,7 +98,7 @@ async function crear(alertaId: number) {
     time: fmt(ahora, { hour: "2-digit", minute: "2-digit", hour12: false }),
     date: fmt(ahora, { year: "numeric", month: "2-digit", day: "2-digit" }),
     note: nota, rec: "none", done: false,
-    ...(cfg.department_id
+    ...(aSector
       ? { assignment_type: "department", department_id: cfg.department_id, employee_id: null }
       : { assignment_type: "employee", employee_id: cfg.employee_id, department_id: null }),
     system_generated: false, broadcast: cfg.broadcast ?? true,

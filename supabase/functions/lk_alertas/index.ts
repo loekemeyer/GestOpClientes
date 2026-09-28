@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
-import { CATEGORIAS, categoria, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
+import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
 
 // lk_alertas — bandeja de alertas para humanos (wa_alertas_humano) con vencimiento.
 // La usa el dashboard (menú 🔔 Alertas). Sólo admins (requireAdmin).
@@ -113,13 +113,15 @@ serve(async (req) => {
           vence_at: venceAt.toISOString(),
           vencida: ["pendiente", "notificado"].includes(a.estado) && venceAt.getTime() < ahora,
           urgente: urgente(a),
+          nivel: nivel(a),
           espera_min: Math.round((ahora - new Date(a.created_at).getTime()) / 60000),
         };
       }).sort((x, y) => {
         // Abiertas primero; dentro de las abiertas: urgentes, después vencidas, después por vencimiento.
         const ab = (z: { estado: string }) => ["pendiente", "notificado"].includes(z.estado);
         if (ab(x) !== ab(y)) return ab(x) ? -1 : 1;
-        if (x.urgente !== y.urgente) return x.urgente ? -1 : 1;
+        const orden = { rojo: 0, amarillo: 1, verde: 2 } as Record<string, number>;
+        if (x.nivel !== y.nivel) return orden[x.nivel] - orden[y.nivel];
         if (x.vencida !== y.vencida) return x.vencida ? -1 : 1;
         return x.vence_at.localeCompare(y.vence_at);
       });

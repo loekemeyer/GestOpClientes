@@ -52,3 +52,16 @@ export function urgente(a: any): boolean {
   const texto = String(ctx.texto_recibido ?? ctx.texto ?? "");
   return CATEGORIAS_URGENTES.has(categoria(a)) || (texto ? esUrgente(texto) : false);
 }
+
+// Semáforo (Pablo, 28/09): 🔴 rojo = urgente (cliente molesto, cambio/cancelación de pedido, comprobante
+// con error, reclamo o apuro en el texto) · 🟡 amarillo = una persona tiene que contestar pronto (pidió
+// hablar con alguien, consulta de stock sin disponibilidad) · 🟢 verde = puede esperar (comprobante
+// recibido, alta de cliente, el resto).
+export type Nivel = "rojo" | "amarillo" | "verde";
+export const SEMAFORO: Record<Nivel, string> = { rojo: "🔴", amarillo: "🟡", verde: "🟢" };
+const CATEGORIAS_AMARILLAS = new Set(["escalation", "consulta_stock", "faq_no_match", "llm_timeout", "llm_error"]);
+// deno-lint-ignore no-explicit-any
+export function nivel(a: any): Nivel {
+  if (urgente(a)) return "rojo";
+  return CATEGORIAS_AMARILLAS.has(categoria(a)) ? "amarillo" : "verde";
+}
