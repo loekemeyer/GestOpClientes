@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, supabase } from "../_shared/supabase.ts";
-import { categoria, nivel, SEMAFORO, urgente } from "../_shared/alertas-vencimiento.ts";
+import { CATEGORIAS, categoria, nivel, SEMAFORO, urgente } from "../_shared/alertas-vencimiento.ts";
+const CATEGORIAS_LABEL = (c: string) => CORTO[c] ?? CATEGORIAS[c]?.label ?? c;
 
 // lk_alerta-planify — cada alerta que necesita a una persona se vuelve TAREA en Planify.
 // Pedido de Pablo Olejavetzky (28/09). Planify vive en el proyecto de Gestión (schema planify);
@@ -84,12 +85,21 @@ async function crear(alertaId: number) {
   }
   const texto = String(ctx.texto_recibido ?? ctx.texto ?? "").trim();
   const nombre = `${SEMAFORO[niv]} ${CORTO[cat] ?? cat} — ${cliente || a.phone || "sin identificar"}`.slice(0, 60);
+  // Nota en el formato que lee el cartel de Planify (src/alarm-broadcast.html): "Clave: valor" por línea,
+  // "Aviso:" = encabezado, "Charla:" = link del botón "💬 Abrir la charla" (no se muestra como dato) y el
+  // marcador [vbot:<alerta>|<nivel>|<tel>] al final → Planify lo pinta con el color del semáforo.
+  const tel = String(a.phone ?? "").replace(/\D/g, "");
+  const ETIQUETA: Record<string, string> = { rojo: "🔴 URGENTE", amarillo: "🟡 CONTESTAR PRONTO", verde: "🟢 PUEDE ESPERAR" };
   const nota = [
-    texto ? `Escribió: "${texto.slice(0, 200)}"` : "",
-    a.phone ? `Tel ${a.phone}` : "",
-    pedido,
-  ].filter(Boolean).join(" · ") + ` — alerta del bot de WhatsApp (${niv === "rojo" ? "urgente" : niv === "amarillo" ? "contestar pronto" : "puede esperar"}).` +
-    (a.phone ? ` Abrir la charla: https://loekemeyer.github.io/GestOpClientes/?charla=${String(a.phone).replace(/\D/g, "")}` : "");
+    `Aviso: CLIENTE ESPERANDO — ${ETIQUETA[niv]}`,
+    `Cliente: ${cliente || "sin identificar"}`,
+    `Motivo: ${CATEGORIAS_LABEL(cat)}`,
+    texto ? `Escribió: "${texto.slice(0, 160)}"` : "",
+    pedido ? `Pedido: ${pedido.replace(/^pedido /, "")}` : "",
+    tel ? `Teléfono: +${tel}` : "",
+    tel ? `Charla: https://loekemeyer.github.io/GestOpClientes/?charla=${tel}` : "",
+    `[vbot:${a.id}|${niv}|${tel}]`,
+  ].filter(Boolean).join("\n");
 
   const ahora = new Date(a.created_at);
   const planify = await getGestionClient("planify");
