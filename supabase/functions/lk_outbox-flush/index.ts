@@ -72,6 +72,9 @@ Deno.serve(async () => {
     const r = await waSend(payload);
     if (r.ok) {
       await sb.rpc("bot_outbox_mark", { p_id: m.id, p_status: "sent" });
+      // ID de Meta del mensaje (sql/081): Salientes cruza exacto con wa_message_status.
+      const wamid = r.d?.messages?.[0]?.id;
+      if (wamid) await sb.from("wa_outbox").update({ wamid }).eq("id", m.id).then(() => {}, () => {});
       // Aviso automático: el historial guarda el TEXTO que leyó el cliente (no los {{n}}) y a qué
       // pedido se refiere, para que si responde el bot sepa de qué le hablan (webhook,
       // respuesta-a-aviso). bot_flush_outbox no devuelve context/ref_id: se leen acá.

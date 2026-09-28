@@ -4,8 +4,8 @@
 //   · wa_message_status → lo que Meta dice que salió del número (sent/delivered/read/failed), de CUALQUIER
 //     origen: el bot, otros sistemas que usan el mismo número y personas desde la app.
 //   · wa_outbox → los avisos del bot: encolados, enviados, fallidos y retenidos por la llave.
-// El bot no guarda el wamid de lo que manda, así que "salió del bot" es APROXIMADO: mismo teléfono y ±3 min
-// que un envío de la cola o una respuesta del bot (bot_historial_chat).
+// "Salió del bot": EXACTO para los avisos de la cola desde sql/081 (wa_outbox.wamid); para lo anterior y para las
+// respuestas del bot en la charla (bot_historial_chat no guarda wamid) es APROXIMADO: mismo teléfono y ±3 min.
 // Sólo lectura. Lo llama lk_conversaciones {action:"salientes", dias}.
 import { supabase } from "./supabase.ts";
 import { ERRORES_META } from "./errores-meta.ts";
@@ -44,7 +44,7 @@ export async function salientes(dias: number) {
   const [estados, cola, botResp, entrantes] = await Promise.all([
     todo(() => supabase.from("wa_message_status").select("wamid, status, pricing_category, errors, ts, recipient_id")
       .gte("ts", desdeIso).order("ts", { ascending: true })),
-    todo(() => supabase.from("wa_outbox").select("phone, template_name, context, status, created_at, sent_at, error")
+    todo(() => supabase.from("wa_outbox").select("phone, template_name, context, status, created_at, sent_at, error, wamid")
       .gte("created_at", desdeIso).order("created_at", { ascending: true })),
     todo(() => supabase.from("bot_historial_chat").select("telefono, creado_en").eq("rol", "assistant")
       .gte("creado_en", desdeIso)),
@@ -63,7 +63,9 @@ export async function salientes(dias: number) {
   };
   for (const o of cola) if (o.status === "sent") marcar(o.phone, o.sent_at);
   for (const r of botResp) marcar(r.telefono, r.creado_en);
-  const esDelBot = (tel: string, t: number) => (botPorTel.get(ult10(tel)) ?? []).some((x) => Math.abs(x - t) <= VENTANA_MS);
+  const wamidsCola = new Set(cola.map((o) => o.wamid).filter(Boolean));
+  const esDelBot = (wamid: string, tel: string, t: number) =>
+    wamidsCola.has(wamid) || (botPorTel.get(ult10(tel)) ?? []).some((x) => Math.abs(x - t) <= VENTANA_MS);
 
   const entrPorTel = new Map<string, number[]>();
   for (const e of entrantes) {
@@ -94,11 +96,11 @@ export async function salientes(dias: number) {
   const resp: Record<string, { enviados: number; respondidos: number }> = {};
   let total = { ...vacioDia(), respondidos: 0, cobrables: 0 };
 
-  for (const m of msgs.values()) {
+  for (const [wamid, m] of msgs.entries()) {
     const dia = diaAR(new Date(m.t).toISOString());
     const d = porDia[dia];
     if (!d) continue;
-    const bot = esDelBot(m.tel, m.t);
+    const bot = esDelBot(wamid, m.tel, m.t);
     const cat = m.cat || (m.fallido ? "" : "service");
     const costo = m.entregado ? (tarifas[cat] ?? 0) : 0;
     for (const x of [d, total] as Record<string, number>[]) {

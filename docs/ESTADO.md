@@ -473,7 +473,7 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.21.0`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.21.1`). Bumpear con cada cambio de front.
 
 **Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
 - `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
@@ -498,8 +498,9 @@ Un commit que sólo toca docs NO dispara deploy.
   por día y categoría (utilidad / marketing / conversación), entregados, leídos, fallidos por motivo
   (`_shared/errores-meta.ts`, compartido con `lk_fallas-mail`), retenidos por la llave y avisos del bot por tipo
   (`wa_outbox`), tasa de respuesta en 24 h y costo = entregados × tarifa (`app_settings.wa_tarifas`, default
-  utilidad 0,026 / marketing 0,0618 USD). ⚠ "Del bot" es APROXIMADO (teléfono ±3 min): ni `wa_outbox` ni
-  `bot_historial_chat` guardan el wamid. Dato del 28/09: en 7 días salieron ~1.000 mensajes del número y ~15 fueron
+  utilidad 0,026 / marketing 0,0618 USD). "Del bot": EXACTO para avisos de la cola desde sql/081
+  (`wa_outbox.wamid`, lo escribe `lk_outbox-flush`); APROXIMADO (teléfono ±3 min) para respuestas del bot en la
+  charla (`bot_historial_chat` no guarda wamid) y para lo anterior al 28/09. Dato del 28/09: en 7 días salieron ~1.000 mensajes del número y ~15 fueron
   del bot; el resto sale de otros sistemas o de la app.
 - Faltan etapas 4 (Salientes), 5 (restyle Dashboard/Panel/Agente + oscuro), 6 (facturas en ficha).
   Plantillas desde el chat con ventana 24 h cerrada: todavía no.
