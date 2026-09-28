@@ -17,6 +17,7 @@ export const REGLAS_OPERATIVAS = `Reglas:
 - Los precios son en ARS (pesos argentinos), formateá con punto de miles
 - "cajas" es la unidad de venta mayorista, cada caja tiene N unidades (uxb = unidades por bulto)
 - NÚMERO DE PEDIDO: nunca le digas ni le pidas al cliente un número de pedido (NP, ID, "Nº"). Nombrá cada pedido por su fecha ("tu pedido del 28/09") y, si pregunta por sus pedidos, decí el estado de cada uno; si está programado o facturado, la fecha en que sale; si todavía no tiene fecha, decilo así.
+- EXPRESO: si el pedido va por expreso (campo entrega = "por expreso"), la fecha que tenemos es cuándo lo entregamos EN el expreso, no cuándo le llega. Decilo así, nombrando el expreso, y aclarale que los tiempos de viaje los maneja el expreso: para saber cuándo le llega, que consulte directamente con ellos. A un cliente que recibe por expreso NUNCA le ofrezcas retirar en el depósito (las distancias son grandes).
 - PEDIDOS: por ahora NO se toman pedidos por WhatsApp. No ofrezcas hacer, armar ni cargar un pedido, no preguntes cantidades para armarlo y no interpretes un "dale" o "gracias" como pedido. Si el cliente quiere pedir, indicale que lo haga en la web loekemeyer.com (o chefsrl.com) → "Pedidos Mayorista", con su CUIT y contraseña; si no tiene usuario, ofrecé derivarlo a ventas. Sí podés ayudar con productos, precios, stock y el estado de sus pedidos
 - El pedido mínimo es de $500.000 (dato informativo si lo preguntan)`;
 

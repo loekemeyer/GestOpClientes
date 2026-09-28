@@ -270,18 +270,42 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
     const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso));
     return `${p.slice(8, 10)}/${p.slice(5, 7)}`;
   };
+  // Modo de entrega de cada pedido (v_pedidos_web, misma regla que los avisos de sql/079). Pablo, 28/09: si va
+  // por expreso, NO se ofrece retiro (las distancias son grandes) y cuándo le llega lo sabe el expreso.
+  const { data: modos } = await supabase.from("v_pedidos_web").select("order_id, zona_expreso, nombre_expreso")
+    .in("order_id", orders.map((o) => o.id)).eq("linea_rn", 1);
+  const modoDe = new Map((modos ?? []).map((m: { order_id: number; zona_expreso: string | null; nombre_expreso: string | null }) => [
+    String(m.order_id),
+    /^retira/i.test(String(m.zona_expreso ?? "")) ? { modo: "retira", expreso: null }
+      : String(m.nombre_expreso ?? "").trim() ? { modo: "expreso", expreso: String(m.nombre_expreso).trim() }
+      : { modo: "reparto", expreso: null },
+  ]));
+  let hayExpreso = false;
   const lines = orders.map((o, i) => {
     // deno-lint-ignore no-explicit-any
     const t: any = estadoMap.get(String(o.id));
     const rawStatus = t?.status ?? o.status;
     const statusText = STATUS_MAP[rawStatus] || rawStatus;
+    const m = modoDe.get(String(o.id)) ?? { modo: "reparto", expreso: null };
     let line = `${i + 1}️⃣ Pedido del ${ddmm(o.created_at)} — ${statusText}`;
-    if (t?.fecha_entrega && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado"))
-      line += `: sale el ${conDia(t.fecha_entrega)}`;
-    if (t?.fecha_entrega && rawStatus === "entregado") line += ` el ${conDia(t.fecha_entrega)}`;
+    const conFecha = t?.fecha_entrega && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado");
+    if (conFecha) {
+      if (m.modo === "expreso") { line += `: el ${conDia(t.fecha_entrega)} lo entregamos en el expreso *${m.expreso}*`; hayExpreso = true; }
+      else if (m.modo === "retira") line += `: lo podés retirar desde el ${conDia(t.fecha_entrega)}`;
+      else line += `: sale el ${conDia(t.fecha_entrega)}`;
+    } else if (!t?.fecha_entrega && m.modo === "expreso" && rawStatus !== "entregado") {
+      line += ` (va por el expreso *${m.expreso}*)`;
+    }
+    if (t?.fecha_entrega && rawStatus === "entregado") {
+      if (m.modo === "expreso") { line = `${i + 1}️⃣ Pedido del ${ddmm(o.created_at)} — ✅ entregado en el expreso *${m.expreso}* el ${conDia(t.fecha_entrega)}`; hayExpreso = true; }
+      else line += ` el ${conDia(t.fecha_entrega)}`;
+    }
     return line;
   });
-  return `${customer.business_name}, acá está el estado de tus pedidos:\n\n${lines.join("\n")}\n\n¿Necesitás más detalle de alguno?`;
+  const notaExpreso = hayExpreso
+    ? "\n\n🚛 Desde que lo entregamos en el expreso, los tiempos de viaje los maneja el expreso: para saber cuándo te llega, consultalo directamente con ellos."
+    : "";
+  return `${customer.business_name}, acá está el estado de tus pedidos:\n\n${lines.join("\n")}${notaExpreso}\n\n¿Necesitás más detalle de alguno?`;
 }
 
 // deno-lint-ignore no-explicit-any

@@ -281,14 +281,24 @@ async function executeTool(
       // índice, estado real (Gestión, bot_estado_pedidos_gv) y fecha de salida.
       // deno-lint-ignore no-explicit-any
       const filas = data as any[];
-      const { data: est } = await supabase.rpc("bot_estado_pedidos_gv", { p_ids: filas.map((r) => r.order_id) });
+      const [{ data: est }, { data: modos }] = await Promise.all([
+        supabase.rpc("bot_estado_pedidos_gv", { p_ids: filas.map((r) => r.order_id) }),
+        supabase.from("v_pedidos_web").select("order_id, zona_expreso, nombre_expreso")
+          .in("order_id", filas.map((r) => r.order_id)).eq("linea_rn", 1),
+      ]);
       // deno-lint-ignore no-explicit-any
       const porId = new Map((est ?? []).map((e: any) => [String(e.order_id), e]));
+      // deno-lint-ignore no-explicit-any
+      const modoPor = new Map((modos ?? []).map((m: any) => [String(m.order_id),
+        /^retira/i.test(String(m.zona_expreso ?? "")) ? { entrega: "retira en el depósito" }
+          : String(m.nombre_expreso ?? "").trim() ? { entrega: "por expreso", expreso: String(m.nombre_expreso).trim() }
+          : { entrega: "reparto propio" }]));
       return { data: filas.map((r, i) => {
         // deno-lint-ignore no-explicit-any
         const e: any = porId.get(String(r.order_id));
         const { order_id: _id, ...resto } = r;
-        return { indice: i + 1, ...resto, estado: e?.status ?? "recibido", fecha_salida: e?.fecha_entrega ?? null };
+        return { indice: i + 1, ...resto, estado: e?.status ?? "recibido", fecha_salida: e?.fecha_entrega ?? null,
+          ...(modoPor.get(String(r.order_id)) ?? { entrega: "reparto propio" }) };
       }) };
     }
 

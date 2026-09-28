@@ -70,6 +70,12 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 
 ## Flujo 2: Consulta de pedido
 
+> **28/09 (Pablo):** la respuesta de estado nombra cada pedido por su fecha (nunca el número), saca los
+> anulados/borrados/no enviados y depende del modo de entrega: *expreso* → "el jueves 01/10 lo entregamos en el
+> expreso X" + "los tiempos de viaje los maneja el expreso: consultalo con ellos" (a un cliente de expreso nunca se
+> le ofrece retirar); *retira* → "lo podés retirar desde…"; *reparto* → "sale el…". Sin fecha → "todavía sin fecha
+> de salida".
+
 ```
 CLIENTE: ¿Cómo va mi pedido?
 BOT: Tenés 2 pedidos recientes:
