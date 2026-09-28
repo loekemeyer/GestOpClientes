@@ -49,11 +49,38 @@ function emailFromJwtClaims(jwt: string): string | null {
   }
 }
 
+// Token ya validado → email, por instancia. El dashboard dispara varias llamadas por pantalla
+// y cada una le pegaba a GoTrue de Gestión; con el login lento (28/09: 90 s por llamada) todo
+// el dashboard quedaba colgado. Sólo se cachea lo que GoTrue aprobó, y nunca más allá del exp.
+const CACHE_MS = 5 * 60 * 1000;
+const cacheEmail = new Map<string, { email: string; hasta: number }>();
+function expDelJwt(jwt: string): number {
+  try {
+    let b64 = String(jwt).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    b64 += "=".repeat((4 - (b64.length % 4)) % 4);
+    return Number(JSON.parse(atob(b64))?.exp ?? 0) * 1000;
+  } catch { return 0; }
+}
+
 /** Valida el access_token contra el proyecto de auth y devuelve el email. */
 async function getAuthedEmail(accessToken: string): Promise<string | null> {
+  const c = cacheEmail.get(accessToken);
+  if (c && c.hasta > Date.now()) return c.email;
+  const email = await validarEnAuth(accessToken);
+  if (email) {
+    if (cacheEmail.size > 500) cacheEmail.clear();
+    const exp = expDelJwt(accessToken) || Date.now() + CACHE_MS;
+    cacheEmail.set(accessToken, { email, hasta: Math.min(Date.now() + CACHE_MS, exp) });
+  }
+  return email;
+}
+
+async function validarEnAuth(accessToken: string): Promise<string | null> {
   try {
+    // Tope de 6 s: si el login de Gestión no contesta, mejor un error claro que 90 s de espera.
     const r = await fetch(`${AUTH_URL}/auth/v1/user`, {
       headers: { apikey: AUTH_KEY, Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(6000),
     });
     if (r.ok) {
       const u = await r.json();
@@ -72,7 +99,8 @@ async function getAuthedEmail(accessToken: string): Promise<string | null> {
     try { bodyTxt = await r.text(); } catch { /* ignore */ }
     if (bodyTxt.includes("session_not_found")) return emailFromJwtClaims(accessToken);
     return null;
-  } catch {
+  } catch (e) {
+    if (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError")) throw new Error("auth_timeout");
     return null;
   }
 }
@@ -86,7 +114,12 @@ export async function requireAdmin(body: any): Promise<AdminGate> {
   const token = String(body?.access_token ?? "").trim();
   if (!token) return { ok: false, error: "Falta sesión (access_token)", status: 401 };
 
-  const email = await getAuthedEmail(token);
+  let email: string | null;
+  try {
+    email = await getAuthedEmail(token);
+  } catch {
+    return { ok: false, error: "El login (proyecto Gestión) no responde. Probá de nuevo en un rato.", status: 503 };
+  }
   if (!email) return { ok: false, error: "Sesión inválida o expirada", status: 401 };
 
   const { data: u, error } = await supabase

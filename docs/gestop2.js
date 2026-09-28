@@ -153,7 +153,12 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarModa
 
 async function conv(body) {
   const { data, error } = await authedInvoke("lk_conversaciones", body);
-  if (error) throw new Error(error.message || "error");
+  if (error) {
+    // supabase-js esconde el cuerpo en error.context: mostrar el motivo real (ej. login caído).
+    let msg = error.message || "error";
+    try { const b = await error.context.json(); if (b && b.error) msg = b.error; } catch (_) { /* sin cuerpo */ }
+    throw new Error(msg);
+  }
   if (data && data.error) { const e = new Error(data.note || data.error); throw e; }
   return data;
 }

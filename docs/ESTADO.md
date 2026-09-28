@@ -473,7 +473,7 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.19.0`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.19.1`). Bumpear con cada cambio de front.
 
 **Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
 - `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
@@ -484,5 +484,7 @@ Un commit que sólo toca docs NO dispara deploy.
 - **Cambiar la llave desde el dashboard: SÓLO admins**; producción exige tipear PRODUCCIÓN. Cada cambio se
   registra ANTES en `wa_llave_cambios` (`sql/080`); si la tabla no existe `llave_set` se niega.
   ⚠ `sql/080` pendiente de aplicar (requiere “sí”).
+- Fuente: Inter alojada en `docs/assets/fonts/` (v0.19.1; Helvetica caía a Arial en Windows).
+- `_shared/admin-gate.ts`: caché token→email 5 min y tope de 6 s al login de Gestión (el 28/09 17:11 la base de Gestión se colgó y cada llamada tardó 90 s).
 - Faltan etapas 3 (Tareas unificadas), 4 (Salientes), 5 (restyle Dashboard/Panel/Agente + oscuro), 6 (facturas en ficha).
   Plantillas desde el chat con ventana 24 h cerrada: todavía no.
