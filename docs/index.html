@@ -195,6 +195,10 @@
     .espera-chip { display: block; padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.08);
       line-height: 1.3; min-width: 0; overflow-wrap: anywhere; }
     .espera-chip small { display: block; opacity: 0.8; }
+    .espera-chip:hover { border-color: currentColor; }
+    .conv-volver { display: none; }
+    a.al-charla { color: inherit; text-decoration: none; border-bottom: 1px dashed currentColor; }
+    a.al-charla:hover { color: var(--primary); }
     .espera-chip.urg { border-color: #dc2626; }
     .al-venc input { width: 64px; padding: 0.3rem 0.4rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; }
     #pageConfig .config-section { max-width: 860px; min-width: 0; }
@@ -215,6 +219,12 @@
       .sidebar .user-info { border-top: none; white-space: nowrap; }
       .sidebar .espera-banner, .sidebar .espera-banner:hover { margin: 0 0.4rem; padding: 0.25rem 0.5rem; flex-shrink: 0; white-space: nowrap; }
       .sidebar .espera-banner { order: -1; }
+      /* Conversaciones reales en el celular: una columna. Con una charla abierta se ve sólo la charla. */
+      .conv-layout .conv-lista { width: 100% !important; min-width: 0 !important; }
+      .conv-layout .conv-charla { display: none !important; }
+      .conv-layout.con-charla .conv-lista { display: none !important; }
+      .conv-layout.con-charla .conv-charla { display: flex !important; }
+      .conv-layout.con-charla .conv-volver { display: inline-block; align-self: flex-start; margin: 0.4rem 0.6rem 0; }
       .sidebar .espera-banner .espera-chip, .sidebar .espera-banner > span, .sidebar .espera-banner .largo { display: none; }
       .sidebar .espera-banner .corto { display: inline; white-space: nowrap; }
       .main { min-height: 0; }
@@ -469,8 +479,8 @@
 
       <!-- Tab 2: Conversaciones reales (atención humana / traspaso del bot) -->
       <div class="chat-tab-content" id="tabRealConv">
-        <div style="display:flex;gap:0.8rem;height:calc(100vh - 170px);min-height:480px;">
-          <div style="width:290px;min-width:250px;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <div id="convLayout" class="conv-layout" style="display:flex;gap:0.8rem;height:calc(100vh - 170px);min-height:480px;">
+          <div class="conv-lista" style="width:290px;min-width:250px;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
             <div style="padding:0.6rem 0.7rem;background:#075e54;color:#fff;display:flex;align-items:center;justify-content:space-between;">
               <b>💬 Conversaciones</b>
               <span style="display:flex;gap:0.3rem;">
@@ -480,7 +490,8 @@
             </div>
             <div id="convList" style="flex:1;overflow-y:auto;"></div>
           </div>
-          <div style="flex:1;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+          <div class="conv-charla" style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+            <button class="config-btn small conv-volver" onclick="convVolver()">← Conversaciones</button>
             <div id="convHeader" style="padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
               <div id="convTitle" style="font-weight:600;">Elegí una conversación</div>
               <div id="convActions" style="display:none;gap:0.4rem;align-items:center;flex-wrap:wrap;">
@@ -606,7 +617,8 @@
           <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
             Lo que el bot no resolvió solo: cambios o cancelaciones de pedidos, pedidos de hablar con alguien,
             clientes molestos, comprobantes, fallas del bot. Primero las <b>urgentes</b> (cliente molesto, cambio de
-            pedido, reclamo o apuro), después las vencidas. Cada tipo tiene un <b>tiempo de vencimiento</b> (editable abajo).
+            pedido, reclamo o apuro), después las vencidas. Tocá el cliente o <b>💬 Charla</b> para abrir la conversación y contestar.
+            Cada tipo tiene un <b>tiempo de vencimiento</b> (editable abajo).
           </p>
           <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.6rem;">
             <button class="config-btn small" onclick="loadAlertas()">↻ Actualizar</button>
@@ -1204,6 +1216,12 @@ function showApp() {
     appInitialized = true;
     showStartScreen();
   }
+  // Link directo a una charla (?charla=<teléfono>): lo traen las tareas de Planify de las alertas.
+  const charla = new URLSearchParams(location.search).get("charla");
+  if (charla && isAdmin) {
+    history.replaceState(null, "", location.pathname);
+    abrirCharla(charla).catch(() => {});
+  }
 }
 
 // Auto-login: check existing session + handle OAuth redirect
@@ -1245,12 +1263,14 @@ async function loadAlertas() {
           : a.vencida ? `<span class="al-pill vencida">vencida hace ${durTexto(falta)}</span>`
           : falta < 30 * 60000 ? `<span class="al-pill pronto">vence en ${durTexto(falta)}</span>`
           : `<span class="al-pill ok">vence en ${durTexto(falta)}</span>`;
-        const quien = [a.cliente ? esc(a.cliente) : "", a.phone ? `<code>…${esc(String(a.phone).slice(-4))}</code>` : ""].filter(Boolean).join("<br>");
+        const quienTxt = [a.cliente ? esc(a.cliente) : "", a.phone ? `<code>…${esc(String(a.phone).slice(-4))}</code>` : ""].filter(Boolean).join("<br>");
+        const quien = a.phone ? `<a href="#" class="al-charla" onclick="abrirCharla('${esc(String(a.phone))}', event)" title="Abrir la charla">${quienTxt}</a>` : quienTxt;
         const que = [a.pedido ? (a.pedido_fecha ? `Pedido del ${esc(a.pedido_fecha)}` : "Pedido (sin fecha)") : "", a.texto ? `“${esc(String(a.texto).slice(0, 160))}”` : ""].filter(Boolean).join("<br>");
         const entro = new Date(a.created_at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+        const charla = a.phone ? `<button class="config-btn small" onclick="abrirCharla('${esc(String(a.phone))}', event)">💬 Charla</button> ` : "";
         const acciones = abierta
-          ? `<button class="config-btn small primary" onclick="resolverAlerta(${a.id},'atendido')">✓ Atendida</button> <button class="config-btn small" onclick="resolverAlerta(${a.id},'descartado')">✕ Descartar</button>`
-          : `<span class="hint">${esc(a.atendido_por || "")}</span>`;
+          ? `${charla}<button class="config-btn small primary" onclick="resolverAlerta(${a.id},'atendido')">✓ Atendida</button> <button class="config-btn small" onclick="resolverAlerta(${a.id},'descartado')">✕ Descartar</button>`
+          : `${charla}<span class="hint">${esc(a.atendido_por || "")}</span>`;
         const urg = abierta && a.urgente ? ` <span class="al-pill urgente">urgente</span>` : "";
         const fila = abierta && a.urgente ? "al-urgente" : abierta && a.vencida ? "al-vencida" : "";
         return `<tr class="${fila}"><td>${pill}</td><td>${esc(a.label)}${urg}</td><td>${quien || "—"}</td><td>${que || "—"}</td><td style="white-space:nowrap;">${entro}</td><td style="white-space:nowrap;">${acciones}</td></tr>`;
@@ -1266,6 +1286,17 @@ function pintarBadgeAlertas(abiertas, vencidas, urgentes) {
   b.textContent = urgentes ? `${urgentes}🔴` : vencidas ? `${vencidas}!` : abiertas;
   b.title = `${abiertas} abierta(s)` + (urgentes ? ` · ${urgentes} urgente(s)` : "") + (vencidas ? ` · ${vencidas} vencida(s)` : "");
 }
+// Abre la charla real de un número (Comunicaciones → Conversaciones reales) para leer y contestar.
+// La usan las alertas (tabla, aviso de la barra lateral) y el link ?charla=<teléfono> de las tareas de Planify.
+async function abrirCharla(phone, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const tel = String(phone || "").replace(/\D/g, "");
+  if (!tel) return;
+  showPage("chat");
+  switchChatTab("realConv");
+  await convRefresh();
+  await convOpen(tel);
+}
 // Aviso arriba de todas las páginas: quiénes están esperando a una persona (urgentes primero).
 function pintarEsperaBanner(abiertas) {
   const el = document.getElementById("esperaBanner");
@@ -1274,7 +1305,8 @@ function pintarEsperaBanner(abiertas) {
   const urg = abiertas.filter((a) => a.urgente).length;
   const chips = abiertas.slice(0, 4).map((a) => {
     const quien = a.cliente || (a.phone ? "…" + String(a.phone).slice(-4) : "sin identificar");
-    return `<span class="espera-chip${a.urgente ? " urg" : ""}">${a.urgente ? "🔴 " : ""}${esc(quien)}<small>${esc(a.label)} · hace ${durTexto((a.espera_min || 0) * 60000)}</small></span>`;
+    const click = a.phone ? ` onclick="abrirCharla('${esc(String(a.phone))}', event)" title="Abrir la charla"` : "";
+    return `<span class="espera-chip${a.urgente ? " urg" : ""}"${click}>${a.urgente ? "🔴 " : ""}${esc(quien)}<small>${esc(a.label)} · hace ${durTexto((a.espera_min || 0) * 60000)}</small></span>`;
   }).join("");
   const mas = abiertas.length > 4 ? `<span>y ${abiertas.length - 4} más →</span>` : "";
   el.className = "espera-banner" + (urg ? " hay-urgente" : "");
@@ -3361,6 +3393,7 @@ function convRenderList(items) {
 
 async function convOpen(phone) {
   convCurrent = phone;
+  document.getElementById("convLayout")?.classList.add("con-charla");
   const item = _convItems.find((x) => x.phone === phone);
   const titleEl = document.getElementById("convTitle");
   if (item?.business_name) {
@@ -3394,6 +3427,11 @@ async function convOpen(phone) {
     await convCall({ action: "mark_read", phone });
     convRefresh();
   } catch (e) { alert("No se pudo abrir: " + e.message); }
+}
+
+// Celular: volver de la charla a la lista.
+function convVolver() {
+  document.getElementById("convLayout")?.classList.remove("con-charla");
 }
 
 function convRenderThread(messages) {
@@ -3577,6 +3615,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.2</div>
 </body>
 </html>

@@ -76,7 +76,8 @@ async function crear(alertaId: number) {
     texto ? `Escribió: "${texto.slice(0, 200)}"` : "",
     a.phone ? `Tel ${a.phone}` : "",
     pedido,
-  ].filter(Boolean).join(" · ") + " — alerta del bot de WhatsApp (dashboard → 🔔 Alertas)";
+  ].filter(Boolean).join(" · ") + " — alerta del bot de WhatsApp." +
+    (a.phone ? ` Abrir la charla: https://loekemeyer.github.io/GestOpClientes/?charla=${String(a.phone).replace(/\D/g, "")}` : "");
 
   const ahora = new Date(a.created_at);
   const planify = await getGestionClient("planify");
