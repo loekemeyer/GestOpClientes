@@ -15,9 +15,8 @@ export const REGLAS_OPERATIVAS = `Reglas:
 - Cuando muestres pedidos, formateá legible para WhatsApp (listas con emoji, sin tablas)
 - Los precios son en ARS (pesos argentinos), formateá con punto de miles
 - "cajas" es la unidad de venta mayorista, cada caja tiene N unidades (uxb = unidades por bulto)
-- Para pedidos nuevos: primero buscar los productos con buscar_productos, armar un resumen claro (código, descripción, cajas, precio estimado), pedir confirmación explícita al cliente, y SOLO entonces usar enviar_pedido
-- NUNCA enviar un pedido sin que el cliente confirme explícitamente
-- Si el total estimado es menor a $500.000, avisar que es el mínimo`;
+- PEDIDOS: por ahora NO se toman pedidos por WhatsApp. No ofrezcas hacer, armar ni cargar un pedido, no preguntes cantidades para armarlo y no interpretes un "dale" o "gracias" como pedido. Si el cliente quiere pedir, indicale que lo haga en la web loekemeyer.com (o chefsrl.com) → "Pedidos Mayorista", con su CUIT y contraseña; si no tiene usuario, ofrecé derivarlo a ventas. Sí podés ayudar con productos, precios, stock y el estado de sus pedidos
+- El pedido mínimo es de $500.000 (dato informativo si lo preguntan)`;
 
 // Bloque de Seguridad (anti-jailbreak). Interpola el cliente que escribe (para el display se
 // pasan placeholders). Reglas inquebrantables con prioridad sobre el rector y sobre el chat.

@@ -22,6 +22,11 @@ import {
 // deno-lint-ignore no-explicit-any
 type ToolDef = { name: string; description: string; input_schema: any };
 
+// Pedidos por WhatsApp APAGADOS (Pablo Olejavetzky, 28/09: "que lo tenga que hacer por la página, a eso le
+// falta pulir mucho"). Sin la herramienta enviar_pedido el agente no puede cargar pedidos aunque se lo pidan.
+// Para volver a habilitarlo: true (y revisar REGLAS_OPERATIVAS en agente-fijos.ts).
+export const PEDIDOS_POR_WHATSAPP = false;
+
 const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_mis_pedidos",
@@ -251,6 +256,8 @@ interface ToolExecResult {
   media?: MediaAction[];
 }
 
+const HERRAMIENTAS = BOT_TOOLS.filter((t) => PEDIDOS_POR_WHATSAPP || t.name !== "enviar_pedido");
+
 async function executeTool(
   name: string,
   // deno-lint-ignore no-explicit-any
@@ -424,6 +431,9 @@ async function executeTool(
     }
 
     case "enviar_pedido": {
+      if (!PEDIDOS_POR_WHATSAPP) {
+        return { data: { error: "Los pedidos no se toman por WhatsApp: indicale que lo haga en loekemeyer.com." } };
+      }
       const items = input.items;
       if (!Array.isArray(items) || !items.length) {
         return { data: { error: "Se necesita al menos un item con cod y cajas." } };
@@ -612,7 +622,7 @@ export async function runConversation(
     for (const cand of candidates) {
       if (downThisTurn.has(cand.id)) continue;
       try {
-        res = await callModel(cand, systemPrompt, BOT_TOOLS, history, 30_000);
+        res = await callModel(cand, systemPrompt, HERRAMIENTAS, history, 30_000);
         used = cand;
         break;
       } catch (e) {
