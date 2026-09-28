@@ -1,4 +1,4 @@
--- 078 — (PENDIENTE de aplicar) Avisos de seguimiento con PLANTILLAS aprobadas en vez de texto libre (proyecto LK)
+-- 078 — (APLICADA 28/09) Avisos de seguimiento con PLANTILLAS aprobadas en vez de texto libre (proyecto LK)
 -- Pedido de Pablo Olejavetzky (28/09). Tarea Planify "Cablear avisos de pedido a plantillas WhatsApp".
 --
 -- Problema: trg_order_tracking_notify y trg_notify_despacho encolaban TEXTO LIBRE con "NP-1562" y fechas
