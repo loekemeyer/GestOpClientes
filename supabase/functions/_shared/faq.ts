@@ -136,6 +136,18 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // (no-cliente). Devolvemos null para NO servir el texto estático.
   if (top.automation_level === "inteligencia") return null;
 
+  // Pablo, 28/09: si el pedido abierto del cliente va por EXPRESO, no se le ofrece retiro (las distancias son
+  // grandes): ante "¿puedo pasar a buscarlo?" se le dice por qué expreso va y que el viaje lo maneja el expreso.
+  if (customer && RE_RETIRO.test(text)) {
+    const exp = await pedidoExpresoAbierto(customer);
+    if (exp) {
+      const reply = `Tu pedido del ${exp.del} va por el expreso *${exp.expreso}*` +
+        (exp.sale ? `: el ${exp.sale} lo entregamos ahí.` : ".") +
+        `\nDesde el expreso te lo llevan con sus tiempos de viaje; para saber cuándo te llega, consultalo directamente con ellos.`;
+      return { reply, intent: "retiro_expreso", automation_level: "semi_auto", faq_id: top.faq_id, yaSaluda: false };
+    }
+  }
+
   // SEMIAUTO con lookup a Supabase (0 tokens).
   if (top.requires_db_lookup) {
     // payment_data (alias/CBU) NO requiere cliente: los datos para transferir
@@ -237,6 +249,38 @@ async function lookupPaymentData(faq: any, customer: Customer): Promise<string |
     : (faq.institutional_response ?? faq.bot_response);
   if (!tpl || !String(tpl).trim()) return null;
   return renderTemplate(String(tpl), { nombre_cliente: customer?.business_name, alias, cbu }).trim();
+}
+
+const RE_RETIRO = /\b(retir(o|ar|arlo|arla|amos|a)|pas(ar|o|amos) a buscar|buscarlo|ir a buscar|lo busco|voy a buscar)\b/i;
+
+/** Pedido abierto más reciente del cliente que va por expreso (no anulado, no entregado). null si no hay. */
+async function pedidoExpresoAbierto(customer: NonNullable<Customer>): Promise<{ del: string; expreso: string; sale: string | null } | null> {
+  const { data: crudos } = await supabase.from("orders").select("id, created_at").eq("customer_id", customer.id)
+    .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString()).order("created_at", { ascending: false }).limit(10);
+  const ords = await sinAnulados(crudos ?? []);
+  if (!ords.length) return null;
+  const ids = ords.map((o) => o.id);
+  const [{ data: est }, { data: modos }] = await Promise.all([
+    supabase.rpc("bot_estado_pedidos_gv", { p_ids: ids }),
+    supabase.from("v_pedidos_web").select("order_id, zona_expreso, nombre_expreso").in("order_id", ids).eq("linea_rn", 1),
+  ]);
+  for (const o of ords) {
+    // deno-lint-ignore no-explicit-any
+    const e: any = (est ?? []).find((x: any) => Number(x.order_id) === Number(o.id));
+    // deno-lint-ignore no-explicit-any
+    const m: any = (modos ?? []).find((x: any) => Number(x.order_id) === Number(o.id));
+    const expreso = String(m?.nombre_expreso ?? "").trim();
+    if (!expreso || /^retira/i.test(String(m?.zona_expreso ?? "")) || e?.status === "entregado") continue;
+    const f = (iso: string) => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso)); return `${p.slice(8, 10)}/${p.slice(5, 7)}`; };
+    let sale: string | null = null;
+    if (e?.fecha_entrega) {
+      const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+      const x = new Date(String(e.fecha_entrega).slice(0, 10) + "T12:00:00");
+      sale = `${DIAS[x.getDay()]} ${String(x.getDate()).padStart(2, "0")}/${String(x.getMonth() + 1).padStart(2, "0")}`;
+    }
+    return { del: f(o.created_at), expreso, sale };
+  }
+  return null;
 }
 
 async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<string> {
