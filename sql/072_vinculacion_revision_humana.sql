@@ -221,6 +221,9 @@ $function$;
 revoke all on function public.bot_register_pending() from public, anon, authenticated;
 revoke all on function public.bot_register_decide(bigint, text, text, text) from public, anon, authenticated;
 revoke all on function public.bot_register_request_v2(text, text) from public, anon, authenticated;
+grant execute on function public.bot_register_pending() to service_role;
+grant execute on function public.bot_register_decide(bigint, text, text, text) to service_role;
+grant execute on function public.bot_register_request_v2(text, text) to service_role;
 
 -- Verificación:
 --   select pg_get_functiondef('public.bot_register_request_v2(text,text)'::regprocedure) ~ 'auto_associated';  -- false
