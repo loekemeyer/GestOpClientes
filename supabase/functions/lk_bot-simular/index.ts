@@ -4,6 +4,7 @@ import { getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { SIM } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
+import { atenderMalHumor } from "../_shared/humor.ts";
 import { handleFaq } from "../_shared/faq.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
 import { renderPlantilla } from "../_shared/plantillas-meta.ts";
@@ -77,9 +78,14 @@ serve(async (req) => {
 
       let reply: string | null = null;
       let via = "";
+      // 3b'. cliente molesto
+      reply = await atenderMalHumor(TEL_SIMULADO, text, customer);
+      if (reply) via = "cliente_molesto";
       // 3c. respuesta a un aviso
-      reply = await responderAviso(TEL_SIMULADO, text, customer);
-      if (reply) via = "respuesta_aviso";
+      if (!reply) {
+        reply = await responderAviso(TEL_SIMULADO, text, customer);
+        if (reply) via = "respuesta_aviso";
+      }
       // 3d. pedido de cambio en cualquier momento
       if (!reply) {
         reply = await pedidoDeCambio(TEL_SIMULADO, text, customer);

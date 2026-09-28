@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
-import { CATEGORIAS, categoria, SETTING_VENCIMIENTO, vencimientos } from "../_shared/alertas-vencimiento.ts";
+import { CATEGORIAS, categoria, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
 
 // lk_alertas — bandeja de alertas para humanos (wa_alertas_humano) con vencimiento.
 // La usa el dashboard (menú 🔔 Alertas). Sólo admins (requireAdmin).
@@ -88,6 +88,16 @@ serve(async (req) => {
         const { data: cs } = await supabase.from("customers").select("id, cod_cliente, business_name").in("id", ids);
         for (const c of cs ?? []) nombres[c.id] = `${c.business_name} (${c.cod_cliente})`;
       }
+      // Pedidos por FECHA ("pedido del 28/09"), no por número (pedido de Pablo, 28/09).
+      const pedIds = [...new Set((data ?? []).map((a) => Number(a.contexto?.pedido)).filter((n) => n > 0))];
+      const fechaPed: Record<number, string> = {};
+      if (pedIds.length) {
+        const { data: os } = await supabase.from("orders").select("id, created_at").in("id", pedIds);
+        for (const o of os ?? []) {
+          fechaPed[o.id] = new Date(o.created_at).toLocaleDateString("es-AR",
+            { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" });
+        }
+      }
       const ahora = Date.now();
       const alertas = (data ?? []).map((a) => {
         const cat = categoria(a);
@@ -97,11 +107,21 @@ serve(async (req) => {
           id: a.id, tipo: a.tipo, categoria: cat, label: CATEGORIAS[cat].label,
           phone: a.phone, cliente: a.customer_id ? (nombres[a.customer_id] ?? null) : (ctx.razon_social ?? null),
           texto: ctx.texto_recibido ?? ctx.texto ?? null, pedido: ctx.pedido ?? null,
+          pedido_fecha: fechaPed[Number(ctx.pedido)] ?? null,
           estado: a.estado, created_at: a.created_at, atendido_por: a.atendido_por, atendido_at: a.atendido_at,
           vence_at: venceAt.toISOString(),
           vencida: ["pendiente", "notificado"].includes(a.estado) && venceAt.getTime() < ahora,
+          urgente: urgente(a),
+          espera_min: Math.round((ahora - new Date(a.created_at).getTime()) / 60000),
         };
-      }).sort((x, y) => (x.vencida === y.vencida ? x.vence_at.localeCompare(y.vence_at) : x.vencida ? -1 : 1));
+      }).sort((x, y) => {
+        // Abiertas primero; dentro de las abiertas: urgentes, después vencidas, después por vencimiento.
+        const ab = (z: { estado: string }) => ["pendiente", "notificado"].includes(z.estado);
+        if (ab(x) !== ab(y)) return ab(x) ? -1 : 1;
+        if (x.urgente !== y.urgente) return x.urgente ? -1 : 1;
+        if (x.vencida !== y.vencida) return x.vencida ? -1 : 1;
+        return x.vence_at.localeCompare(y.vence_at);
+      });
       return json({ ok: true, alertas });
     }
 

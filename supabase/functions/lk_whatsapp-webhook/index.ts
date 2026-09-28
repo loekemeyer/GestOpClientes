@@ -27,6 +27,7 @@ import {
 import { handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
+import { atenderMalHumor } from "../_shared/humor.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 
 // ─── Config (app_settings → fallback Deno.env) ─────────────────────
@@ -1324,6 +1325,18 @@ async function handleMessage(
         await saveMessage(phone, "assistant", reply);
       };
       await handleAltaStep(phone, text, lead, send);
+      return;
+    }
+  }
+
+  // 3b'. Cliente molesto (insultos, quejas fuertes, gritos) → a una persona, antes que cualquier
+  //      respuesta automática. Alerta urgente (cliente_molesto → tarea en Planify). _shared/humor.ts
+  {
+    const replyMolesto = await atenderMalHumor(phone, text, customer);
+    if (replyMolesto) {
+      await saveMessage(phone, "user", text);
+      await enviarTexto(cfg, phone, replyMolesto);
+      await saveMessage(phone, "assistant", replyMolesto);
       return;
     }
   }
