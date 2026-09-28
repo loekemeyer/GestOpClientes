@@ -40,6 +40,16 @@ const ES = "es_AR" as const;
 const UT = "UTILITY" as const;
 
 export const PLANTILLAS: PlantillaMeta[] = [
+  // ── 0 · Pedido recibido (reemplaza el texto libre de trg_notify_order_created) ──
+  {
+    name: "pedido_recibido",
+    language: ES, category: UT,
+    disparo: "Se crea el pedido (AFTER INSERT en orders). El total de orders es sin IVA.",
+    variables: ["razón social", "fecha del pedido (dd/mm)", "total sin IVA ($ con punto de miles)", "método de pago (texto limpio, sin el descuento)"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nRecibimos tu pedido del {{2}} por {{3}} + IVA.\nMétodo de pago: {{4}}.\nTe avisamos cuando tenga fecha de entrega.",
+    ejemplos: ["Comercial Ejemplo S.R.L", "28/09", "$9.446", "contado"],
+  },
+
   // ── 1 · Pedido programado ────────────────────────────────────────────────
   {
     name: "pedido_programado",
