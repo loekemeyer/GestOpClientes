@@ -9,6 +9,9 @@ import { requireAdmin } from "../_shared/admin-gate.ts";
 // que el webhook lk_whatsapp-webhook YA respeta). El estado del ticket (abierto/pendiente/
 // resuelto) y "leído" viven en wa_human_control (sólo UI). Acciones:
 //   list / thread / send / toggle_human / set_estado / mark_read / seed_demo.
+// Centro de mensajes (rediseño, dashboard v0.19): tomar / devolver / resolver / ficha / llave_get / llave_set.
+//   Estado de cada conversación (bandeja): esperando (hay una alerta abierta y nadie la tomó) · humano
+//   (modo humano) · resuelta (wa_human_control.estado='resuelto' y sin alerta abierta) · bot (el resto).
 // Envío: respeta la ventana 24h de Meta y la llave de envío (wa_puede_enviar, la misma que el bot):
 // con la llave en 'prueba' sólo sale a la lista de prueba; en '1', a cualquiera.
 // Responder = pasar el chat a modo humano (bot_conv_set_modo) → el bot deja de contestar.
@@ -39,6 +42,60 @@ async function waPhoneId(): Promise<string> {
   return Deno.env.get("LK_WA_PHONE_ID") ?? Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? (await getSetting("wa_phone_number_id")) ?? "";
 }
 const dir = (rol: string) => (rol === "user" ? "in" : "out");
+const ult10 = (t: unknown) => String(t ?? "").replace(/\D/g, "").slice(-10);
+
+// Nombre para mostrar de quien usa el panel (gestop_users.username o el email).
+async function nombreUsuario(email: string): Promise<string> {
+  const { data } = await sb.from("gestop_users").select("username").eq("email", email).maybeSingle();
+  return (data?.username && String(data.username).trim()) || email;
+}
+
+// Motivo legible de una alerta (mismo criterio que lk_alertas / alertas-vencimiento).
+const MOTIVO: Record<string, string> = {
+  cliente_molesto: "Cliente molesto", respuesta_aviso_cambio: "Cambio de pedido", escalation: "Pidió una persona",
+  consulta_stock: "Consulta sin stock", comprobante_recibido: "Comprobante recibido", comprobante_error: "Comprobante con error",
+  alta_cliente: "Alta de cliente", llm_timeout: "El bot no respondió", llm_error: "El bot falló", faq_no_match: "Pregunta sin respuesta",
+};
+// deno-lint-ignore no-explicit-any
+function motivoAlerta(a: any): string {
+  const m = String(a?.contexto?.motivo ?? "");
+  if (MOTIVO[m]) return MOTIVO[m];
+  if (a?.contexto?.lead_id) return MOTIVO.alta_cliente;
+  return MOTIVO[a?.tipo] ?? "Otro";
+}
+
+// Alertas abiertas (esperando a una persona), agrupadas por los últimos 10 dígitos del teléfono.
+async function alertasAbiertas(): Promise<Map<string, Array<Record<string, unknown>>>> {
+  const { data } = await sb.from("wa_alertas_humano").select("id, tipo, phone, contexto, created_at")
+    .in("estado", ["pendiente", "notificado"]).neq("tipo", "whitelist_gate").order("created_at").limit(500);
+  const m = new Map<string, Array<Record<string, unknown>>>();
+  for (const a of data ?? []) {
+    const k = ult10(a.phone);
+    if (!k) continue;
+    if (!m.has(k)) m.set(k, []);
+    m.get(k)!.push(a);
+  }
+  return m;
+}
+
+// Llave de envíos: modo actual, números de prueba, último cambio (auditoría) y conteo de hoy (cola del bot).
+async function llaveEstado() {
+  const modo = (await getSetting("wa_envio_automatico")) ?? "0";
+  const { count: contactos } = await sb.from("wa_envio_contactos").select("*", { count: "exact", head: true });
+  const inicioHoy = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+  inicioHoy.setHours(0, 0, 0, 0);
+  const desdeIso = new Date(Date.now() - (new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" })).getTime() - inicioHoy.getTime())).toISOString();
+  const { data: hoy } = await sb.from("wa_outbox").select("status").gte("created_at", desdeIso).limit(2000);
+  const c = { enviados: 0, fallidos: 0, retenidos: 0 };
+  for (const r of hoy ?? []) {
+    if (r.status === "sent") c.enviados++;
+    else if (r.status === "failed") c.fallidos++;
+    else if (String(r.status).startsWith("held")) c.retenidos++;
+  }
+  const { data: ult, error: eAud } = await sb.from("wa_llave_cambios").select("modo_nuevo, usuario, creado_en")
+    .order("creado_en", { ascending: false }).limit(1);
+  return { modo, contactos_prueba: contactos ?? 0, hoy: c, ultimo_cambio: eAud ? null : (ult?.[0] ?? null), auditoria: !eAud };
+}
 
 // ¿Le puede llegar un mensaje manual a este número? Misma llave que el bot (wa_puede_enviar, sql/070).
 async function estadoEnvio(phone: string): Promise<{ puede: boolean; llave: string; motivo: string | null }> {
@@ -68,9 +125,20 @@ serve(async (req) => {
       const { data, error } = await sb.rpc("wa_conversaciones_list");
       if (error) return json({ error: error.message }, 500);
       const now = Date.now();
+      const alertas = await alertasAbiertas();
       const items = (data ?? []).map((r: Record<string, unknown>) => {
         const inb = r.inbound_last_at ? new Date(r.inbound_last_at as string).getTime() : 0;
+        const abiertas = alertas.get(ult10(r.phone)) ?? [];
+        const ultima = abiertas[abiertas.length - 1];
+        const humano = r.modo === "humano";
+        const estado_ui = humano ? "humano" : abiertas.length ? "esperando" : r.estado === "resuelto" ? "resuelta" : "bot";
         return {
+          estado_ui,
+          tema: ultima ? motivoAlerta(ultima) : null,
+          espera_desde: abiertas[0]?.created_at ?? null,
+          alertas_abiertas: abiertas.length,
+          tomada_por: (ultima?.contexto as Record<string, unknown> | undefined)?.tomada_por ?? null,
+          ultimo_in_at: r.inbound_last_at ?? null,
           phone: r.phone,
           // Identificación del cliente cuando existe match; NULL si el número
           // no está vinculado a ningún customer (mostrar solo el teléfono).
@@ -96,7 +164,25 @@ serve(async (req) => {
       const { data: bc } = await sb.from("bot_conversaciones").select("modo,agente_nombre,modo_expira_en").eq("telefono", phone).maybeSingle();
       const { data: hc } = await sb.from("wa_human_control").select("estado").eq("phone", phone).maybeSingle();
       const envio = await estadoEnvio(phone);
-      return json({ messages, envio, control: { modo_humano: bc?.modo === "humano", agente: bc?.agente_nombre ?? null, modo_expira_en: bc?.modo_expira_en ?? null, estado: hc?.estado ?? "abierto" } });
+      // Respuestas manuales (el historial las guarda como 'assistant', igual que al bot): se marcan con
+      // lo que registró 'send' en wa_conversations (intent 'humano:<nombre>').
+      const { data: hs } = await sb.from("wa_conversations").select("body, intent, created_at")
+        .eq("phone", phone).like("intent", "humano:%").order("created_at", { ascending: false }).limit(200);
+      for (const m of messages as Array<Record<string, unknown>>) {
+        if (m.direction !== "out") continue;
+        const t = new Date(m.created_at as string).getTime();
+        const h = (hs ?? []).find((x) => x.body === m.body && Math.abs(new Date(x.created_at).getTime() - t) < 5 * 60_000);
+        if (h) m.humano = String(h.intent).slice("humano:".length);
+      }
+      // Eventos: cuándo el bot pasó la charla a una persona y cuándo se atendió.
+      const eventos: Array<{ at: string; texto: string }> = [];
+      const { data: al2 } = await sb.from("wa_alertas_humano").select("tipo, contexto, created_at, estado, atendido_por, atendido_at")
+        .like("phone", `%${ult10(phone)}`).neq("tipo", "whitelist_gate").order("created_at").limit(100);
+      for (const a of al2 ?? []) {
+        eventos.push({ at: a.created_at, texto: `El bot la pasó a una persona · ${motivoAlerta(a)}` });
+        if (a.atendido_at) eventos.push({ at: a.atendido_at, texto: `${a.estado === "descartado" ? "Descartada" : "Atendida"} por ${a.atendido_por ?? "—"}` });
+      }
+      return json({ messages, eventos, envio, control: { modo_humano: bc?.modo === "humano", agente: bc?.agente_nombre ?? null, modo_expira_en: bc?.modo_expira_en ?? null, estado: hc?.estado ?? "abierto" } });
     }
 
     if (action === "toggle_human") {
@@ -109,6 +195,96 @@ serve(async (req) => {
       });
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true, phone, modo_humano: on });
+    }
+
+    if (action === "tomar" || action === "devolver") {
+      const phone = canon(body.phone);
+      if (!phone) return json({ error: "phone requerido" }, 400);
+      const tomar = action === "tomar";
+      const quien = await nombreUsuario(gate.email);
+      const { error } = await sb.rpc("bot_conv_set_modo", {
+        p_telefono: phone, p_modo: tomar ? "humano" : "bot",
+        p_agente_nombre: tomar ? quien : null, p_motivo: tomar ? "tomó la conversación" : null, p_horas: 8,
+      });
+      if (error) return json({ error: error.message }, 500);
+      if (tomar) await sb.from("wa_human_control").upsert({ phone, estado: "abierto", updated_at: new Date().toISOString() }, { onConflict: "phone" });
+      return json({ ok: true, phone, agente: tomar ? quien : null });
+    }
+
+    if (action === "resolver") {
+      // Resuelta = estado 'resuelto', el bot vuelve a atender, las alertas abiertas de ese número quedan
+      // atendidas y sus tareas de Planify se cierran.
+      const phone = canon(body.phone);
+      if (!phone) return json({ error: "phone requerido" }, 400);
+      const quien = await nombreUsuario(gate.email);
+      await sb.from("wa_human_control").upsert({ phone, estado: "resuelto", updated_at: new Date().toISOString() }, { onConflict: "phone" });
+      await sb.rpc("bot_conv_set_modo", { p_telefono: phone, p_modo: "bot", p_agente_nombre: null, p_motivo: null, p_horas: 8 });
+      const { data: al } = await sb.from("wa_alertas_humano").update({ estado: "atendido", atendido_por: quien, atendido_at: new Date().toISOString() })
+        .like("phone", `%${ult10(phone)}`).in("estado", ["pendiente", "notificado"]).select("id");
+      let secreto = Deno.env.get("LK_FN_CRON_SECRET") ?? "";
+      if (!secreto) { const { data } = await sb.rpc("krikos_secret", { p_name: "LK_FN_CRON_SECRET" }); secreto = typeof data === "string" ? data : ""; }
+      for (const a of al ?? []) {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/lk_alerta-planify`, {
+          method: "POST", headers: { "Content-Type": "application/json", "x-lk-secret": secreto },
+          body: JSON.stringify({ action: "cerrar", alerta_id: a.id }),
+        }).catch(() => {});
+      }
+      return json({ ok: true, phone, alertas_cerradas: (al ?? []).length });
+    }
+
+    if (action === "ficha") {
+      // Ficha del cliente (sólo lectura): datos, modo de entrega, pedidos recientes y avisos enviados.
+      const phone = canon(body.phone);
+      if (!phone) return json({ error: "phone requerido" }, 400);
+      const { data: idf } = await sb.rpc("wa_identify_customer", { p_phone: phone });
+      const cli = idf?.[0] ?? null;
+      let cliente = null, entrega = null, pedidos: unknown[] = [];
+      if (cli) {
+        const { data: c } = await sb.from("customers").select("id, cod_cliente, business_name, cuit, localidad, vend")
+          .eq("id", cli.customer_id).maybeSingle();
+        cliente = c;
+        const { data: dirs } = await sb.from("customer_delivery_addresses")
+          .select("slot, label, direccion_entrega, zona_expreso, nombre_expreso, localidad").eq("customer_id", cli.customer_id).order("slot").limit(1);
+        const d = dirs?.[0];
+        if (d) {
+          entrega = /^retira/i.test(String(d.zona_expreso ?? "")) ? { modo: "Retira en depósito", detalle: "Virgilio 2788" }
+            : String(d.nombre_expreso ?? "").trim() ? { modo: "Expreso", detalle: d.nombre_expreso }
+            : { modo: "Reparto", detalle: [d.direccion_entrega, d.localidad].filter(Boolean).join(" · ") };
+        }
+        const { data: ords } = await sb.from("orders").select("id, created_at, total").eq("customer_id", cli.customer_id)
+          .order("created_at", { ascending: false }).limit(5);
+        const ids = (ords ?? []).map((o) => o.id);
+        const { data: est } = ids.length ? await sb.rpc("bot_estado_pedidos_gv", { p_ids: ids }) : { data: [] };
+        pedidos = (ords ?? []).map((o) => {
+          const e = (est ?? []).find((x: { order_id: number }) => Number(x.order_id) === Number(o.id));
+          return { id: o.id, creado: o.created_at, total: o.total, estado: e?.status ?? "recibido", fecha_entrega: e?.fecha_entrega ?? null };
+        });
+      }
+      const { data: av } = await sb.from("wa_outbox").select("template_name, context, status, created_at, sent_at")
+        .like("phone", `%${ult10(phone)}`).order("created_at", { ascending: false }).limit(8);
+      return json({ ok: true, phone, identificado: !!cli, cliente, entrega, pedidos, avisos: av ?? [] });
+    }
+
+    if (action === "llave_get") {
+      return json({ ok: true, ...(await llaveEstado()) });
+    }
+
+    if (action === "llave_set") {
+      // Sólo admins (este gate). Pasar a producción exige escribir PRODUCCIÓN. Queda auditado.
+      const modo = String(body.modo ?? "");
+      if (!["0", "prueba", "1"].includes(modo)) return json({ error: "modo inválido" }, 400);
+      if (modo === "1") {
+        const conf = String(body.confirmacion ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+        if (conf !== "PRODUCCION") return json({ error: "Para pasar a producción hay que escribir PRODUCCIÓN." }, 400);
+      }
+      const antes = (await getSetting("wa_envio_automatico")) ?? "0";
+      const quien = await nombreUsuario(gate.email);
+      const { error: eAud } = await sb.from("wa_llave_cambios").insert({ modo_anterior: antes, modo_nuevo: modo, usuario: quien, email: gate.email });
+      if (eAud) return json({ error: "No se pudo registrar el cambio (auditoría): " + eAud.message }, 500);
+      const { error } = await sb.from("app_settings").upsert({ key: "wa_envio_automatico", value: modo }, { onConflict: "key" });
+      if (error) return json({ error: error.message }, 500);
+      console.log(`lk_conversaciones: llave ${antes} → ${modo} por ${gate.email}`);
+      return json({ ok: true, ...(await llaveEstado()) });
     }
 
     if (action === "set_estado") {
@@ -168,7 +344,10 @@ serve(async (req) => {
 
       // Guardar en el historial del bot (rol assistant) + pasar a modo humano (pausa el bot) + leído.
       await sb.rpc("bot_guardar_mensaje", { p_telefono: phone, p_rol: "assistant", p_contenido: texto });
-      await sb.rpc("bot_conv_set_modo", { p_telefono: phone, p_modo: "humano", p_agente_nombre: body.agente || "Panel web", p_motivo: "respuesta manual", p_horas: 8 });
+      // Para que la charla la muestre como respuesta de una persona (no del bot).
+      const quienEnvia = await nombreUsuario(gate.email);
+      await sb.from("wa_conversations").insert({ phone, direction: "out", body: texto, msg_type: "text", intent: "humano:" + quienEnvia, wa_msg_id: wamid });
+      await sb.rpc("bot_conv_set_modo", { p_telefono: phone, p_modo: "humano", p_agente_nombre: quienEnvia, p_motivo: "respuesta manual", p_horas: 8 });
       await sb.from("wa_human_control").upsert({ phone, last_read_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "phone" });
       return json({ ok: true, phone, wamid });
     }

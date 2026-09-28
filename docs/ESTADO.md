@@ -473,4 +473,16 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.16.1`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.19.0`). Bumpear con cada cambio de front.
+
+**Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
+- `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
+  conservan la paleta clara en oscuro) y `docs/gestop2.js` (navegación por módulos que envuelve `showPage`,
+  banda + modal de la llave, Centro de mensajes › Conversaciones: bandeja con prioridad/semáforo, chat, ficha).
+- Backend: `lk_conversaciones` suma `estado_ui`/`tema`/`alertas_abiertas` en `list`, `humano`+`eventos` en
+  `thread`, y acciones `tomar` / `devolver` / `resolver` / `ficha` / `llave_get` / `llave_set`.
+- **Cambiar la llave desde el dashboard: SÓLO admins**; producción exige tipear PRODUCCIÓN. Cada cambio se
+  registra ANTES en `wa_llave_cambios` (`sql/080`); si la tabla no existe `llave_set` se niega.
+  ⚠ `sql/080` pendiente de aplicar (requiere “sí”).
+- Faltan etapas 3 (Tareas unificadas), 4 (Salientes), 5 (restyle Dashboard/Panel/Agente + oscuro), 6 (facturas en ficha).
+  Plantillas desde el chat con ventana 24 h cerrada: todavía no.

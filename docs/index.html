@@ -339,6 +339,7 @@
     .faq-more { font-size: 0.74rem; color: var(--primary); cursor: pointer; margin-top: 0.55rem; display: inline-block; }
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
+  <link rel="stylesheet" href="gestop2.css?v=0.19.0">
 </head>
 <body>
 
@@ -357,15 +358,18 @@
 
 <!-- App -->
 <div class="app" id="app">
-  <nav class="sidebar">
-    <h3>🤖 GestOp</h3>
+  <nav class="sidebar sb2">
+    <div class="sb-logo"><img src="assets/logo.png" alt="Loekemeyer"><div>GestOp</div></div>
+    <div class="sb-mods" id="sbModulos"></div>
+    <div id="esperaBanner" class="espera-banner" style="display:none;" onclick="abrirPrimeraEspera(event)" title="Abrir la charla más urgente"></div>
+    <div class="spacer"></div>
+    <!-- Menú anterior: queda oculto porque el código viejo usa sus ids (showPage, badges, costos). -->
+    <div hidden>
     <div class="active" id="navChat" onclick="showPage('chat')" style="cursor:pointer">💬 Comunicaciones</div>
     <div id="navDash" onclick="showPage('dash')" style="cursor:pointer">📊 Dashboard</div>
     <div id="navAlertas" onclick="showPage('alertas')" style="cursor:pointer;display:none;">🔔 Alertas <span id="alertasBadge" class="nav-badge" style="display:none;"></span></div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
     <div id="navAgente" onclick="showPage('agente')" style="cursor:pointer;display:none;">🧠 Configuración del agente</div>
-    <div id="esperaBanner" class="espera-banner" style="display:none;" onclick="abrirPrimeraEspera(event)" title="Abrir la charla más urgente"></div>
-    <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
       <div class="cost-title">💰 Costos IA</div>
       <div class="cost-row"><span class="cost-label">Sesión</span><span class="cost-val" id="costSession">—</span></div>
@@ -380,20 +384,31 @@
       <div style="font-size:0.65rem;color:var(--muted);margin-top:0.4rem;letter-spacing:0.05em;">POR MODELO (mes)</div>
       <div id="costByModel" style="margin-top:0.3rem;"></div>
     </div>
+    </div>
     <div class="user-info">
-      <span id="userRole"></span><br>
-      <span id="userEmail" style="font-size:0.7rem;word-break:break-all;opacity:0.7;"></span><br>
-      <a href="javascript:void(0)" onclick="doLogout()" style="color:#94a3b8;font-size:0.8rem;">Cerrar sesión</a>
+      <span id="sbUsuario"></span>
+      <span id="userRole" hidden></span><span id="userEmail" hidden></span>
+      <a href="javascript:void(0)" onclick="doLogout()" style="font-size:12px;">Cerrar sesión</a>
     </div>
   </nav>
 
-  <div class="main">
+  <div class="main main2">
+    <div class="llave-band" id="llaveBand" style="display:none"></div>
+    <header class="mod-head">
+      <h1 id="modTitulo">Centro de mensajes</h1>
+      <div class="mod-tabs" id="modTabs"></div>
+      <div class="mod-der">
+        <select class="mod-select" id="modSelect" onchange="navMod(this.value)"></select>
+        <button class="g-btn" id="btnTema" onclick="cambiarTema()">Modo oscuro</button>
+      </div>
+    </header>
+    <div class="pages">
     <!-- Page: Chat -->
     <div class="page active" id="pageChat">
       <!-- Tab bar: Chat de prueba (sandbox) | Conversaciones (reales) -->
       <div class="tab-bar" id="chatTabBar">
         <button class="tab active" data-tab="testChat" onclick="switchChatTab('testChat')">💬 Chat de prueba</button>
-        <button class="tab" data-tab="realConv" onclick="switchChatTab('realConv')">👥 Conversaciones reales</button>
+        <button class="tab" data-tab="realConv" onclick="switchChatTab('realConv')" hidden>👥 Conversaciones reales</button>
         <button class="tab" data-tab="tplChat" onclick="switchChatTab('tplChat')">📨 Prueba de plantillas</button>
       </div>
 
@@ -1112,6 +1127,30 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Page: Centro de mensajes › Conversaciones (rediseño v0.19.0, gestop2.js) -->
+    <div class="page" id="pageConv">
+      <div class="cm" id="cmRoot">
+        <section class="cm-bandeja">
+          <div class="cm-top">
+            <button class="cm-prio" id="cmPrio" onclick="cmPrioClick()"></button>
+            <input class="cm-buscar" id="cmBuscar" placeholder="Buscar cliente, código o teléfono" oninput="G.buscar=this.value;cmPintarBandeja()">
+            <div class="cm-chips" id="cmChips"></div>
+            <div class="cm-filtros">
+              <select id="cmTema" onchange="G.filtroTema=this.value;cmPintarBandeja()"><option value="">Tema: todos</option></select>
+              <select id="cmEspera" onchange="G.filtroEspera=Number(this.value);cmPintarBandeja()">
+                <option value="0">Sin responder: cualquiera</option><option value="15">Sin responder &gt; 15 min</option><option value="30">&gt; 30 min</option>
+                <option value="60">&gt; 1 h</option><option value="240">&gt; 4 h</option><option value="1440">&gt; 24 h</option>
+              </select>
+            </div>
+          </div>
+          <div class="cm-lista" id="cmLista"><div class="cm-vacio">Cargando…</div></div>
+        </section>
+        <section class="cm-chat" id="cmChat"><div class="cm-vacio">Elegí una conversación de la bandeja.</div></section>
+        <aside class="cm-ficha" id="cmFicha"><section><h4>Ficha del cliente</h4><div style="color:var(--g-muted)">Elegí una conversación.</div></section></aside>
+      </div>
+    </div>
     </div>
   </div>
 </div>
@@ -3636,6 +3675,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.5</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.19.0</div>
+<script src="gestop2.js?v=0.19.0"></script>
 </body>
 </html>
