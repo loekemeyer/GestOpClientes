@@ -1272,7 +1272,8 @@ async function loadAlertas() {
         const acciones = abierta
           ? `${charla}<button class="config-btn small primary" onclick="resolverAlerta(${a.id},'atendido')">✓ Atendida</button> <button class="config-btn small" onclick="resolverAlerta(${a.id},'descartado')">✕ Descartar</button>`
           : `${charla}<span class="hint">${esc(a.atendido_por || "")}</span>`;
-        const urg = abierta && a.urgente ? ` <span class="al-pill urgente">urgente</span>` : "";
+        const urg = (abierta && a.urgente ? ` <span class="al-pill urgente">urgente</span>` : "") +
+          (abierta && a.tomada_por ? `<br><span class="hint">✋ la tomó ${esc(a.tomada_por)}</span>` : "");
         const fila = abierta && a.urgente ? "al-urgente" : abierta && a.vencida ? "al-vencida" : "";
         return `<tr class="${fila}"><td>${pill}</td><td>${esc(a.label)}${urg}</td><td>${quien || "—"}</td><td>${que || "—"}</td><td style="white-space:nowrap;">${entro}</td><td style="white-space:nowrap;">${acciones}</td></tr>`;
       }).join("") + "</table>";
@@ -1314,7 +1315,7 @@ function pintarEsperaBanner(abiertas) {
   const chips = abiertas.slice(0, 4).map((a) => {
     const quien = a.cliente || (a.phone ? "…" + String(a.phone).slice(-4) : "sin identificar");
     const click = a.phone ? ` onclick="abrirCharla('${esc(String(a.phone))}', event)" title="Abrir la charla"` : "";
-    return `<span class="espera-chip${a.urgente ? " urg" : ""}"${click}>${a.urgente ? "🔴 " : ""}${esc(quien)}<small>${esc(a.label)} · hace ${durTexto((a.espera_min || 0) * 60000)}</small></span>`;
+    return `<span class="espera-chip${a.urgente ? " urg" : ""}"${click}>${a.urgente ? "🔴 " : ""}${esc(quien)}<small>${esc(a.label)} · hace ${durTexto((a.espera_min || 0) * 60000)}${a.tomada_por ? ` · ✋ ${esc(a.tomada_por)}` : ""}</small></span>`;
   }).join("");
   const mas = `<span class="espera-todas" onclick="event.stopPropagation();showPage('alertas')">${abiertas.length > 4 ? `y ${abiertas.length - 4} más · ` : ""}ver todas en 🔔 Alertas →</span>`;
   el.className = "espera-banner" + (urg ? " hay-urgente" : "");
@@ -3422,13 +3423,19 @@ async function convOpen(phone) {
     const lastIn = (d.messages || []).filter((m) => m.direction === "in").slice(-1)[0];
     const abierta = lastIn && (Date.now() - new Date(lastIn.created_at).getTime()) < 24 * 3600 * 1000;
     const wb = document.getElementById("convWindow");
+    // ¿Sale un mensaje a este número? Misma llave que el bot (wa_envio_automatico / lista de prueba).
+    const cortado = d.envio && d.envio.puede === false;
+    const puede = abierta && !cortado;
     wb.style.display = "block";
-    wb.style.background = abierta ? "#dcfce7" : "#fee2e2";
-    wb.style.color = abierta ? "#15803d" : "#b91c1c";
-    wb.innerHTML = abierta ? "🟢 Ventana de 24 hs abierta — podés responder texto libre."
+    wb.style.background = cortado ? "#fef3c7" : abierta ? "#dcfce7" : "#fee2e2";
+    wb.style.color = cortado ? "#92400e" : abierta ? "#15803d" : "#b91c1c";
+    wb.innerHTML = cortado
+      ? "🔒 A este número no le sale nada: " + esc(d.envio.motivo || "envíos cortados.") + (abierta ? "" : " Además, la ventana de 24 hs está cerrada.")
+      : abierta ? "🟢 Ventana de 24 hs abierta — podés responder texto libre."
       : "🔴 Ventana de 24 hs cerrada — sólo plantilla aprobada (texto libre bloqueado).";
-    document.getElementById("convSendBtn").disabled = !abierta;
-    document.getElementById("convInput").disabled = !abierta;
+    document.getElementById("convSendBtn").disabled = !puede;
+    document.getElementById("convInput").disabled = !puede;
+    document.getElementById("convInput").placeholder = cortado ? "Envíos cortados para este número" : "Escribí una respuesta…";
     // Canned
     document.getElementById("convCanned").innerHTML = CANNED.map((t) =>
       `<button class="config-btn small" style="padding:0.2rem 0.45rem;font-size:0.7rem;" onclick="convCanned(${JSON.stringify(t).replace(/"/g, "&quot;")})">${esc(t.length > 24 ? t.slice(0, 24) + "…" : t)}</button>`).join("");
@@ -3623,6 +3630,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.4</div>
 </body>
 </html>

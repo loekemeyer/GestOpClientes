@@ -108,6 +108,7 @@ serve(async (req) => {
           phone: a.phone, cliente: a.customer_id ? (nombres[a.customer_id] ?? null) : (ctx.razon_social ?? null),
           texto: ctx.texto_recibido ?? ctx.texto ?? null, pedido: ctx.pedido ?? null,
           pedido_fecha: fechaPed[Number(ctx.pedido)] ?? null,
+          tomada_por: ctx.tomada_por ?? null,
           estado: a.estado, created_at: a.created_at, atendido_por: a.atendido_por, atendido_at: a.atendido_at,
           vence_at: venceAt.toISOString(),
           vencida: ["pendiente", "notificado"].includes(a.estado) && venceAt.getTime() < ahora,

@@ -11,7 +11,11 @@ import { categoria, urgente } from "../_shared/alertas-vencimiento.ts";
 //   {action:"sync"}             → alertas abiertas cuya tarea ya no está o está hecha → atendidas
 //                                 (la app de Planify BORRA la fila al cerrar). Lo llama lk_fallas-mail.
 // Sólo x-lk-secret (LK_FN_CRON_SECRET). Config en app_settings.wa_alertas_planify:
-//   {"employee_id": 64, "categorias": ["escalation", …]}. Id de la tarea → contexto.planify_task_id.
+//   {"employee_id": 64, "categorias": ["escalation", …], "department_id"?: 8, "broadcast"?: true}.
+//   Id de la tarea → contexto.planify_task_id.
+// Cartel (Pablo, 28/09): las tareas salen con broadcast=true → Planify abre el aviso centrado que no se
+// cierra con la ✕ y tiene "✋ Me encargo yo" (planify_claim_task). Con department_id (ej. 8 Ventas) le
+// aparece a todo el sector y gana el primero; sin department_id, a la persona de employee_id.
 
 const SECRET_NAME = "LK_FN_CRON_SECRET";
 const CONFIG_KEY = "wa_alertas_planify";
@@ -46,9 +50,9 @@ const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(
 
 async function crear(alertaId: number) {
   const { data: cfgRow } = await supabase.from("app_settings").select("value").eq("key", CONFIG_KEY).maybeSingle();
-  let cfg: { employee_id?: number; categorias?: string[] } = {};
+  let cfg: { employee_id?: number; categorias?: string[]; department_id?: number; broadcast?: boolean } = {};
   try { cfg = cfgRow?.value ? JSON.parse(cfgRow.value) : {}; } catch { /* config rota → no crea */ }
-  if (!cfg.employee_id || !Array.isArray(cfg.categorias)) return { ok: true, creada: false, motivo: "sin config" };
+  if ((!cfg.employee_id && !cfg.department_id) || !Array.isArray(cfg.categorias)) return { ok: true, creada: false, motivo: "sin config" };
 
   const { data: a } = await supabase.from("wa_alertas_humano")
     .select("id, tipo, phone, customer_id, contexto, estado, created_at").eq("id", alertaId).maybeSingle();
@@ -85,8 +89,11 @@ async function crear(alertaId: number) {
     name: nombre, type: "tarea", prio: esUrg ? "urgente" : "normal",
     time: fmt(ahora, { hour: "2-digit", minute: "2-digit", hour12: false }),
     date: fmt(ahora, { year: "numeric", month: "2-digit", day: "2-digit" }),
-    note: nota, rec: "none", done: false, assignment_type: "employee", employee_id: cfg.employee_id,
-    department_id: null, system_generated: false, broadcast: false,
+    note: nota, rec: "none", done: false,
+    ...(cfg.department_id
+      ? { assignment_type: "department", department_id: cfg.department_id, employee_id: null }
+      : { assignment_type: "employee", employee_id: cfg.employee_id, department_id: null }),
+    system_generated: false, broadcast: cfg.broadcast ?? true,
   }).select("id").single();
   if (error) return { ok: false, error: error.message };
 
@@ -110,8 +117,17 @@ async function sync() {
   const ids = (abiertas ?? []).map((a) => Number(a.contexto?.planify_task_id)).filter((n) => n > 0);
   if (!ids.length) return { ok: true, atendidas: 0 };
   const planify = await getGestionClient("planify");
-  const { data: tareas, error } = await planify.from("tasks").select("id, done").in("id", ids);
+  const { data: tareas, error } = await planify.from("tasks").select("id, done, claimed_by_nombre").in("id", ids);
   if (error) return { ok: false, error: error.message };
+  // "✋ Me encargo yo" en el cartel de Planify → la alerta muestra quién la tomó.
+  const tomo = new Map((tareas ?? []).filter((t: { claimed_by_nombre: string | null }) => t.claimed_by_nombre)
+    .map((t: { id: number; claimed_by_nombre: string }) => [t.id, t.claimed_by_nombre]));
+  for (const a of abiertas ?? []) {
+    const quien = tomo.get(Number(a.contexto?.planify_task_id));
+    if (quien && a.contexto?.tomada_por !== quien) {
+      await supabase.from("wa_alertas_humano").update({ contexto: { ...a.contexto, tomada_por: quien } }).eq("id", a.id);
+    }
+  }
   const abiertasPlanify = new Set((tareas ?? []).filter((t: { done: boolean }) => !t.done).map((t: { id: number }) => t.id));
   const cerrar = (abiertas ?? []).filter((a) => !abiertasPlanify.has(Number(a.contexto?.planify_task_id))).map((a) => a.id);
   if (cerrar.length) {

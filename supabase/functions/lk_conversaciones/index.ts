@@ -9,8 +9,9 @@ import { requireAdmin } from "../_shared/admin-gate.ts";
 // que el webhook lk_whatsapp-webhook YA respeta). El estado del ticket (abierto/pendiente/
 // resuelto) y "leído" viven en wa_human_control (sólo UI). Acciones:
 //   list / thread / send / toggle_human / set_estado / mark_read / seed_demo.
-// Envío: respeta ventana 24h de Meta y, si wa_human_send_whitelist_only='1', SÓLO a la lista
-// blanca. Responder = pasar el chat a modo humano (bot_conv_set_modo) → el bot deja de contestar.
+// Envío: respeta la ventana 24h de Meta y la llave de envío (wa_puede_enviar, la misma que el bot):
+// con la llave en 'prueba' sólo sale a la lista de prueba; en '1', a cualquiera.
+// Responder = pasar el chat a modo humano (bot_conv_set_modo) → el bot deja de contestar.
 // verify_jwt=false.
 
 const CORS = {
@@ -37,11 +38,18 @@ async function metaToken(): Promise<string> {
 async function waPhoneId(): Promise<string> {
   return Deno.env.get("LK_WA_PHONE_ID") ?? Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? (await getSetting("wa_phone_number_id")) ?? "";
 }
-async function whitelist(): Promise<string[]> {
-  const { data } = await sb.from("wa_envio_contactos").select("phone");
-  return (data ?? []).map((r: { phone: string }) => r.phone);
-}
 const dir = (rol: string) => (rol === "user" ? "in" : "out");
+
+// ¿Le puede llegar un mensaje manual a este número? Misma llave que el bot (wa_puede_enviar, sql/070).
+async function estadoEnvio(phone: string): Promise<{ puede: boolean; llave: string; motivo: string | null }> {
+  const llave = (await getSetting("wa_envio_automatico")) ?? "0";
+  const { data } = await sb.rpc("wa_puede_enviar", { p_phone: phone });
+  const puede = data === true;
+  const motivo = puede ? null
+    : llave === "prueba" ? "La llave de envío está en modo prueba: sólo reciben los números de la lista de prueba, y este no está."
+    : "La llave de envío está apagada: no sale ningún mensaje.";
+  return { puede, llave, motivo };
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -87,7 +95,8 @@ serve(async (req) => {
       }));
       const { data: bc } = await sb.from("bot_conversaciones").select("modo,agente_nombre,modo_expira_en").eq("telefono", phone).maybeSingle();
       const { data: hc } = await sb.from("wa_human_control").select("estado").eq("phone", phone).maybeSingle();
-      return json({ messages, control: { modo_humano: bc?.modo === "humano", agente: bc?.agente_nombre ?? null, modo_expira_en: bc?.modo_expira_en ?? null, estado: hc?.estado ?? "abierto" } });
+      const envio = await estadoEnvio(phone);
+      return json({ messages, envio, control: { modo_humano: bc?.modo === "humano", agente: bc?.agente_nombre ?? null, modo_expira_en: bc?.modo_expira_en ?? null, estado: hc?.estado ?? "abierto" } });
     }
 
     if (action === "toggle_human") {
@@ -138,11 +147,11 @@ serve(async (req) => {
       if (!inb || (Date.now() - inb) >= DAY) {
         return json({ error: "ventana_cerrada", note: "Pasaron 24h desde el último mensaje del cliente: sólo plantilla aprobada." }, 409);
       }
-      // Seguridad: por defecto sólo a la lista blanca.
-      if (((await getSetting("wa_human_send_whitelist_only")) ?? "1") === "1") {
-        const wl = await whitelist();
-        if (!wl.includes(phone)) return json({ error: "no_whitelist", note: "El número no está en la lista blanca (wa_human_send_whitelist_only=1)." }, 403);
-      }
+      // Corte único (D007): la misma decisión que el bot, wa_puede_enviar (llave wa_envio_automatico).
+      // Antes había además wa_human_send_whitelist_only: salir a producción exigía DOS cambios (Pablo,
+      // 28/09). Ese setting ya no se lee; wa-guard igual vuelve a chequear en el fetch.
+      const envio = await estadoEnvio(phone);
+      if (!envio.puede) return json({ error: "envio_cortado", note: envio.motivo }, 403);
       const token = await metaToken(), phoneId = await waPhoneId();
       if (!token || !phoneId) return json({ error: "faltan credenciales WhatsApp" }, 500);
       let wamid = null, sendErr = null;
