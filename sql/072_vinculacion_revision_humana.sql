@@ -14,10 +14,10 @@
 --      siempre is_primary=true) y sólo en ese caso pisa customers.whatsapp. Si ya había principal,
 --      se le encola un aviso "se vinculó un número nuevo" en wa_outbox (sale detrás de la llave
 --      wa_envio_automatico, principio D007).
---   4. bot_register_pending devuelve además: principal actual, teléfonos del ERP del cliente e
+--   4. bot_register_pending devuelve además: principal actual, teléfonos que Gestión Virgilio tiene del cliente e
 --      intentos del número en 24 h, para que quien revisa pueda llamar y confirmar.
 --
--- No cambia: la identificación por padrón del ERP (wa_identify_customer → wa_clientes_telefono),
+-- No cambia: la identificación por padrón de Gestión Virgilio (wa_identify_customer → wa_clientes_telefono),
 -- 'already_registered', 'cuit_not_found' (alta de cliente nuevo) ni el flujo 'pedidos_access'.
 -- bot_register_decide_by_primary queda para solicitudes 'pending_primary' viejas (hoy hay 0).
 

@@ -75,8 +75,10 @@ async function loadConfig(): Promise<Config> {
 // consola de prueba y producción identifiquen igual (antes divergían y por eso
 // en el test andaba y en WhatsApp no):
 //
-//   1. `wa_identify_customer` → `wa_clientes_telefono`, el padrón que baja del
-//      ERP (610 teléfonos). Normaliza las variantes 54 / 9 / 15, así que
+//   1. `wa_identify_customer` → desde sql/073 mira PRIMERO la vinculación aprobada
+//      (`bot_customer_whatsapps`) y después `wa_clientes_telefono`, copia del padrón de
+//      teléfonos de Gestión Virgilio (`virgilio.whatsapp_clientes`, NO Isis); si el teléfono
+//      es de más de una empresa no identifica. Normaliza las variantes 54 / 9 / 15, así que
 //      matchea el `from` de Meta contra el formato con el que está cargado.
 //      Cobertura medida el 2026-09-07: resuelve 547 de los 610, 0 ambiguos
 //      (los 63 restantes son fijos, no líneas de WhatsApp).
@@ -87,7 +89,7 @@ async function loadConfig(): Promise<Config> {
 //      NADIE y todo mensaje caía a la rama de no-cliente.
 //
 // El orden es a pedido del dueño (2026-09-07): que el bot reconozca ya a los
-// teléfonos del ERP. Cuando `bot_customer_whatsapps` se empiece a poblar sigue
+// teléfonos del padrón de Gestión. Cuando `bot_customer_whatsapps` se empiece a poblar sigue
 // sirviendo, como override de lo que diga el padrón.
 
 interface CustomerContext {
@@ -105,7 +107,7 @@ async function getDtoVol(customerId: string): Promise<number> {
 }
 
 async function getCustomerContext(phone: string): Promise<CustomerContext | null> {
-  // 1. Padrón del ERP (normaliza variantes de prefijo)
+  // 1. Vinculación aprobada + padrón de Gestión Virgilio, sin adivinar (sql/073)
   const { data: ident, error: identErr } = await supabase.rpc("wa_identify_customer", {
     p_phone: phone,
   });

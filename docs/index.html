@@ -775,8 +775,8 @@
           <div class="config-section">
             <h3>🔐 Teléfonos nuevos pendientes de aprobación</h3>
             <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
-              Cuando un número que no está en el padrón del ERP escribe el CUIT de un cliente, <b>no se vincula solo</b>:
-              queda acá hasta que alguien confirme que el número es de esa empresa (por ejemplo, llamando a un teléfono del ERP).
+              Cuando un número que no está en el padrón de teléfonos de Gestión Virgilio escribe el CUIT de un cliente, <b>no se vincula solo</b>:
+              queda acá hasta que alguien confirme que el número es de esa empresa (por ejemplo, llamando a un teléfono que Gestión tiene de ese cliente).
               Al aprobar o rechazar, al número se le encola un aviso (sale detrás de la llave de envíos). Si el cliente ya
               tenía un número principal, a ése también se le avisa.
             </p>
@@ -2691,7 +2691,7 @@ async function loadVinculos() {
     box.innerHTML = `<table style="border-collapse:collapse;font-size:0.8rem;">
       <tr style="text-align:left;color:var(--muted);">
         <th style="padding:3px 10px 3px 0;">Pedido el</th><th style="padding:3px 10px 3px 0;">Número que escribió</th>
-        <th style="padding:3px 10px 3px 0;">Dice ser</th><th style="padding:3px 10px 3px 0;">Tel. del ERP</th>
+        <th style="padding:3px 10px 3px 0;">Dice ser</th><th style="padding:3px 10px 3px 0;">Tel. en Gestión</th>
         <th style="padding:3px 10px 3px 0;">Principal actual</th><th style="padding:3px 10px 3px 0;">CUITs 24 h</th><th></th></tr>
       ${rows.map((r) => `<tr style="border-top:1px solid var(--border);">
         <td style="padding:4px 10px 4px 0;white-space:nowrap;">${esc(new Date(r.creado_en).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td>
@@ -3396,6 +3396,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.17.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.17.1</div>
 </body>
 </html>

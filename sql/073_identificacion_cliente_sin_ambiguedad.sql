@@ -2,8 +2,9 @@
 -- Pedido de Pablo Olejavetzky (28/09). Problema de auditoría "Bot identifica al cliente equivocado…".
 -- Va JUNTO con sql/072 (sin la 072, un número "no identificado" podría auto-vincularse con un CUIT).
 --
--- Antes: wa_identify_customer buscaba el teléfono en el padrón del ERP (wa_clientes_telefono) y en la
--- ficha (customers.whatsapp) y devolvía el PRIMERO (LIMIT 1). Medido el 28/09: 70 teléfonos del ERP
+-- Antes: wa_identify_customer buscaba el teléfono en el padrón de teléfonos de Gestión Virgilio (virgilio.whatsapp_clientes,
+-- copiado a wa_clientes_telefono) y en la
+-- ficha (customers.whatsapp) y devolvía el PRIMERO (LIMIT 1). Medido el 28/09: 70 teléfonos del padrón
 -- están en clientes con CUIT distinto y 65 en varios códigos del mismo cliente; además hay números de
 -- relleno (…6666) y la ficha tenía números de prueba (Thomy figuraba como "Pro Tatiana Ethel").
 -- La vinculación aprobada (bot_customer_whatsapps) se miraba recién si nada de eso encontraba.
@@ -12,7 +13,7 @@
 --   1. Vinculación explícita (bot_customer_whatsapps) → manda. source = 'vinculo'.
 --   2. Teléfono de relleno (menos de 8 dígitos, ≥6 dígitos iguales al final, o ≤2 dígitos distintos)
 --      → no identifica.
---   3. Padrón del ERP + ficha: se juntan TODOS los clientes candidatos. Si son de más de una empresa
+--   3. Padrón de Gestión + ficha: se juntan TODOS los clientes candidatos. Si son de más de una empresa
 --      (CUIT distinto; un cliente sin CUIT cuenta como empresa propia) → no identifica: el bot lo trata
 --      como no-cliente y pasa por la vinculación con aprobación humana (sql/072).
 --      Si es una sola empresa con varios códigos → el código con el pedido más reciente.
@@ -46,7 +47,7 @@ BEGIN
     RETURN;
   END IF;
 
-  -- 3) Padrón del ERP + ficha, sin adivinar.
+  -- 3) Padrón de Gestión Virgilio + ficha, sin adivinar.
   RETURN QUERY
   WITH cand AS (
     SELECT c.id, c.cod_cliente, c.business_name, 'wa_clientes_telefono'::text AS src,
@@ -70,7 +71,8 @@ BEGIN
 END;
 $function$;
 
--- Monitoreo: teléfonos que el bot NO puede identificar por ambigüedad (para corregir en el ERP).
+-- Monitoreo: teléfonos que el bot NO puede identificar por ambigüedad (para corregir en la fuente de
+-- whatsapp_clientes de Gestión Virgilio; NO es Isis, que es facturación).
 create or replace view public.v_wa_telefonos_ambiguos as
 with cand as (
   select right(wa_normalize_phone(wc.telefono), 10) tel, c.cod_cliente, c.business_name,
