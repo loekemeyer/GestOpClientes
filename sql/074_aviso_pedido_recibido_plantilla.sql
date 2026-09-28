@@ -1,4 +1,4 @@
--- 074 — Aviso de pedido nuevo: plantilla pedido_recibido en vez de texto libre (proyecto LK)
+-- 074 — (APLICADA 28/09) Aviso de pedido nuevo: plantilla pedido_recibido en vez de texto libre (proyecto LK)
 -- Pedido de Pablo Olejavetzky (28/09).
 --
 -- Problema (prueba 28/09, NP-1562 a Thomy): trg_notify_order_created encolaba TEXTO LIBRE; Meta lo
