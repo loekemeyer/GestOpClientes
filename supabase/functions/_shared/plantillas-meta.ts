@@ -119,6 +119,17 @@ export const PLANTILLAS: PlantillaMeta[] = [
     body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 10 a 12 y de 13 a 16 h.",
     ejemplos: ["Comercial Ejemplo S.R.L", "22/09"],
   },
+
+  // ── Pedido entregado (reparto propio). Pedido de Pablo Olejavetzky (28/09): el aviso de entregado
+  //    depende de cómo se entregó — expreso usa pedido_en_viaje_expreso, retiro en mano no se avisa.
+  {
+    name: "pedido_entregado",
+    language: ES, category: UT,
+    disparo: "order_tracking pasa a 'entregado' y el pedido fue por reparto propio (no expreso ni retiro).",
+    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} fue entregado.\nSi falta algo o llegó algo mal, avisanos por acá.",
+    ejemplos: ["Comercial Ejemplo S.R.L", "22/09"],
+  },
 ];
 
 /** Payload de `components` que espera Meta para crear/editar. */
