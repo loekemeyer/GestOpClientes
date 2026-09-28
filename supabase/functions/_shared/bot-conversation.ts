@@ -324,7 +324,7 @@ async function executeTool(
       if (!p) return { data: { mensaje: `No encontré el código ${cod}. Buscalo con buscar_productos.` } };
       try {
         const cajas = Number(input.cajas) > 0 ? Number(input.cajas) : null;
-        const st = await stockArticulo(p.cod, p.id);
+        const st = await stockArticulo(p.cod);
         if (!st) return { data: { mensaje: "No pude consultar el stock. Ofrecé derivar a ventas." } };
         if (stockNecesitaHumano(st, cajas)) {
           const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });

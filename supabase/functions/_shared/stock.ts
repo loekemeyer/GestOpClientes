@@ -22,7 +22,7 @@ export interface StockArticulo {
   nivel: "hay" | "limitado" | "sin";
 }
 
-export async function stockArticulo(cod: string, productId: number | null): Promise<StockArticulo | null> {
+export async function stockArticulo(cod: string): Promise<StockArticulo | null> {
   const c = String(cod ?? "").trim().toUpperCase();
   if (!c) return null;
   const canon = /^\d+$/.test(c) ? c.replace(/^0+(?=.)/, "").padStart(3, "0") : c;
@@ -36,11 +36,9 @@ export async function stockArticulo(cod: string, productId: number | null): Prom
   const n = (v: unknown) => Number(v) || 0;
   const libre = f ? n(f.terminado) + n(f.excedente) + n(f.racks) + n(f.racks_ch) + n(f.a_guardar) + n(f.para_envasar) : 0;
 
-  let comprometido = 0;
-  if (productId) {
-    const { data: w } = await supabase.rpc("bot_stock_web_comprometido", { p_product_ids: [productId] });
-    comprometido = n(w?.[0]?.cajas);
-  }
+  const { data: w, error: ew } = await supabase.rpc("bot_stock_web_comprometido", { p_cods: [String(cod).trim()] });
+  if (ew) throw new Error(`stock web: ${ew.message}`);
+  const comprometido = n(w?.[0]?.cajas);
   const disponible = Math.floor(libre - comprometido);
   return {
     cod: c, libre, comprometido, disponible,
