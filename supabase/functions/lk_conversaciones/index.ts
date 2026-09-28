@@ -2,6 +2,7 @@ import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
+import { salientes } from "../_shared/salientes.ts";
 
 // lk_conversaciones — Bandeja de atención humana (PaginaLK), integrada al bot real.
 //
@@ -263,6 +264,10 @@ serve(async (req) => {
       const { data: av } = await sb.from("wa_outbox").select("template_name, context, status, created_at, sent_at")
         .like("phone", `%${ult10(phone)}`).order("created_at", { ascending: false }).limit(8);
       return json({ ok: true, phone, identificado: !!cli, cliente, entrega, pedidos, avisos: av ?? [] });
+    }
+
+    if (action === "salientes") {
+      return json(await salientes(Number(body.dias ?? 7)));
     }
 
     if (action === "llave_get") {

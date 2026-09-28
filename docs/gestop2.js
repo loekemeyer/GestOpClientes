@@ -7,7 +7,7 @@ var G = {
   mod: "com", sec: "conv", abiertos: { com: true },
   esperando: 0, alertas: 0, vinculos: 0, consultas: 0,
   llave: null, miNombre: null,
-  tareas: [], tareaSel: null, filtroTipo: "todas", resueltasHoy: 0,
+  slDias: 7, tareas: [], tareaSel: null, filtroTipo: "todas", resueltasHoy: 0,
   convs: [], convSel: null, hilo: null, ficha: null, filtroEstado: "todas", filtroTema: "", filtroEspera: 0, buscar: "",
 };
 const esAdmin = () => currentRole === "admin";
@@ -18,6 +18,7 @@ const MODULOS = [
   { id: "com", nombre: "Comunicaciones", titulo: "Centro de mensajes", secciones: [
     { id: "conv", nombre: "Conversaciones", admin: true, badge: () => G.esperando, abrir: () => irPagina("conv") },
     { id: "tareas", nombre: "Tareas", admin: true, badge: () => G.alertas + G.vinculos, abrir: () => irPagina("tareas") },
+    { id: "salientes", nombre: "Salientes", admin: true, abrir: () => irPagina("salientes") },
     { id: "pruebas", nombre: "Pruebas", abrir: () => { irPagina("chat"); switchChatTab("testChat"); } },
   ] },
   { id: "dash", nombre: "Dashboard", secciones: [
@@ -51,21 +52,23 @@ function abrirDash(i) {
 const visibles = (m) => m.secciones.filter((s) => !s.admin || esAdmin());
 
 // Página → módulo/sección, así el menú queda sincronizado aunque otra función llame a showPage().
-const PAGINA_A = { conv: ["com", "conv"], tareas: ["com", "tareas"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
+const PAGINA_A = { conv: ["com", "conv"], tareas: ["com", "tareas"], salientes: ["com", "salientes"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
 
 // ── showPage extendido: suma la página nueva del Centro de mensajes ─────────
 const _showPageViejo = showPage;
 function irPagina(p) {
-  const nueva = p === "conv" || p === "tareas";
+  const nueva = p === "conv" || p === "tareas" || p === "salientes";
   _showPageViejo(nueva ? "__ninguna__" : p);
   document.getElementById("pageConv").classList.toggle("active", p === "conv");
   document.getElementById("pageTareas")?.classList.toggle("active", p === "tareas");
+  document.getElementById("pageSalientes")?.classList.toggle("active", p === "salientes");
   const [m, s] = PAGINA_A[p] || [G.mod, G.sec];
   G.mod = m;
   if (s) G.sec = s;
   G.abiertos[m] = true;
   if (p === "conv") cmCargar();
   if (p === "tareas") tkCargar();
+  if (p === "salientes") slCargar();
   renderNav();
 }
 // eslint-disable-next-line no-global-assign
@@ -749,4 +752,66 @@ async function tkDecidir(decision) {
     G.tareaSel = null; tkVolver();
     await tkCargar();
   } catch (e) { b.disabled = false; b.textContent = "Reintentar"; toast("No se pudo: " + e.message); }
+}
+
+// ── Centro de mensajes › Salientes (etapa 4) ────────────────────────────────
+// Qué salió del número según Meta (de cualquier origen) y qué quedó en la cola del bot. Sólo lectura.
+const TIPO_AVISO = {
+  pedido_recibido: "Pedido recibido", pedido_programado: "Programado", pedido_programado_retira: "Programado · retira",
+  pedido_programado_expreso: "Programado · expreso", pedido_reprogramado: "Reprogramado", pedido_en_viaje: "En viaje",
+  pedido_en_viaje_expreso: "En viaje · expreso", pedido_listo_retirar: "Listo para retirar", pedido_entregado: "Entregado",
+  pedido_facturado_sale: "Facturado", pedido_recordatorio_25: "Recordatorio", order_created: "Pedido creado",
+  tracking_programado: "Programado (tracking)", tracking_fecha_cambio: "Cambio de fecha", tracking_entregado: "Entregado (tracking)",
+  vinculacion_aprobada: "Teléfono aprobado", vinculacion_rechazada: "Teléfono rechazado", vinculacion_aviso_principal: "Aviso al principal",
+  hello_world: "Prueba de Meta", texto: "Texto libre",
+};
+const nfmt = (n) => Number(n || 0).toLocaleString("es-AR");
+const usd = (n) => "USD " + Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = (a, b) => (b ? Math.round((a / b) * 100) + " %" : "—");
+const celda = (n, cls) => `<td class="${n ? cls || "" : "cero"}">${nfmt(n)}</td>`;
+async function slCargar() {
+  const root = document.getElementById("slRoot");
+  if (!G.sl) root.innerHTML = `<div class="cm-vacio">Cargando…</div>`;
+  try {
+    G.sl = await conv({ action: "salientes", dias: G.slDias });
+    slPintar();
+  } catch (e) { root.innerHTML = `<div class="cm-vacio">No se pudo cargar: ${gesc(e.message)}</div>`; }
+}
+function slPintar() {
+  const r = G.sl, t = r.total;
+  const dd = (d) => d.split("-").reverse().slice(0, 2).join("/");
+  const hoy = r.hasta;
+  const maxDia = Math.max(1, ...r.por_dia.map((d) => d.salieron));
+  const filas = r.por_dia.slice().reverse().map((d) => {
+    const w = (x) => `${(x / maxDia) * 100}%`;
+    return `<tr class="${d.dia === hoy ? "hoy" : ""}"><td>${dd(d.dia)}${d.dia === hoy ? " · HOY" : ""}</td>${celda(d.salieron)}${celda(d.bot)}${celda(d.otros)}${celda(d.utility)}${celda(d.marketing)}${celda(d.service)}${celda(d.entregados)}${celda(d.leidos)}${celda(d.fallidos, "mal")}${celda(d.retenidos, "ret")}<td class="${d.costo ? "" : "cero"}">${usd(d.costo)}</td>
+      <td><div class="sl-barra"><i class="b-bot" style="width:${w(d.bot - 0)}"></i><i class="b-otr" style="width:${w(Math.max(0, d.otros - d.fallidos))}"></i><i class="b-fal" style="width:${w(Math.min(d.fallidos, d.otros))}"></i></div></td></tr>`;
+  }).join("");
+  const maxMot = Math.max(1, ...r.fallidos_por_motivo.map((m) => m.cant));
+  const llave = G.llave?.modo === "1" ? "PRODUCCIÓN" : G.llave?.modo === "prueba" ? "PRUEBA" : "APAGADO";
+  const cambios = (r.cambios_llave || []).map((c) => `${fechaCorta(c.creado_en)} ${hora(c.creado_en)}: ${gesc(c.usuario)} pasó a ${c.modo_nuevo === "1" ? "PRODUCCIÓN" : c.modo_nuevo === "prueba" ? "PRUEBA" : "APAGADO"}`).join(" · ");
+  document.getElementById("slRoot").innerHTML = `
+    <div class="sl-top">Período <select onchange="G.slDias=Number(this.value);slCargar()">${[7, 14, 30].map((n) => `<option value="${n}"${n === r.dias ? " selected" : ""}>Últimos ${n} días</option>`).join("")}</select>
+      <span>${dd(r.desde)} al ${dd(r.hasta)} · llave hoy en <b>${llave}</b>${cambios ? ` · cambios: ${cambios}` : ""}</span>
+      <button class="g-btn" style="margin-left:auto" onclick="slCargar()">Actualizar</button></div>
+    <div class="sl-kpis">
+      <div class="sl-kpi"><span>Salieron del número</span><b>${nfmt(t.salieron)}</b><i>${nfmt(t.bot)} del bot · ${nfmt(t.otros)} de otros</i></div>
+      <div class="sl-kpi"><span>Avisos cobrables</span><b>${nfmt(t.utility + t.marketing)}</b><i>${nfmt(t.utility)} utilidad · ${nfmt(t.marketing)} marketing</i></div>
+      <div class="sl-kpi"><span>Fallidos</span><b style="color:${t.fallidos ? "var(--g-danger)" : "inherit"}">${nfmt(t.fallidos)}</b><i>${pct(t.fallidos, t.salieron)} de lo que salió</i></div>
+      <div class="sl-kpi"><span>Retenidos por la llave</span><b style="color:${t.retenidos ? "var(--warn)" : "inherit"}">${nfmt(t.retenidos)}</b><i>avisos del bot que no salieron</i></div>
+      <div class="sl-kpi"><span>Costo estimado</span><b>${usd(t.costo)}</b><i>entregados × tarifa (utilidad USD ${String(r.tarifas.utility).replace(".", ",")} c/u)</i></div>
+      <div class="sl-kpi"><span>Tasa de respuesta</span><b>${pct(t.respondidos, t.cobrables)}</b><i>${nfmt(t.respondidos)} de ${nfmt(t.cobrables)} avisos entregados, en 24 h</i></div>
+    </div>
+    <div class="sl-card"><h4>Por día</h4>
+      <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Día</th><th>Salieron</th><th>Del bot*</th><th>De otros</th><th>Utilidad</th><th>Marketing</th><th>Conversación<br>(gratis)</th><th>Entregados</th><th>Leídos</th><th>Fallidos</th><th>Retenidos</th><th>Costo</th><th></th></tr></thead>
+      <tbody>${filas}<tr class="tot"><td>Total</td>${celda(t.salieron)}${celda(t.bot)}${celda(t.otros)}${celda(t.utility)}${celda(t.marketing)}${celda(t.service)}${celda(t.entregados)}${celda(t.leidos)}${celda(t.fallidos, "mal")}${celda(t.retenidos, "ret")}<td>${usd(t.costo)}</td><td></td></tr></tbody></table></div>
+      <div class="sl-ley"><span><i style="background:var(--accent)"></i>Del bot</span><span><i style="background:#8a8577"></i>De otros sistemas o personas</span><span><i style="background:#c62828"></i>Fallidos</span></div>
+      <div class="nota">* "Del bot" es aproximado: el bot no guarda el ID de Meta de lo que manda, así que se cuenta por teléfono y hora (±3 min). "De otros" es lo que sale del mismo número desde otros sistemas o desde la app.</div>
+    </div>
+    <div class="sl-2col">
+      <div class="sl-card"><h4>Fallidos por motivo</h4>${r.fallidos_por_motivo.length ? `<div class="sl-mot">${r.fallidos_por_motivo.map((m) => `<span>${gesc(m.texto)} <span style="color:var(--g-muted)">(${gesc(m.codigo)})</span></span><div class="bar" style="width:${(m.cant / maxMot) * 100}%"></div><b>${nfmt(m.cant)}</b>`).join("")}</div>` : `<div class="nota">No falló ningún mensaje en el período.</div>`}</div>
+      <div class="sl-card"><h4>Avisos del bot por tipo (cola)</h4>${r.por_tipo.length ? `<div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Aviso</th><th>Encolados</th><th>Enviados</th><th>Fallidos</th><th>Retenidos</th><th>En cola</th></tr></thead><tbody>${r.por_tipo.map((x) => `<tr><td>${gesc(TIPO_AVISO[x.tipo] || humanizar(x.tipo))}</td>${celda(x.encolados)}${celda(x.enviados)}${celda(x.fallidos, "mal")}${celda(x.retenidos, "ret")}${celda(x.pendientes)}</tr>`).join("")}</tbody></table></div>` : `<div class="nota">El bot no encoló avisos en el período.</div>`}
+        <div class="nota">Retenidos = la llave no los dejó salir (modo prueba o apagado).</div></div>
+    </div>
+    ${r.respuesta.length ? `<div class="sl-card"><h4>Tasa de respuesta por tipo de aviso</h4><div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Categoría</th><th>Entregados</th><th>Respondidos en 24 h</th><th>%</th></tr></thead><tbody>${r.respuesta.map((x) => `<tr><td>${x.categoria === "utility" ? "Utilidad" : "Marketing"}</td>${celda(x.enviados)}${celda(x.respondidos)}<td>${pct(x.respondidos, x.enviados)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`;
 }

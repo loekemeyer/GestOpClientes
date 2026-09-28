@@ -29,7 +29,7 @@ html.dark {
   --wait-bg:#8f2127; --wait-fg:#f7efdc; --fac-bg:#3e2426; --warn:#e3b451; --g-danger:#f08489;
 }
 /* Las páginas viejas todavía no tienen modo oscuro (etapa 5): adentro de ellas se mantiene el claro. */
-html.dark .pages > .page:not(#pageConv):not(#pageTareas) {
+html.dark .pages > .page:not(#pageConv):not(#pageTareas):not(#pageSalientes) {
   --g-bg:#f4efe3; --surface:#fffdf7; --surface2:#efe8d6; --ink:#212122; --g-muted:#5f5b53; --line:#ddd4bf; --line2:#ebe4d3;
   --accent:#661317; --accent-tx:#661317; --sel:#f1e6cc; --ok-fg:#2b5533; --warn:#8a5a00; --g-danger:#9b1c22;
   --bg:#f4efe3; --card:#fffdf7; --text:#212122; --muted:#5f5b53; --primary:#661317; --border:#ddd4bf;
@@ -202,6 +202,7 @@ button, select, input, textarea { font-family: inherit; }
   .mod-head { flex-wrap: wrap; align-items: center; padding-top: 8px; }
   .mod-head h1 { margin: 0; font-size: 15px; }
   .mod-head .mod-tabs { order: 3; flex-basis: 100%; }
+  .mod-head .mod-tab { padding: 8px 7px 9px; font-size: 12px; }
   .mod-head .mod-der { margin: 0 0 0 auto; }
   .llave-band { gap: 8px; padding: 8px 12px; }
   .llave-band .lk-desc { flex-basis: 100%; order: 3; }
@@ -254,3 +255,37 @@ button, select, input, textarea { font-family: inherit; }
   .tk.con-detalle .tk-detalle { display: flex; }
   .tk-volver { display: inline-block; }
 }
+
+/* ── Centro de mensajes › Salientes (etapa 4) ────────────────────────── */
+#pageSalientes.active { display: block; min-width: 0; overflow-y: auto; }
+.sl { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; color: var(--ink); max-width: 1200px; }
+.sl-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--g-muted); }
+.sl-top select { padding: 5px 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 2px; }
+.sl-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.sl-kpi { background: var(--surface); padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; }
+.sl-kpi span { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--g-muted); }
+.sl-kpi b { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.sl-kpi i { font-style: normal; font-size: 12px; color: var(--g-muted); }
+.sl-card { background: var(--surface); border: 1px solid var(--line); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sl-card h4 { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--g-muted); margin: 0; }
+.sl-card .nota { font-size: 12px; color: var(--g-muted); }
+.sl-scroll { overflow-x: auto; }
+.sl-tab { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sl-tab th { font-size: 11px; font-weight: 700; color: var(--g-muted); text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: bottom; }
+.sl-tab th:first-child, .sl-tab td:first-child { text-align: left; }
+.sl-tab td { padding: 4px 8px; border-bottom: 1px solid var(--line2); text-align: right; white-space: nowrap; }
+.sl-tab td.cero { color: var(--g-muted); }
+.sl-tab td.mal { color: var(--g-danger); font-weight: 700; }
+.sl-tab td.ret { color: var(--warn); font-weight: 700; }
+.sl-tab tr.tot td { font-weight: 900; border-top: 2px solid var(--line); border-bottom: 0; }
+.sl-tab tr.hoy td { background: var(--sel); }
+.sl-barra { display: flex; height: 10px; width: 160px; background: var(--line2); }
+.sl-barra i { display: block; height: 100%; }
+.sl-barra .b-bot { background: var(--accent); } .sl-barra .b-otr { background: #8a8577; } .sl-barra .b-fal { background: #c62828; }
+.sl-ley { display: flex; gap: 12px; font-size: 12px; color: var(--g-muted); flex-wrap: wrap; }
+.sl-ley i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; }
+.sl-2col { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+.sl-mot { display: grid; grid-template-columns: minmax(0,1fr) 120px 40px; gap: 6px 10px; align-items: center; font-size: 13px; }
+.sl-mot .bar { height: 8px; background: #c62828; }
+@media (max-width: 900px) { .sl-2col { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 760px) { .sl { padding: 12px; } .sl-kpi b { font-size: 18px; } }
