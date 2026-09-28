@@ -146,3 +146,15 @@ export function validar(p: PlantillaMeta): string[] {
   if (p.body.length > 1024) err.push("cuerpo > 1024 caracteres");
   return err;
 }
+
+/**
+ * Texto que leyó el cliente: el cuerpo de la plantilla con sus {{n}} reemplazados.
+ * `params` es el jsonb de wa_outbox.template_params ({"1": …, "2": …}). null si la plantilla
+ * no está definida acá (ej. las de factura), para que el que llama use su propio formato.
+ */
+export function renderPlantilla(name: string, params: Record<string, unknown> | null): string | null {
+  const p = PLANTILLAS.find((x) => x.name === name);
+  if (!p) return null;
+  const vals = params ? Object.values(params).map((v) => String(v)) : [];
+  return p.body.replace(/\{\{(\d+)\}\}/g, (m, n) => vals[Number(n) - 1] ?? m);
+}

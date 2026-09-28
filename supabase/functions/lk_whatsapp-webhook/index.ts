@@ -26,6 +26,7 @@ import {
 } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
+import { responderAviso } from "../_shared/respuesta-aviso.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 
 // ─── Config (app_settings → fallback Deno.env) ─────────────────────
@@ -1319,6 +1320,21 @@ async function handleMessage(
         await saveMessage(phone, "assistant", reply);
       };
       await handleAltaStep(phone, text, lead, send);
+      return;
+    }
+  }
+
+  // 3c. Respuesta a un aviso automático (pedido recibido, programado, en viaje…): si lo último
+  //     que le mandamos fue un aviso de las últimas 48 h, lo que escribe es la respuesta.
+  //     Ramas deterministas (0 tokens): cambiar/cancelar → asesor; cuándo llega → estado real;
+  //     gracias/ok → respuesta breve. Si no cae en ninguna, sigue el flujo normal y el agente
+  //     ve el aviso en el historial con el texto real. Ver _shared/respuesta-aviso.ts.
+  if (customer) {
+    const replyAviso = await responderAviso(phone, text, customer);
+    if (replyAviso) {
+      await saveMessage(phone, "user", text);
+      await enviarTexto(cfg, phone, replyAviso);
+      await saveMessage(phone, "assistant", replyAviso);
       return;
     }
   }

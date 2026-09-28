@@ -2,7 +2,7 @@ import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
-import { PLANTILLAS, componentesMeta, validar } from "./plantillas-meta.ts";
+import { PLANTILLAS, componentesMeta, validar } from "../_shared/plantillas-meta.ts";
 
 // Función dedicada a plantillas WhatsApp: listar (Meta) + enviar prueba.
 // Sólo depende de _shared/admin-gate.ts (verificación de admin); no toca

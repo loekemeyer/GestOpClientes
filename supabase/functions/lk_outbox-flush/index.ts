@@ -9,6 +9,7 @@
 import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { renderPlantilla } from "../_shared/plantillas-meta.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -71,6 +72,19 @@ Deno.serve(async () => {
     const r = await waSend(payload);
     if (r.ok) {
       await sb.rpc("bot_outbox_mark", { p_id: m.id, p_status: "sent" });
+      // Aviso automático: el historial guarda el TEXTO que leyó el cliente (no los {{n}}) y a qué
+      // pedido se refiere, para que si responde el bot sepa de qué le hablan (webhook,
+      // respuesta-a-aviso). bot_flush_outbox no devuelve context/ref_id: se leen acá.
+      try {
+        const { data: meta } = await sb.from("wa_outbox").select("context, ref_id").eq("id", m.id).maybeSingle();
+        const ctx = String(meta?.context ?? "");
+        const esAviso = !!m.template_name || ctx === "order_created" || ctx.startsWith("tracking_");
+        if (esAviso && m.template_name !== "hello_world") {
+          const texto = m.template_name ? (renderPlantilla(m.template_name, m.template_params) ?? historyText) : historyText;
+          const pedido = /^\d+$/.test(String(meta?.ref_id ?? "")) ? ` · pedido ${meta?.ref_id}` : "";
+          historyText = `[Aviso automático ${m.template_name ?? ctx}${pedido}]\n${texto}`;
+        }
+      } catch (_) { /* si falla, queda el formato de siempre */ }
       // Loggear el envío saliente en el historial para que aparezca en Conversaciones.
       try {
         await sb.rpc("bot_guardar_mensaje", { p_telefono: canon(m.phone), p_rol: "assistant", p_contenido: historyText });

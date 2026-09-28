@@ -24,6 +24,20 @@ BOT: Hola Comercial Ejemplo S.R.L, te escribimos de Loekemeyer.
      Ya vinculamos este número a tu cuenta: podés consultar tus pedidos, descuentos y fechas de entrega.
 ```
 
+## Flujo 1b: El cliente contesta un aviso automático (28/09)
+
+Cada aviso (pedido recibido, programado, en viaje…) queda en el historial como
+`[Aviso automático <plantilla> · pedido <id>]` + el texto que leyó el cliente (`lk_outbox-flush`).
+Si lo último del historial es un aviso de las últimas 48 h, el webhook trata el mensaje como
+respuesta (`_shared/respuesta-aviso.ts`), antes de las FAQ, sin gastar tokens:
+
+| El cliente dice | Ejemplo | Responde |
+|---|---|---|
+| Cambiar / cancelar / reclamar | "no voy a estar", "cancelalo", "agregame…", "hay un error" | "Le paso tu pedido a un asesor…" + alerta en `wa_alertas_humano` (`respuesta_aviso_cambio`) |
+| Cuándo llega | "¿a qué hora llega?", "¿cuándo sale?" | estado y fecha real del pedido (`bot_estado_pedidos_gv`) |
+| Agradece / confirma (sólo eso) | "gracias", "ok", "buenísimo", 👍 | "¡Gracias a vos! Cualquier consulta sobre tu pedido del dd/mm, escribinos por acá." |
+| Otra cosa | "¿tengo el pelapapas A en ese pedido?" | flujo normal (FAQ / agente), que ve el aviso en el historial |
+
 ## Flujo 2: Consulta de pedido
 
 ```
