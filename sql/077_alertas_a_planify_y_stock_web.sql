@@ -5,7 +5,7 @@
 --    tarea en Planify (proyecto Gestión, schema planify) si la categoría está en
 --    app_settings.wa_alertas_planify. Para pruebas: Planify de Pablo Olejavetzky (employee_id 64).
 --    El trigger nunca frena el alta de la alerta.
--- 2) bot_stock_web_comprometido(product_ids): cajas de pedidos web que todavía NO salieron del depósito
+-- 2) bot_stock_web_comprometido(cods): cajas de pedidos web que todavía NO salieron del depósito
 --    de terminado. Estado según Gestión (virgilio.gv_pedido_web_estado_pagina):
 --      sin_programar / programado (sin pickear)           → cuentan
 --      en_armado / armado / pickeado / facturado / entregado → NO (ya se descontaron del terminado)
@@ -32,25 +32,26 @@ drop trigger if exists alerta_a_planify on public.wa_alertas_humano;
 create trigger alerta_a_planify after insert on public.wa_alertas_humano
   for each row when (new.tipo <> 'whitelist_gate') execute function public.trg_alerta_a_planify();
 
-create or replace function public.bot_stock_web_comprometido(p_product_ids bigint[])
-returns table(product_id bigint, cajas numeric, pedidos bigint)
+create or replace function public.bot_stock_web_comprometido(p_cods text[])
+returns table(cod text, cajas numeric, pedidos bigint)
 language sql stable security definer set search_path to 'public' as $$
-  select oi.product_id, sum(oi.cajas)::numeric, count(distinct o.id)
+  select p.cod, sum(oi.cajas)::numeric, count(distinct o.id)
   from orders o
   join order_items oi on oi.order_id = o.id
+  join products p on p.id = oi.product_id
   left join virgilio.gv_pedido_web_estado_pagina g on g.order_id = o.id and g.empresa = 'lk'
-  where oi.product_id = any(coalesce(p_product_ids, '{}'))
+  where p.cod = any(coalesce(p_cods, '{}'))
     and (
       (g.order_id is not null and g.estado in ('sin_programar','programado')
          and not coalesce(g.facturado, false) and not coalesce(g.entregado, false))
       or (g.order_id is null and o.created_at > now() - interval '2 days')
     )
-  group by oi.product_id;
+  group by p.cod;
 $$;
-revoke all on function public.bot_stock_web_comprometido(bigint[]) from public, anon, authenticated;
-grant execute on function public.bot_stock_web_comprometido(bigint[]) to service_role;
+revoke all on function public.bot_stock_web_comprometido(text[]) from public, anon, authenticated;
+grant execute on function public.bot_stock_web_comprometido(text[]) to service_role;
 
 -- Verificación:
 --   select tgname from pg_trigger where tgname = 'alerta_a_planify';
---   select * from bot_stock_web_comprometido(array[(select id from products where cod='506')]);
+--   select * from bot_stock_web_comprometido(array['506']);
 -- Apagar Planify: drop trigger alerta_a_planify on public.wa_alertas_humano;

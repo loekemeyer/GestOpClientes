@@ -313,7 +313,7 @@ async function lookupProductStock(customer: NonNullable<Customer>, message: stri
   }
   const p = products[0];
   try {
-    const st = await stockArticulo(p.cod, p.product_id ?? null);
+    const st = await stockArticulo(p.cod);
     if (!st) return null;
     if (stockNecesitaHumano(st)) {
       await notificarHumano({
