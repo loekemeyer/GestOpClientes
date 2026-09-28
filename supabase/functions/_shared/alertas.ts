@@ -6,6 +6,7 @@
 // call-sites que ya usan `notificarHumano`.
 
 import { supabase } from "./supabase.ts";
+import { SIM } from "./simulacion.ts";
 
 export type TipoAlerta =
   | "llm_timeout"
@@ -29,6 +30,7 @@ export interface AlertaHumanoInput {
  * porque no queremos romper el flujo del bot por un fallo del logger.
  */
 export async function notificarHumano(a: AlertaHumanoInput): Promise<void> {
+  if (SIM.activo) { SIM.alertas.push({ tipo: a.tipo, ...(a.contexto ?? {}) }); return; }
   try {
     await supabase.from("wa_alertas_humano").insert({
       tipo: a.tipo,

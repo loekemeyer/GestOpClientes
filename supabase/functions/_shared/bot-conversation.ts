@@ -4,6 +4,7 @@
 import { supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
+import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { REGLAS_OPERATIVAS, bloqueSeguridad } from "./agente-fijos.ts";
 import {
@@ -256,6 +257,11 @@ async function executeTool(
   input: Record<string, any>,
   phone: string,
 ): Promise<ToolExecResult> {
+  if (SIM.activo) {
+    const efecto = HERRAMIENTAS_CON_EFECTO.has(name);
+    SIM.herramientas.push({ nombre: name, input, ejecutada: !efecto });
+    if (efecto) return { data: { ok: true, simulado: true, mensaje: "Hecho." } };
+  }
   switch (name) {
     case "consultar_mis_pedidos": {
       const { data, error } = await supabase.rpc("bot_mis_pedidos", {
@@ -484,7 +490,7 @@ async function auditTool(
   params: Record<string, any>,
   resumen: string,
 ): Promise<void> {
-  if (!AUDITABLE_TOOLS.has(tool)) return;
+  if (!AUDITABLE_TOOLS.has(tool) || SIM.activo) return;
   try {
     await supabase.rpc("bot_auditar_tool", {
       p_telefono: phone,
@@ -504,6 +510,8 @@ export async function loadHistory(
   limit = 20,
   // deno-lint-ignore no-explicit-any
 ): Promise<Array<{ rol: string; contenido: string; creado_en: string }>> {
+  // Simulador: historial en memoria, más nuevo primero (mismo orden que bot_leer_historial).
+  if (SIM.activo) return [...SIM.historial].reverse().slice(0, limit);
   const { data, error } = await supabase.rpc("bot_leer_historial", {
     p_telefono: phone,
     p_limit: limit,

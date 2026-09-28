@@ -14,6 +14,7 @@
 
 import { supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
+import { SIM } from "./simulacion.ts";
 
 const VENTANA_HORAS = 48;
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -38,11 +39,13 @@ export interface AvisoReciente {
 
 /** El aviso al que el cliente estaría respondiendo, o null. */
 export async function avisoReciente(phone: string): Promise<AvisoReciente | null> {
-  const { data } = await supabase.from("bot_historial_chat")
-    .select("rol, contenido, creado_en")
-    .eq("telefono", phone)
-    .order("creado_en", { ascending: false })
-    .limit(1);
+  const { data } = SIM.activo
+    ? { data: SIM.historial.slice(-1) }
+    : await supabase.from("bot_historial_chat")
+      .select("rol, contenido, creado_en")
+      .eq("telefono", phone)
+      .order("creado_en", { ascending: false })
+      .limit(1);
   const ult = data?.[0];
   if (!ult || ult.rol !== "assistant") return null;
   const m = /^\[Aviso automático (\S+)(?: · pedido (\d+))?\]\n?([\s\S]*)$/.exec(String(ult.contenido ?? ""));
