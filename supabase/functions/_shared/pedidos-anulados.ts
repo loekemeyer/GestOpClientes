@@ -5,7 +5,9 @@
 // Gestión: GV_Pedidos_Anulados (anulados desde la PPP, con motivo) y GV_Pedidos_Prueba_Historial (pedidos de
 // prueba borrados). Se leen con las credenciales de Gestión (getGestionClient), sólo empresa 'lk'.
 // Caché de 60 s por instancia y tope de 3 s: si Gestión no contesta, no se excluye nada (se loguea).
-import { getGestionClient } from "./supabase.ts";
+// Tampoco existen los pedidos que nunca se mandaron a la planilla (orders.sheets_sent = false): son intentos
+// fallidos de la web (ej. cliente 4210, 14/09: 4 intentos sin enviar + el pedido real).
+import { getGestionClient, supabase } from "./supabase.ts";
 
 let cache: { hasta: number; ids: Set<number> } | null = null;
 
@@ -33,9 +35,16 @@ export async function pedidosAnulados(): Promise<Set<number>> {
   }
 }
 
-/** Filtra una lista de pedidos (con `id` u `order_id`) sacando los anulados o borrados. */
+/** Filtra una lista de pedidos (con `id` u `order_id`) sacando los anulados/borrados y los nunca enviados. */
 export async function sinAnulados<T extends Record<string, unknown>>(filas: T[], campo = "id"): Promise<T[]> {
   if (!filas.length) return filas;
-  const anul = await pedidosAnulados();
-  return anul.size ? filas.filter((f) => !anul.has(Number(f[campo]))) : filas;
+  const ids = [...new Set(filas.map((f) => Number(f[campo])).filter((n) => n > 0))];
+  const [anul, noEnviados] = await Promise.all([
+    pedidosAnulados(),
+    ids.length
+      ? supabase.from("orders").select("id").in("id", ids).eq("sheets_sent", false)
+        .then(({ data }) => new Set((data ?? []).map((o: { id: number }) => Number(o.id))), () => new Set<number>())
+      : Promise.resolve(new Set<number>()),
+  ]);
+  return filas.filter((f) => { const n = Number(f[campo]); return !anul.has(n) && !noEnviados.has(n); });
 }
