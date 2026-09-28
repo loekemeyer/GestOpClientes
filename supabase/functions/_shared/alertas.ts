@@ -7,6 +7,10 @@
 
 import { supabase } from "./supabase.ts";
 import { SIM } from "./simulacion.ts";
+import { esUrgente } from "./humor-reglas.ts";
+
+// Categorías que siempre son urgentes (además de lo que diga el texto).
+const MOTIVOS_URGENTES = new Set(["cliente_molesto", "respuesta_aviso_cambio", "comprobante_error"]);
 
 export type TipoAlerta =
   | "llm_timeout"
@@ -30,7 +34,13 @@ export interface AlertaHumanoInput {
  * porque no queremos romper el flujo del bot por un fallo del logger.
  */
 export async function notificarHumano(a: AlertaHumanoInput): Promise<void> {
-  if (SIM.activo) { SIM.alertas.push({ tipo: a.tipo, ...(a.contexto ?? {}) }); return; }
+  const ctx: Record<string, unknown> = { ...(a.contexto ?? {}) };
+  if (ctx.urgente === undefined) {
+    const texto = String(ctx.texto_recibido ?? ctx.texto ?? ctx.userText ?? "");
+    ctx.urgente = MOTIVOS_URGENTES.has(String(ctx.motivo ?? "")) || (texto ? esUrgente(texto) : false);
+  }
+  a = { ...a, contexto: ctx };
+  if (SIM.activo) { SIM.alertas.push({ tipo: a.tipo, ...ctx }); return; }
   try {
     await supabase.from("wa_alertas_humano").insert({
       tipo: a.tipo,

@@ -3,11 +3,13 @@
 // calculan el mismo vencimiento. Minutos por categoría editables en app_settings.wa_alertas_vencimiento.
 
 import { supabase } from "./supabase.ts";
+import { esUrgente } from "./humor-reglas.ts";
 
 export const SETTING_VENCIMIENTO = "wa_alertas_vencimiento";
 
 // Nombre visible y vencimiento por defecto (minutos) de cada categoría.
 export const CATEGORIAS: Record<string, { label: string; min: number }> = {
+  cliente_molesto:        { label: "Cliente molesto", min: 30 },
   respuesta_aviso_cambio: { label: "Cambio o cancelación de pedido (respuesta a un aviso)", min: 60 },
   escalation:             { label: "Pidió hablar con una persona", min: 120 },
   comprobante_recibido:   { label: "Comprobante de pago recibido", min: 240 },
@@ -38,4 +40,15 @@ export async function vencimientos(): Promise<Record<string, number>> {
     for (const [k, v] of Object.entries(guardado)) if (k in base && Number(v) > 0) base[k] = Number(v);
   } catch { /* JSON roto → defaults */ }
   return base;
+}
+
+// Urgencia de una alerta: la que se guardó al crearla (contexto.urgente, ver alertas.ts) o, para las
+// alertas viejas que no la tienen, por categoría + texto.
+const CATEGORIAS_URGENTES = new Set(["cliente_molesto", "respuesta_aviso_cambio", "comprobante_error"]);
+// deno-lint-ignore no-explicit-any
+export function urgente(a: any): boolean {
+  const ctx = a?.contexto ?? {};
+  if (typeof ctx.urgente === "boolean") return ctx.urgente;
+  const texto = String(ctx.texto_recibido ?? ctx.texto ?? "");
+  return CATEGORIAS_URGENTES.has(categoria(a)) || (texto ? esUrgente(texto) : false);
 }

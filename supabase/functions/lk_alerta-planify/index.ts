@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, supabase } from "../_shared/supabase.ts";
-import { categoria } from "../_shared/alertas-vencimiento.ts";
+import { categoria, urgente } from "../_shared/alertas-vencimiento.ts";
 
 // lk_alerta-planify — cada alerta que necesita a una persona se vuelve TAREA en Planify.
 // Pedido de Pablo Olejavetzky (28/09). Planify vive en el proyecto de Gestión (schema planify);
@@ -34,6 +34,7 @@ async function esLlamadaInterna(req: Request): Promise<boolean> {
 // Nombre corto para la tarea (el nombre entero va hasta 60 caracteres).
 const CORTO: Record<string, string> = {
   escalation: "Pide hablar con alguien",
+  cliente_molesto: "Cliente molesto",
   respuesta_aviso_cambio: "Cambio de pedido",
   alta_cliente: "Alta de cliente",
   comprobante_recibido: "Comprobante recibido",
@@ -53,7 +54,9 @@ async function crear(alertaId: number) {
     .select("id, tipo, phone, customer_id, contexto, estado, created_at").eq("id", alertaId).maybeSingle();
   if (!a) return { ok: false, error: "alerta no encontrada" };
   const cat = categoria(a);
-  if (!cfg.categorias.includes(cat)) return { ok: true, creada: false, motivo: `categoría ${cat} no va a Planify` };
+  const esUrg = urgente(a);
+  // Lo urgente (cliente molesto, cambio de pedido, reclamo…) va siempre a Planify.
+  if (!cfg.categorias.includes(cat) && !esUrg) return { ok: true, creada: false, motivo: `categoría ${cat} no va a Planify` };
   const ctx = a.contexto ?? {};
   if (ctx.planify_task_id) return { ok: true, creada: false, motivo: "ya tenía tarea" };
 
@@ -68,7 +71,7 @@ async function crear(alertaId: number) {
     if (o?.created_at) pedido = `pedido del ${fmt(new Date(o.created_at), { day: "2-digit", month: "2-digit" }).split("-").reverse().join("/")}`;
   }
   const texto = String(ctx.texto_recibido ?? ctx.texto ?? "").trim();
-  const nombre = `Bot: ${CORTO[cat] ?? cat} — ${cliente || a.phone || "sin identificar"}`.slice(0, 60);
+  const nombre = `${esUrg ? "🔴 " : ""}Bot: ${CORTO[cat] ?? cat} — ${cliente || a.phone || "sin identificar"}`.slice(0, 60);
   const nota = [
     texto ? `Escribió: "${texto.slice(0, 200)}"` : "",
     a.phone ? `Tel ${a.phone}` : "",
@@ -78,7 +81,7 @@ async function crear(alertaId: number) {
   const ahora = new Date(a.created_at);
   const planify = await getGestionClient("planify");
   const { data: t, error } = await planify.from("tasks").insert({
-    name: nombre, type: "tarea", prio: "urgente",
+    name: nombre, type: "tarea", prio: esUrg ? "urgente" : "normal",
     time: fmt(ahora, { hour: "2-digit", minute: "2-digit", hour12: false }),
     date: fmt(ahora, { year: "numeric", month: "2-digit", day: "2-digit" }),
     note: nota, rec: "none", done: false, assignment_type: "employee", employee_id: cfg.employee_id,

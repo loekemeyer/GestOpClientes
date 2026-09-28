@@ -38,6 +38,20 @@ respuesta (`_shared/respuesta-aviso.ts`), antes de las FAQ, sin gastar tokens:
 | Agradece / confirma (sólo eso) | "gracias", "ok", "buenísimo", 👍 | "¡Gracias a vos! Cualquier consulta sobre tu pedido del dd/mm, escribinos por acá." |
 | Otra cosa | "¿tengo el pelapapas A en ese pedido?" | flujo normal (FAQ / agente), que ve el aviso en el historial |
 
+**Cliente molesto (28/09):** antes que cualquier otra respuesta, si el mensaje trae insultos, quejas
+fuertes ("una vergüenza", "nadie me contesta", "estoy harto") o gritos (MAYÚSCULAS con signos, 4+ signos
+de pregunta/exclamación), el bot contesta "Perdón por las molestias. Ya le paso tu mensaje a una persona
+del equipo…" y crea una alerta urgente `cliente_molesto` (→ tarea 🔴 urgente en Planify). Si ya hay una
+abierta de ese número en las últimas 2 h, no crea otra ("Ya le avisé a una persona del equipo…").
+Sin IA: `_shared/humor.ts` + reglas en `_shared/humor-reglas.ts`.
+
+**Urgencia de las alertas (28/09):** cada alerta guarda `contexto.urgente`. Urgente = cliente molesto,
+cambio/cancelación de pedido, comprobante con error, o texto con apuro/problema ("urgente", "hoy mismo",
+"no me llegó", "vino roto/incompleto", "me cobraron de más", "reclamo"). Lo urgente va siempre a Planify
+con prioridad urgente; el resto, según `app_settings.wa_alertas_planify`, con prioridad normal. En el
+dashboard: aviso "👤 N esperando a una persona" en la barra lateral de todas las páginas (urgentes 🔴
+primero) y marca "urgente" en 🔔 Alertas.
+
 **Pedido de cambio en cualquier momento (28/09):** aunque lo último NO sea un aviso, si el cliente
 tiene un pedido abierto (no entregado según Gestión) y pide cambiar la fecha / cancelar
 ("reprogramar", "otro día", "recién el 4/10", o "no puedo / no llego" + fecha, día o retiro), el
