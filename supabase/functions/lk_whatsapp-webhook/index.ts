@@ -26,7 +26,7 @@ import {
 } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
-import { responderAviso } from "../_shared/respuesta-aviso.ts";
+import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 
 // ─── Config (app_settings → fallback Deno.env) ─────────────────────
@@ -1330,7 +1330,9 @@ async function handleMessage(
   //     gracias/ok → respuesta breve. Si no cae en ninguna, sigue el flujo normal y el agente
   //     ve el aviso en el historial con el texto real. Ver _shared/respuesta-aviso.ts.
   if (customer) {
-    const replyAviso = await responderAviso(phone, text, customer);
+    // 3d. Pedido de cambio de fecha / cancelación en cualquier momento (no sólo tras un aviso):
+    //     antes caía en la FAQ de dirección del depósito ("puedo pasar") con la fecha vacía.
+    const replyAviso = await responderAviso(phone, text, customer) ?? await pedidoDeCambio(phone, text, customer);
     if (replyAviso) {
       await saveMessage(phone, "user", text);
       await enviarTexto(cfg, phone, replyAviso);

@@ -53,10 +53,29 @@ export function renderTemplate(
 }
 
 /**
+ * Saca las líneas que tienen un token {{...}} sin valor: nunca mandar "Tu pedido está programado
+ * para: " con la fecha vacía (simulación 28/09, FAQ Retiro / dirección).
+ */
+export function sinLineasSinDato(
+  tpl: string,
+  vars: Record<string, string | number | null | undefined>,
+): string {
+  return String(tpl).split("\n").filter((linea) => {
+    const tokens = [...linea.matchAll(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi)].map((m) => m[1]);
+    return tokens.every((k) => vars[k] !== undefined && vars[k] !== null && String(vars[k]) !== "");
+  }).join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+/**
  * ¿La respuesta ya arranca saludando? El call-site le antepone "¡Hola {cliente}! 👋"
  * cuando es primer contacto, y la FAQ del saludo inicial ya saluda: sin este chequeo
  * el cliente recibe el saludo dos veces seguidas.
  */
+function esSoloSaludo(text: string): boolean {
+  const palabras = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+  return !/\d/.test(text) && palabras.length <= 3;
+}
+
 function yaSaluda(reply: string): boolean {
   return /^\s*[¡!]?\s*(hola|buen[ao]s?\s+(d[ií]as|tardes|noches))\b/i.test(reply);
 }
@@ -79,6 +98,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // micro-desempate por similitud). Umbral 1 = "necesita al menos un keyword
   // sólido o un typo cercano"; si no, lo maneja la IA / el registro.
   if (Number(top.match_score) < 1) return null;
+
+  // El saludo de respaldo (category greeting_fallback, keywords "necesito", "puedo", "?"…) atrapaba
+  // mensajes con contenido real: "necesito 2000 cajas del 506" recibía "Hola! ¿En qué te puedo ayudar?"
+  // (simulación 28/09). Con cliente identificado sólo responde si el mensaje es casi sólo un saludo;
+  // si no, pasa al agente.
+  if (customer && top.category === "greeting_fallback" && !esSoloSaludo(text)) return null;
 
   // Escalación humana: preestablecida en la FAQ (categoría HUMANO)
   if (top.automation_level === "needs_human") {
@@ -155,7 +180,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // Resolver cualquier token {{...}} de la plantilla en la rama estática.
   // Acá no hay lookup: los tokens sin dato disponible se quitan (→ "") para no
   // filtrar {{fecha}} literal a un cliente. {{nombre_cliente}} sí se completa.
-  reply = renderTemplate(reply, { nombre_cliente: customer?.business_name });
+  reply = renderTemplate(sinLineasSinDato(reply, { nombre_cliente: customer?.business_name }),
+    { nombre_cliente: customer?.business_name });
 
   const final = reply.trim();
   return {
@@ -307,11 +333,25 @@ async function lookupProductPrice(customer: NonNullable<Customer>, message: stri
 async function lookupProductStock(customer: NonNullable<Customer>, message: string): Promise<string | null> {
   // Stock real (Gestión − pedidos web abiertos), sin números para el cliente. Antes leía p.stock, que
   // wa_product_match no devuelve: contestaba "sin stock" a todo.
-  const { data: products } = await supabase.rpc("wa_product_match", { p_query: message, p_limit: 1 });
-  if (!products?.length) {
+  // Primero un código dentro de la frase ("tienen stock del 506?"); si no, el nombre sin las
+  // palabras de la pregunta. Antes se buscaba la frase entera y no encontraba nada.
+  let p: { cod: string; description: string } | null = null;
+  for (const cod of message.match(/\b\d{3,5}[a-z]?\b/gi) ?? []) {
+    const { data } = await supabase.from("products").select("cod, description").eq("cod", cod.toUpperCase()).limit(1);
+    if (data?.[0]) { p = data[0]; break; }
+  }
+  if (!p) {
+    const nombre = message.toLowerCase()
+      .replace(/\b(tienen|tenes|tenés|hay|stock|disponib\w*|de|del|la|el|los|las|un|una|queda\w*|todav[ií]a|\?|¿)\b/g, " ")
+      .replace(/[¿?!.,]/g, " ").trim();
+    if (nombre.length >= 3) {
+      const { data: products } = await supabase.rpc("wa_product_match", { p_query: nombre, p_limit: 1 });
+      if (products?.length) p = products[0];
+    }
+  }
+  if (!p) {
     return `¿Qué artículo te interesa? Pasame el código o el nombre y te confirmo si hay stock.`;
   }
-  const p = products[0];
   try {
     const st = await stockArticulo(p.cod);
     if (!st) return null;

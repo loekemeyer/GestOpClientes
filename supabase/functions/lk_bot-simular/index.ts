@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { SIM } from "../_shared/simulacion.ts";
-import { responderAviso } from "../_shared/respuesta-aviso.ts";
+import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { handleFaq } from "../_shared/faq.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
 import { renderPlantilla } from "../_shared/plantillas-meta.ts";
@@ -80,6 +80,11 @@ serve(async (req) => {
       // 3c. respuesta a un aviso
       reply = await responderAviso(TEL_SIMULADO, text, customer);
       if (reply) via = "respuesta_aviso";
+      // 3d. pedido de cambio en cualquier momento
+      if (!reply) {
+        reply = await pedidoDeCambio(TEL_SIMULADO, text, customer);
+        if (reply) via = "pedido_de_cambio";
+      }
       // 4. preguntas frecuentes
       if (!reply) {
         const faq = await handleFaq(text, { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });

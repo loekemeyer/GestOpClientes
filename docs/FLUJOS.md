@@ -38,6 +38,17 @@ respuesta (`_shared/respuesta-aviso.ts`), antes de las FAQ, sin gastar tokens:
 | Agradece / confirma (sólo eso) | "gracias", "ok", "buenísimo", 👍 | "¡Gracias a vos! Cualquier consulta sobre tu pedido del dd/mm, escribinos por acá." |
 | Otra cosa | "¿tengo el pelapapas A en ese pedido?" | flujo normal (FAQ / agente), que ve el aviso en el historial |
 
+**Pedido de cambio en cualquier momento (28/09):** aunque lo último NO sea un aviso, si el cliente
+tiene un pedido abierto (no entregado según Gestión) y pide cambiar la fecha / cancelar
+("reprogramar", "otro día", "recién el 4/10", o "no puedo / no llego" + fecha, día o retiro), el
+webhook deriva antes de las FAQ: "Le paso tu pedido del dd/mm a un asesor para que coordine el cambio…"
++ alerta `respuesta_aviso_cambio` (→ tarea en Planify). `pedidoDeCambio` en `_shared/respuesta-aviso.ts`.
+
+**FAQ (28/09):** el saludo de respaldo (`greeting_fallback`) ya no contesta a un cliente identificado
+si el mensaje trae contenido (números o más de 3 palabras): pasa al agente. Una línea de una FAQ con
+un `{{token}}` sin dato se saca entera (nunca "programado para: " vacío). La FAQ de stock toma el
+código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_shared/stock.ts`).
+
 ## Flujo 2: Consulta de pedido
 
 ```

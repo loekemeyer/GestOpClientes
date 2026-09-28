@@ -19,7 +19,15 @@ import { SIM } from "./simulacion.ts";
 const VENTANA_HORAS = 48;
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
-const RE_CAMBIO = /(cancel|anul|cambi(ar|á|a|en|ame|arme|arlo|alo|emos)\b|modific|agreg|sum[aá]|quit|sac[aá]|no (voy|vamos|estoy|estamos|puedo|podemos)|otro d[ií]a|reprogram|posterg|adelant|devol|reclam|falt[aó]|equivoc|error)/i;
+const RE_CAMBIO = /(cancel|anul|cambi(ar|á|a|en|ame|arme|arlo|alo|emos)\b|modific|agreg|sum[aá]|quit|sac[aá]|\bno\s+(voy|vamos|estoy|estamos|pue\w*|pod\w*|llego|llegamos)\b|reci[eé]n\s+(el|la|para|a\s+partir)|otro d[ií]a|reprogram|posterg|adelant|devol|reclam|falt[aó]|equivoc|error)/i;
+
+// Pedido de cambio de fecha / cancelación AUNQUE lo último no haya sido un aviso (simulación 28/09:
+// "No pueeo pasar el 30, puedo pasar recien el 4/10" caía en la FAQ de dirección del depósito).
+// Fuerte = alcanza sola. "No puedo / no llego…" sólo cuenta si además habla de una fecha, un día o
+// del retiro/entrega (para no derivar "no puedo abrir el catálogo").
+const RE_CAMBIO_FUERTE = /(reprogram|posterg|cancel|anul|cambi\w*\s+(la\s+|el\s+)?(fecha|d[ií]a|entrega|retiro)|otro\s+d[ií]a|reci[eé]n\s+(el|la|para|a\s+partir))/i;
+const RE_NO_PUEDO = /\bno\s+(pue\w*|pod\w*|voy|vamos|llego|llegamos|estoy|estamos)\b/i;
+const RE_FECHA_O_RETIRO = /(\b\d{1,2}\s*\/\s*\d{1,2}\b|\bel\s+\d{1,2}\b|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|ma[nñ]ana|semana|fecha|\bd[ií]a\b|retir|pasar|buscar|entreg|recib)/i;
 const RE_CUANDO = /(cu[aá]ndo|a qu[eé] hora|horario|qu[eé] d[ií]a|lleg|entreg|sale|salida|d[oó]nde est|en qu[eé] (va|est))/i;
 // Agradece / confirma: el mensaje está hecho SÓLO de estas palabras (y emojis/puntuación).
 const PALABRAS_OK = new Set(["hola", "buenas", "buen", "buenos", "dia", "día", "dias", "días", "tardes", "gracias", "muchas",
@@ -82,6 +90,39 @@ async function estadoPedido(pedido: number): Promise<string> {
   }
   const etapa = status === "en preparacion" ? "en preparación" : status;
   return `Tu pedido${del} está ${etapa} y sale el ${fecha}. Cualquier cambio te avisamos por acá.`;
+}
+
+/**
+ * Cliente con un pedido abierto que pide cambiar la fecha o cancelar, en cualquier momento de la
+ * charla → deriva a un asesor (alerta respuesta_aviso_cambio → tarea en Planify). null si no aplica.
+ */
+export async function pedidoDeCambio(
+  phone: string,
+  text: string,
+  customer: { customer_id: string; business_name: string } | null,
+): Promise<string | null> {
+  if (!customer) return null;
+  const t = text.trim();
+  if (!(RE_CAMBIO_FUERTE.test(t) || (RE_NO_PUEDO.test(t) && RE_FECHA_O_RETIRO.test(t)))) return null;
+
+  // Pedido abierto más reciente del cliente (últimos 60 días, no entregado según Gestión).
+  const { data: ords } = await supabase.from("orders").select("id, created_at")
+    .eq("customer_id", customer.customer_id)
+    .gt("created_at", new Date(Date.now() - 60 * 86400_000).toISOString())
+    .order("created_at", { ascending: false }).limit(10);
+  if (!ords?.length) return null;
+  const { data: est } = await supabase.rpc("bot_estado_pedidos_gv", { p_ids: ords.map((o) => o.id) });
+  const abiertos = new Set((est ?? []).filter((e: { status: string }) => e.status !== "entregado")
+    .map((e: { order_id: number }) => Number(e.order_id)));
+  const ped = ords.find((o) => abiertos.has(Number(o.id)));
+  if (!ped) return null;
+
+  await notificarHumano({
+    tipo: "escalation", phone, customerId: customer.customer_id,
+    contexto: { motivo: "respuesta_aviso_cambio", pedido: ped.id, texto_recibido: t.slice(0, 300),
+      razon_social: customer.business_name },
+  });
+  return `Le paso tu pedido del ${fechaCorta(ped.created_at)} a un asesor para que coordine el cambio y te escriba por acá. 🙏`;
 }
 
 /**
