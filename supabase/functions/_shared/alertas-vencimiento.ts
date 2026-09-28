@@ -17,6 +17,7 @@ export const CATEGORIAS: Record<string, { label: string; min: number }> = {
   alta_cliente:           { label: "Alta de cliente nuevo", min: 1440 },
   blacklist:              { label: "Escribió un número bloqueado", min: 1440 },
   faq_no_match:           { label: "Pregunta sin respuesta", min: 240 },
+  consulta_stock:         { label: "Consulta de stock sin disponibilidad", min: 120 },
   otro:                   { label: "Otros", min: 240 },
   whitelist_gate:         { label: "Número fuera de la lista de prueba", min: 1440 },
 };

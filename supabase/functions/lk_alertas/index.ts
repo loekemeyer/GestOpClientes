@@ -24,6 +24,22 @@ const json = (data: unknown, status = 200) =>
 
 const SETTING = SETTING_VENCIMIENTO;
 
+// Cierra la tarea de Planify de la alerta (lk_alerta-planify). Nunca frena la respuesta al dashboard.
+async function llamarPlanify(body: Record<string, unknown>): Promise<void> {
+  try {
+    let secreto = Deno.env.get("LK_FN_CRON_SECRET") ?? "";
+    if (!secreto) {
+      const { data } = await supabase.rpc("krikos_secret", { p_name: "LK_FN_CRON_SECRET" });
+      secreto = typeof data === "string" ? data : "";
+    }
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/lk_alerta-planify`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lk-secret": secreto }, body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error("lk_alertas: no pude avisar a Planify", e);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -98,6 +114,7 @@ serve(async (req) => {
         .eq("id", id).in("estado", ["pendiente", "notificado"]).select("id");
       if (error) return json({ ok: false, error: error.message }, 200);
       if (!data?.length) return json({ ok: false, error: "La alerta ya estaba resuelta." }, 200);
+      await llamarPlanify({ action: "cerrar", alerta_id: id });   // si tenía tarea en Planify, se cierra
       return json({ ok: true });
     }
 

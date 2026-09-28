@@ -95,6 +95,12 @@ serve(async (req) => {
   try {
     if (!(await esLlamadaInterna(req))) return json({ error: "no autorizado" }, 401);
 
+    // Antes de mirar alertas: las que ya se cerraron en Planify pasan a atendidas (lk_alerta-planify sync).
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/lk_alerta-planify`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-lk-secret": await secreto(SECRET_NAME) },
+      body: JSON.stringify({ action: "sync" }),
+    }).catch((e) => console.error("lk_fallas-mail: sync Planify falló", e));
+
     const ahora = new Date();
     const { data: est } = await supabase.from("app_settings").select("value").eq("key", ESTADO_KEY).maybeSingle();
     let desde = new Date(ahora.getTime() - PRIMERA_VEZ_DIAS * 86400_000);

@@ -3,6 +3,7 @@
 
 import { supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
+import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { REGLAS_OPERATIVAS, bloqueSeguridad } from "./agente-fijos.ts";
 import {
@@ -86,6 +87,19 @@ const BOT_TOOLS: ToolDef[] = [
         },
       },
       required: ["query"],
+    },
+  },
+  {
+    name: "consultar_stock",
+    description:
+      "Disponibilidad real de UN artículo (stock en depósito menos pedidos ya hechos). Devuelve un texto listo para el cliente (hay / stock limitado / sin stock, sin números). Usala SIEMPRE antes de decir que hay o no hay stock. Si el cliente pregunta en general (\"¿tienen todo el stock?\"), pedile qué artículos le interesan.",
+    input_schema: {
+      type: "object",
+      properties: {
+        cod: { type: "string", description: "Código del producto (ej: '506'). Si no lo tenés, buscalo antes con buscar_productos." },
+        cajas: { type: "integer", description: "Cajas que quiere el cliente, si las dijo." },
+      },
+      required: ["cod"],
     },
   },
   {
@@ -303,6 +317,31 @@ async function executeTool(
       return { data };
     }
 
+    case "consultar_stock": {
+      const cod = String(input.cod ?? "").trim();
+      const { data: prods } = await supabase.from("products").select("id, cod, description").eq("cod", cod).limit(1);
+      const p = prods?.[0];
+      if (!p) return { data: { mensaje: `No encontré el código ${cod}. Buscalo con buscar_productos.` } };
+      try {
+        const cajas = Number(input.cajas) > 0 ? Number(input.cajas) : null;
+        const st = await stockArticulo(p.cod, p.id);
+        if (!st) return { data: { mensaje: "No pude consultar el stock. Ofrecé derivar a ventas." } };
+        if (stockNecesitaHumano(st, cajas)) {
+          const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
+          await notificarHumano({
+            tipo: "escalation", phone, customerId: cli?.[0]?.customer_id ?? null,
+            contexto: { motivo: "consulta_stock", texto: `Consulta de stock: ${p.description} (${p.cod})${cajas ? `, ${cajas} cajas` : ""}`,
+              razon_social: cli?.[0]?.customer_name ?? null },
+          });
+        }
+        return { data: { texto_para_el_cliente: textoStock(p.description, p.cod, st, cajas),
+          regla: "Pasale este texto tal cual; no agregues cantidades ni fechas de ingreso." } };
+      } catch (e) {
+        console.error("consultar_stock:", e);
+        return { data: { mensaje: "No pude consultar el stock ahora. Decile que un asesor le confirma y ofrecé derivar." } };
+      }
+    }
+
     case "consultar_novedades": {
       const { data, error } = await supabase.rpc("bot_productos_novedades", {
         p_limit: input.limite ?? 10,
@@ -435,7 +474,7 @@ const AUDITABLE_TOOLS = new Set([
   "consultar_kb", "kb_agregar", "kb_eliminar", "kb_listar",
   "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
   "consultar_mi_historial", "consultar_mis_pedidos", "consultar_detalle_pedido",
-  "consultar_mis_descuentos", "consultar_novedades",
+  "consultar_mis_descuentos", "consultar_novedades", "consultar_stock",
 ]);
 
 async function auditTool(

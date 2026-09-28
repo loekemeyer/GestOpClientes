@@ -9,6 +9,8 @@
 // solo se invoca si acá no hay match útil.
 
 import { supabase } from "./supabase.ts";
+import { notificarHumano } from "./alertas.ts";
+import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -302,14 +304,29 @@ async function lookupProductPrice(customer: NonNullable<Customer>, message: stri
   return `${customer.business_name}, el artículo *${p.description}* (${p.cod}):\n💰 Precio sin IVA: $${basePrice.toLocaleString("es-AR")}\n📊 IVA 21%: $${iva.toLocaleString("es-AR")}\n✅ Total con IVA: $${withIva.toLocaleString("es-AR")}\n\n🏷️ Tu precio con descuento web (2%): $${finalPrice.toLocaleString("es-AR")}\n\n*(Los descuentos por pago se aplican en el carrito)*`;
 }
 
-async function lookupProductStock(_customer: NonNullable<Customer>, message: string): Promise<string | null> {
+async function lookupProductStock(customer: NonNullable<Customer>, message: string): Promise<string | null> {
+  // Stock real (Gestión − pedidos web abiertos), sin números para el cliente. Antes leía p.stock, que
+  // wa_product_match no devuelve: contestaba "sin stock" a todo.
   const { data: products } = await supabase.rpc("wa_product_match", { p_query: message, p_limit: 1 });
-  if (!products?.length) return `No encontré el artículo que mencionás. Decime el código o el nombre más completo.`;
+  if (!products?.length) {
+    return `¿Qué artículo te interesa? Pasame el código o el nombre y te confirmo si hay stock.`;
+  }
   const p = products[0];
-  const stock = p.stock ?? 0;
-  if (stock <= 0)  return `El artículo *${p.description}* (${p.cod}) está sin stock en este momento. Podés ponerte en contacto con ventas para consultar por disponibilidad.`;
-  if (stock < 10) return `El artículo *${p.description}* (${p.cod}) tiene *${stock} unidades* disponibles (stock limitado).\n\n¿Querés hacer un pedido?`;
-  return `El artículo *${p.description}* (${p.cod}) tiene *stock disponible* ✅\n\n¿Querés hacer un pedido?`;
+  try {
+    const st = await stockArticulo(p.cod, p.product_id ?? null);
+    if (!st) return null;
+    if (stockNecesitaHumano(st)) {
+      await notificarHumano({
+        tipo: "escalation", customerId: customer.id,
+        contexto: { motivo: "consulta_stock", texto: `Consulta de stock: ${p.description} (${p.cod})`,
+          razon_social: customer.business_name },
+      });
+    }
+    return textoStock(p.description, p.cod, st) + (st.nivel === "hay" ? "\n\n¿Querés hacer un pedido?" : "");
+  } catch (e) {
+    console.error("lookupProductStock:", e);
+    return null; // sin dato → sigue el flujo normal (agente), que deriva
+  }
 }
 
 async function lookupOrderModify(customer: NonNullable<Customer>): Promise<string | null> {
