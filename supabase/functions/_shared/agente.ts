@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.ts";
+import { SIM } from "./simulacion.ts";
 
 /** Documento rector por defecto si no hay fila en wa_agente_config. */
 const DEFAULT_AGENTE_MD = `# Agente de Gestión Operativa de Clientes
@@ -58,6 +59,7 @@ export async function logAgenteConsulta(
   contexto?: string,
   origen?: string,
 ): Promise<void> {
+  if (SIM.activo) return;
   try {
     await supabase.from("wa_agente_consultas").insert({
       pregunta,
