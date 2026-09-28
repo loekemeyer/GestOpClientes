@@ -751,6 +751,8 @@ async function ingestStatuses(body: any): Promise<void> {
   for (const change of changes) {
     if (change?.field !== "messages") continue;
     const statuses = change?.value?.statuses ?? [];
+    // Número de Meta que mandó el mensaje (sql/076): separa al bot de otras salidas del mismo número/app.
+    const meta = change?.value?.metadata ?? {};
     for (const s of statuses) {
       if (!s?.id || !s?.status) continue;
       const tsSec = Number(s.timestamp);
@@ -769,6 +771,8 @@ async function ingestStatuses(body: any): Promise<void> {
           pricing_category: s?.pricing?.category ?? null,
           pricing_type: s?.pricing?.type ?? null,
           errors: s?.errors ?? null,
+          phone_number_id: meta.phone_number_id ?? null,
+          display_phone_number: meta.display_phone_number ?? null,
           raw: s,
         }, { onConflict: "wamid,status", ignoreDuplicates: true });
       } catch (e) {
