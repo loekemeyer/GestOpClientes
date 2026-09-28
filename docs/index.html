@@ -169,6 +169,20 @@
     .subtab.active { color: var(--primary); border-bottom-color: var(--primary); }
     .subpanel { display: none; }
     .subpanel.active { display: block; }
+    .nav-badge { display: inline-block; min-width: 1.2em; padding: 0 0.35em; margin-left: 0.3rem; border-radius: 10px; background: var(--danger); color: #fff; font-size: 0.7rem; font-weight: 700; text-align: center; }
+    #pageAlertas, #pageAlertas .config-page { min-width: 0; }
+    #pageAlertas .config-section { max-width: 980px; min-width: 0; }
+    #pageAlertas .config-section > p.hint { font-size: 0.8rem; color: var(--muted); }
+    .al-tabla { border-collapse: collapse; font-size: 0.8rem; }
+    .al-tabla th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 10px 3px 0; white-space: nowrap; }
+    .al-tabla td { padding: 5px 10px 5px 0; border-top: 1px solid var(--border); vertical-align: top; }
+    .al-vencida td:first-child { border-left: 3px solid var(--danger); padding-left: 6px; }
+    .al-pill { display: inline-block; padding: 0 6px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
+    .al-pill.vencida { background: #fee2e2; color: #991b1b; }
+    .al-pill.pronto { background: #fef3c7; color: #92400e; }
+    .al-pill.ok { background: #dcfce7; color: #166534; }
+    .al-pill.cerrada { background: var(--bg); color: var(--muted); }
+    .al-venc input { width: 64px; padding: 0.3rem 0.4rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; }
     #pageConfig .config-section { max-width: 860px; min-width: 0; }
     #pageConfig, #pageConfig .config-page { min-width: 0; }
     #pageConfig .config-row, #pageConfig .bl-add-row { flex-wrap: wrap; }
@@ -190,6 +204,7 @@
       .chat-tab-content .chat-container { min-height: 70vh; flex: none; }
       .chat-tab-content .control-panel { width: auto; border-left: none; border-top: 1px solid var(--border); }
       #pageConfig .config-page { padding: 1rem; }
+      #pageAlertas .config-page { padding: 1rem; }
       #pageConfig .config-row label { min-width: 0; }
       #pageConfig .bl-add-row input { max-width: none !important; min-width: 0; }
     }
@@ -315,6 +330,7 @@
     <h3>🤖 GestOp</h3>
     <div class="active" id="navChat" onclick="showPage('chat')" style="cursor:pointer">💬 Comunicaciones</div>
     <div id="navDash" onclick="showPage('dash')" style="cursor:pointer">📊 Dashboard</div>
+    <div id="navAlertas" onclick="showPage('alertas')" style="cursor:pointer;display:none;">🔔 Alertas <span id="alertasBadge" class="nav-badge" style="display:none;"></span></div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
     <div id="navAgente" onclick="showPage('agente')" style="cursor:pointer;display:none;">🧠 Configuración del agente</div>
     <div class="spacer"></div>
@@ -559,6 +575,40 @@
             </div>
           </div>
         </details>
+      </div>
+    </div>
+
+    <!-- Page: Alertas (wa_alertas_humano con vencimiento · lk_alertas) -->
+    <div class="page" id="pageAlertas">
+      <div class="config-page">
+        <h2>🔔 Alertas</h2>
+        <div class="config-section">
+          <h3>Esperando a una persona</h3>
+          <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
+            Lo que el bot no resolvió solo: cambios o cancelaciones de pedidos, pedidos de hablar con alguien,
+            comprobantes, fallas del bot. Cada tipo tiene un <b>tiempo de vencimiento</b> (editable abajo):
+            las vencidas aparecen primero, en rojo.
+          </p>
+          <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.6rem;">
+            <button class="config-btn small" onclick="loadAlertas()">↻ Actualizar</button>
+            <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" id="alResueltas" onchange="loadAlertas()"> Ver resueltas</label>
+            <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" id="alRuido" onchange="loadAlertas()"> Ver números fuera de la lista</label>
+            <span id="alStatus" class="hint" style="font-size:0.8rem;color:var(--muted);"></span>
+          </div>
+          <div id="alList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
+        </div>
+
+        <div class="config-section">
+          <h3>⏱️ Tiempo de vencimiento por tipo</h3>
+          <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
+            Cuánto puede esperar cada tipo de alerta antes de figurar como vencida. En horas y minutos.
+          </p>
+          <div id="alVenc" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
+          <div style="margin-top:0.7rem;display:flex;align-items:center;gap:0.5rem;">
+            <button class="config-btn primary" onclick="saveVencimientos()">💾 Guardar</button>
+            <span id="alVencStatus" class="config-status"></span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1123,6 +1173,9 @@ function showApp() {
   document.getElementById("userEmail").textContent = currentEmail || "";
   const isAdmin = currentRole === "admin";
   document.getElementById("navAgente").style.display = isAdmin ? "block" : "none";
+  // Alertas: hoy sólo admins (lk_alertas usa requireAdmin). Cargar el contador al entrar.
+  document.getElementById("navAlertas").style.display = isAdmin ? "block" : "none";
+  if (isAdmin) loadAlertas().catch(() => {});
   if (isAdmin) {
     if (!sessionStart) sessionStart = new Date().toISOString();
     document.getElementById("costPanel").style.display = "block";
@@ -1140,18 +1193,108 @@ sbAuth.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_IN" && !appInitialized) checkSession();
 });
 
+// --- Alertas (lk_alertas): wa_alertas_humano con vencimiento editable ---
+function durTexto(ms) {
+  const m = Math.round(Math.abs(ms) / 60000);
+  if (m < 60) return m + " min";
+  const h = Math.floor(m / 60), r = m % 60;
+  return h < 48 ? `${h} h${r ? " " + r + " min" : ""}` : `${Math.round(h / 24)} días`;
+}
+async function loadAlertas() {
+  const box = document.getElementById("alList"), st = document.getElementById("alStatus");
+  st.textContent = "Cargando…";
+  try {
+    const { data, error } = await authedInvoke("lk_alertas", {
+      action: "list",
+      incluir_resueltas: document.getElementById("alResueltas").checked,
+      incluir_ruido: document.getElementById("alRuido").checked,
+    });
+    if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
+    const rows = data.alertas || [];
+    const abiertas = rows.filter((a) => a.estado === "pendiente" || a.estado === "notificado");
+    const vencidas = abiertas.filter((a) => a.vencida).length;
+    st.textContent = `${abiertas.length} abierta(s)` + (vencidas ? ` · ${vencidas} vencida(s)` : "");
+    pintarBadgeAlertas(abiertas.length, vencidas);
+    if (!rows.length) { box.innerHTML = '<div class="bl-empty">No hay alertas. 🎉</div>'; return; }
+    const ahora = Date.now();
+    box.innerHTML = `<table class="al-tabla"><tr><th>Vence</th><th>Tipo</th><th>Cliente / número</th><th>Qué dijo</th><th>Entró</th><th></th></tr>` +
+      rows.map((a) => {
+        const abierta = a.estado === "pendiente" || a.estado === "notificado";
+        const falta = new Date(a.vence_at).getTime() - ahora;
+        const pill = !abierta ? `<span class="al-pill cerrada">${esc(a.estado)}</span>`
+          : a.vencida ? `<span class="al-pill vencida">vencida hace ${durTexto(falta)}</span>`
+          : falta < 30 * 60000 ? `<span class="al-pill pronto">vence en ${durTexto(falta)}</span>`
+          : `<span class="al-pill ok">vence en ${durTexto(falta)}</span>`;
+        const quien = [a.cliente ? esc(a.cliente) : "", a.phone ? `<code>…${esc(String(a.phone).slice(-4))}</code>` : ""].filter(Boolean).join("<br>");
+        const que = [a.pedido ? `Pedido #${esc(String(a.pedido))}` : "", a.texto ? `“${esc(String(a.texto).slice(0, 160))}”` : ""].filter(Boolean).join("<br>");
+        const entro = new Date(a.created_at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+        const acciones = abierta
+          ? `<button class="config-btn small primary" onclick="resolverAlerta(${a.id},'atendido')">✓ Atendida</button> <button class="config-btn small" onclick="resolverAlerta(${a.id},'descartado')">✕ Descartar</button>`
+          : `<span class="hint">${esc(a.atendido_por || "")}</span>`;
+        return `<tr class="${abierta && a.vencida ? "al-vencida" : ""}"><td>${pill}</td><td>${esc(a.label)}</td><td>${quien || "—"}</td><td>${que || "—"}</td><td style="white-space:nowrap;">${entro}</td><td style="white-space:nowrap;">${acciones}</td></tr>`;
+      }).join("") + "</table>";
+  } catch (e) {
+    st.textContent = "⚠️ " + e.message;
+  }
+}
+function pintarBadgeAlertas(abiertas, vencidas) {
+  const b = document.getElementById("alertasBadge");
+  if (!b) return;
+  b.style.display = abiertas ? "" : "none";
+  b.textContent = vencidas ? `${vencidas}!` : abiertas;
+  b.title = vencidas ? `${vencidas} vencida(s) de ${abiertas}` : `${abiertas} abierta(s)`;
+}
+async function resolverAlerta(id, estado) {
+  if (estado === "descartado" && !confirm("¿Descartar esta alerta? Queda registrada como descartada.")) return;
+  const st = document.getElementById("alStatus");
+  st.textContent = "Guardando…";
+  const { data, error } = await authedInvoke("lk_alertas", { action: "resolver", id, estado });
+  if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
+  loadAlertas();
+}
+async function loadVencimientos() {
+  const box = document.getElementById("alVenc");
+  const { data, error } = await authedInvoke("lk_alertas", { action: "config_get" });
+  if (error || !data?.ok) { box.innerHTML = '<div class="bl-empty">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+  box.innerHTML = `<table class="al-tabla al-venc"><tr><th>Tipo de alerta</th><th>Vence a los</th><th></th></tr>` +
+    data.categorias.map((c) => `<tr><td>${esc(c.label)}</td>
+      <td style="white-space:nowrap;"><input type="number" min="0" max="720" data-cat="${esc(c.categoria)}" data-u="h" value="${Math.floor(c.minutos / 60)}"> h
+        <input type="number" min="0" max="59" data-cat="${esc(c.categoria)}" data-u="m" value="${c.minutos % 60}"> min</td>
+      <td class="hint">${c.minutos !== c.defecto ? "(por defecto " + durTexto(c.defecto * 60000) + ")" : ""}</td></tr>`).join("") + "</table>";
+}
+async function saveVencimientos() {
+  const st = document.getElementById("alVencStatus");
+  const v = {};
+  document.querySelectorAll("#alVenc input[data-cat]").forEach((i) => {
+    v[i.dataset.cat] = (v[i.dataset.cat] || 0) + (Number(i.value) || 0) * (i.dataset.u === "h" ? 60 : 1);
+  });
+  const malo = Object.entries(v).find(([, m]) => m < 1);
+  if (malo) { st.textContent = "✗ Cada tipo necesita al menos 1 minuto"; st.className = "config-status err"; return; }
+  st.textContent = "Guardando…"; st.className = "config-status";
+  const { data, error } = await authedInvoke("lk_alertas", { action: "config_save", vencimientos: v });
+  if (error || !data?.ok) { st.textContent = "✗ " + (data?.error || error?.message || "Error"); st.className = "config-status err"; return; }
+  st.textContent = "✓ Guardado"; st.className = "config-status ok";
+  loadVencimientos(); loadAlertas();
+  setTimeout(() => { st.textContent = ""; }, 3000);
+}
+// El contador del menú se refresca cada 2 minutos mientras el dashboard está abierto.
+setInterval(() => { if (currentRole === "admin" && document.getElementById("app")?.classList.contains("active")) loadAlertas().catch(() => {}); }, 120000);
+
 // --- Page navigation ---
 function showPage(page) {
   if (page === "agente" && currentRole !== "admin") return; // solo admin
   document.getElementById("pageChat").classList.toggle("active", page === "chat");
   document.getElementById("pageDash").classList.toggle("active", page === "dash");
   document.getElementById("pageConfig").classList.toggle("active", page === "config");
+  document.getElementById("pageAlertas").classList.toggle("active", page === "alertas");
+  document.getElementById("navAlertas").classList.toggle("active", page === "alertas");
   document.getElementById("pageAgente").classList.toggle("active", page === "agente");
   document.getElementById("navChat").classList.toggle("active", page === "chat");
   document.getElementById("navDash").classList.toggle("active", page === "dash");
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   document.getElementById("navAgente").classList.toggle("active", page === "agente");
   if (page === "config") loadConfigPage();
+  if (page === "alertas") { loadAlertas(); loadVencimientos(); }
   if (page === "agente") loadAgentePage();
   if (page === "dash") { loadDashboard(); loadIaDash(); }
 }
@@ -3396,6 +3539,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.17.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.0</div>
 </body>
 </html>
