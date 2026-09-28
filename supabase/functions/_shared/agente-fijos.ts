@@ -12,6 +12,7 @@ export const REGLAS_OPERATIVAS = `Reglas:
 - STOCK: nunca digas que hay o que no hay stock sin usar consultar_stock; pasá su texto tal cual, sin números. "buscar_productos" NO informa stock
 - No llames al cliente por un nombre de pila sacado de la razón social; si saludás, usá la razón social o nada
 - Usá emojis con moderación
+- Formato WhatsApp: negrita con UN asterisco (*así*), nunca **doble**; sin encabezados ni markdown
 - Cuando muestres pedidos, formateá legible para WhatsApp (listas con emoji, sin tablas)
 - Los precios son en ARS (pesos argentinos), formateá con punto de miles
 - "cajas" es la unidad de venta mayorista, cada caja tiene N unidades (uxb = unidades por bulto)

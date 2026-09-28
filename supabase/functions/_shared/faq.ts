@@ -318,10 +318,25 @@ async function pagoDiscountBlock(): Promise<string> {
   } catch { return ""; }
 }
 
+// Artículo mencionado en una frase ("¿tienen stock del 506?", "me pasás el precio del 506?"):
+// primero un código dentro de la frase; si no, el nombre sin las palabras de la pregunta. Antes se
+// buscaba la frase entera y no encontraba nada (simulación 28/09).
+async function articuloDeLaFrase(message: string): Promise<{ cod: string; description: string; list_price: number } | null> {
+  for (const cod of message.match(/\b\d{3,5}[a-z]?\b/gi) ?? []) {
+    const { data } = await supabase.from("products").select("cod, description, list_price").eq("cod", cod.toUpperCase()).limit(1);
+    if (data?.[0]) return data[0];
+  }
+  const nombre = message.toLowerCase()
+    .replace(/\b(tienen|tenes|tenés|hay|stock|disponib\w*|precio\w*|cu[aá]nto|sale|salen|cuesta|cuestan|vale|valen|me|pas[aá]s|pasame|decime|de|del|la|el|los|las|un|una|queda\w*|todav[ií]a)\b/g, " ")
+    .replace(/[¿?!.,]/g, " ").replace(/\s+/g, " ").trim();
+  if (nombre.length < 3) return null;
+  const { data: products } = await supabase.rpc("wa_product_match", { p_query: nombre, p_limit: 1 });
+  return products?.[0] ?? null;
+}
+
 async function lookupProductPrice(customer: NonNullable<Customer>, message: string): Promise<string | null> {
-  const { data: products } = await supabase.rpc("wa_product_match", { p_query: message, p_limit: 1 });
-  if (!products?.length) return `No encontré el artículo que mencionás. Decime el código o el nombre más completo.`;
-  const p = products[0];
+  const p = await articuloDeLaFrase(message);
+  if (!p) return `¿De qué artículo? Pasame el código o el nombre y te digo el precio.`;
   const basePrice = Number(p.list_price);
   const iva = basePrice * 0.21;
   const withIva = basePrice + iva;
@@ -333,22 +348,7 @@ async function lookupProductPrice(customer: NonNullable<Customer>, message: stri
 async function lookupProductStock(customer: NonNullable<Customer>, message: string): Promise<string | null> {
   // Stock real (Gestión − pedidos web abiertos), sin números para el cliente. Antes leía p.stock, que
   // wa_product_match no devuelve: contestaba "sin stock" a todo.
-  // Primero un código dentro de la frase ("tienen stock del 506?"); si no, el nombre sin las
-  // palabras de la pregunta. Antes se buscaba la frase entera y no encontraba nada.
-  let p: { cod: string; description: string } | null = null;
-  for (const cod of message.match(/\b\d{3,5}[a-z]?\b/gi) ?? []) {
-    const { data } = await supabase.from("products").select("cod, description").eq("cod", cod.toUpperCase()).limit(1);
-    if (data?.[0]) { p = data[0]; break; }
-  }
-  if (!p) {
-    const nombre = message.toLowerCase()
-      .replace(/\b(tienen|tenes|tenés|hay|stock|disponib\w*|de|del|la|el|los|las|un|una|queda\w*|todav[ií]a|\?|¿)\b/g, " ")
-      .replace(/[¿?!.,]/g, " ").trim();
-    if (nombre.length >= 3) {
-      const { data: products } = await supabase.rpc("wa_product_match", { p_query: nombre, p_limit: 1 });
-      if (products?.length) p = products[0];
-    }
-  }
+  const p = await articuloDeLaFrase(message);
   if (!p) {
     return `¿Qué artículo te interesa? Pasame el código o el nombre y te confirmo si hay stock.`;
   }
