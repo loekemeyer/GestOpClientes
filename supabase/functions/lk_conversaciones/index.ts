@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { salientes } from "../_shared/salientes.ts";
+import { getGestionClient } from "../_shared/supabase.ts";
 
 // lk_conversaciones — Bandeja de atención humana (PaginaLK), integrada al bot real.
 //
@@ -263,7 +264,31 @@ serve(async (req) => {
       }
       const { data: av } = await sb.from("wa_outbox").select("template_name, context, status, created_at, sent_at")
         .like("phone", `%${ult10(phone)}`).order("created_at", { ascending: false }).limit(8);
-      return json({ ok: true, phone, identificado: !!cli, cliente, entrega, pedidos, avisos: av ?? [] });
+      // Etapa 6 (Pablo, 28/09): facturación y saldo desde Gestión (sólo lectura, consultas de <1 ms).
+      //  · Facturacion_NP: qué pedidos (NP) se mandaron a facturar y cuándo. NO se usa vista_facturacion_estado:
+      //    recalcula todo el cruce de facturación en cada consulta (2,1 s por cliente, medido el 28/09).
+      //  · GV_Cobranza_Deuda_Viva (empresa lk): facturas impagas con comprobante, vencimiento y pendiente; la
+      //    recalcula Cobranzas. Si Gestión no responde en 5 s, la ficha sale igual sin esta parte.
+      let facturas: unknown[] | null = null, deuda: { saldo: number; comprobantes: unknown[]; calculado_en: string | null } | null = null;
+      const cod = String((cliente as { cod_cliente?: unknown } | null)?.cod_cliente ?? "").trim();
+      if (cod) {
+        try {
+          const g = await getGestionClient("public");
+          const tope = <T>(p: PromiseLike<T>) => Promise.race([p, new Promise<never>((_, r) => setTimeout(() => r(new Error("timeout")), 5000))]);
+          const [fa, dv] = await Promise.all([
+            tope(g.from("Facturacion_NP").select("np, fecha_salida, facturado_at")
+              .eq("cod_cliente", cod).order("fecha_salida", { ascending: false }).limit(6)),
+            tope(g.from("GV_Cobranza_Deuda_Viva").select("comprobante, fecha, vence, pendiente, calculado_en")
+              .eq("empresa", "lk").eq("cod_cliente", cod).gt("pendiente", 0).order("fecha", { ascending: true }).limit(50)),
+          ]);
+          if (!fa.error) facturas = fa.data ?? [];
+          if (!dv.error) {
+            const rows = (dv.data ?? []) as { pendiente: number; calculado_en: string }[];
+            deuda = { saldo: Math.round(rows.reduce((a, r) => a + Number(r.pendiente || 0), 0) * 100) / 100, comprobantes: rows, calculado_en: rows[0]?.calculado_en ?? null };
+          }
+        } catch (e) { console.error("lk_conversaciones ficha: Gestión no respondió", e); }
+      }
+      return json({ ok: true, phone, identificado: !!cli, cliente, entrega, pedidos, avisos: av ?? [], facturas, deuda });
     }
 
     if (action === "salientes") {

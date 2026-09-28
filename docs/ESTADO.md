@@ -473,7 +473,7 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.22.0`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.22.1`). Bumpear con cada cambio de front.
 
 **Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
 - `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
@@ -507,5 +507,10 @@ Un commit que sólo toca docs NO dispara deploy.
   `--amb-bg`, `--pur-bg`…), el modo oscuro vale en todo el sistema (el simulador de Pruebas usa la paleta oscura
   de WhatsApp) y el título/pestañas de cada página ya no se repiten (están en el encabezado). Colores que quedan
   fijos a propósito: los de WhatsApp en el simulador y los de Google en el login.
-- Falta la etapa 6 (facturas y saldo en la ficha: hay que definir de dónde salen).
+- **Etapa 6 (v0.22.1) — facturación y saldo en la ficha** (`lk_conversaciones` `ficha`, lee Gestión con
+  `getGestionClient`, tope 5 s): **Saldo** = `GV_Cobranza_Deuda_Viva` (empresa `lk`: comprobante, fecha, vence,
+  pendiente; la recalcula Cobranzas) y **Pedidos a facturar** = `Facturacion_NP` (NP, salida, fecha de cierre).
+  ⚠ NO usar `vista_facturacion_estado` desde el bot: recalcula todo el cruce en cada consulta (2,1 s por cliente,
+  28/09). ⚠ `isis_export_pedidos` todavía no tiene ningún acuse con nro de comprobante, y Gestión mezcla empresa
+  (hay NP "LK 0089" con empresa CH): por eso no se muestra número/total de factura por NP.
   Plantillas desde el chat con ventana 24 h cerrada: todavía no.

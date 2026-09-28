@@ -479,8 +479,28 @@ async function cmCargarFicha() {
         <span>Vendedor</span><span>${gesc(c.vend || "—")}</span><span>Entrega</span><span>${d.entrega ? `<b>${gesc(d.entrega.modo)}</b>${d.entrega.detalle ? " · " + gesc(d.entrega.detalle) : ""}` : "—"}</span></div></section>
       <section><h4>Pedidos recientes</h4>${(d.pedidos || []).length ? d.pedidos.map((p) =>
         `<div class="it"><span>Pedido del ${fechaCorta(p.creado)}${p.fecha_entrega ? ` · sale ${String(p.fecha_entrega).slice(8, 10)}/${String(p.fecha_entrega).slice(5, 7)}` : ""}</span><span class="est ${EP[p.estado] || "gris"}">${gesc(humanizar(p.estado))}</span></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Sin pedidos en la web.</div>`}</section>
+      ${fichaSaldo(d.deuda)}${fichaFacturacion(d.facturas)}
       ${fichaAvisos(d.avisos)}`;
   } catch (e) { f.innerHTML = `<section><h4>Ficha del cliente</h4><div style="color:var(--g-muted)">No se pudo cargar: ${gesc(e.message)}</div></section>`; }
+}
+// Etapa 6: saldo (GV_Cobranza_Deuda_Viva) y pedidos mandados a facturar (Facturacion_NP), de Gestión.
+const ddmm = (f) => (f ? `${String(f).slice(8, 10)}/${String(f).slice(5, 7)}` : "—");
+const pesosAR = (n) => "$ " + Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fichaSaldo(dv) {
+  if (!dv) return `<section><h4>Saldo</h4><div style="color:var(--g-muted);font-size:12px">Gestión no respondió: sin datos de saldo.</div></section>`;
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  const cs = dv.comprobantes || [];
+  const vencidas = cs.filter((c) => c.vence && c.vence < hoy);
+  const vencido = vencidas.reduce((a, c) => a + Number(c.pendiente || 0), 0);
+  return `<section><h4>Saldo</h4>${cs.length ? `<div class="rs">${pesosAR(dv.saldo)}</div>
+    <div style="font-size:12px;color:var(--g-muted)">${cs.length} factura${cs.length === 1 ? "" : "s"} impaga${cs.length === 1 ? "" : "s"}${vencidas.length ? ` · <b style="color:var(--g-danger)">${pesosAR(vencido)} vencido</b>` : " · nada vencido"}</div>
+    ${cs.slice(0, 6).map((c) => `<div class="it"><span>${gesc(c.comprobante)}<br><span style="color:var(--g-muted)">del ${ddmm(c.fecha)} · vence ${ddmm(c.vence)}</span></span><span style="${c.vence && c.vence < hoy ? "color:var(--g-danger);font-weight:700" : ""}">${pesosAR(c.pendiente)}</span></div>`).join("")}
+    ${cs.length > 6 ? `<div style="font-size:12px;color:var(--g-muted)">y ${cs.length - 6} más</div>` : ""}` : `<div style="font-size:12px;color:var(--ok-fg)">Sin deuda pendiente.</div>`}
+    <div style="font-size:11px;color:var(--g-muted);margin-top:6px">Deuda viva de Cobranzas${dv.calculado_en ? ` · calculada ${fechaCorta(dv.calculado_en)} ${hora(dv.calculado_en)}` : ""}</div></section>`;
+}
+function fichaFacturacion(fs) {
+  if (!fs) return "";
+  return `<section><h4>Pedidos a facturar</h4>${fs.length ? fs.map((f) => `<div class="it"><span>${gesc(f.np)}<br><span style="color:var(--g-muted)">sale ${ddmm(f.fecha_salida)}</span></span><span class="est ok">Facturación ${f.facturado_at ? fechaCorta(f.facturado_at) : ""}</span></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Ninguno en Facturación.</div>`}</section>`;
 }
 function fichaAvisos(av) {
   const E = { sent: ["Enviado", "ok"], failed: ["Fallido", "esperando"], pending: ["En cola", "gris"], held_no_whitelist: ["Retenido", "humano"] };
