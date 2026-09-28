@@ -362,7 +362,7 @@ async function lookupProductStock(customer: NonNullable<Customer>, message: stri
           razon_social: customer.business_name },
       });
     }
-    return textoStock(p.description, p.cod, st) + (st.nivel === "hay" ? "\n\n¿Querés hacer un pedido?" : "");
+    return textoStock(p.description, p.cod, st) + (st.nivel === "hay" ? "\n\nPodés hacer el pedido en loekemeyer.com." : "");
   } catch (e) {
     console.error("lookupProductStock:", e);
     return null; // sin dato → sigue el flujo normal (agente), que deriva
