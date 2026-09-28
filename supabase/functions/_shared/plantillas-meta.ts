@@ -90,7 +90,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "Primer EP (inicio de picking) de la tanda de la NP. Todos los modos. Si cae el mismo día que la programación, va sólo éste.",
     variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nEstamos preparando tu pedido del {{2}} en el depósito.\nSale el {{3}}.",
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nEstamos preparando tu pedido del {{2}} en el depósito.\nSale el {{3}} y te avisamos por acá.",
     ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "miércoles 30/09"],
   },
 
@@ -151,8 +151,9 @@ export function validar(p: PlantillaMeta): string[] {
   if (distintos.length !== p.ejemplos.length) {
     err.push(`${distintos.length} variables y ${p.ejemplos.length} ejemplos`);
   }
-  if (/^\s*\{\{\d+\}\}/.test(p.body) || /\{\{\d+\}\}\s*$/.test(p.body)) {
-    err.push("el cuerpo no puede empezar ni terminar con una variable");
+  // Meta cuenta como "al final" una variable seguida sólo de puntuación ("Sale el {{3}}." → error 2388299).
+  if (/^[\s¡¿"'(]*\{\{\d+\}\}/.test(p.body) || /\{\{\d+\}\}[\s.,;:!?)"']*$/.test(p.body)) {
+    err.push("el cuerpo no puede empezar ni terminar con una variable (tampoco seguida sólo de un punto)");
   }
   if (p.body.length > 1024) err.push("cuerpo > 1024 caracteres");
   return err;
