@@ -22,6 +22,19 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
+// Secreto interno (env o Vault vía krikos_secret), igual que notify-tracking-status. Falla cerrada.
+const SECRET_NAME = "LK_FN_CRON_SECRET";
+async function esLlamadaInterna(req: Request): Promise<boolean> {
+  const recibido = req.headers.get("x-lk-secret") ?? "";
+  if (!recibido) return false;
+  let esperado = Deno.env.get(SECRET_NAME) ?? "";
+  if (!esperado) {
+    const { data } = await supabase.rpc("krikos_secret", { p_name: SECRET_NAME });
+    esperado = typeof data === "string" ? data : "";
+  }
+  return esperado.length > 0 && recibido === esperado;
+}
+
 async function getSetting(key: string): Promise<string | null> {
   const { data } = await supabase
     .from("app_settings").select("value").eq("key", key).maybeSingle();
@@ -100,6 +113,16 @@ serve(async (req) => {
     // Se deploya con --no-verify-jwt: sin este chequeo es un endpoint HTTP
     // anónimo de internet. `template_send` manda WhatsApp desde el número de la
     // empresa a cualquier destinatario (spam/phishing → baneo del WABA).
+    // Llamada interna (SQL/cron vía net.http_post con el secreto LK_FN_CRON_SECRET del Vault, el
+    // mismo patrón que notify-tracking-status): sólo puede LISTAR y SINCRONIZAR plantillas, nunca
+    // mandar mensajes. Todo lo demás exige sesión de admin del dashboard.
+    const interno = await esLlamadaInterna(req);
+    if (interno && (body.action === "templates_sync" || body.action === "templates_list" || body.action === "templates_defs")) {
+      if (body.action === "templates_sync") return await handleTemplatesSync(body, "interno:LK_FN_CRON_SECRET");
+      if (body.action === "templates_list") return await handleTemplatesList(body.status);
+      return json({ ok: true, plantillas: PLANTILLAS.map((p) => ({ ...p, errores: validar(p) })) });
+    }
+
     const gate = await requireAdmin(body);
     if (!gate.ok) return json({ error: gate.error }, gate.status);
 
