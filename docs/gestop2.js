@@ -314,7 +314,9 @@ function cmPintarBandeja() {
   const selT = document.getElementById("cmTema");
   selT.innerHTML = `<option value="">Tema: todos</option>` + temas.map((t) => `<option${t === G.filtroTema ? " selected" : ""}>${gesc(t)}</option>`).join("");
   const lista = cmFiltradas();
-  document.getElementById("cmLista").innerHTML = lista.length ? lista.map((c) => {
+  const listaEl = document.getElementById("cmLista"), listaScroll = listaEl.scrollTop;
+  requestAnimationFrame(() => { listaEl.scrollTop = listaScroll; });   // el refresco no la manda arriba
+  listaEl.innerHTML = lista.length ? lista.map((c) => {
     const min = sinResponder(c);
     const n = nombreConv(c);
     const meta = [c.cod_cliente ? `Cód. ${c.cod_cliente}` : `+${c.phone}`, c.tema, c.agente && c.estado_ui === "humano" ? `→ ${c.agente}` : c.tomada_por ? `→ ${c.tomada_por}` : null].filter(Boolean).join(" · ");
@@ -349,6 +351,12 @@ function cmConvActual() { return G.convs.find((c) => c.phone === G.convSel) || {
 function esMia() { const ctl = G.hilo?.control || {}; return ctl.modo_humano && G.miNombre && ctl.agente === G.miNombre; }
 
 function cmPintarChat(bajar) {
+  // El refresco (cada 45 s) redibuja el hilo: si estabas abajo (o es otra charla) queda abajo, en el último
+  // mensaje; si habías subido a leer, queda donde estabas. Antes volvía siempre arriba de todo.
+  const hPrev = document.getElementById("cmHilo");
+  const mismo = hPrev && hPrev.dataset.phone === G.convSel;
+  const estabaAbajo = !mismo || hPrev.scrollHeight - hPrev.scrollTop - hPrev.clientHeight < 80;
+  const scrollPrev = mismo ? hPrev.scrollTop : 0;
   const c = cmConvActual(), d = G.hilo || {}, ctl = d.control || {};
   const estado = ctl.modo_humano ? "humano" : c.estado_ui === "humano" ? "bot" : c.estado_ui;
   const min = sinResponder(c);
@@ -390,12 +398,12 @@ function cmPintarChat(bajar) {
       <div class="sub">${[c.cod_cliente ? `Cód. ${gesc(c.cod_cliente)}` : null, `+${gesc(c.phone)}`, "WhatsApp", c.tema ? `Tema: ${gesc(c.tema)}` : null, asignada].filter(Boolean).join(" · ")}</div>
       <div class="cm-acciones">${acciones}</div>
     </div>
-    <div class="cm-hilo" id="cmHilo">${hilo}</div>
+    <div class="cm-hilo" id="cmHilo" data-phone="${gesc(G.convSel)}">${hilo}</div>
     <div class="cm-caja" id="cmCaja">${cmCaja(estado, mia)}</div>`;
   const t = document.getElementById("cmTexto");
   if (t && cajaVieja) t.value = cajaVieja;
   const h = document.getElementById("cmHilo");
-  if (bajar && h) h.scrollTop = h.scrollHeight;
+  if (h) h.scrollTop = (bajar || estabaAbajo) ? h.scrollHeight : scrollPrev;
 }
 function ultimoEntrante() {
   const ins = (G.hilo?.messages || []).filter((m) => m.direction === "in");
@@ -478,7 +486,7 @@ async function cmCargarFicha() {
         <div class="kv"><span>CUIT</span><span>${gesc(c.cuit || "—")}</span><span>Teléfono</span><span>+${gesc(d.phone)}</span><span>Localidad</span><span>${gesc(c.localidad || "—")}</span>
         <span>Vendedor</span><span>${gesc(c.vend || "—")}</span><span>Entrega</span><span>${d.entrega ? `<b>${gesc(d.entrega.modo)}</b>${d.entrega.detalle ? " · " + gesc(d.entrega.detalle) : ""}` : "—"}</span></div></section>
       <section><h4>Pedidos recientes</h4>${(d.pedidos || []).length ? d.pedidos.map((p) =>
-        `<div class="it"><span>Pedido del ${fechaCorta(p.creado)}${p.fecha_entrega ? ` · sale ${String(p.fecha_entrega).slice(8, 10)}/${String(p.fecha_entrega).slice(5, 7)}` : ""}</span><span class="est ${EP[p.estado] || "gris"}">${gesc(humanizar(p.estado))}</span></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Sin pedidos en la web.</div>`}</section>
+        `<div class="it"><span>Pedido del ${fechaCorta(p.creado)}<br><span style="color:var(--g-muted)">${p.fecha_entrega ? `${p.estado === "entregado" ? "entregado el" : "sale el"} ${ddmm(p.fecha_entrega)}` : "todavía sin fecha de salida"}</span></span><span class="est ${EP[p.estado] || "gris"}">${gesc(humanizar(p.estado))}</span></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Sin pedidos en la web.</div>`}</section>
       ${fichaSaldo(d.deuda)}${fichaFacturacion(d.facturas)}
       ${fichaAvisos(d.avisos)}`;
   } catch (e) { f.innerHTML = `<section><h4>Ficha del cliente</h4><div style="color:var(--g-muted)">No se pudo cargar: ${gesc(e.message)}</div></section>`; }
@@ -500,7 +508,8 @@ function fichaSaldo(dv) {
 }
 function fichaFacturacion(fs) {
   if (!fs) return "";
-  return `<section><h4>Pedidos a facturar</h4>${fs.length ? fs.map((f) => `<div class="it"><span>${gesc(f.np)}<br><span style="color:var(--g-muted)">sale ${ddmm(f.fecha_salida)}</span></span><span class="est ok">Facturación ${f.facturado_at ? fechaCorta(f.facturado_at) : ""}</span></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Ninguno en Facturación.</div>`}</section>`;
+  // Sin número de NP (Pablo, 28/09): se nombra por la fecha de salida.
+  return `<section><h4>Pedidos a facturar</h4>${fs.length ? fs.map((f) => `<div class="it"><span>Pedido que sale el ${ddmm(f.fecha_salida)}</span><span class="est ok">Facturación ${f.facturado_at ? fechaCorta(f.facturado_at) : ""}</span></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Ninguno en Facturación.</div>`}</section>`;
 }
 function fichaAvisos(av) {
   const E = { sent: ["Enviado", "ok"], failed: ["Fallido", "esperando"], pending: ["En cola", "gris"], held_no_whitelist: ["Retenido", "humano"] };
@@ -637,7 +646,9 @@ function tkPintarLista() {
   document.getElementById("tkChips").innerHTML = [["todas", "Todas", ts.length], ...Object.entries(TIPO_TK).map(([k, v]) => [k, v.nombre, cuenta(k)])]
     .map(([k, n, c]) => `<button class="cm-chip${G.filtroTipo === k ? " activo" : ""}" onclick="G.filtroTipo='${k}';tkPintarLista()">${n} · ${c}</button>`).join("");
   const vis = ts.filter((t) => G.filtroTipo === "todas" || t.tipo === G.filtroTipo);
-  document.getElementById("tkLista").innerHTML = vis.length ? vis.map((t) => {
+  const tkL = document.getElementById("tkLista"), tkScroll = tkL.scrollTop;
+  requestAnimationFrame(() => { tkL.scrollTop = tkScroll; });
+  tkL.innerHTML = vis.length ? vis.map((t) => {
     const min = minDesde(t.creado);
     return `<div class="cm-fila tk-fila${G.tareaSel === t.key ? " sel" : ""}" onclick="tkAbrir('${t.key}')">
       <div class="l1"><b><span class="tk-dot ${t.nivel}"></span>${gesc(t.motivo)}</b><span class="${edad(min)}">${dur(min)}</span></div>

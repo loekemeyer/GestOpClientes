@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { salientes } from "../_shared/salientes.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
+import { sinAnulados } from "../_shared/pedidos-anulados.ts";
 
 // lk_conversaciones — Bandeja de atención humana (PaginaLK), integrada al bot real.
 //
@@ -253,8 +254,10 @@ serve(async (req) => {
             : String(d.nombre_expreso ?? "").trim() ? { modo: "Expreso", detalle: d.nombre_expreso }
             : { modo: "Reparto", detalle: [d.direccion_entrega, d.localidad].filter(Boolean).join(" · ") };
         }
-        const { data: ords } = await sb.from("orders").select("id, created_at, total").eq("customer_id", cli.customer_id)
-          .order("created_at", { ascending: false }).limit(5);
+        const { data: ordsTodos } = await sb.from("orders").select("id, created_at, total").eq("customer_id", cli.customer_id)
+          .order("created_at", { ascending: false }).limit(15);
+        // Anulados o borrados en Gestión no se muestran (Pablo, 28/09).
+        const ords = (await sinAnulados(ordsTodos ?? [])).slice(0, 5);
         const ids = (ords ?? []).map((o) => o.id);
         const { data: est } = ids.length ? await sb.rpc("bot_estado_pedidos_gv", { p_ids: ids }) : { data: [] };
         pedidos = (ords ?? []).map((o) => {

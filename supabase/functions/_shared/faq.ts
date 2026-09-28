@@ -11,6 +11,7 @@
 import { supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
+import { sinAnulados } from "./pedidos-anulados.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -27,12 +28,14 @@ export interface FaqResult {
   yaSaluda?: boolean;
 }
 
+// Pablo, 28/09: al cliente NUNCA se le muestra el número de pedido (se nombra por la fecha) y cada pedido
+// dice su estado; si tiene fecha de salida, la fecha. "recibido" = Gestión todavía no lo programó (sin fecha).
 const STATUS_MAP: Record<string, string> = {
-  pendiente: "📝 recibido, en proceso de preparación",
-  recibido:  "📦 recibido, siendo preparado",
-  programado:"🚚 programado para despacho",
+  pendiente: "📝 recibido, todavía sin fecha de salida",
+  recibido:  "📝 recibido, todavía sin fecha de salida",
+  programado:"🚚 programado",
   "en preparacion": "🛠️ en preparación en el depósito",
-  facturado: "🧾 facturado, por salir",
+  facturado: "🧾 facturado, listo para salir",
   entregado: "✅ entregado",
 };
 
@@ -237,14 +240,16 @@ async function lookupPaymentData(faq: any, customer: Customer): Promise<string |
 }
 
 async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<string> {
-  const { data: orders } = await supabase
+  const { data: crudos } = await supabase
     .from("orders")
     .select("id, created_at, total, status")
     .eq("customer_id", customer.id)
     .or("sheets_sent.is.null,sheets_sent.eq.true")   // un pedido que nunca se envió no tiene estado
     .gte("created_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(15);
+  // Anulados o borrados en Gestión: para el bot no existen (pedidos-anulados.ts).
+  const orders = (await sinAnulados(crudos ?? [])).slice(0, 5);
   if (!orders?.length) {
     return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, decime.`;
   }
@@ -256,17 +261,21 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
   if (estErr) console.error("Error en bot_estado_pedidos_gv:", estErr.message);
   // deno-lint-ignore no-explicit-any
   const estadoMap = new Map((estados ?? []).map((e: any) => [String(e.order_id), e]));
-  const fmt = (d: string) => new Date(String(d).slice(0, 10) + "T12:00:00").toLocaleDateString("es-AR");
+  const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const conDia = (d: string) => {
+    const x = new Date(String(d).slice(0, 10) + "T12:00:00");
+    return `${DIAS[x.getDay()]} ${String(x.getDate()).padStart(2, "0")}/${String(x.getMonth() + 1).padStart(2, "0")}`;
+  };
+  const ddmm = (iso: string) => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }).format(new Date(iso));
   const lines = orders.map((o, i) => {
     // deno-lint-ignore no-explicit-any
     const t: any = estadoMap.get(String(o.id));
-    const fecha = new Date(o.created_at).toLocaleDateString("es-AR");
     const rawStatus = t?.status ?? o.status;
     const statusText = STATUS_MAP[rawStatus] || rawStatus;
-    let line = `${i + 1}️⃣ NP-${o.id} (${fecha}) — ${statusText}`;
+    let line = `${i + 1}️⃣ Pedido del ${ddmm(o.created_at)} — ${statusText}`;
     if (t?.fecha_entrega && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado"))
-      line += ` para el ${fmt(t.fecha_entrega)}`;
-    if (t?.fecha_entrega && rawStatus === "entregado") line += ` el ${fmt(t.fecha_entrega)}`;
+      line += `: sale el ${conDia(t.fecha_entrega)}`;
+    if (t?.fecha_entrega && rawStatus === "entregado") line += ` el ${conDia(t.fecha_entrega)}`;
     return line;
   });
   return `${customer.business_name}, acá está el estado de tus pedidos:\n\n${lines.join("\n")}\n\n¿Necesitás más detalle de alguno?`;
@@ -377,10 +386,12 @@ async function lookupOrderModify(customer: NonNullable<Customer>): Promise<strin
     .eq("customer_id", customer.id)
     .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .order("created_at", { ascending: false })
-    .limit(1);
-  if (!orders?.length) return `No tenés pedidos recientes que modificar. ¿Quieres hacer uno nuevo?`;
-  const latest = orders[0];
+    .limit(10);
+  const vivos = await sinAnulados(orders ?? []);
+  if (!vivos.length) return `No tenés pedidos recientes que modificar. ¿Quieres hacer uno nuevo?`;
+  const latest = vivos[0];
   const canModify = ["pendiente", "recibido"].includes(latest.status || "");
-  if (!canModify) return `Tu último pedido (NP-${latest.id}) está en estado "${latest.status}" y no se puede modificar.\n\nDerivamos tu solicitud a un vendedor para que evalúe opciones.`;
-  return `Tu pedido NP-${latest.id} aún puede modificarse. ¿Qué cambios necesitás?\n📝 Indicame:\n• Artículos que quieres agregar/quitar\n• Cantidades\n\nUn vendedor va a confirmar los cambios.`;
+  const del = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }).format(new Date(latest.created_at));
+  if (!canModify) return `Tu último pedido (el del ${del}) ya no se puede modificar desde acá.\n\nDerivamos tu solicitud a un vendedor para que evalúe opciones.`;
+  return `Tu pedido del ${del} aún puede modificarse. ¿Qué cambios necesitás?\n📝 Indicame:\n• Artículos que quieres agregar/quitar\n• Cantidades\n\nUn vendedor va a confirmar los cambios.`;
 }

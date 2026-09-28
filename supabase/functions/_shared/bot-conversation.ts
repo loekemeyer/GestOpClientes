@@ -7,6 +7,7 @@ import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { REGLAS_OPERATIVAS, bloqueSeguridad } from "./agente-fijos.ts";
+import { sinAnulados } from "./pedidos-anulados.ts";
 import {
   callModel,
   esCulpaDelRequest,
@@ -31,7 +32,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_mis_pedidos",
     description:
-      "Consulta los pedidos recientes del cliente. Muestra IDs (NP-xxx), fechas, totales, método de pago, cantidad de ítems y cajas.",
+      "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total, método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
     input_schema: {
       type: "object",
       properties: {
@@ -45,14 +46,10 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_detalle_pedido",
     description:
-      "Muestra el detalle de un pedido: ítems, códigos, cantidades (cajas), precios por línea y total. Usar order_id si se conoce el NP, o indice para referencia relativa (1 = más reciente).",
+      "Muestra el detalle de un pedido: ítems, códigos, cantidades (cajas), precios por línea y total. Se busca por indice (1 = más reciente, el mismo de consultar_mis_pedidos).",
     input_schema: {
       type: "object",
       properties: {
-        order_id: {
-          type: "integer",
-          description: "ID numérico del pedido (el número después de NP-)",
-        },
         indice: {
           type: "integer",
           description:
@@ -271,24 +268,46 @@ async function executeTool(
   }
   switch (name) {
     case "consultar_mis_pedidos": {
-      const { data, error } = await supabase.rpc("bot_mis_pedidos", {
+      const pedir = Math.min(10, Number(input.limite ?? 5) || 5);
+      const { data: crudos, error } = await supabase.rpc("bot_mis_pedidos", {
         p_telefono: phone,
-        p_limit: input.limite ?? 5,
+        p_limit: pedir + 10,
       });
       if (error) return { data: { error: error.message } };
+      // Anulados o borrados en Gestión: para el bot no existen (pedidos-anulados.ts).
+      const data = (await sinAnulados((crudos ?? []) as Record<string, unknown>[], "order_id")).slice(0, pedir);
       if (!data?.length) return { data: { mensaje: "No tenés pedidos registrados." } };
-      return { data };
+      // Pablo, 28/09: el número de pedido no se le muestra al cliente → no se lo pasamos al modelo. En su lugar:
+      // índice, estado real (Gestión, bot_estado_pedidos_gv) y fecha de salida.
+      // deno-lint-ignore no-explicit-any
+      const filas = data as any[];
+      const { data: est } = await supabase.rpc("bot_estado_pedidos_gv", { p_ids: filas.map((r) => r.order_id) });
+      // deno-lint-ignore no-explicit-any
+      const porId = new Map((est ?? []).map((e: any) => [String(e.order_id), e]));
+      return { data: filas.map((r, i) => {
+        // deno-lint-ignore no-explicit-any
+        const e: any = porId.get(String(r.order_id));
+        const { order_id: _id, ...resto } = r;
+        return { indice: i + 1, ...resto, estado: e?.status ?? "recibido", fecha_salida: e?.fecha_entrega ?? null };
+      }) };
     }
 
     case "consultar_detalle_pedido": {
       if (input.indice) {
-        const { data, error } = await supabase.rpc("bot_detalle_por_indice", {
+        // El índice es el de consultar_mis_pedidos, que ya saca los anulados: se resuelve sobre esa misma lista
+        // y se pide el detalle por id (bot_detalle_por_indice contaría también los anulados).
+        const { data: lista } = await supabase.rpc("bot_mis_pedidos", { p_telefono: phone, p_limit: 20 });
+        const vivos = await sinAnulados((lista ?? []) as Record<string, unknown>[], "order_id");
+        const elegido = vivos[Number(input.indice) - 1];
+        if (!elegido) return { data: { mensaje: "No se encontró un pedido en esa posición." } };
+        const { data, error } = await supabase.rpc("bot_detalle_pedido", {
           p_telefono: phone,
-          p_indice: input.indice,
+          p_order_id: Number(elegido.order_id),
         });
         if (error) return { data: { error: error.message } };
         if (!data?.length) return { data: { mensaje: "No se encontró un pedido en esa posición." } };
-        return { data };
+        // deno-lint-ignore no-explicit-any
+        return { data: (data as any[]).map(({ order_id: _id, ...resto }) => resto) };
       }
       if (input.order_id) {
         const { data, error } = await supabase.rpc("bot_detalle_pedido", {
@@ -299,7 +318,7 @@ async function executeTool(
         if (!data?.length) return { data: { mensaje: "No se encontró ese pedido o no te pertenece." } };
         return { data };
       }
-      return { data: { error: "Necesito order_id o indice para buscar el detalle." } };
+      return { data: { error: "Necesito el índice del pedido (1 = el más reciente)." } };
     }
 
     case "consultar_mi_entrega": {
@@ -307,8 +326,9 @@ async function executeTool(
         p_telefono: phone,
       });
       if (error) return { data: { error: error.message } };
-      if (!data?.length) return { data: { mensaje: "No hay entregas recientes ni programadas." } };
-      return { data };
+      const entregas = await sinAnulados((data ?? []) as Record<string, unknown>[], "np_number");
+      if (!entregas.length) return { data: { mensaje: "No hay entregas recientes ni programadas." } };
+      return { data: entregas.map(({ np_number: _np, ...resto }) => resto) };
     }
 
     case "consultar_mis_descuentos": {

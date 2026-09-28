@@ -473,7 +473,7 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.22.1`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.22.2`). Bumpear con cada cambio de front.
 
 **Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
 - `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
@@ -507,6 +507,12 @@ Un commit que sólo toca docs NO dispara deploy.
   `--amb-bg`, `--pur-bg`…), el modo oscuro vale en todo el sistema (el simulador de Pruebas usa la paleta oscura
   de WhatsApp) y el título/pestañas de cada página ya no se repiten (están en el encabezado). Colores que quedan
   fijos a propósito: los de WhatsApp en el simulador y los de Google en el login.
+- **Pedidos anulados / borrados NO existen para el bot (Pablo, 28/09, v0.22.2):** `orders.status` no sirve (todos
+  'pendiente'); la anulación vive en Gestión: `GV_Pedidos_Anulados` y `GV_Pedidos_Prueba_Historial` (empresa lk).
+  `_shared/pedidos-anulados.ts` (`sinAnulados`, caché 60 s, tope 3 s) los saca de: estado de pedidos y modificar
+  (faq.ts), herramientas del agente (mis pedidos, detalle por índice, mi entrega), cambio de fecha
+  (respuesta-aviso.ts) y la ficha del dashboard. **Número de pedido: nunca al cliente** (se nombra por fecha; el
+  agente no recibe el id; regla en agente-fijos.ts). Cada pedido dice estado y, si tiene, fecha de salida.
 - **Etapa 6 (v0.22.1) — facturación y saldo en la ficha** (`lk_conversaciones` `ficha`, lee Gestión con
   `getGestionClient`, tope 5 s): **Saldo** = `GV_Cobranza_Deuda_Viva` (empresa `lk`: comprobante, fecha, vence,
   pendiente; la recalcula Cobranzas) y **Pedidos a facturar** = `Facturacion_NP` (NP, salida, fecha de cierre).

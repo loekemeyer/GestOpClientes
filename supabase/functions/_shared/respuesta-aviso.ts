@@ -15,6 +15,7 @@
 import { supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
+import { sinAnulados } from "./pedidos-anulados.ts";
 
 const VENTANA_HORAS = 48;
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -110,11 +111,12 @@ export async function pedidoDeCambio(
     .eq("customer_id", customer.customer_id)
     .gt("created_at", new Date(Date.now() - 60 * 86400_000).toISOString())
     .order("created_at", { ascending: false }).limit(10);
-  if (!ords?.length) return null;
-  const { data: est } = await supabase.rpc("bot_estado_pedidos_gv", { p_ids: ords.map((o) => o.id) });
+  const ordsVivos = await sinAnulados(ords ?? []);   // anulados/borrados en Gestión no cuentan
+  if (!ordsVivos.length) return null;
+  const { data: est } = await supabase.rpc("bot_estado_pedidos_gv", { p_ids: ordsVivos.map((o) => o.id) });
   const abiertos = new Set((est ?? []).filter((e: { status: string }) => e.status !== "entregado")
     .map((e: { order_id: number }) => Number(e.order_id)));
-  const ped = ords.find((o) => abiertos.has(Number(o.id)));
+  const ped = ordsVivos.find((o) => abiertos.has(Number(o.id)));
   if (!ped) return null;
 
   await notificarHumano({
