@@ -185,8 +185,8 @@
     .al-pill.urgente { background: #dc2626; color: #fff; }
     .al-urgente td:first-child { border-left: 3px solid #dc2626; padding-left: 6px; }
     /* Aviso global: clientes esperando a una persona (arriba de todas las páginas, sólo admins) */
-    .sidebar .espera-banner, .sidebar .espera-banner:hover { display: flex; border-left: 1px solid #fdba74; padding: 0.5rem 0.55rem; font-size: 0.76rem; color: #7c2d12; background: #fff7ed; }
-    .sidebar .espera-banner.hay-urgente, .sidebar .espera-banner.hay-urgente:hover { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
+    .sidebar div.espera-banner[onclick], .sidebar div.espera-banner[onclick]:hover { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.8rem 0.6rem 0; border-left: 1px solid #fdba74; padding: 0.5rem 0.55rem; font-size: 0.76rem; color: #7c2d12; background: #fff7ed; }
+    .sidebar div.espera-banner.hay-urgente[onclick], .sidebar div.espera-banner.hay-urgente[onclick]:hover { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
     .espera-banner { display: flex; flex-direction: column; align-items: stretch; gap: 0.3rem; margin: 0.8rem 0.6rem 0; padding: 0.5rem 0.55rem;
       border-radius: 8px; background: #fff7ed; border: 1px solid #fdba74; color: #7c2d12; font-size: 0.76rem; cursor: pointer; min-width: 0; }
     .espera-banner.hay-urgente { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
@@ -196,6 +196,7 @@
       line-height: 1.3; min-width: 0; overflow-wrap: anywhere; }
     .espera-chip small { display: block; opacity: 0.8; }
     .espera-chip:hover { border-color: currentColor; }
+    .espera-todas { font-size: 0.72rem; text-decoration: underline; opacity: 0.85; }
     .conv-volver { display: none; }
     a.al-charla { color: inherit; text-decoration: none; border-bottom: 1px dashed currentColor; }
     a.al-charla:hover { color: var(--primary); }
@@ -217,7 +218,7 @@
       .sidebar a, .sidebar div.active, .sidebar div[onclick] { white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
       .sidebar a:hover, .sidebar a.active, .sidebar div[onclick]:hover, .sidebar div.active { border-bottom-color: var(--primary); }
       .sidebar .user-info { border-top: none; white-space: nowrap; }
-      .sidebar .espera-banner, .sidebar .espera-banner:hover { margin: 0 0.4rem; padding: 0.25rem 0.5rem; flex-shrink: 0; white-space: nowrap; }
+      .sidebar div.espera-banner[onclick], .sidebar div.espera-banner[onclick]:hover { margin: 0 0.4rem; padding: 0.25rem 0.5rem; flex-shrink: 0; white-space: nowrap; }
       .sidebar .espera-banner { order: -1; }
       /* Conversaciones reales en el celular: una columna. Con una charla abierta se ve sólo la charla. */
       .conv-layout .conv-lista { width: 100% !important; min-width: 0 !important; }
@@ -361,7 +362,7 @@
     <div id="navAlertas" onclick="showPage('alertas')" style="cursor:pointer;display:none;">🔔 Alertas <span id="alertasBadge" class="nav-badge" style="display:none;"></span></div>
     <div id="navConfig" onclick="showPage('config')" style="cursor:pointer">⚙️ Panel de Control</div>
     <div id="navAgente" onclick="showPage('agente')" style="cursor:pointer;display:none;">🧠 Configuración del agente</div>
-    <div id="esperaBanner" class="espera-banner" style="display:none;" onclick="showPage('alertas')" title="Ver en 🔔 Alertas"></div>
+    <div id="esperaBanner" class="espera-banner" style="display:none;" onclick="abrirPrimeraEspera(event)" title="Abrir la charla más urgente"></div>
     <div class="spacer"></div>
     <div class="cost-panel" id="costPanel">
       <div class="cost-title">💰 Costos IA</div>
@@ -1297,18 +1298,25 @@ async function abrirCharla(phone, ev) {
   await convRefresh();
   await convOpen(tel);
 }
+// Tocar el aviso lateral (fuera de un cliente puntual) abre directo la charla más urgente.
+var _esperaPrimera = null;
+function abrirPrimeraEspera(ev) {
+  if (_esperaPrimera) abrirCharla(_esperaPrimera, ev);
+  else showPage("alertas");
+}
 // Aviso arriba de todas las páginas: quiénes están esperando a una persona (urgentes primero).
 function pintarEsperaBanner(abiertas) {
   const el = document.getElementById("esperaBanner");
   if (!el) return;
   if (!abiertas.length) { el.style.display = "none"; return; }
   const urg = abiertas.filter((a) => a.urgente).length;
+  _esperaPrimera = (abiertas.find((a) => a.phone) || {}).phone || null;
   const chips = abiertas.slice(0, 4).map((a) => {
     const quien = a.cliente || (a.phone ? "…" + String(a.phone).slice(-4) : "sin identificar");
     const click = a.phone ? ` onclick="abrirCharla('${esc(String(a.phone))}', event)" title="Abrir la charla"` : "";
     return `<span class="espera-chip${a.urgente ? " urg" : ""}"${click}>${a.urgente ? "🔴 " : ""}${esc(quien)}<small>${esc(a.label)} · hace ${durTexto((a.espera_min || 0) * 60000)}</small></span>`;
   }).join("");
-  const mas = abiertas.length > 4 ? `<span>y ${abiertas.length - 4} más →</span>` : "";
+  const mas = `<span class="espera-todas" onclick="event.stopPropagation();showPage('alertas')">${abiertas.length > 4 ? `y ${abiertas.length - 4} más · ` : ""}ver todas en 🔔 Alertas →</span>`;
   el.className = "espera-banner" + (urg ? " hay-urgente" : "");
   el.innerHTML = `<b class="largo">👤 ${abiertas.length} esperando a una persona${urg ? ` · ${urg} urgente${urg > 1 ? "s" : ""}` : ""}</b>` +
     `<b class="corto">👤 ${abiertas.length} esperando${urg ? ` · ${urg} 🔴` : ""}</b>${chips}${mas}`;
@@ -3615,6 +3623,6 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.18.3</div>
 </body>
 </html>
