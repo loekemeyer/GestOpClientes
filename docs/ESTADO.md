@@ -473,7 +473,7 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.21.2`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.22.0`). Bumpear con cada cambio de front.
 
 **Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
 - `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
@@ -502,5 +502,10 @@ Un commit que sólo toca docs NO dispara deploy.
   (`wa_outbox.wamid`, lo escribe `lk_outbox-flush`); APROXIMADO (teléfono ±3 min) para respuestas del bot en la
   charla (`bot_historial_chat` no guarda wamid) y para lo anterior al 28/09. Dato del 28/09: en 7 días salieron ~1.000 mensajes del número y ~15 fueron
   del bot; el resto sale de otros sistemas o de la app.
-- Faltan etapas 4 (Salientes), 5 (restyle Dashboard/Panel/Agente + oscuro), 6 (facturas en ficha).
+- **Etapa 5 (v0.22.0) — restyle de Dashboard, Panel de Control, Agente, Alertas y Pruebas:** los ~110 colores
+  fijos de `index.html` (CSS y estilos armados en JS) pasaron a los tokens (`--surface`, `--ok-bg`, `--bad-bg`,
+  `--amb-bg`, `--pur-bg`…), el modo oscuro vale en todo el sistema (el simulador de Pruebas usa la paleta oscura
+  de WhatsApp) y el título/pestañas de cada página ya no se repiten (están en el encabezado). Colores que quedan
+  fijos a propósito: los de WhatsApp en el simulador y los de Google en el login.
+- Falta la etapa 6 (facturas y saldo en la ficha: hay que definir de dónde salen).
   Plantillas desde el chat con ventana 24 h cerrada: todavía no.

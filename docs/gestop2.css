@@ -5,8 +5,8 @@
 
 /* GestOp · rediseño (Claude Design, 28/09) — etapa 1 (base: colores, menú, franja de la llave) y
    etapa 2 (Centro de mensajes › Conversaciones). Ver design_handoff en docs/DISENO-CENTRO-MENSAJES.md.
-   Las páginas viejas (Dashboard, Panel, Agente, Alertas, Pruebas) toman la paleta nueva por las
-   variables de siempre; su restyle completo es la etapa 5. */
+   Etapa 5 (v0.22.0): las páginas viejas (Dashboard, Panel, Agente, Alertas, Pruebas) usan los mismos
+   tokens (los colores fijos de index.html pasaron a var(--…)), así que el modo oscuro vale en todo. */
 
 :root {
   --g-bg:#f4efe3; --surface:#fffdf7; --surface2:#efe8d6; --ink:#212122; --g-muted:#5f5b53; --line:#ddd4bf; --line2:#ebe4d3;
@@ -14,6 +14,7 @@
   --bot:#dde3ee; --human:#f2dcd3; --tpl:#fbf6e8; --tplline:#a8925c; --tpl-fg:#6a5626;
   --bot-bg:#dde3ee; --bot-fg:#314263; --hum-bg:#f5e1b3; --hum-fg:#634400; --ok-bg:#d9e9da; --ok-fg:#2b5533;
   --wait-bg:#661317; --wait-fg:#f7efdc; --fac-bg:#eedcdc; --warn:#8a5a00; --g-danger:#9b1c22;
+  --bad-bg:#f4dcdc; --amb-bg:#f7ebc9; --pur-bg:#e9e2f1; --pur-fg:#4f3474;
 
   /* Variables de las páginas existentes → paleta Loekemeyer */
   --bg:var(--g-bg); --card:var(--surface); --text:var(--ink); --muted:var(--g-muted);
@@ -27,15 +28,9 @@ html.dark {
   --bot:#26314a; --human:#44282b; --tpl:#29261f; --tplline:#8a7a52; --tpl-fg:#d8c48e;
   --bot-bg:#26314a; --bot-fg:#bac7e4; --hum-bg:#4a3a14; --hum-fg:#f0cf85; --ok-bg:#1f3a26; --ok-fg:#a3d4ad;
   --wait-bg:#8f2127; --wait-fg:#f7efdc; --fac-bg:#3e2426; --warn:#e3b451; --g-danger:#f08489;
+  --bad-bg:#4a2326; --amb-bg:#3e3316; --pur-bg:#352a47; --pur-fg:#cbb8ea;
 }
-/* Las páginas viejas todavía no tienen modo oscuro (etapa 5): adentro de ellas se mantiene el claro. */
-html.dark .pages > .page:not(#pageConv):not(#pageTareas):not(#pageSalientes) {
-  --g-bg:#f4efe3; --surface:#fffdf7; --surface2:#efe8d6; --ink:#212122; --g-muted:#5f5b53; --line:#ddd4bf; --line2:#ebe4d3;
-  --accent:#661317; --accent-tx:#661317; --sel:#f1e6cc; --ok-fg:#2b5533; --warn:#8a5a00; --g-danger:#9b1c22;
-  --bg:#f4efe3; --card:#fffdf7; --text:#212122; --muted:#5f5b53; --primary:#661317; --border:#ddd4bf;
-  --success:#2b5533; --warning:#8a5a00; --danger:#9b1c22;
-  background:var(--g-bg); color:var(--ink);
-}
+/* Etapa 5 (v0.22.0): las páginas viejas usan los mismos tokens, así que el modo oscuro vale en todo el sistema. */
 
 body { font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; font-feature-settings: 'cv11', 'ss01'; -webkit-font-smoothing: antialiased; background: var(--g-bg); color: var(--ink); }
 button, select, input, textarea { font-family: inherit; }
@@ -289,3 +284,20 @@ button, select, input, textarea { font-family: inherit; }
 .sl-mot .bar { height: 8px; background: #c62828; }
 @media (max-width: 900px) { .sl-2col { grid-template-columns: minmax(0,1fr); } }
 @media (max-width: 760px) { .sl { padding: 12px; } .sl-kpi b { font-size: 18px; } }
+
+/* ── Etapa 5: páginas viejas (Dashboard, Panel, Agente, Alertas, Pruebas) con los tokens nuevos ── */
+html.dark { color-scheme: dark; }
+.pages input:not([type=checkbox]):not([type=radio]):not([type=range]), .pages select, .pages textarea {
+  background-color: var(--g-bg); color: var(--ink); border-color: var(--line);
+}
+.pages input::placeholder, .pages textarea::placeholder { color: var(--g-muted); }
+.pages table { color: var(--ink); }
+.pages th { color: var(--g-muted); }
+/* El título y las pestañas de cada página ya están en el encabezado nuevo (mod-head): no se repiten. */
+#pageDash > .config-page > h2:first-child, #pageConfig > .config-page > h2:first-child,
+#pageAlertas > .config-page > h2:first-child, #pageAgente > .config-page > div:first-child > h2 { display: none; }
+#pageConfig > .config-page > .subtabs, #pageAgente > .config-page > .subtabs { display: none; }
+#pageAgente > .config-page > div:first-child { justify-content: flex-end !important; }
+/* Simulador de WhatsApp (Pruebas) en oscuro: la paleta oscura de WhatsApp. */
+html.dark { --wa-bg:#0b141a; --wa-in:#202c33; --wa-out:#005c4b; }
+html.dark .chat-messages { background-image: none; }

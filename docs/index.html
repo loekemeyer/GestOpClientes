@@ -27,8 +27,8 @@
     .login-box { background: var(--card); border-radius: 12px; padding: 2rem; width: 320px; text-align: center; }
     .login-box h2 { margin-bottom: 0.5rem; }
     .login-box p { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
-    .google-btn { width: 100%; padding: 0.7rem 1rem; background: #fff; color: #3c4043; border: 1px solid #dadce0; border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 0.6rem; transition: background 0.2s, box-shadow 0.2s; }
-    .google-btn:hover { background: #f7f8f8; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .google-btn { width: 100%; padding: 0.7rem 1rem; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 0.6rem; transition: background 0.2s, box-shadow 0.2s; }
+    .google-btn:hover { background: var(--surface2); box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
     .google-btn svg { flex-shrink: 0; }
     .login-error { color: var(--danger); font-size: 0.85rem; margin-top: 0.75rem; min-height: 1.2em; }
 
@@ -40,7 +40,7 @@
     .sidebar a, .sidebar div.active, .sidebar div[onclick] { display: block; padding: 0.6rem 1rem; color: var(--sidebar-text); text-decoration: none; font-size: 0.9rem; border-left: 3px solid transparent; cursor: pointer; }
     .sidebar a:hover, .sidebar a.active, .sidebar div[onclick]:hover, .sidebar div.active { background: rgba(255,255,255,0.1); border-left-color: var(--primary); }
     .sidebar .spacer { flex: 1; }
-    .sidebar .user-info { padding: 0.6rem 1rem; font-size: 0.8rem; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.1); }
+    .sidebar .user-info { padding: 0.6rem 1rem; font-size: 0.8rem; color: var(--g-muted); border-top: 1px solid rgba(255,255,255,0.1); }
 
     .main { flex: 1; display: flex; flex-direction: row; overflow: hidden; }
 
@@ -86,13 +86,13 @@
     .toggle-desc { font-size: 0.73rem; color: var(--muted); margin-top: 0.25rem; line-height: 1.3; }
     .switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; margin-top: 2px; }
     .switch input { opacity: 0; width: 0; height: 0; }
-    .switch .slider { position: absolute; cursor: pointer; inset: 0; background: #ccc; border-radius: 24px; transition: 0.3s; }
-    .switch .slider::before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
+    .switch .slider { position: absolute; cursor: pointer; inset: 0; background: var(--line); border-radius: 24px; transition: 0.3s; }
+    .switch .slider::before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: var(--surface); border-radius: 50%; transition: 0.3s; }
     .switch input:checked + .slider { background: var(--danger); }
     .switch input:checked + .slider::before { transform: translateX(20px); }
     .ai-status { margin-top: 0.3rem; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.78rem; font-weight: 500; text-align: center; margin-bottom: 1rem; }
-    .ai-status.on { background: #f0fdf4; color: var(--success); }
-    .ai-status.off { background: #fef2f2; color: var(--danger); }
+    .ai-status.on { background: var(--ok-bg); color: var(--success); }
+    .ai-status.off { background: var(--bad-bg); color: var(--danger); }
     .control-divider { border-top: 1px solid var(--border); margin: 0.5rem 0 1rem 0; }
 
     .chat-header { padding: 0.8rem 1.2rem; background: #075e54; color: #fff; display: flex; align-items: center; gap: 0.8rem; }
@@ -107,7 +107,7 @@
     .chat-messages .msg.in { background: var(--wa-in); float: left; border-top-left-radius: 0; }
     .chat-messages .msg.out { background: var(--wa-out); float: right; border-top-right-radius: 0; }
     .chat-messages .msg .time { font-size: 0.65rem; color: var(--muted); float: right; margin: 4px 0 -4px 8px; }
-    .chat-messages .msg.system { background: #fef3c7; float: none; max-width: 85%; margin: 0.5rem auto; text-align: center; font-size: 0.8rem; color: #92400e; border-radius: 6px; }
+    .chat-messages .msg.system { background: var(--amb-bg); float: none; max-width: 85%; margin: 0.5rem auto; text-align: center; font-size: 0.8rem; color: var(--warn); border-radius: 6px; }
     .chat-messages::after { content: ""; display: table; clear: both; }
     .chat-messages .typing { float: left; background: var(--wa-in); border-top-left-radius: 0; padding: 0.6rem 1rem; }
     .chat-messages .typing span { display: inline-block; width: 8px; height: 8px; background: #999; border-radius: 50%; margin: 0 1px; animation: bounce 1.4s infinite; }
@@ -115,30 +115,30 @@
     .chat-messages .typing span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
 
-    .chat-input { display: flex; gap: 0.5rem; padding: 0.6rem; background: #f0f2f5; }
+    .chat-input { display: flex; gap: 0.5rem; padding: 0.6rem; background: var(--surface2); }
     .chat-input input { flex: 1; padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 20px; font-size: 0.9rem; outline: none; }
     .chat-input input:focus { border-color: var(--primary); }
     .chat-input button { width: 42px; height: 42px; border-radius: 50%; border: none; background: var(--wa-green); color: #fff; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
     .chat-input button:hover { background: #1da851; }
-    .chat-input button:disabled { background: #ccc; cursor: default; }
+    .chat-input button:disabled { background: var(--line); cursor: default; }
 
     /* Start screen */
     .start-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 1.2rem; padding: 2rem; }
-    .start-screen h3 { color: #667; font-weight: 500; font-size: 1rem; }
+    .start-screen h3 { color: var(--g-muted); font-weight: 500; font-size: 1rem; }
     .start-screen .start-btns { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
     .start-screen button { padding: 1.2rem 1.5rem; border-radius: 12px; border: 2px solid var(--border); background: var(--card); cursor: pointer; font-size: 0.95rem; transition: all 0.2s; min-width: 200px; text-align: center; }
-    .start-screen button:hover { border-color: var(--wa-green); background: #f0fdf4; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .start-screen button:hover { border-color: var(--wa-green); background: var(--ok-bg); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .start-screen .btn-icon { font-size: 2rem; display: block; margin-bottom: 0.5rem; }
     .start-screen .btn-label { font-weight: 600; color: var(--text); display: block; }
     .start-screen .btn-desc { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; display: block; }
 
     /* Cost panel (admin only) */
     .cost-panel { padding: 0.6rem 1rem; border-top: 1px solid rgba(255,255,255,0.1); display: none; }
-    .cost-panel .cost-title { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem; }
+    .cost-panel .cost-title { font-size: 0.7rem; color: var(--g-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem; }
     .cost-panel .cost-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.75rem; padding: 0.15rem 0; }
-    .cost-panel .cost-label { color: #94a3b8; }
-    .cost-panel .cost-val { color: #e2e8f0; font-family: 'SF Mono', 'Menlo', monospace; font-size: 0.7rem; }
-    .cost-panel .cost-tok { color: #64748b; font-size: 0.6rem; font-family: 'SF Mono', 'Menlo', monospace; }
+    .cost-panel .cost-label { color: var(--g-muted); }
+    .cost-panel .cost-val { color: var(--line); font-family: 'SF Mono', 'Menlo', monospace; font-size: 0.7rem; }
+    .cost-panel .cost-tok { color: var(--g-muted); font-size: 0.6rem; font-family: 'SF Mono', 'Menlo', monospace; }
     .cost-panel .cost-divider { border-top: 1px solid rgba(255,255,255,0.05); margin: 0.3rem 0; }
 
     /* Config page */
@@ -155,7 +155,7 @@
     .config-btn.primary { background: var(--primary); color: #fff; }
     .config-btn.primary:hover { background: var(--primary-hover); }
     .config-btn.danger { background: var(--danger); color: #fff; }
-    .config-btn.danger:hover { background: #b91c1c; }
+    .config-btn.danger:hover { background: var(--g-danger); }
     .config-btn.small { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
     .config-btn:disabled { opacity: 0.5; cursor: default; }
     .config-status { font-size: 0.8rem; margin-left: 0.5rem; }
@@ -178,20 +178,20 @@
     .al-tabla td { padding: 5px 10px 5px 0; border-top: 1px solid var(--border); vertical-align: top; }
     .al-vencida td:first-child { border-left: 3px solid var(--danger); padding-left: 6px; }
     .al-pill { display: inline-block; padding: 0 6px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
-    .al-pill.vencida { background: #fee2e2; color: #991b1b; }
-    .al-pill.pronto { background: #fef3c7; color: #92400e; }
-    .al-pill.ok { background: #dcfce7; color: #166534; }
+    .al-pill.vencida { background: var(--bad-bg); color: var(--g-danger); }
+    .al-pill.pronto { background: var(--amb-bg); color: var(--warn); }
+    .al-pill.ok { background: var(--ok-bg); color: var(--ok-fg); }
     .al-pill.cerrada { background: var(--bg); color: var(--muted); }
-    .al-pill.urgente { background: #dc2626; color: #fff; }
-    .al-pill.amarillo { background: #fef08a; color: #713f12; }
-    .al-pill.verde { background: #dcfce7; color: #166534; }
-    .al-urgente td:first-child { border-left: 3px solid #dc2626; padding-left: 6px; }
+    .al-pill.urgente { background: var(--g-danger); color: #fff; }
+    .al-pill.amarillo { background: var(--amb-bg); color: var(--warn); }
+    .al-pill.verde { background: var(--ok-bg); color: var(--ok-fg); }
+    .al-urgente td:first-child { border-left: 3px solid var(--g-danger); padding-left: 6px; }
     /* Aviso global: clientes esperando a una persona (arriba de todas las páginas, sólo admins) */
-    .sidebar div.espera-banner[onclick], .sidebar div.espera-banner[onclick]:hover { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.8rem 0.6rem 0; border-left: 1px solid #fdba74; padding: 0.5rem 0.55rem; font-size: 0.76rem; color: #7c2d12; background: #fff7ed; }
-    .sidebar div.espera-banner.hay-urgente[onclick], .sidebar div.espera-banner.hay-urgente[onclick]:hover { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
+    .sidebar div.espera-banner[onclick], .sidebar div.espera-banner[onclick]:hover { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.8rem 0.6rem 0; border-left: 1px solid var(--warn); padding: 0.5rem 0.55rem; font-size: 0.76rem; color: var(--warn); background: var(--amb-bg); }
+    .sidebar div.espera-banner.hay-urgente[onclick], .sidebar div.espera-banner.hay-urgente[onclick]:hover { background: var(--bad-bg); border-color: var(--g-danger); color: var(--g-danger); }
     .espera-banner { display: flex; flex-direction: column; align-items: stretch; gap: 0.3rem; margin: 0.8rem 0.6rem 0; padding: 0.5rem 0.55rem;
-      border-radius: 8px; background: #fff7ed; border: 1px solid #fdba74; color: #7c2d12; font-size: 0.76rem; cursor: pointer; min-width: 0; }
-    .espera-banner.hay-urgente { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
+      border-radius: 8px; background: var(--amb-bg); border: 1px solid var(--warn); color: var(--warn); font-size: 0.76rem; cursor: pointer; min-width: 0; }
+    .espera-banner.hay-urgente { background: var(--bad-bg); border-color: var(--g-danger); color: var(--g-danger); }
     .espera-banner b { white-space: normal; }
     .espera-banner .corto { display: none; }
     .espera-chip { display: block; padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.08);
@@ -202,7 +202,7 @@
     .conv-volver { display: none; }
     a.al-charla { color: inherit; text-decoration: none; border-bottom: 1px dashed currentColor; }
     a.al-charla:hover { color: var(--primary); }
-    .espera-chip.urg { border-color: #dc2626; }
+    .espera-chip.urg { border-color: var(--g-danger); }
     .al-venc input { width: 64px; padding: 0.3rem 0.4rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; }
     #pageConfig .config-section { max-width: 860px; min-width: 0; }
     #pageConfig, #pageConfig .config-page { min-width: 0; }
@@ -258,10 +258,10 @@
     .md-preview p { margin: 0.4rem 0; }
     .md-preview code { background: var(--border); padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.82rem; }
     .cat-pill { display: inline-block; font-size: 0.68rem; font-weight: 600; padding: 0.12rem 0.5rem; border-radius: 20px; }
-    .cat-pill.objetivo { background: #dbeafe; color: #1d4ed8; }
-    .cat-pill.limite { background: #fee2e2; color: #b91c1c; }
-    .cat-pill.permiso { background: #dcfce7; color: #15803d; }
-    .cat-pill.pendiente { background: #fef3c7; color: #92400e; }
+    .cat-pill.objetivo { background: var(--bot-bg); color: var(--bot-fg); }
+    .cat-pill.limite { background: var(--bad-bg); color: var(--g-danger); }
+    .cat-pill.permiso { background: var(--ok-bg); color: var(--ok-fg); }
+    .cat-pill.pendiente { background: var(--amb-bg); color: var(--warn); }
     .consulta-card { border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 0.8rem; background: var(--card); }
     .consulta-card.answered { opacity: 0.72; }
     .consulta-q { font-size: 0.9rem; font-weight: 500; margin-bottom: 0.25rem; }
@@ -280,7 +280,7 @@
     .bl-table th { text-align: left; font-size: 0.73rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; padding: 0.4rem 0.5rem; border-bottom: 2px solid var(--border); }
     .bl-table td { padding: 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
     .bl-table tr:last-child td { border-bottom: none; }
-    .bl-table .customer-tag { display: inline-block; background: #dbeafe; color: #1e40af; font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 500; }
+    .bl-table .customer-tag { display: inline-block; background: var(--bot-bg); color: var(--bot-fg); font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 500; }
     .bl-add-row { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
     .bl-add-row input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; outline: none; }
     .bl-add-row input:focus { border-color: var(--primary); }
@@ -288,59 +288,59 @@
 
     /* Avisos automáticos (simulador facturación, estilo chat) */
     .notif-hint { font-size: 0.75rem; color: var(--muted); line-height: 1.4; margin-bottom: 1rem; }
-    .notif-hint code { background: #f1f5f9; padding: 0 3px; border-radius: 3px; font-size: 0.72rem; }
+    .notif-hint code { background: var(--surface2); padding: 0 3px; border-radius: 3px; font-size: 0.72rem; }
     .tpl-tag { font-size: 0.62rem; color: var(--primary); font-family: monospace; opacity: 0.75; }
-    #notifMessages .msg.stage { background: #eef2ff; color: #3730a3; float: none; max-width: 92%; margin: 0.3rem auto; text-align: center; font-size: 0.76rem; border-radius: 6px; }
+    #notifMessages .msg.stage { background: var(--bot-bg); color: var(--bot-fg); float: none; max-width: 92%; margin: 0.3rem auto; text-align: center; font-size: 0.76rem; border-radius: 6px; }
     .metodo-badge { display: inline-block; font-size: 0.66rem; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 20px; white-space: nowrap; }
-    .metodo-badge.contado { background: #dcfce7; color: #15803d; }
-    .metodo-badge.credito { background: #fef9c3; color: #a16207; }
-    .metodo-badge.echeq { background: #ede9fe; color: #6d28d9; }
+    .metodo-badge.contado { background: var(--ok-bg); color: var(--ok-fg); }
+    .metodo-badge.credito { background: var(--amb-bg); color: var(--warn); }
+    .metodo-badge.echeq { background: var(--pur-bg); color: var(--pur-fg); }
     .ngroup { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.7rem; margin-bottom: 0.6rem; }
-    .ngroup.done { border-color: var(--wa-green); background: #f7fef9; }
+    .ngroup.done { border-color: var(--wa-green); background: var(--ok-bg); }
     .ngroup-head { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; }
     .ngroup-cuit { font-size: 0.68rem; color: var(--muted); font-family: monospace; }
-    .sim-bar { height: 8px; background: #eef2f7; border-radius: 20px; overflow: hidden; margin: 0.35rem 0; }
+    .sim-bar { height: 8px; background: var(--surface2); border-radius: 20px; overflow: hidden; margin: 0.35rem 0; }
     .sim-bar > span { display: block; height: 100%; background: var(--wa-green); border-radius: 20px; transition: width 0.35s ease; }
     .sim-bar.waiting > span { background: var(--warning); }
     .ngroup-prog { font-size: 0.72rem; color: var(--muted); }
     /* Mensajes del chat: preview WhatsApp dentro de una burbuja "in" */
-    #notifMessages .msg.in .wa-doc { display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.05); border-radius: 6px; padding: 0.4rem 0.5rem; margin-bottom: 0.5rem; font-size: 0.75rem; color: #334155; }
+    #notifMessages .msg.in .wa-doc { display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.05); border-radius: 6px; padding: 0.4rem 0.5rem; margin-bottom: 0.5rem; font-size: 0.75rem; color: var(--ink); }
     #notifMessages .wa-tpl-tag { font-size: 0.66rem; color: var(--muted); margin-top: 0.5rem; font-family: monospace; word-break: break-all; }
     #notifMessages .desglose { width: 100%; font-size: 0.74rem; margin-top: 0.5rem; border-collapse: collapse; }
     #notifMessages .desglose td { padding: 0.18rem 0.3rem; border-bottom: 1px solid rgba(0,0,0,0.08); }
     #notifMessages .desglose td:last-child { text-align: right; font-family: monospace; font-weight: 600; }
-    #notifMessages .desglose tr.hi td { color: #15803d; }
-    #notifMessages .msg.trigger { background: #ede9fe; color: #5b21b6; float: none; max-width: 90%; margin: 0.5rem auto; text-align: center; font-size: 0.8rem; font-weight: 600; border-radius: 6px; }
+    #notifMessages .desglose tr.hi td { color: var(--ok-fg); }
+    #notifMessages .msg.trigger { background: var(--pur-bg); color: var(--pur-fg); float: none; max-width: 90%; margin: 0.5rem auto; text-align: center; font-size: 0.8rem; font-weight: 600; border-radius: 6px; }
 
     /* Preguntas frecuentes (plantillas editables) */
     .faq-sec { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 1rem; overflow: hidden; }
     .faq-sec-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.65rem 0.9rem; font-weight: 600; font-size: 0.9rem; }
     .faq-sec-head .count { margin-left: auto; font-size: 0.72rem; font-weight: 700; background: rgba(255,255,255,0.55); padding: 0.05rem 0.5rem; border-radius: 20px; }
     .faq-sec-body { padding: 0.3rem 0.9rem 0.85rem; }
-    .faq-sec.auto     .faq-sec-head { background: #dcfce7; color: #15803d; }
-    .faq-sec.semiauto .faq-sec-head { background: #dbeafe; color: #1d4ed8; }
-    .faq-sec.ia       .faq-sec-head { background: #ede9fe; color: #6d28d9; }
-    .faq-sec.humano   .faq-sec-head { background: #fee2e2; color: #b91c1c; }
+    .faq-sec.auto     .faq-sec-head { background: var(--ok-bg); color: var(--ok-fg); }
+    .faq-sec.semiauto .faq-sec-head { background: var(--bot-bg); color: var(--bot-fg); }
+    .faq-sec.ia       .faq-sec-head { background: var(--pur-bg); color: var(--pur-fg); }
+    .faq-sec.humano   .faq-sec-head { background: var(--bad-bg); color: var(--g-danger); }
     .faq-item { border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 0.85rem; margin-top: 0.7rem; background: var(--card); }
     .faq-q { font-size: 0.88rem; font-weight: 600; margin-bottom: 0.1rem; }
     .faq-sub { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.5rem; }
     .faq-flags { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
     .faq-flag { font-size: 0.63rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 20px; background: var(--bg); border: 1px solid var(--border); color: var(--muted); font-family: ui-monospace, monospace; }
-    .faq-flag.calc { background: #fef3c7; color: #92400e; border-color: #fde68a; font-family: inherit; }
+    .faq-flag.calc { background: var(--amb-bg); color: var(--warn); border-color: var(--line); font-family: inherit; }
     .faq-tpl textarea, .faq-extra textarea { width: 100%; min-height: 100px; padding: 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; line-height: 1.5; font-family: ui-monospace, monospace; resize: vertical; }
     .faq-extra textarea { min-height: 78px; }
     .faq-tokens { display: flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; margin: 0.45rem 0 0.1rem; }
-    .faq-token-btn { font-size: 0.68rem; font-family: ui-monospace, monospace; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; border-radius: 5px; padding: 0.12rem 0.4rem; cursor: pointer; }
-    .faq-token-btn:hover { background: #e0e7ff; }
-    .faq-token-btn.block { background: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
+    .faq-token-btn { font-size: 0.68rem; font-family: ui-monospace, monospace; background: var(--bot-bg); color: var(--bot-fg); border: 1px solid var(--line); border-radius: 5px; padding: 0.12rem 0.4rem; cursor: pointer; }
+    .faq-token-btn:hover { background: var(--bot-bg); }
+    .faq-token-btn.block { background: var(--pur-bg); color: var(--pur-fg); border-color: var(--line); }
     .faq-prev { border: 1px dashed var(--border); border-radius: 6px; padding: 0.5rem 0.65rem; background: var(--bg); font-size: 0.82rem; line-height: 1.5; white-space: pre-wrap; margin-top: 0.35rem; }
-    .faq-prev .tok { background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 0 0.25rem; font-family: ui-monospace, monospace; font-size: 0.76rem; }
-    .faq-prev .tok.block { background: #f3e8ff; color: #7e22ce; }
+    .faq-prev .tok { background: var(--bot-bg); color: var(--bot-fg); border-radius: 4px; padding: 0 0.25rem; font-family: ui-monospace, monospace; font-size: 0.76rem; }
+    .faq-prev .tok.block { background: var(--pur-bg); color: var(--pur-fg); }
     .faq-more { font-size: 0.74rem; color: var(--primary); cursor: pointer; margin-top: 0.55rem; display: inline-block; }
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.21.2">
+  <link rel="stylesheet" href="gestop2.css?v=0.22.0">
 </head>
 <body>
 
@@ -382,7 +382,7 @@
       <div class="cost-row"><span class="cost-label">Mes</span><span class="cost-val" id="costMonth">—</span></div>
       <div class="cost-row"><span></span><span class="cost-tok" id="costMonthTok"></span></div>
       <div class="cost-divider"></div>
-      <div style="font-size:0.65rem;color:var(--muted);margin-top:0.4rem;letter-spacing:0.05em;">POR MODELO (mes)</div>
+      <div style="font-size:0.65rem;color: var(--muted);margin-top:0.4rem;letter-spacing:0.05em;">POR MODELO (mes)</div>
       <div id="costByModel" style="margin-top:0.3rem;"></div>
     </div>
     </div>
@@ -478,11 +478,11 @@
         <div class="control-panel">
           <h4>📨 Prueba de plantillas</h4>
           <div class="toggle-desc" style="margin-bottom:0.6rem;">Elegí un pedido web LK y avanzá etapa por etapa: ves el aviso que le llegaría al cliente con sus datos reales. Sólo lectura.</div>
-          <select id="tplChatOrder" onchange="tplChatLoad()" style="width:100%;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;background:var(--card);color:var(--text);">
+          <select id="tplChatOrder" onchange="tplChatLoad()" style="width:100%;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;background: var(--card);color: var(--text);">
             <option value="">Cargando pedidos…</option>
           </select>
           <div style="display:flex;gap:0.4rem;margin-top:0.4rem;">
-            <input type="number" id="tplChatOrderId" placeholder="o N° de pedido" style="flex:1;min-width:0;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+            <input type="number" id="tplChatOrderId" placeholder="o N° de pedido" style="flex:1;min-width:0;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
             <button class="config-btn small" onclick="tplChatLoad(document.getElementById('tplChatOrderId').value)">Ver</button>
           </div>
           <div id="tplChatInfo" class="toggle-desc" style="margin-top:0.7rem;line-height:1.5;"></div>
@@ -499,8 +499,8 @@
       <!-- Tab 2: Conversaciones reales (atención humana / traspaso del bot) -->
       <div class="chat-tab-content" id="tabRealConv">
         <div id="convLayout" class="conv-layout" style="display:flex;gap:0.8rem;height:calc(100vh - 170px);min-height:480px;">
-          <div class="conv-lista" style="width:290px;min-width:250px;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
-            <div style="padding:0.6rem 0.7rem;background:#075e54;color:#fff;display:flex;align-items:center;justify-content:space-between;">
+          <div class="conv-lista" style="width:290px;min-width:250px;display:flex;flex-direction:column;background: var(--card,var(--surface));border: 1px solid var(--border);border-radius:12px;overflow:hidden;">
+            <div style="padding:0.6rem 0.7rem;background: #075e54;color: #fff;display:flex;align-items:center;justify-content:space-between;">
               <b>💬 Conversaciones</b>
               <span style="display:flex;gap:0.3rem;">
                 <button class="config-btn small" style="padding:0.2rem 0.4rem;" title="Mensaje entrante de prueba" onclick="convSeed()">＋demo</button>
@@ -509,15 +509,15 @@
             </div>
             <div id="convList" style="flex:1;overflow-y:auto;"></div>
           </div>
-          <div class="conv-charla" style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+          <div class="conv-charla" style="flex:1;min-width:0;display:flex;flex-direction:column;background: var(--card,var(--surface));border: 1px solid var(--border);border-radius:12px;overflow:hidden;">
             <button class="config-btn small conv-volver" onclick="convVolver()">← Conversaciones</button>
-            <div id="convHeader" style="padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
+            <div id="convHeader" style="padding:0.6rem 0.8rem;border-bottom: 1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
               <div id="convTitle" style="font-weight:600;">Elegí una conversación</div>
               <div id="convActions" style="display:none;gap:0.4rem;align-items:center;flex-wrap:wrap;">
                 <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.75rem;cursor:pointer;">
                   <input type="checkbox" id="convHuman" onchange="convToggleHuman(this.checked)"> 🤝 Modo humano (pausa bot)
                 </label>
-                <select id="convEstado" onchange="convSetEstado(this.value)" style="padding:0.25rem 0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.75rem;">
+                <select id="convEstado" onchange="convSetEstado(this.value)" style="padding:0.25rem 0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.75rem;">
                   <option value="abierto">🟢 Abierto</option>
                   <option value="pendiente">🟡 Pendiente</option>
                   <option value="resuelto">✅ Resuelto</option>
@@ -525,12 +525,12 @@
               </div>
             </div>
             <div id="convWindow" style="display:none;padding:0.35rem 0.8rem;font-size:0.72rem;text-align:center;"></div>
-            <div id="convThread" style="flex:1;overflow-y:auto;padding:0.8rem;background:#e5ddd5;">
-              <div class="bl-empty" style="font-size:0.85rem;color:#555;text-align:center;margin-top:2rem;">Seleccioná un chat de la izquierda para ver el historial y responder.</div>
+            <div id="convThread" style="flex:1;overflow-y:auto;padding:0.8rem;background: #e5ddd5;">
+              <div class="bl-empty" style="font-size:0.85rem;color: var(--g-muted);text-align:center;margin-top:2rem;">Seleccioná un chat de la izquierda para ver el historial y responder.</div>
             </div>
             <div id="convCanned" style="display:none;gap:0.3rem;flex-wrap:wrap;padding:0.4rem 0.8rem 0;"></div>
-            <div id="convComposer" style="display:none;padding:0.6rem 0.8rem;border-top:1px solid var(--border);gap:0.5rem;align-items:flex-end;">
-              <textarea id="convInput" rows="1" placeholder="Escribí una respuesta…" style="flex:1;resize:none;padding:0.5rem;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:inherit;"></textarea>
+            <div id="convComposer" style="display:none;padding:0.6rem 0.8rem;border-top: 1px solid var(--border);gap:0.5rem;align-items:flex-end;">
+              <textarea id="convInput" rows="1" placeholder="Escribí una respuesta…" style="flex:1;resize:none;padding:0.5rem;border: 1px solid var(--border);border-radius:8px;font-size:0.85rem;font-family:inherit;"></textarea>
               <button class="config-btn primary small" id="convSendBtn" onclick="convSend()">Enviar ➤</button>
             </div>
           </div>
@@ -560,7 +560,7 @@
             </div>
             <div class="config-section" style="margin-top:1.2rem;">
               <h3>🧾 Log del pipeline (últimos eventos)</h3>
-              <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.5rem;">
+              <div style="font-size:0.75rem;color: var(--muted);margin-bottom:0.5rem;">
                 Se registra cuándo se <b>genera cada factura</b> (impacta en <code>documentos</code>) y cuándo el bot
                 <b>envía el aviso</b>.
               </div>
@@ -578,21 +578,21 @@
           </summary>
           <div class="dash-sec-body">
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.8rem;">
-              <label style="font-size:0.78rem;color:var(--muted);">Rango:</label>
-              <select id="iaRange" onchange="loadIaDash()" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+              <label style="font-size:0.78rem;color: var(--muted);">Rango:</label>
+              <select id="iaRange" onchange="loadIaDash()" style="padding:0.3rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
                 <option value="session">Sesión</option>
                 <option value="week">Semana</option>
                 <option value="month" selected>Mes actual</option>
               </select>
-              <label style="font-size:0.78rem;color:var(--muted);margin-left:0.6rem;">Proveedor:</label>
-              <select id="iaProvider" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+              <label style="font-size:0.78rem;color: var(--muted);margin-left:0.6rem;">Proveedor:</label>
+              <select id="iaProvider" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
                 <option value="">Todos</option>
                 <option value="anthropic">Anthropic</option>
                 <option value="openai">OpenAI</option>
                 <option value="google">Google</option>
               </select>
-              <label style="font-size:0.78rem;color:var(--muted);margin-left:0.6rem;">Tier:</label>
-              <select id="iaTier" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+              <label style="font-size:0.78rem;color: var(--muted);margin-left:0.6rem;">Tier:</label>
+              <select id="iaTier" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
                 <option value="">Todos</option>
                 <option value="free">Solo gratis</option>
                 <option value="paid">Solo pagos</option>
@@ -610,13 +610,13 @@
             <div style="overflow-x:auto;">
               <table id="iaTable" style="border-collapse:collapse;width:100%;font-size:0.82rem;">
                 <thead>
-                  <tr style="background:var(--bg);">
-                    <th style="text-align:left;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Modelo</th>
-                    <th style="text-align:left;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Proveedor</th>
-                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Requests</th>
-                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">In tok</th>
-                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Out tok</th>
-                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom:1px solid var(--border);">Costo</th>
+                  <tr style="background: var(--bg);">
+                    <th style="text-align:left;padding:0.45rem 0.6rem;border-bottom: 1px solid var(--border);">Modelo</th>
+                    <th style="text-align:left;padding:0.45rem 0.6rem;border-bottom: 1px solid var(--border);">Proveedor</th>
+                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom: 1px solid var(--border);">Requests</th>
+                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom: 1px solid var(--border);">In tok</th>
+                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom: 1px solid var(--border);">Out tok</th>
+                    <th style="text-align:right;padding:0.45rem 0.6rem;border-bottom: 1px solid var(--border);">Costo</th>
                   </tr>
                 </thead>
                 <tbody id="iaTableBody"></tbody>
@@ -644,7 +644,7 @@
             <button class="config-btn small" onclick="loadAlertas()">↻ Actualizar</button>
             <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" id="alResueltas" onchange="loadAlertas()"> Ver resueltas</label>
             <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" id="alRuido" onchange="loadAlertas()"> Ver números fuera de la lista</label>
-            <span id="alStatus" class="hint" style="font-size:0.8rem;color:var(--muted);"></span>
+            <span id="alStatus" class="hint" style="font-size:0.8rem;color: var(--muted);"></span>
           </div>
           <div id="alList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
         </div>
@@ -718,7 +718,7 @@
             </div>
             <div class="config-row" style="align-items:flex-start;margin-top:0.9rem;">
               <label>Aviso al bloqueado (1ª vez):</label>
-              <textarea id="cfgBLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos momentáneamente fuera de servicio."></textarea>
+              <textarea id="cfgBLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos momentáneamente fuera de servicio."></textarea>
             </div>
             <div style="display:flex; align-items:center;">
               <button class="config-btn primary" onclick="saveBlacklistMsg()">💾 Guardar mensaje</button>
@@ -747,7 +747,7 @@
             </div>
             <div class="config-row" style="align-items:flex-start;">
               <label>Aviso al toparse:</label>
-              <textarea id="cfgRLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos con problemas en este momento, probá contactarte de vuelta en una hora."></textarea>
+              <textarea id="cfgRLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos con problemas en este momento, probá contactarte de vuelta en una hora."></textarea>
             </div>
             <div style="margin-top:0.8rem; display:flex; align-items:center;">
               <button class="config-btn primary" onclick="saveRateLimitConfig()">💾 Guardar</button>
@@ -774,7 +774,7 @@
             <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.3rem;">
               <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:1;min-width:230px;">
                 <div style="flex:1;">
-                  <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Alias</label>
+                  <label style="display:block;font-size:0.75rem;color: var(--muted);margin-bottom:0.2rem;">Alias</label>
                   <input type="text" id="pagoAlias" placeholder="loeke.srl" style="width:100%;" readonly>
                 </div>
                 <button class="config-btn small" id="pagoAlias_edit" title="Editar" onclick="fieldEdit('pagoAlias')">✏️</button>
@@ -783,7 +783,7 @@
               </div>
               <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:2;min-width:290px;">
                 <div style="flex:1;">
-                  <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">CBU</label>
+                  <label style="display:block;font-size:0.75rem;color: var(--muted);margin-bottom:0.2rem;">CBU</label>
                   <input type="text" id="pagoCbu" placeholder="1910027855002702387450" style="width:100%;" readonly>
                 </div>
                 <button class="config-btn small" id="pagoCbu_edit" title="Editar" onclick="fieldEdit('pagoCbu')">✏️</button>
@@ -797,7 +797,7 @@
             <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.2rem;">
               <div style="display:flex;align-items:flex-end;gap:0.35rem;">
                 <div>
-                  <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Descuento contado (%)</label>
+                  <label style="display:block;font-size:0.75rem;color: var(--muted);margin-bottom:0.2rem;">Descuento contado (%)</label>
                   <input type="number" id="dtoContado" min="0" max="100" step="1" style="width:110px;" readonly>
                 </div>
                 <button class="config-btn small" id="dtoContado_edit" title="Editar" onclick="fieldEdit('dtoContado')">✏️</button>
@@ -806,7 +806,7 @@
               </div>
               <div style="display:flex;align-items:flex-end;gap:0.35rem;">
                 <div>
-                  <label style="display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.2rem;">Plazo — días para pago contado</label>
+                  <label style="display:block;font-size:0.75rem;color: var(--muted);margin-bottom:0.2rem;">Plazo — días para pago contado</label>
                   <input type="number" id="dtoContadoDias" min="0" max="90" step="1" style="width:110px;" readonly>
                 </div>
                 <button class="config-btn small" id="dtoContadoDias_edit" title="Editar" onclick="fieldEdit('dtoContadoDias')">✏️</button>
@@ -823,8 +823,8 @@
             </div>
             <table id="dtoCreditoTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
               <thead><tr>
-                <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
-                <th style="text-align:left;padding:3px 6px;width:130px;color:var(--muted);font-weight:600;">Descuento %</th>
+                <th style="text-align:left;padding:3px 6px;color: var(--muted);font-weight:600;">Plazo (días)</th>
+                <th style="text-align:left;padding:3px 6px;width:130px;color: var(--muted);font-weight:600;">Descuento %</th>
                 <th style="width:44px;"></th>
               </tr></thead>
               <tbody></tbody>
@@ -839,8 +839,8 @@
             </div>
             <table id="dtoEcheqTable" style="width:100%;max-width:540px;border-collapse:collapse;font-size:0.85rem;">
               <thead><tr>
-                <th style="text-align:left;padding:3px 6px;color:var(--muted);font-weight:600;">Plazo (días)</th>
-                <th style="text-align:left;padding:3px 6px;width:130px;color:var(--muted);font-weight:600;">Descuento %</th>
+                <th style="text-align:left;padding:3px 6px;color: var(--muted);font-weight:600;">Plazo (días)</th>
+                <th style="text-align:left;padding:3px 6px;width:130px;color: var(--muted);font-weight:600;">Descuento %</th>
                 <th style="width:44px;"></th>
               </tr></thead>
               <tbody></tbody>
@@ -917,11 +917,11 @@
         <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;flex-wrap:wrap;">
           <h2 style="margin:0;">🧠 Configuración del agente</h2>
           <div style="display:flex;align-items:center;gap:0.6rem;">
-            <span class="hint" id="agenteUpdated" style="color:var(--muted);font-size:0.75rem;"></span>
+            <span class="hint" id="agenteUpdated" style="color: var(--muted);font-size:0.75rem;"></span>
             <button class="config-btn small" onclick="toggleAgenteHistory()">🕘 Historial</button>
           </div>
         </div>
-        <p style="color:var(--muted);font-size:0.86rem;margin:0.4rem 0 1.2rem;">
+        <p style="color: var(--muted);font-size:0.86rem;margin:0.4rem 0 1.2rem;">
           Documento rector del agente IA (categoría <b>INTELIGENCIA</b>). Lo que
           se guarda acá es lo que el bot lee en tiempo real para construir su
           system prompt.
@@ -940,7 +940,7 @@
         <!-- Historial de versiones (documento completo) -->
         <div class="config-section" id="agenteHistory" style="display:none;max-width:none;">
           <h3>🕘 Historial de versiones</h3>
-          <p style="font-size:0.78rem;color:var(--muted);margin-bottom:0.8rem;">
+          <p style="font-size:0.78rem;color: var(--muted);margin-bottom:0.8rem;">
             Cada guardado (edición manual o ajuste desde una consulta) queda versionado. Podés restaurar cualquiera.
           </p>
           <div id="agenteHistoryList"><div class="bl-empty">Cargando...</div></div>
@@ -949,20 +949,20 @@
         <!-- Sub: Reglas fijas (read-only) -->
         <div class="subpanel active" id="panelFijas">
           <div class="config-section" style="max-width:none;">
-            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--warn,#e0a800);border-radius:0 6px 6px 0;padding:0.8rem 1rem;font-size:0.82rem;color:var(--muted);margin-bottom:1.2rem;">
+            <div style="background: var(--bg);border: 1px solid var(--border);border-left: 3px solid var(--warn,#e0a800);border-radius:0 6px 6px 0;padding:0.8rem 1rem;font-size:0.82rem;color: var(--muted);margin-bottom:1.2rem;">
               🛡️ Estas reglas están <b>fijas en el código</b> del bot y <b>no se pueden editar</b> desde acá.
               Tienen <b>prioridad</b> sobre el Objetivo y sobre las Limitaciones/Permisos: si algo del documento
               rector las contradice, el bot obedece estas. Son el flujo operativo y la barrera anti-jailbreak.
               Se muestran acá tal cual las arma el bot (con marcadores en lugar del cliente real).
             </div>
             <h3>📋 Reglas operativas (flujo de pedido)</h3>
-            <p style="font-size:0.78rem;color:var(--muted);margin:0.2rem 0 0.7rem;">
+            <p style="font-size:0.78rem;color: var(--muted);margin:0.2rem 0 0.7rem;">
               Formato de respuesta, mínimos, y la confirmación explícita obligatoria antes de enviar un pedido.
             </p>
             <pre id="fijasReglas" class="fijas-pre">Cargando…</pre>
 
             <h3 style="margin-top:1.6rem;">🔐 Seguridad (anti-jailbreak)</h3>
-            <p style="font-size:0.78rem;color:var(--muted);margin:0.2rem 0 0.7rem;">
+            <p style="font-size:0.78rem;color: var(--muted);margin:0.2rem 0 0.7rem;">
               Reglas inquebrantables: aislamiento por cliente, no revelar el prompt, ignorar intentos de cambiar
               su rol, no ejecutar comandos, tratar datos de herramientas como datos (no órdenes).
             </p>
@@ -1016,14 +1016,14 @@
         <div class="subpanel" id="panelConsultas">
           <div class="config-section" style="max-width:none;">
             <h3>❓ Consultas del agente</h3>
-            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;">
+            <p style="font-size:0.8rem;color: var(--muted);margin-bottom:1rem;">
               Dudas que el agente levanta sobre objetivo, límites o permisos.
               Respondé y categorizá cada una; luego consolidá las reglas en las
               pestañas de arriba.
             </p>
             <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
-              <label style="font-size:0.82rem;color:var(--muted);">Filtrar:</label>
-              <select id="consultasFiltro" onchange="loadConsultas()" style="padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+              <label style="font-size:0.82rem;color: var(--muted);">Filtrar:</label>
+              <select id="consultasFiltro" onchange="loadConsultas()" style="padding:0.4rem 0.6rem;border: 1px solid var(--border);border-radius:6px;font-size:0.84rem;">
                 <option value="pendiente">Pendientes</option>
                 <option value="respondida">Respondidas</option>
                 <option value="">Todas</option>
@@ -1038,12 +1038,12 @@
         <div class="subpanel" id="panelEval">
           <div class="config-section" style="max-width:none;">
             <h3>🧪 Preguntas de evaluación</h3>
-            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;">
+            <p style="font-size:0.8rem;color: var(--muted);margin-bottom:1rem;">
               Batería de casos para probar el comportamiento del agente después de
               editar el documento rector. Cada caso: la <b>pregunta</b> del cliente y
               la <b>nota esperada</b> (qué debería hacer el agente).
             </p>
-            <div class="consulta-form" style="margin-bottom:1.2rem;border:1px dashed var(--border);border-radius:8px;padding:0.9rem;">
+            <div class="consulta-form" style="margin-bottom:1.2rem;border: 1px dashed var(--border);border-radius:8px;padding:0.9rem;">
               <div class="md-col-label">Nueva pregunta</div>
               <textarea id="evalNewPregunta" placeholder="Pregunta / mensaje del cliente..."></textarea>
               <textarea id="evalNewNota" placeholder="Nota esperada: qué debería hacer el agente..."></textarea>
@@ -1060,27 +1060,27 @@
         <div class="subpanel" id="panelModelos">
           <div class="config-section" style="max-width:none;">
             <h3>🤖 Modelos del agente</h3>
-            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.6rem;">
+            <p style="font-size:0.8rem;color: var(--muted);margin-bottom:0.6rem;">
               Pegá una API key y se agregan <b>todos</b> sus modelos a <b>Disponibles</b>.
               Armá la cadena <b>En uso</b> en orden: el agente usa el #1; si da problemas,
               pasa al siguiente (con cooldown).
             </p>
-            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--success);border-radius:0 6px 6px 0;padding:0.7rem 0.9rem;font-size:0.78rem;color:var(--muted);margin-bottom:1.1rem;">
+            <div style="background: var(--bg);border: 1px solid var(--border);border-left: 3px solid var(--success);border-radius:0 6px 6px 0;padding:0.7rem 0.9rem;font-size:0.78rem;color: var(--muted);margin-bottom:1.1rem;">
               🔒 La key se <b>valida y guarda del lado del servidor</b> (tabla bloqueada, RLS solo-server).
               No queda accesible desde el navegador: solo verás <b>····1234</b>.
             </div>
 
             <!-- Agregar key -->
-            <div class="consulta-form" style="margin-bottom:1.2rem;border:1px dashed var(--border);border-radius:8px;padding:0.9rem;">
+            <div class="consulta-form" style="margin-bottom:1.2rem;border: 1px dashed var(--border);border-radius:8px;padding:0.9rem;">
               <div class="md-col-label">Agregar una API key</div>
               <div class="row">
-                <select id="modProvSel" style="min-width:150px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;">
+                <select id="modProvSel" style="min-width:150px;padding:0.4rem 0.6rem;border: 1px solid var(--border);border-radius:6px;font-size:0.84rem;">
                   <option value="">Auto-detectar</option>
                   <option value="anthropic">Anthropic</option>
                   <option value="openai">OpenAI</option>
                   <option value="google">Google (Gemini)</option>
                 </select>
-                <input type="password" id="modKey" placeholder="Pegá la API key" autocomplete="off" style="flex:1;min-width:200px;padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.84rem;font-family:ui-monospace,monospace;">
+                <input type="password" id="modKey" placeholder="Pegá la API key" autocomplete="off" style="flex:1;min-width:200px;padding:0.4rem 0.6rem;border: 1px solid var(--border);border-radius:6px;font-size:0.84rem;font-family:ui-monospace,monospace;">
                 <button class="config-btn primary small" id="modAddKeyBtn" onclick="addKey()">+ Agregar key</button>
                 <span class="config-status" id="modAddStatus"></span>
               </div>
@@ -1090,7 +1090,7 @@
             <!-- En uso (cadena jerárquica) -->
             <div style="margin-bottom:1.4rem;">
               <div class="md-col-label" style="margin-bottom:0.4rem;">⭐ En uso — orden de prioridad</div>
-              <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.6rem;">
+              <div style="font-size:0.75rem;color: var(--muted);margin-bottom:0.6rem;">
                 El agente usa el <b>#1</b>. Si falla (sin tokens, error…), pasa al siguiente y reintenta el de arriba tras un cooldown.
               </div>
               <div id="modChainContainer"><div class="bl-empty">Cargando...</div></div>
@@ -1108,21 +1108,21 @@
         <div class="subpanel" id="panelFaq">
           <div class="config-section" style="max-width:none;">
             <h3>💬 Preguntas frecuentes</h3>
-            <p style="font-size:0.8rem;color:var(--muted);margin:0.2rem 0 0.8rem;">
+            <p style="font-size:0.8rem;color: var(--muted);margin:0.2rem 0 0.8rem;">
               Respuestas que usa el bot, agrupadas por las 4 categorías de automatización.
               Editá el texto de cada plantilla. Las partes que el bot completa con datos
               del sistema van entre <code>{{ }}</code> y se muestran resaltadas: podés moverlas
               o quitarlas, pero mantené el nombre igual para que el dato se complete solo.
               Usá <b>Insertar dato</b> para agregarlas sin errores de tipeo.
             </p>
-            <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--warning);border-radius:0 6px 6px 0;padding:0.6rem 0.85rem;font-size:0.77rem;color:var(--muted);margin-bottom:1rem;">
+            <div style="background: var(--bg);border: 1px solid var(--border);border-left: 3px solid var(--warning);border-radius:0 6px 6px 0;padding:0.6rem 0.85rem;font-size:0.77rem;color: var(--muted);margin-bottom:1rem;">
               🔢 Lo marcado como <b>dato calculado</b> lo arma el sistema (montos, listas de pedidos, stock).
               Editás el <b>texto alrededor</b>, no el cálculo — la lógica vive en el bot, no acá.
               🔒 Solo un <b>admin</b> puede guardar cambios.
             </div>
             <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.9rem;flex-wrap:wrap;">
               <button class="config-btn small" onclick="loadFaqs()">⟳ Actualizar</button>
-              <span class="config-status" id="faqStatus" style="font-size:0.78rem;color:var(--muted);"></span>
+              <span class="config-status" id="faqStatus" style="font-size:0.78rem;color: var(--muted);"></span>
             </div>
             <div id="faqContainer"><div class="bl-empty">Cargando...</div></div>
           </div>
@@ -1149,7 +1149,7 @@
           <div class="cm-lista" id="cmLista"><div class="cm-vacio">Cargando…</div></div>
         </section>
         <section class="cm-chat" id="cmChat"><div class="cm-vacio">Elegí una conversación de la bandeja.</div></section>
-        <aside class="cm-ficha" id="cmFicha"><section><h4>Ficha del cliente</h4><div style="color:var(--g-muted)">Elegí una conversación.</div></section></aside>
+        <aside class="cm-ficha" id="cmFicha"><section><h4>Ficha del cliente</h4><div style="color: var(--g-muted)">Elegí una conversación.</div></section></aside>
       </div>
     </div>
     <!-- Page: Centro de mensajes › Salientes (rediseño etapa 4, gestop2.js) -->
@@ -1521,11 +1521,11 @@ function tplChatNext() {
   const x = pasos[_tplChatIdx++];
   box.insertAdjacentHTML("beforeend", `<div class="msg system">⚙️ ${esc(x.etapa)}</div>`);
   if (x.nota) {
-    box.insertAdjacentHTML("beforeend", `<div class="msg system" style="background:#eef2ff;color:#3730a3;">🧾 ${esc(x.nota)}</div>`);
+    box.insertAdjacentHTML("beforeend", `<div class="msg system" style="background: var(--bot-bg);color: var(--bot-fg);">🧾 ${esc(x.nota)}</div>`);
   } else {
     const t = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
     box.insertAdjacentHTML("beforeend", `<div class="msg in"><div style="white-space:pre-wrap;">${esc(x.texto)}</div>` +
-      `<div style="font-size:0.66rem;color:var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(x.template)}</div>` +
+      `<div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(x.template)}</div>` +
       `<span class="time">${t}</span></div>`);
   }
   box.scrollTop = box.scrollHeight;
@@ -1722,7 +1722,7 @@ async function loadConfigPage() {
 
 function updateRLEnabledStyle(enabled) {
   const slider = document.getElementById("cfgRLEnabled").nextElementSibling;
-  slider.style.background = enabled ? "var(--success)" : "#ccc";
+  slider.style.background = enabled ? "var(--success)" : "var(--line)";
   document.getElementById("cfgRLEnabledLabel").textContent = enabled
     ? "Activo — aplica a chat real y test"
     : "Desactivado — sin límites para nadie";
@@ -1790,7 +1790,7 @@ async function loadDescuentos() {
 const DTO_SCALARS = ["dtoContado", "dtoContadoDias", "pagoAlias", "pagoCbu"];
 function fieldLock(id) {
   const inp = document.getElementById(id);
-  inp.readOnly = true; inp.style.background = "#f1f5f9";
+  inp.readOnly = true; inp.style.background = "var(--surface2)";
   document.getElementById(id + "_edit").style.display = "";
   document.getElementById(id + "_save").style.display = "none";
 }
@@ -1824,7 +1824,7 @@ async function fieldSave(id) {
 // ── Tablas: bloqueo / edición / guardado por tabla ──
 function tableLock(name) {
   const t = document.getElementById("dto" + name + "Table");
-  t.querySelectorAll("input").forEach((i) => { i.disabled = true; i.style.background = "#f1f5f9"; });
+  t.querySelectorAll("input").forEach((i) => { i.disabled = true; i.style.background = "var(--surface2)"; });
   t.querySelectorAll("tbody button").forEach((b) => { b.style.display = "none"; });
   const add = document.getElementById("dto" + name + "Add"); if (add) add.style.display = "none";
   document.getElementById("tbl" + name + "_edit").style.display = "";
@@ -1951,12 +1951,12 @@ function renderExcepciones() {
   if (!keys.length) { list.innerHTML = '<div class="bl-empty" style="padding:0.3rem 0;">Sin excepciones — todos los clientes usan el método de su factura.</div>'; return; }
   list.innerHTML = keys.map((k) => {
     const chips = (excData[k] || []).map((it, idx) =>
-      `<span style="display:inline-flex;align-items:center;gap:0.35rem;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:14px;padding:0.15rem 0.55rem;font-size:0.78rem;">` +
+      `<span style="display:inline-flex;align-items:center;gap:0.35rem;background: var(--surface2);border: 1px solid var(--line);border-radius:14px;padding:0.15rem 0.55rem;font-size:0.78rem;">` +
       `${it.tipo === "razon" ? "🏢" : "#"} ${esc(it.valor)}` +
       (excLocked ? "" : `<button class="config-btn small" style="padding:0 0.3rem;line-height:1.2;" title="Quitar" onclick="removeExcepcion('${esc(k)}',${idx})">✕</button>`) +
       `</span>`
     ).join("");
-    return `<div style="margin:0.3rem 0;"><div style="font-size:0.76rem;color:var(--muted);margin-bottom:0.25rem;">${esc(bandLabel(k))}</div>` +
+    return `<div style="margin:0.3rem 0;"><div style="font-size:0.76rem;color: var(--muted);margin-bottom:0.25rem;">${esc(bandLabel(k))}</div>` +
       `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;">${chips}</div></div>`;
   }).join("");
 }
@@ -2045,7 +2045,7 @@ function renderMdLite(md) {
     else if (/^#\s+/.test(line)) { closeList(); out.push("<h1>" + inline(line.replace(/^#\s+/, "")) + "</h1>"); }
     else if (/^[-*]\s+/.test(line)) { if (!inList) { out.push("<ul>"); inList = true; } out.push("<li>" + inline(line.replace(/^[-*]\s+/, "")) + "</li>"); }
     else if (line.trim() === "") { closeList(); }
-    else if (/^>\s?/.test(line)) { closeList(); out.push("<p style='color:var(--muted)'>" + inline(line.replace(/^>\s?/, "")) + "</p>"); }
+    else if (/^>\s?/.test(line)) { closeList(); out.push("<p style='color: var(--muted)'>" + inline(line.replace(/^>\s?/, "")) + "</p>"); }
     else { closeList(); out.push("<p>" + inline(line) + "</p>"); }
   }
   closeList();
@@ -2144,7 +2144,7 @@ async function loadFaqs() {
     const total = faqRows.length;
     document.getElementById("faqStatus").textContent = total + " preguntas activas";
   } catch (e) {
-    cont.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+    cont.innerHTML = '<div class="bl-empty" style="color: var(--danger)">Error al cargar</div>';
   }
 }
 
@@ -2193,7 +2193,7 @@ function faqItemHtml(r) {
     '" onclick="faqInsertToken(' + r.id + ',\'' + t.token + '\')">+ {{' + esc(t.token) + '}}</button>'
   ).join("");
   const tokRow = toks.length
-    ? '<div class="faq-tokens"><span style="font-size:0.7rem;color:var(--muted);">Insertar dato:</span>' + tokBtns + '</div>'
+    ? '<div class="faq-tokens"><span style="font-size:0.7rem;color: var(--muted);">Insertar dato:</span>' + tokBtns + '</div>'
     : '';
   const bot = r.bot_response || "";
   return '<div class="faq-item" id="faq-item-' + r.id + '">' +
@@ -2335,12 +2335,12 @@ async function loadAgenteHistory() {
         '<tr>' +
         '<td style="font-size:0.78rem;">' + new Date(h.created_at).toLocaleString("es-AR") + '</td>' +
         '<td style="font-size:0.8rem;">' + (motLabel[h.motivo] || esc(h.motivo || "—")) + '</td>' +
-        '<td style="font-size:0.78rem;color:var(--muted);">' + esc(h.updated_by || "—") + '</td>' +
+        '<td style="font-size:0.78rem;color: var(--muted);">' + esc(h.updated_by || "—") + '</td>' +
         '<td><button class="config-btn small" onclick="restoreAgenteVersion(' + h.id + ')">Restaurar</button></td>' +
         '</tr>'
       ).join("") + '</tbody></table>';
   } catch (e) {
-    cont.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+    cont.innerHTML = '<div class="bl-empty" style="color: var(--danger)">Error al cargar</div>';
   }
 }
 
@@ -2397,7 +2397,7 @@ async function loadConsultas() {
     }
     container.innerHTML = items.map(renderConsulta).join("");
   } catch (e) {
-    container.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+    container.innerHTML = '<div class="bl-empty" style="color: var(--danger)">Error al cargar</div>';
   }
 }
 
@@ -2482,7 +2482,7 @@ async function loadEvals() {
     if (!items.length) { cont.innerHTML = '<div class="bl-empty">Sin preguntas de evaluación</div>'; return; }
     cont.innerHTML = items.map(renderEval).join("");
   } catch (e) {
-    cont.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+    cont.innerHTML = '<div class="bl-empty" style="color: var(--danger)">Error al cargar</div>';
   }
 }
 
@@ -2599,7 +2599,7 @@ function renderKeys() {
       const cred = k.key_source === "env" ? "🔐 Secrets" : "····" + escM(k.key_last4 || "????");
       const del = k.key_source === "env" ? "" :
         '<button class="config-btn danger small" onclick="deleteKey(' + k.key_id + ')">🗑️</button>';
-      return '<div class="row" style="justify-content:space-between;border:1px solid var(--border);border-radius:6px;padding:0.4rem 0.6rem;margin-bottom:0.4rem;">' +
+      return '<div class="row" style="justify-content:space-between;border: 1px solid var(--border);border-radius:6px;padding:0.4rem 0.6rem;margin-bottom:0.4rem;">' +
         '<span style="font-size:0.82rem;">🏷️ ' + (PROV_LABEL[k.proveedor] || escM(k.proveedor)) + ' · ' + cred + ' · <b>' + k.n + '</b> modelos</span>' +
         '<span style="white-space:nowrap;">' +
           '<button class="config-btn small" onclick="refreshKey(' + k.key_id + ')">🔄 Actualizar</button> ' + del +
@@ -2624,7 +2624,7 @@ function renderChain() {
       ' style="padding:0.6rem 0.8rem;cursor:grab;">' +
       '<div class="row" style="justify-content:space-between;">' +
         '<span style="font-size:0.86rem;">' +
-          '<span style="color:var(--muted);cursor:grab;" title="Arrastrá para reordenar">⠿</span> ' +
+          '<span style="color: var(--muted);cursor:grab;" title="Arrastrá para reordenar">⠿</span> ' +
           '<b>#' + (i + 1) + '</b> · ' + (PROV_LABEL[r.proveedor] || escM(r.proveedor)) + ' · <code>' + escM(r.model_id) + '</code> ' + estado +
         '</span>' +
         '<button class="config-btn danger small" onclick="removeFromChain(' + r.id + ')">✖</button>' +
@@ -2678,7 +2678,7 @@ function renderAvail() {
   const avail = _modRows.filter(r => r.prioridad == null);
   if (!avail.length) { cont.innerHTML = '<div class="bl-empty">Todos los modelos están en uso (o no hay keys cargadas).</div>'; return; }
   cont.innerHTML = '<div style="max-height:320px;overflow-y:auto;">' + avail.map(r =>
-    '<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--border);padding:0.35rem 0.2rem;">' +
+    '<div class="row" style="justify-content:space-between;border-bottom: 1px solid var(--border);padding:0.35rem 0.2rem;">' +
       '<span style="font-size:0.82rem;">' + (PROV_LABEL[r.proveedor] || escM(r.proveedor)) + ' · <code>' + escM(r.model_id) + '</code></span>' +
       '<button class="config-btn small" onclick="addToChain(' + r.id + ')">➕ a la cadena</button>' +
     '</div>'
@@ -2759,20 +2759,20 @@ async function loadBlacklist() {
     }
     let html = '<table class="bl-table"><thead><tr><th>Teléfono</th><th>Cliente</th><th>Motivo</th><th>Fecha</th><th></th></tr></thead><tbody>';
     for (const it of items) {
-      const cust = it.customer_name ? `<span class="customer-tag">👤 ${it.customer_name}</span>` : '<span style="color:var(--muted);font-size:0.8rem">—</span>';
+      const cust = it.customer_name ? `<span class="customer-tag">👤 ${it.customer_name}</span>` : '<span style="color: var(--muted);font-size:0.8rem">—</span>';
       const fecha = it.created_at ? new Date(it.created_at).toLocaleDateString("es-AR") : "";
       html += `<tr>
         <td style="font-family:monospace;font-size:0.82rem;">${it.phone}</td>
         <td>${cust}</td>
         <td style="font-size:0.82rem;">${it.reason || "—"}</td>
-        <td style="font-size:0.78rem;color:var(--muted);">${fecha}</td>
+        <td style="font-size:0.78rem;color: var(--muted);">${fecha}</td>
         <td><button class="config-btn danger small" onclick="removeFromBlacklist(${it.id})">✕</button></td>
       </tr>`;
     }
     html += '</tbody></table>';
     container.innerHTML = html;
   } catch (e) {
-    container.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+    container.innerHTML = '<div class="bl-empty" style="color: var(--danger)">Error al cargar</div>';
   }
 }
 
@@ -2823,7 +2823,7 @@ async function loadKillswitchAndWhitelist() {
 
 function updateKillswitchStyle(on) {
   const slider = document.getElementById("cfgKillswitch").nextElementSibling;
-  slider.style.background = on ? "var(--danger, #dc2626)" : "#ccc";
+  slider.style.background = on ? "var(--danger, #dc2626)" : "var(--line)";
   document.getElementById("cfgKillswitchLabel").textContent = on
     ? "🛑 ON — solo responde a números en la whitelist"
     : "🟢 OFF — el bot responde a todos los clientes";
@@ -2851,19 +2851,19 @@ async function loadWhitelist() {
     for (const it of items) {
       const label = it.business_name
         ? `<span class="customer-tag">👤 ${esc(it.business_name)}</span>`
-        : (it.label ? `<span style="font-size:0.82rem;">${esc(it.label)}</span>` : '<span style="color:var(--muted);font-size:0.8rem">—</span>');
+        : (it.label ? `<span style="font-size:0.82rem;">${esc(it.label)}</span>` : '<span style="color: var(--muted);font-size:0.8rem">—</span>');
       const fecha = it.created_at ? new Date(it.created_at).toLocaleDateString("es-AR") : "";
       html += `<tr>
         <td style="font-family:monospace;font-size:0.82rem;">${esc(it.phone)}</td>
         <td>${label}</td>
-        <td style="font-size:0.78rem;color:var(--muted);">${fecha}</td>
+        <td style="font-size:0.78rem;color: var(--muted);">${fecha}</td>
         <td><button class="config-btn danger small" onclick="removeFromWhitelist('${esc(it.id)}')">✕</button></td>
       </tr>`;
     }
     html += '</tbody></table>';
     box.innerHTML = html;
   } catch (e) {
-    box.innerHTML = '<div class="bl-empty" style="color:var(--danger)">Error al cargar</div>';
+    box.innerHTML = '<div class="bl-empty" style="color: var(--danger)">Error al cargar</div>';
   }
 }
 
@@ -2925,14 +2925,14 @@ async function refreshCosts() {
     if (byModelBox) {
       const rows = data.by_model?.month || [];
       if (!rows.length) {
-        byModelBox.innerHTML = '<div style="font-size:0.7rem;color:var(--muted);opacity:0.6;">sin llamadas este mes</div>';
+        byModelBox.innerHTML = '<div style="font-size:0.7rem;color: var(--muted);opacity:0.6;">sin llamadas este mes</div>';
       } else {
         byModelBox.innerHTML = rows.map(r => {
           const shortName = r.model.length > 22 ? r.model.slice(0, 19) + "…" : r.model;
           const badge = r.is_free_tier
-            ? '<span style="background:#dcfce7;color:#15803d;font-size:0.6rem;font-weight:600;padding:0.05rem 0.35rem;border-radius:10px;margin-left:0.3rem;">GRATIS</span>'
+            ? '<span style="background: var(--ok-bg);color: var(--ok-fg);font-size:0.6rem;font-weight:600;padding:0.05rem 0.35rem;border-radius:10px;margin-left:0.3rem;">GRATIS</span>'
             : '';
-          const val = r.is_free_tier ? '<span style="color:#15803d;">$0</span>' : fmtCost(r.cost);
+          const val = r.is_free_tier ? '<span style="color: var(--ok-fg);">$0</span>' : fmtCost(r.cost);
           return `<div class="cost-row" style="font-size:0.72rem;">
             <span class="cost-label" title="${r.model}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;">${shortName}${badge}</span>
             <span class="cost-val" style="font-size:0.75rem;">${val}</span>
@@ -2972,17 +2972,17 @@ async function loadVinculos() {
     badge.textContent = rows.length;
     if (!rows.length) { box.innerHTML = '<div class="bl-empty">No hay solicitudes pendientes.</div>'; return; }
     box.innerHTML = `<table style="border-collapse:collapse;font-size:0.8rem;">
-      <tr style="text-align:left;color:var(--muted);">
+      <tr style="text-align:left;color: var(--muted);">
         <th style="padding:3px 10px 3px 0;">Pedido el</th><th style="padding:3px 10px 3px 0;">Número que escribió</th>
         <th style="padding:3px 10px 3px 0;">Dice ser</th><th style="padding:3px 10px 3px 0;">Tel. en Gestión</th>
         <th style="padding:3px 10px 3px 0;">Principal actual</th><th style="padding:3px 10px 3px 0;">CUITs 24 h</th><th></th></tr>
-      ${rows.map((r) => `<tr style="border-top:1px solid var(--border);">
+      ${rows.map((r) => `<tr style="border-top: 1px solid var(--border);">
         <td style="padding:4px 10px 4px 0;white-space:nowrap;">${esc(new Date(r.creado_en).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td>
         <td style="padding:4px 10px 4px 0;white-space:nowrap;"><code>${esc(r.telefono)}</code>${r.tipo === "pedidos_access" ? '<br><span class="hint">acceso a pedidos</span>' : ""}</td>
         <td style="padding:4px 10px 4px 0;">${esc(r.business_name || "")}<br><span class="hint">cód. ${esc(String(r.cod_cliente ?? ""))} · CUIT ${esc(r.cuit_normalizado || "")}</span></td>
         <td style="padding:4px 10px 4px 0;">${(r.telefonos_erp || []).map((t) => `<code>${esc(t)}</code>`).join("<br>") || '<span class="hint">sin teléfonos</span>'}</td>
         <td style="padding:4px 10px 4px 0;">${r.principal_actual ? `<code>${esc(telCorto(r.principal_actual))}</code>` : '<span class="hint">ninguno</span>'}</td>
-        <td style="padding:4px 10px 4px 0;${(r.intentos_24h || 0) > 1 ? "color:var(--danger);font-weight:600;" : ""}">${r.intentos_24h ?? 0}</td>
+        <td style="padding:4px 10px 4px 0;${(r.intentos_24h || 0) > 1 ? "color: var(--danger);font-weight:600;" : ""}">${r.intentos_24h ?? 0}</td>
         <td style="padding:4px 0;white-space:nowrap;">
           <button class="config-btn small primary" onclick="decideVinculo(${r.id}, 'approve')">✓ Aprobar</button>
           <button class="config-btn small" onclick="decideVinculo(${r.id}, 'reject')">✕ Rechazar</button>
@@ -3047,7 +3047,7 @@ async function tplSync(aplicar) {
     const pend = plan.filter((f) => f.accion === "crear" || f.accion === "editar").length;
     st.textContent = aplicar ? `Listo · ${plan.length} plantilla(s)` : `${pend} para subir de ${plan.length}`;
     out.innerHTML = `<table style="border-collapse:collapse;font-size:0.8rem;">
-      <tr style="text-align:left;color:var(--muted);"><th style="padding:2px 10px 2px 0;">Plantilla</th><th style="padding:2px 10px 2px 0;">Acción</th><th style="padding:2px 10px 2px 0;">En Meta</th><th style="padding:2px 0;">Resultado</th></tr>
+      <tr style="text-align:left;color: var(--muted);"><th style="padding:2px 10px 2px 0;">Plantilla</th><th style="padding:2px 10px 2px 0;">Acción</th><th style="padding:2px 10px 2px 0;">En Meta</th><th style="padding:2px 0;">Resultado</th></tr>
       ${plan.map((f) => {
         const r = f.resultado ? (f.resultado.ok ? `✅ ${esc(f.resultado.status || "")}` : `❌ ${esc(f.resultado.error || "")}`)
           : esc(f.aviso || (f.errores || []).join("; "));
@@ -3109,10 +3109,10 @@ function renderTemplateList() {
   }
   box.innerHTML = tplCache.map((t, i) => {
     const n = tplParamCount(t);
-    return `<div style="border:1px solid var(--border);border-radius:8px;padding:0.7rem 0.9rem;margin-bottom:0.6rem;cursor:pointer;" onclick="openTemplateCompose(${i})">
-      <div style="font-weight:600;">${esc(t.name)} <span style="font-size:0.7rem;color:var(--muted);font-weight:400;">${esc(t.language || "")} · ${esc(t.category || "")}</span></div>
-      <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(tplBody(t))}</div>
-      <div style="font-size:0.72rem;color:var(--primary);margin-top:0.25rem;">${n} parámetro(s)</div>
+    return `<div style="border: 1px solid var(--border);border-radius:8px;padding:0.7rem 0.9rem;margin-bottom:0.6rem;cursor:pointer;" onclick="openTemplateCompose(${i})">
+      <div style="font-weight:600;">${esc(t.name)} <span style="font-size:0.7rem;color: var(--muted);font-weight:400;">${esc(t.language || "")} · ${esc(t.category || "")}</span></div>
+      <div style="font-size:0.8rem;color: var(--muted);margin-top:0.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(tplBody(t))}</div>
+      <div style="font-size:0.72rem;color: var(--primary);margin-top:0.25rem;">${n} parámetro(s)</div>
     </div>`;
   }).join("");
 }
@@ -3128,7 +3128,7 @@ function openTemplateCompose(i) {
   for (let k = 1; k <= n; k++) {
     html += `<div class="config-row"><label>Parámetro {{${k}}}:</label><input type="text" class="tpl-param" data-idx="${k}" oninput="renderTemplatePreview()" style="min-width:220px;"></div>`;
   }
-  params.innerHTML = html || '<div style="font-size:0.82rem;color:var(--muted);">Sin parámetros — plantilla estática.</div>';
+  params.innerHTML = html || '<div style="font-size:0.82rem;color: var(--muted);">Sin parámetros — plantilla estática.</div>';
   renderTemplatePreview();
   document.getElementById("tplComposeSection").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -3146,7 +3146,7 @@ function renderTemplatePreview() {
   const f = tplFooter(tplCurrent);
   if (h) parts.push("*" + esc(h) + "*");
   parts.push(esc(body));
-  if (f) parts.push('<span style="color:var(--muted);font-size:0.8rem;">' + esc(f) + "</span>");
+  if (f) parts.push('<span style="color: var(--muted);font-size:0.8rem;">' + esc(f) + "</span>");
   document.getElementById("tplPreview").innerHTML = parts.join("\n\n");
 }
 
@@ -3232,7 +3232,7 @@ async function notifNew(metodo, n) {
     notifAppend(`🆕 <b>Pedido en la PPP</b> — ${esc(s.business_name)} ` +
       `<span class="metodo-badge ${grupoDe(s.metodo)}">${esc(METODO_LABEL[s.metodo] || s.metodo)}</span> ` +
       `<span class="tpl-tag">${esc(SRC_LABEL[s.source] || s.source)}</span>` +
-      `<br><span style="font-size:0.72rem;color:#6b7280;">CUIT ${esc(s.cuit)} · ${s.np_esperados} NP(s): ${(s.nps || []).join(", ")}</span>`, "system");
+      `<br><span style="font-size:0.72rem;color: var(--g-muted);">CUIT ${esc(s.cuit)} · ${s.np_esperados} NP(s): ${(s.nps || []).join(", ")}</span>`, "system");
     await notifRefresh();
   } catch (e) { notifAppend("⚠️ " + esc(e.message), "system"); }
 }
@@ -3335,9 +3335,9 @@ function renderNotifGroups(items) {
       ? `<button class="config-btn primary small" style="width:100%;margin-top:0.4rem;" onclick="notifEmit('${g.cuit}')">📄 Emitir factura (${g.np_facturados + 1}/${g.np_esperados})</button>`
       : (done
         ? (held
-          ? `<div style="font-size:0.72rem;color:var(--danger);font-weight:600;margin-top:0.3rem;text-align:center;">${esc(HELD_LBL[aviso.estado] || "retenido")}</div>`
-          : `<div style="font-size:0.72rem;color:var(--success);font-weight:600;margin-top:0.3rem;text-align:center;">✅ Aviso entregado al módulo</div>`)
-        : `<div style="font-size:0.72rem;color:var(--warning);font-weight:600;margin-top:0.3rem;text-align:center;">⏳ Procesando…</div>`);
+          ? `<div style="font-size:0.72rem;color: var(--danger);font-weight:600;margin-top:0.3rem;text-align:center;">${esc(HELD_LBL[aviso.estado] || "retenido")}</div>`
+          : `<div style="font-size:0.72rem;color: var(--success);font-weight:600;margin-top:0.3rem;text-align:center;">✅ Aviso entregado al módulo</div>`)
+        : `<div style="font-size:0.72rem;color: var(--warning);font-weight:600;margin-top:0.3rem;text-align:center;">⏳ Procesando…</div>`);
     return `<div class="ngroup ${done && !held ? 'done' : ''}">
       <div class="ngroup-head">
         <span class="metodo-badge ${grupoDe(g.metodo)}">${esc(METODO_LABEL[g.metodo] || g.metodo)}</span>
@@ -3371,7 +3371,7 @@ function renderMetaTemplate(name, params) {
   const parts = [];
   if (h) parts.push("<b>" + esc(h) + "</b>");
   parts.push(esc(body).replace(/\n/g, "<br>"));
-  if (f) parts.push('<span style="color:var(--muted);font-size:0.8rem;">' + esc(f) + "</span>");
+  if (f) parts.push('<span style="color: var(--muted);font-size:0.8rem;">' + esc(f) + "</span>");
   return parts.join("<br><br>");
 }
 
@@ -3434,27 +3434,27 @@ function convRenderList(items) {
     return;
   }
   box.innerHTML = items.map((c) => {
-    const active = c.phone === convCurrent ? "background:#f0f0f0;" : "";
-    const unread = c.unread > 0 ? `<span style="background:#25d366;color:#fff;border-radius:10px;font-size:0.65rem;padding:0 0.4rem;">${c.unread}</span>` : "";
+    const active = c.phone === convCurrent ? "background: var(--sel);" : "";
+    const unread = c.unread > 0 ? `<span style="background: #25d366;color: #fff;border-radius:10px;font-size:0.65rem;padding:0 0.4rem;">${c.unread}</span>` : "";
     const icon = c.modo_humano ? "🤝" : "🤖";
     const win = c.ventana_abierta ? "" : '<span title="ventana 24h cerrada" style="opacity:0.5;">⏱️</span>';
     const pre = (c.last_dir === "out" ? "vos: " : "") + (c.last_body || "");
     // Cliente identificado → razón social + código y el teléfono como subtítulo.
     // Sin identificar → el teléfono es el título (comportamiento anterior).
     const title = c.business_name
-      ? `${EST_DOT[c.estado] || ""} ${esc(c.business_name)}${c.cod_cliente ? ` <span style="font-weight:400;color:#888;">#${esc(c.cod_cliente)}</span>` : ""}`
+      ? `${EST_DOT[c.estado] || ""} ${esc(c.business_name)}${c.cod_cliente ? ` <span style="font-weight:400;color: var(--g-muted);">#${esc(c.cod_cliente)}</span>` : ""}`
       : `${EST_DOT[c.estado] || ""} +${esc(c.phone)}`;
     const subtitle = c.business_name
-      ? `<div style="font-size:0.7rem;color:#888;font-family:ui-monospace,monospace;margin-top:0.1rem;">+${esc(c.phone)}</div>`
+      ? `<div style="font-size:0.7rem;color: var(--g-muted);font-family:ui-monospace,monospace;margin-top:0.1rem;">+${esc(c.phone)}</div>`
       : "";
-    return `<div onclick="convOpen('${esc(c.phone)}')" style="padding:0.55rem 0.7rem;border-bottom:1px solid var(--border);cursor:pointer;${active}">
+    return `<div onclick="convOpen('${esc(c.phone)}')" style="padding:0.55rem 0.7rem;border-bottom: 1px solid var(--border);cursor:pointer;${active}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;">
         <b style="font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</b>
-        <span style="font-size:0.68rem;color:#888;flex-shrink:0;">${convTime(c.last_at)}</span>
+        <span style="font-size:0.68rem;color: var(--g-muted);flex-shrink:0;">${convTime(c.last_at)}</span>
       </div>
       ${subtitle}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;margin-top:0.15rem;">
-        <span style="font-size:0.74rem;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">${icon} ${esc(pre)}</span>
+        <span style="font-size:0.74rem;color: var(--g-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">${icon} ${esc(pre)}</span>
         <span style="display:flex;gap:0.25rem;align-items:center;">${win}${unread}</span>
       </div>
     </div>`;
@@ -3467,7 +3467,7 @@ async function convOpen(phone) {
   const item = _convItems.find((x) => x.phone === phone);
   const titleEl = document.getElementById("convTitle");
   if (item?.business_name) {
-    titleEl.innerHTML = `${esc(item.business_name)}${item.cod_cliente ? ` <span style="font-weight:400;color:#888;font-size:0.85rem;">#${esc(item.cod_cliente)}</span>` : ""} <span style="font-weight:400;color:#888;font-family:ui-monospace,monospace;font-size:0.75rem;">+${esc(phone)}</span>`;
+    titleEl.innerHTML = `${esc(item.business_name)}${item.cod_cliente ? ` <span style="font-weight:400;color: var(--g-muted);font-size:0.85rem;">#${esc(item.cod_cliente)}</span>` : ""} <span style="font-weight:400;color: var(--g-muted);font-family:ui-monospace,monospace;font-size:0.75rem;">+${esc(phone)}</span>`;
   } else {
     titleEl.textContent = "+" + phone;
   }
@@ -3488,8 +3488,8 @@ async function convOpen(phone) {
     const cortado = d.envio && d.envio.puede === false;
     const puede = abierta && !cortado;
     wb.style.display = "block";
-    wb.style.background = cortado ? "#fef3c7" : abierta ? "#dcfce7" : "#fee2e2";
-    wb.style.color = cortado ? "#92400e" : abierta ? "#15803d" : "#b91c1c";
+    wb.style.background = cortado ? "var(--amb-bg)" : abierta ? "var(--ok-bg)" : "var(--bad-bg)";
+    wb.style.color = cortado ? "var(--warn)" : abierta ? "var(--ok-fg)" : "var(--g-danger)";
     wb.innerHTML = cortado
       ? "🔒 A este número no le sale nada: " + esc(d.envio.motivo || "envíos cortados.") + (abierta ? "" : " Además, la ventana de 24 hs está cerrada.")
       : abierta ? "🟢 Ventana de 24 hs abierta — podés responder texto libre."
@@ -3512,14 +3512,14 @@ function convVolver() {
 
 function convRenderThread(messages) {
   const box = document.getElementById("convThread");
-  if (!messages.length) { box.innerHTML = '<div class="bl-empty" style="text-align:center;color:#555;margin-top:2rem;">Sin mensajes.</div>'; return; }
+  if (!messages.length) { box.innerHTML = '<div class="bl-empty" style="text-align:center;color: var(--g-muted);margin-top:2rem;">Sin mensajes.</div>'; return; }
   box.innerHTML = messages.map((m) => {
     const out = m.direction === "out";
     const bg = out ? "#dcf8c6" : "#fff";
     const al = out ? "margin-left:auto;" : "";
-    return `<div style="max-width:75%;${al}background:${bg};border-radius:8px;padding:0.4rem 0.6rem;margin-bottom:0.4rem;box-shadow:0 1px 1px rgba(0,0,0,0.1);">
+    return `<div style="max-width:75%;${al}background: ${bg};border-radius:8px;padding:0.4rem 0.6rem;margin-bottom:0.4rem;box-shadow:0 1px 1px rgba(0,0,0,0.1);">
       <div style="font-size:0.85rem;white-space:pre-wrap;word-break:break-word;">${esc(m.body || "")}</div>
-      <div style="font-size:0.62rem;color:#888;text-align:right;margin-top:0.15rem;">${convTime(m.created_at)}${out ? " ✓" : ""}</div>
+      <div style="font-size:0.62rem;color: var(--g-muted);text-align:right;margin-top:0.15rem;">${convTime(m.created_at)}${out ? " ✓" : ""}</div>
     </div>`;
   }).join("");
   box.scrollTop = box.scrollHeight;
@@ -3612,40 +3612,40 @@ function renderIaTable() {
 
   const body = document.getElementById("iaTableBody");
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="6" style="padding:1rem;text-align:center;color:var(--muted);font-size:0.8rem;">Sin datos en el rango/filtro actual</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" style="padding:1rem;text-align:center;color: var(--muted);font-size:0.8rem;">Sin datos en el rango/filtro actual</td></tr>';
     return;
   }
   body.innerHTML = rows.map(r => {
     const badge = r.is_free_tier
-      ? '<span style="background:#dcfce7;color:#15803d;font-size:0.6rem;font-weight:600;padding:0.05rem 0.35rem;border-radius:10px;margin-left:0.4rem;">GRATIS</span>'
+      ? '<span style="background: var(--ok-bg);color: var(--ok-fg);font-size:0.6rem;font-weight:600;padding:0.05rem 0.35rem;border-radius:10px;margin-left:0.4rem;">GRATIS</span>'
       : '';
-    const costCell = r.is_free_tier ? '<span style="color:#15803d;">$0</span>' : fmtCost(r.cost);
+    const costCell = r.is_free_tier ? '<span style="color: var(--ok-fg);">$0</span>' : fmtCost(r.cost);
     return `<tr>
-      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);font-family:ui-monospace,monospace;font-size:0.78rem;">${esc(r.model)}${badge}</td>
-      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);">${esc(r.provider || '—')}</td>
-      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;">${r.calls.toLocaleString("es-AR")}</td>
-      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;">${(r.input_tokens||0).toLocaleString("es-AR")}</td>
-      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;">${(r.output_tokens||0).toLocaleString("es-AR")}</td>
-      <td style="padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;font-weight:600;">${costCell}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom: 1px solid var(--border);font-family:ui-monospace,monospace;font-size:0.78rem;">${esc(r.model)}${badge}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom: 1px solid var(--border);">${esc(r.provider || '—')}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom: 1px solid var(--border);text-align:right;">${r.calls.toLocaleString("es-AR")}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom: 1px solid var(--border);text-align:right;">${(r.input_tokens||0).toLocaleString("es-AR")}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom: 1px solid var(--border);text-align:right;">${(r.output_tokens||0).toLocaleString("es-AR")}</td>
+      <td style="padding:0.4rem 0.6rem;border-bottom: 1px solid var(--border);text-align:right;font-weight:600;">${costCell}</td>
     </tr>`;
   }).join("");
 }
 
 async function loadDashboard() {
   const head = document.getElementById("dashHead"), bodyEl = document.getElementById("dashBody");
-  head.innerHTML = ""; bodyEl.innerHTML = '<tr><td style="padding:1rem;color:var(--muted);">⏳ Cargando…</td></tr>';
+  head.innerHTML = ""; bodyEl.innerHTML = '<tr><td style="padding:1rem;color: var(--muted);">⏳ Cargando…</td></tr>';
   try {
     const d = await notifCall({ action: "dashboard" });
     const rango = d.rango || [], hoy = d.hoy;
     // Header
-    let h = '<tr><th style="text-align:left;padding:0.5rem;border-bottom:2px solid var(--border);">Métrica</th>';
+    let h = '<tr><th style="text-align:left;padding:0.5rem;border-bottom: 2px solid var(--border);">Métrica</th>';
     for (const r of rango) {
       const { dow, dm, tag } = dashDayLabel(r.dia, hoy);
       const isHoy = r.dia === hoy;
-      h += `<th style="padding:0.5rem;border-bottom:2px solid var(--border);text-align:center;${isHoy ? "background:#eef2ff;border-radius:8px 8px 0 0;" : ""}">
-        <div style="font-size:0.72rem;color:var(--muted);">${dow}</div>
+      h += `<th style="padding:0.5rem;border-bottom: 2px solid var(--border);text-align:center;${isHoy ? "background: var(--bot-bg);border-radius:8px 8px 0 0;" : ""}">
+        <div style="font-size:0.72rem;color: var(--muted);">${dow}</div>
         <div style="font-weight:700;">${dm}</div>
-        ${tag ? '<div style="font-size:0.62rem;color:#4f46e5;font-weight:700;">HOY</div>' : ""}
+        ${tag ? '<div style="font-size:0.62rem;color: var(--bot-fg);font-weight:700;">HOY</div>' : ""}
       </th>`;
     }
     head.innerHTML = h + "</tr>";
@@ -3655,43 +3655,43 @@ async function loadDashboard() {
       for (const r of rango) {
         const isHoy = r.dia === hoy;
         const v = Number(r[row.key] || 0);
-        const strong = v > 0 ? "color:var(--text,#111);font-weight:700;" : "color:#bbb;";
+        const strong = v > 0 ? "color: var(--text,#111);font-weight:700;" : "color: var(--g-muted);";
         // "Mensajes enviados" muestra al lado (facturas enviadas de facturas totales del día).
         let extra = "";
         if (row.key === "enviadas") {
           const fe = Number(r.facturas_enviadas || 0), fac = Number(r.facturados || 0);
-          extra = ` <span style="font-weight:400;color:var(--muted);font-size:0.72rem;">(${fe} de ${fac})</span>`;
+          extra = ` <span style="font-weight:400;color: var(--muted);font-size:0.72rem;">(${fe} de ${fac})</span>`;
         }
-        cells += `<td style="padding:0.55rem;text-align:center;${isHoy ? "background:#f5f7ff;" : ""}${strong}">${v}${extra}</td>`;
+        cells += `<td style="padding:0.55rem;text-align:center;${isHoy ? "background: var(--sel);" : ""}${strong}">${v}${extra}</td>`;
       }
-      return `<tr style="border-bottom:1px solid var(--border);">${cells}</tr>`;
+      return `<tr style="border-bottom: 1px solid var(--border);">${cells}</tr>`;
     }).join("");
     renderDashLog(d.log || []);
   } catch (e) {
-    bodyEl.innerHTML = `<tr><td style="padding:1rem;color:var(--danger);">⚠️ ${esc(e.message)}</td></tr>`;
+    bodyEl.innerHTML = `<tr><td style="padding:1rem;color: var(--danger);">⚠️ ${esc(e.message)}</td></tr>`;
   }
 }
 const DASH_EV = {
-  factura_generada: { icon: "🧾", txt: "Factura generada", color: "#a16207", bg: "#fef9c3" },
-  aviso_enviado: { icon: "📤", txt: "Aviso enviado", color: "#15803d", bg: "#dcfce7" },
+  factura_generada: { icon: "🧾", txt: "Factura generada", color:  "var(--warn)", bg: "var(--amb-bg)" },
+  aviso_enviado: { icon: "📤", txt: "Aviso enviado", color:  "var(--ok-fg)", bg: "var(--ok-bg)" },
 };
 function renderDashLog(log) {
   const box = document.getElementById("dashLog");
   if (!log.length) { box.innerHTML = '<div class="bl-empty" style="font-size:0.82rem;">Sin eventos registrados aún.</div>'; return; }
   box.innerHTML = log.map((e) => {
-    const ev = DASH_EV[e.event] || { icon: "•", txt: e.event, color: "#555", bg: "#eee" };
+    const ev = DASH_EV[e.event] || { icon: "•", txt: e.event, color:  "var(--g-muted)", bg: "var(--surface2)" };
     const t = e.at ? new Date(e.at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
     const ref = e.comprobante || e.cuit || "";
     const src = e.source ? `<span class="tpl-tag">${esc(e.source === "ch" ? "Chef" : "LK")}</span>` : "";
-    return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.2rem;border-bottom:1px solid var(--border);font-size:0.8rem;">
-      <span style="background:${ev.bg};color:${ev.color};border-radius:6px;padding:0.1rem 0.45rem;font-weight:600;white-space:nowrap;">${ev.icon} ${esc(ev.txt)}</span>
+    return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.2rem;border-bottom: 1px solid var(--border);font-size:0.8rem;">
+      <span style="background: ${ev.bg};color: ${ev.color};border-radius:6px;padding:0.1rem 0.45rem;font-weight:600;white-space:nowrap;">${ev.icon} ${esc(ev.txt)}</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(ref)} ${src}</span>
-      <span style="color:var(--muted);font-size:0.72rem;white-space:nowrap;">${t}</span>
+      <span style="color: var(--muted);font-size:0.72rem;white-space:nowrap;">${t}</span>
     </div>`;
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.21.2</div>
-<script src="gestop2.js?v=0.21.2"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.22.0</div>
+<script src="gestop2.js?v=0.22.0"></script>
 </body>
 </html>
