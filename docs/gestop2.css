@@ -29,7 +29,7 @@ html.dark {
   --wait-bg:#8f2127; --wait-fg:#f7efdc; --fac-bg:#3e2426; --warn:#e3b451; --g-danger:#f08489;
 }
 /* Las páginas viejas todavía no tienen modo oscuro (etapa 5): adentro de ellas se mantiene el claro. */
-html.dark .pages > .page:not(#pageConv) {
+html.dark .pages > .page:not(#pageConv):not(#pageTareas) {
   --g-bg:#f4efe3; --surface:#fffdf7; --surface2:#efe8d6; --ink:#212122; --g-muted:#5f5b53; --line:#ddd4bf; --line2:#ebe4d3;
   --accent:#661317; --accent-tx:#661317; --sel:#f1e6cc; --ok-fg:#2b5533; --warn:#8a5a00; --g-danger:#9b1c22;
   --bg:#f4efe3; --card:#fffdf7; --text:#212122; --muted:#5f5b53; --primary:#661317; --border:#ddd4bf;
@@ -211,4 +211,46 @@ button, select, input, textarea { font-family: inherit; }
   .cm.con-charla .cm-chat { display: flex; }
   .cm-volver { display: inline-block; }
   .g-btn { min-height: 36px; }
+}
+
+/* ── Centro de mensajes › Tareas (etapa 3) ───────────────────────────── */
+#pageTareas.active { display: flex; min-width: 0; }
+.tk { flex: 1; display: flex; min-width: 0; min-height: 0; background: var(--g-bg); color: var(--ink); }
+.tk-lista-col { width: 440px; flex: none; min-width: 0; display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--line); min-height: 0; }
+.tk-resumen { font-size: 12px; color: var(--g-muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tk-resumen b { color: var(--ink); font-size: 15px; font-weight: 900; }
+.tk-resumen .g-btn { margin-left: auto; padding: 3px 8px; font-size: 11px; }
+.tk-fila .l1 .edad-0 { color: var(--g-muted); }
+.tk-fila .l1 .edad-1 { color: var(--warn); font-weight: 900; }
+.tk-fila .l1 .edad-2 { color: var(--g-danger); font-weight: 900; }
+.tk-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; margin-right: 2px; }
+.tk-dot.rojo { background: #c62828; } .tk-dot.amarillo { background: #e0a100; } .tk-dot.verde { background: #2e7d32; }
+.est.tipo-tel { background: var(--bot-bg); color: var(--bot-fg); }
+.est.tipo-cob { background: var(--wait-bg); color: var(--wait-fg); }
+.est.tipo-der { background: var(--hum-bg); color: var(--hum-fg); }
+.est.tipo-alta { background: var(--ok-bg); color: var(--ok-fg); }
+.tk-detalle { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.tk-card { background: var(--surface); border: 1px solid var(--line); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.tk-card h4 { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--g-muted); margin: 0; }
+.tk-card .tit { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tk-card .tit b { font-size: 17px; font-weight: 900; }
+.tk-card .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; }
+.tk-card .kv span:nth-child(odd) { color: var(--g-muted); }
+.tk-card .cita { background: var(--g-bg); border-left: 3px solid var(--accent); padding: 8px 10px; white-space: pre-wrap; line-height: 1.4; }
+.tk-card .alerta { color: var(--g-danger); font-weight: 700; }
+.tk-card .aviso { font-size: 12px; padding: 6px 10px; background: var(--g-bg); border: 1px dashed var(--line); color: var(--g-muted); }
+.tk-tels { display: flex; flex-direction: column; max-width: 380px; }
+.tk-tels .it { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line2); }
+.tk-tels .it:last-child { border-bottom: 0; }
+.tk-tels a { color: var(--accent-tx, var(--accent)); font-weight: 700; text-decoration: none; }
+.tk .cm-acciones .g-btn { min-height: 34px; }
+.tk-volver { display: none; align-self: flex-start; }
+.g-modal textarea { width: 100%; min-height: 60px; padding: 8px; border: 1px solid var(--line); background: var(--g-bg); color: var(--ink); border-radius: 2px; resize: vertical; }
+@media (max-width: 1000px) { .tk-lista-col { width: 340px; } }
+@media (max-width: 760px) {
+  .tk-lista-col { width: 100%; border-right: 0; }
+  .tk .tk-detalle { display: none; padding: 12px; }
+  .tk.con-detalle .tk-lista-col { display: none; }
+  .tk.con-detalle .tk-detalle { display: flex; }
+  .tk-volver { display: inline-block; }
 }

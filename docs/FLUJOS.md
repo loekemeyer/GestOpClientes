@@ -7,7 +7,7 @@ es público). Tres caminos:
 
 - **Número en el padrón de teléfonos de Gestión Virgilio** (`virgilio.whatsapp_clientes`, copiado a `wa_clientes_telefono`): el bot lo reconoce directo, sin preguntar.
 - **Número nuevo + CUIT de un cliente** → queda **pendiente**; un admin lo aprueba o rechaza en el
-  dashboard (Panel de Control → 🔐 Vinculaciones, edge `lk_vinculaciones`). El aviso de resultado se
+  dashboard (Centro de mensajes › Tareas, o Panel de Control → Vinculaciones; edge `lk_vinculaciones`). El aviso de resultado se
   encola en `wa_outbox`. Si el cliente ya tenía principal, el nuevo entra como secundario y al
   principal se le avisa.
 - **3 CUITs distintos en 24 h desde el mismo número** → `too_many_attempts`, se deriva a ventas.

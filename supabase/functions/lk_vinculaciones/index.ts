@@ -40,7 +40,14 @@ serve(async (req) => {
     if (body.action === "list") {
       const { data, error } = await supabase.rpc("bot_register_pending");
       if (error) return json({ ok: false, error: error.message }, 200);
-      return json({ ok: true, pendientes: data ?? [] });
+      // Texto EXACTO del aviso que se encola al decidir (Centro de mensajes › Tareas lo muestra en el
+      // modal de confirmación). En el rechazo, {{motivo}} lo completa el front con lo que escribe la persona.
+      const pendientes = (data ?? []).map((r: Record<string, unknown>) => ({
+        ...r,
+        aviso_aprobar: avisoAlSolicitante("approve", String(r.tipo ?? "registro"), String(r.business_name ?? ""), ""),
+        aviso_rechazar: avisoAlSolicitante("reject", String(r.tipo ?? "registro"), "", "{{motivo}}"),
+      }));
+      return json({ ok: true, pendientes });
     }
 
     if (body.action === "decide") {

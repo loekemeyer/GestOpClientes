@@ -7,6 +7,7 @@ var G = {
   mod: "com", sec: "conv", abiertos: { com: true },
   esperando: 0, alertas: 0, vinculos: 0, consultas: 0,
   llave: null, miNombre: null,
+  tareas: [], tareaSel: null, filtroTipo: "todas", resueltasHoy: 0,
   convs: [], convSel: null, hilo: null, ficha: null, filtroEstado: "todas", filtroTema: "", filtroEspera: 0, buscar: "",
 };
 const esAdmin = () => currentRole === "admin";
@@ -16,7 +17,7 @@ const gesc = (s) => (typeof esc === "function" ? esc(String(s ?? "")) : String(s
 const MODULOS = [
   { id: "com", nombre: "Comunicaciones", titulo: "Centro de mensajes", secciones: [
     { id: "conv", nombre: "Conversaciones", admin: true, badge: () => G.esperando, abrir: () => irPagina("conv") },
-    { id: "tareas", nombre: "Tareas", admin: true, badge: () => G.alertas, abrir: () => irPagina("alertas") },
+    { id: "tareas", nombre: "Tareas", admin: true, badge: () => G.alertas + G.vinculos, abrir: () => irPagina("tareas") },
     { id: "pruebas", nombre: "Pruebas", abrir: () => { irPagina("chat"); switchChatTab("testChat"); } },
   ] },
   { id: "dash", nombre: "Dashboard", secciones: [
@@ -50,18 +51,21 @@ function abrirDash(i) {
 const visibles = (m) => m.secciones.filter((s) => !s.admin || esAdmin());
 
 // Página → módulo/sección, así el menú queda sincronizado aunque otra función llame a showPage().
-const PAGINA_A = { conv: ["com", "conv"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
+const PAGINA_A = { conv: ["com", "conv"], tareas: ["com", "tareas"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
 
 // ── showPage extendido: suma la página nueva del Centro de mensajes ─────────
 const _showPageViejo = showPage;
 function irPagina(p) {
-  _showPageViejo(p === "conv" ? "__ninguna__" : p);
+  const nueva = p === "conv" || p === "tareas";
+  _showPageViejo(nueva ? "__ninguna__" : p);
   document.getElementById("pageConv").classList.toggle("active", p === "conv");
+  document.getElementById("pageTareas")?.classList.toggle("active", p === "tareas");
   const [m, s] = PAGINA_A[p] || [G.mod, G.sec];
   G.mod = m;
   if (s) G.sec = s;
   G.abiertos[m] = true;
   if (p === "conv") cmCargar();
+  if (p === "tareas") tkCargar();
   renderNav();
 }
 // eslint-disable-next-line no-global-assign
@@ -511,6 +515,7 @@ function alEntrar() {
     });
   }
   cargarLlave();
+  if (esAdmin()) tkContarVinculos();
   if (!new URLSearchParams(location.search).get("charla")) {
     if (esAdmin()) irPagina("conv"); else navSec("com", "pruebas");
   }
@@ -524,6 +529,8 @@ if (document.getElementById("app")?.classList.contains("active")) alEntrar();
 setInterval(() => {
   if (!document.getElementById("app")?.classList.contains("active") || !esAdmin()) return;
   cargarLlave();
+  if (document.getElementById("pageTareas")?.classList.contains("active")) { if (!document.getElementById("gModal")) tkCargar(); }
+  else tkContarVinculos();
   if (document.getElementById("pageConv").classList.contains("active")) {
     cmCargar();
     const escribiendo = (document.getElementById("cmTexto")?.value || "").length > 0;
@@ -531,3 +538,215 @@ setInterval(() => {
   }
 }, 45000);
 renderNav();
+
+// ── Centro de mensajes › Tareas (etapa 3) ───────────────────────────────────
+// Una sola lista de lo que espera a una persona: teléfonos para verificar (lk_vinculaciones), comprobantes
+// (cobranzas), derivaciones y altas de cliente (lk_alertas). Nada de acá le habla a Meta: los avisos de
+// aprobar/rechazar un teléfono se encolan en wa_outbox y salen (o no) según la llave.
+const TIPO_TK = {
+  tel: { nombre: "Verificar teléfono", clase: "tipo-tel" },
+  cob: { nombre: "Cobranzas", clase: "tipo-cob" },
+  der: { nombre: "Derivaciones", clase: "tipo-der" },
+  alta: { nombre: "Alta de cliente", clase: "tipo-alta" },
+};
+const ESTADO_COMP = { pending: "Sin leer todavía", parsed: "Leído", matched: "Cruzado con una factura", confirmed: "Confirmado",
+  rejected: "Rechazado", no_comprobante: "No parece un comprobante", error: "No se pudo leer" };
+const NIVEL_RANGO = { rojo: 0, amarillo: 1, verde: 2 };
+function tipoDeAlerta(a) {
+  if (a.categoria === "comprobante_recibido" || a.categoria === "comprobante_error") return "cob";
+  if (a.categoria === "alta_cliente") return "alta";
+  return "der";
+}
+async function tkInvoke(fn, body) {
+  const { data, error } = await authedInvoke(fn, body);
+  if (error) {
+    let msg = error.message || "error";
+    try { const b = await error.context.json(); if (b && b.error) msg = b.error; } catch (_) { /* sin cuerpo */ }
+    throw new Error(msg);
+  }
+  if (data && data.ok === false) throw new Error(data.error || "error");
+  if (data && data.error && !data.ok) throw new Error(data.error);
+  return data;
+}
+async function tkContarVinculos() {
+  try {
+    const r = await tkInvoke("lk_vinculaciones", { action: "list" });
+    G.vinculos = (r.pendientes || []).length;
+    renderNav();
+  } catch (_) { /* el badge queda como estaba */ }
+}
+async function tkCargar() {
+  try {
+    const [al, vi] = await Promise.all([
+      tkInvoke("lk_alertas", { action: "list", incluir_resueltas: true }),
+      tkInvoke("lk_vinculaciones", { action: "list" }),
+    ]);
+    const hoy = fechaCorta(new Date().toISOString());
+    const abiertas = (al.alertas || []).filter((a) => ["pendiente", "notificado"].includes(a.estado));
+    G.resueltasHoy = (al.alertas || []).filter((a) => a.atendido_at && fechaCorta(a.atendido_at) === hoy).length;
+    const vinc = (vi.pendientes || []).map((v) => ({
+      key: "v" + v.id, tipo: "tel", id: v.id, phone: v.telefono, creado: v.creado_en, nivel: v.intentos_24h > 1 ? "amarillo" : "verde",
+      motivo: v.tipo === "pedidos_access" ? "Pide ver pedidos" : "Pide vincular el número",
+      cliente: v.business_name ? `${v.business_name} (${v.cod_cliente})` : null, v,
+    }));
+    const alts = abiertas.map((a) => ({
+      key: "a" + a.id, tipo: tipoDeAlerta(a), id: a.id, phone: a.phone, creado: a.created_at, nivel: a.nivel || "verde",
+      motivo: a.label, cliente: a.cliente || (a.alta?.razon_social ?? null), a,
+    }));
+    G.tareas = [...vinc, ...alts].sort((x, y) => (NIVEL_RANGO[x.nivel] - NIVEL_RANGO[y.nivel]) || String(x.creado).localeCompare(String(y.creado)));
+    G.alertas = alts.length; G.vinculos = vinc.length;
+    renderNav();
+    tkPintarLista();
+    if (G.tareaSel && !G.tareas.some((t) => t.key === G.tareaSel)) G.tareaSel = null;
+    tkPintarDetalle();
+  } catch (e) {
+    document.getElementById("tkLista").innerHTML = `<div class="cm-vacio">No se pudo cargar: ${gesc(e.message)}</div>`;
+  }
+}
+function tkPintarLista() {
+  const ts = G.tareas;
+  const mas = ts[0];
+  document.getElementById("tkResumen").innerHTML =
+    `<b>${ts.length}</b> pendiente${ts.length === 1 ? "" : "s"} · ${G.resueltasHoy} resuelta${G.resueltasHoy === 1 ? "" : "s"} hoy` +
+    (mas ? ` · la más vieja: ${dur(Math.max(...ts.map((t) => minDesde(t.creado))))}` : "") +
+    `<button class="g-btn" onclick="irPagina('alertas')" title="Vencimientos por tipo y alertas resueltas">Vencimientos…</button>`;
+  const cuenta = (t) => ts.filter((x) => x.tipo === t).length;
+  document.getElementById("tkChips").innerHTML = [["todas", "Todas", ts.length], ...Object.entries(TIPO_TK).map(([k, v]) => [k, v.nombre, cuenta(k)])]
+    .map(([k, n, c]) => `<button class="cm-chip${G.filtroTipo === k ? " activo" : ""}" onclick="G.filtroTipo='${k}';tkPintarLista()">${n} · ${c}</button>`).join("");
+  const vis = ts.filter((t) => G.filtroTipo === "todas" || t.tipo === G.filtroTipo);
+  document.getElementById("tkLista").innerHTML = vis.length ? vis.map((t) => {
+    const min = minDesde(t.creado);
+    return `<div class="cm-fila tk-fila${G.tareaSel === t.key ? " sel" : ""}" onclick="tkAbrir('${t.key}')">
+      <div class="l1"><b><span class="tk-dot ${t.nivel}"></span>${gesc(t.motivo)}</b><span class="${edad(min)}">${dur(min)}</span></div>
+      <div class="l2">${t.cliente ? gesc(t.cliente) : `<i>No identificado</i> · +${gesc(t.phone)}`}</div>
+      <div class="l3"><span class="est ${TIPO_TK[t.tipo].clase}">${TIPO_TK[t.tipo].nombre}</span>${t.a?.tomada_por ? `<span class="meta">→ ${gesc(t.a.tomada_por)}</span>` : ""}<span class="canal">WA</span></div>
+    </div>`;
+  }).join("") : `<div class="cm-vacio">${ts.length ? "No hay tareas de este tipo." : "No hay nada esperando a una persona."}</div>`;
+}
+function tkAbrir(key) {
+  G.tareaSel = key;
+  document.getElementById("tkRoot").classList.add("con-detalle");
+  tkPintarLista();
+  tkPintarDetalle();
+}
+function tkVolver() { document.getElementById("tkRoot").classList.remove("con-detalle"); }
+const tkActual = () => G.tareas.find((t) => t.key === G.tareaSel);
+const kv = (pares) => `<div class="kv">${pares.filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>`;
+const pesos = (n, mon) => (n === null || n === undefined ? null : `${mon && mon !== "ARS" ? mon + " " : "$ "}${Number(n).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+function tkPintarDetalle() {
+  const d = document.getElementById("tkDetalle");
+  const t = tkActual();
+  if (!t) { d.innerHTML = `<div class="cm-vacio">Elegí una tarea de la lista.</div>`; return; }
+  const volver = `<button class="g-btn tk-volver" onclick="tkVolver()">‹ Tareas</button>`;
+  const cab = `<div class="tit"><span class="tk-dot ${t.nivel}"></span><b>${gesc(t.motivo)}</b><span class="est ${TIPO_TK[t.tipo].clase}">${TIPO_TK[t.tipo].nombre}</span></div>
+    <div style="color:var(--g-muted);font-size:12px">Esperando hace ${dur(minDesde(t.creado))} · desde ${fechaCorta(t.creado)} ${hora(t.creado)}</div>`;
+  const verConv = `<button class="g-btn" onclick="abrirCharla('${gesc(t.phone)}')">Ver conversación</button>`;
+  if (t.tipo === "tel") {
+    const v = t.v;
+    const tels = (v.telefonos_erp || []).filter(Boolean);
+    d.innerHTML = `${volver}<div class="tk-card">${cab}
+      ${kv([["Escribió desde", `+${gesc(v.telefono)}`], ["Dice ser", v.business_name ? `<b>${gesc(v.business_name)}</b> · Cód. ${gesc(v.cod_cliente)}` : "—"],
+        ["CUIT informado", gesc(v.cuit_normalizado || "—")], ["Pide", v.tipo === "pedidos_access" ? "Ver los pedidos de la cuenta" : "Vincular el número a la cuenta"],
+        ["Número principal hoy", v.principal_actual ? `+${gesc(v.principal_actual)} (se le avisa si aprobás)` : "Ninguno: este queda como principal"],
+        v.was_timeout ? ["Nota", "El bot no pudo verificarlo solo y lo pasó a revisión"] : ["", ""]])}
+      ${v.intentos_24h > 1 ? `<div class="alerta">Probó ${v.intentos_24h} CUIT distintos en 24 h antes de acertar · revisar con cuidado</div>` : ""}
+      <h4>Teléfonos del cliente en el ERP</h4>
+      <div class="tk-tels">${tels.length ? tels.map((n) => `<div class="it"><span>+${gesc(n)}</span><a href="tel:+${gesc(String(n).replace(/\D/g, ""))}">Llamar</a></div>`).join("") : `<div style="color:var(--g-muted)">El ERP no tiene teléfonos cargados para este cliente.</div>`}</div>
+      <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalVinculo('approve')">Aprobar teléfono…</button><button class="g-btn" onclick="tkModalVinculo('reject')">Rechazar…</button>${verConv}</div>
+    </div>`;
+    return;
+  }
+  const a = t.a;
+  const acciones = `<div class="cm-acciones"><button class="g-btn prim" onclick="tkTomar()">Tomar y abrir conversación</button>
+    <button class="g-btn" onclick="tkResolver('atendido')">Marcar resuelta</button><button class="g-btn" onclick="tkResolver('descartado')">Descartar</button></div>`;
+  const quien = kv([["Cliente", a.cliente ? `<b>${gesc(a.cliente)}</b>` : "<i>No identificado</i>"], ["Teléfono", `+${gesc(a.phone || "")}`],
+    ["Pedido", a.pedido_fecha ? `del ${gesc(a.pedido_fecha)}` : null], ["La tomó", a.tomada_por ? gesc(a.tomada_por) : null]]);
+  let cuerpo = "";
+  if (t.tipo === "cob") {
+    const c = a.comprobante;
+    if (a.categoria === "comprobante_error") {
+      cuerpo = `<h4>Qué pasó</h4><div class="alerta">El cliente mandó un comprobante y el bot no lo pudo guardar${a.error_detalle ? ` (${gesc(a.error_detalle)})` : ""}.</div>
+        <div class="aviso">Pedíselo de nuevo desde la conversación.</div>`;
+    } else if (c) {
+      cuerpo = `<h4>Comprobante</h4>${kv([["Tipo", c.tipo ? gesc(humanizar(c.tipo)) : null], ["Importe", pesos(c.monto_total, c.moneda)],
+        ["Fecha de la operación", c.fecha_operacion ? gesc(c.fecha_operacion.split("-").reverse().join("/")) : null],
+        ["Lectura automática", c.status ? gesc(ESTADO_COMP[c.status] || humanizar(c.status)) : null], ["Texto que mandó", c.caption ? gesc(c.caption) : null]])}
+        <div class="aviso">Todavía no se cruza con la factura: la diferencia contra lo facturado hay que mirarla a mano.</div>
+        <div class="cm-acciones"><button class="g-btn" onclick="tkAdjunto('${gesc(c.id)}')">Ver adjunto</button></div>`;
+    }
+  } else if (t.tipo === "alta") {
+    const l = a.alta || {};
+    cuerpo = `<h4>Datos que cargó el bot</h4>${kv([["Razón social", l.razon_social ? `<b>${gesc(l.razon_social)}</b>` : null], ["Contacto", gesc(l.nombre_contacto || "")],
+      ["CUIT", gesc(l.cuit || "")], ["Domicilio", gesc([l.direccion, l.localidad].filter(Boolean).join(" · "))], ["Teléfono", gesc(l.telefono || "")],
+      ["Mail", gesc(l.mail || "")], ["Expreso", gesc(l.expreso_nombre || "")], ["Tipo de comercio", gesc(l.tipo_comercio || "")],
+      ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
+      <div class="aviso">El alta se carga en el ERP a mano. Aprobar o rechazar con aviso automático al cliente todavía no existe: avisale desde la conversación.</div>`;
+  } else {
+    cuerpo = a.texto ? `<h4>Último mensaje del cliente</h4><div class="cita">${gesc(a.texto)}</div>` : "";
+  }
+  d.innerHTML = `${volver}<div class="tk-card">${cab}${quien}${cuerpo}${acciones.replace("</div>", `${verConv}</div>`)}</div>`;
+}
+async function tkTomar() {
+  const t = tkActual(); if (!t) return;
+  try {
+    await conv({ action: "tomar", phone: t.phone });
+    toast("Tomaste la conversación: el bot deja de contestar.");
+    await abrirCharla(t.phone);
+  } catch (e) { toast("No se pudo: " + e.message); }
+}
+async function tkResolver(estado) {
+  const t = tkActual(); if (!t || !t.a) return;
+  try {
+    await tkInvoke("lk_alertas", { action: "resolver", id: t.a.id, estado });
+    toast(estado === "atendido" ? "Tarea resuelta." : "Tarea descartada.");
+    G.tareaSel = null; tkVolver();
+    await tkCargar();
+    if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
+  } catch (e) { toast("No se pudo: " + e.message); }
+}
+async function tkAdjunto(id) {
+  const w = window.open("about:blank", "_blank");
+  try {
+    const r = await tkInvoke("lk_alertas", { action: "adjunto", comprobante_id: id });
+    if (w) w.location = r.url; else location.href = r.url;
+  } catch (e) { if (w) w.close(); toast("No se pudo abrir: " + e.message); }
+}
+function notaLlaveCola() {
+  const m = G.llave?.modo;
+  if (m === "1") return `<div class="nota" style="background:var(--ok-bg);color:var(--ok-fg)">Llave en PRODUCCIÓN: el aviso sale por la cola en menos de 2 minutos.</div>`;
+  if (m === "prueba") return `<div class="nota" style="background:var(--wait-bg);color:var(--wait-fg)">Llave en PRUEBA: el aviso queda en la cola y sólo sale si el número está en la lista de prueba.</div>`;
+  return `<div class="nota" style="background:var(--wait-bg);color:var(--wait-fg)">Llave APAGADA: el aviso queda en la cola y no sale.</div>`;
+}
+function tkModalVinculo(decision) {
+  const t = tkActual(); if (!t || t.tipo !== "tel") return;
+  const v = t.v, aprobar = decision === "approve";
+  const efecto = aprobar
+    ? (v.tipo === "pedidos_access" ? "El número queda habilitado para ver los pedidos de la cuenta."
+      : `El número queda vinculado a <b>${gesc(v.business_name || "")}</b>${v.principal_actual ? ` y se avisa al número principal (+${gesc(v.principal_actual)})` : " como número principal"}.`)
+    : "La solicitud queda rechazada. El número no se vincula.";
+  modal(`<h3>${aprobar ? "Aprobar teléfono" : "Rechazar teléfono"}</h3>
+    <div class="kv"><span>Número</span><span>+${gesc(v.telefono)}</span><span>Cliente</span><span>${gesc(v.business_name || "—")} · Cód. ${gesc(v.cod_cliente ?? "—")}</span></div>
+    <div>${efecto}</div>
+    ${aprobar ? "" : `<label style="font-size:12px;color:var(--g-muted)">Motivo (va en el mensaje al cliente)</label><textarea id="tkMotivo" oninput="tkPrevRechazo()" placeholder="ej. el CUIT no coincide con el titular"></textarea>`}
+    <div style="font-size:12px;color:var(--g-muted)">Mensaje que se le manda a +${gesc(v.telefono)}:</div>
+    <div class="texto" id="tkAvisoTxt">${gesc(aprobar ? v.aviso_aprobar : v.aviso_rechazar.replace(" ({{motivo}})", ""))}</div>${notaLlaveCola()}
+    <div class="botones"><button class="g-btn" onclick="cerrarModal()">Cancelar</button><button class="g-btn prim" id="tkDecidirOk" onclick="tkDecidir('${decision}')"${aprobar ? "" : " disabled"}>${aprobar ? "Aprobar" : "Rechazar"}</button></div>`);
+}
+function tkPrevRechazo() {
+  const t = tkActual(), m = (document.getElementById("tkMotivo")?.value || "").trim();
+  document.getElementById("tkAvisoTxt").textContent = m ? t.v.aviso_rechazar.replace("{{motivo}}", m) : t.v.aviso_rechazar.replace(" ({{motivo}})", "");
+  document.getElementById("tkDecidirOk").disabled = !m;
+}
+async function tkDecidir(decision) {
+  const t = tkActual(); if (!t) return;
+  const b = document.getElementById("tkDecidirOk");
+  const motivo = (document.getElementById("tkMotivo")?.value || "").trim();
+  b.disabled = true; b.textContent = "Guardando…";
+  try {
+    await tkInvoke("lk_vinculaciones", { action: "decide", request_id: t.v.id, decision, motivo: motivo || undefined });
+    cerrarModal();
+    toast(decision === "approve" ? "Teléfono aprobado. El aviso quedó en la cola." : "Teléfono rechazado. El aviso quedó en la cola.");
+    G.tareaSel = null; tkVolver();
+    await tkCargar();
+  } catch (e) { b.disabled = false; b.textContent = "Reintentar"; toast("No se pudo: " + e.message); }
+}

@@ -8,6 +8,7 @@ import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimiento
 //
 //   {action:"list", incluir_resueltas?, incluir_ruido?}  → alertas + vencimiento calculado
 //   {action:"resolver", id, estado: "atendido"|"descartado"}
+//   {action:"adjunto", comprobante_id} → link firmado (10 min) al archivo del comprobante (bucket privado)
 //   {action:"config_get"} / {action:"config_save", vencimientos:{categoria: minutos}}
 //
 // Vencimiento: minutos por CATEGORÍA (contexto.motivo si lo hay, si no el tipo), guardados en
@@ -98,6 +99,24 @@ serve(async (req) => {
             { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" });
         }
       }
+      // Datos para Centro de mensajes › Tareas: la solicitud de alta (wa_prospect_leads) y el comprobante
+      // (wa_comprobantes) de cada alerta, sin mandar el contexto crudo.
+      const leadIds = [...new Set((data ?? []).map((a) => Number(a.contexto?.lead_id)).filter((n) => n > 0))];
+      const leads: Record<number, Record<string, unknown>> = {};
+      if (leadIds.length) {
+        const { data: ls } = await supabase.from("wa_prospect_leads")
+          .select("id, razon_social, nombre_contacto, telefono, cuit, mail, direccion, localidad, expreso_nombre, tipo_comercio, ya_vende_lk, a_quien_compra, status")
+          .in("id", leadIds);
+        for (const l of ls ?? []) leads[l.id] = l;
+      }
+      const compIds = [...new Set((data ?? []).map((a) => String(a.contexto?.comprobante_id ?? "")).filter(Boolean))];
+      const comps: Record<string, Record<string, unknown>> = {};
+      if (compIds.length) {
+        const { data: cs } = await supabase.from("wa_comprobantes")
+          .select("id, tipo, monto_total, moneda, fecha_operacion, status, es_comprobante, caption, mime_type, matched_doc_tipo")
+          .in("id", compIds);
+        for (const c of cs ?? []) comps[c.id] = c;
+      }
       const ahora = Date.now();
       const alertas = (data ?? []).map((a) => {
         const cat = categoria(a);
@@ -115,6 +134,10 @@ serve(async (req) => {
           urgente: urgente(a),
           nivel: nivel(a),
           espera_min: Math.round((ahora - new Date(a.created_at).getTime()) / 60000),
+          motivo: ctx.motivo ?? null,
+          alta: leads[Number(ctx.lead_id)] ?? null,
+          comprobante: ctx.comprobante_id ? (comps[String(ctx.comprobante_id)] ?? { id: ctx.comprobante_id }) : null,
+          error_detalle: a.tipo === "comprobante_error" ? (ctx.error ?? ctx.motivo ?? null) : null,
         };
       }).sort((x, y) => {
         // Abiertas primero; dentro de las abiertas: urgentes, después vencidas, después por vencimiento.
@@ -139,6 +162,16 @@ serve(async (req) => {
       if (!data?.length) return json({ ok: false, error: "La alerta ya estaba resuelta." }, 200);
       await llamarPlanify({ action: "cerrar", alerta_id: id });   // si tenía tarea en Planify, se cierra
       return json({ ok: true });
+    }
+
+    if (body.action === "adjunto") {
+      const id = String(body.comprobante_id ?? "");
+      if (!id) return json({ ok: false, error: "falta comprobante_id" }, 400);
+      const { data: c } = await supabase.from("wa_comprobantes").select("storage_bucket, storage_path").eq("id", id).maybeSingle();
+      if (!c?.storage_path) return json({ ok: false, error: "El comprobante no tiene archivo guardado." }, 200);
+      const { data: f, error } = await supabase.storage.from(c.storage_bucket ?? "wa-comprobantes").createSignedUrl(c.storage_path, 600);
+      if (error || !f?.signedUrl) return json({ ok: false, error: error?.message ?? "sin link" }, 200);
+      return json({ ok: true, url: f.signedUrl });
     }
 
     return json({ error: "action desconocida" }, 400);

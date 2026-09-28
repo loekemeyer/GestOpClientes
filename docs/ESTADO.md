@@ -473,7 +473,7 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.19.1`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.20.0`). Bumpear con cada cambio de front.
 
 **Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
 - `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
@@ -486,5 +486,12 @@ Un commit que sólo toca docs NO dispara deploy.
   `sql/080` aplicada el 28/09.
 - Fuente: Inter alojada en `docs/assets/fonts/` (v0.19.1; Helvetica caía a Arial en Windows).
 - `_shared/admin-gate.ts`: caché token→email 5 min y tope de 6 s al login de Gestión (el 28/09 17:11 la base de Gestión se colgó y cada llamada tardó 90 s).
-- Faltan etapas 3 (Tareas unificadas), 4 (Salientes), 5 (restyle Dashboard/Panel/Agente + oscuro), 6 (facturas en ficha).
+- **Etapa 3 (v0.20.0) — Centro de mensajes › Tareas:** una lista con semáforo (rojo → verde, la más vieja primero)
+  de 4 tipos: *Verificar teléfono* (`lk_vinculaciones` list/decide; el modal muestra el texto EXACTO del aviso,
+  que va a `wa_outbox` detrás de la llave), *Cobranzas* (comprobante recibido/con error; importe/fecha leídos de
+  `wa_comprobantes` y link firmado de 10 min al adjunto, `lk_alertas` action `adjunto`), *Derivaciones* (resto de
+  las alertas) y *Alta de cliente* (datos de `wa_prospect_leads`). Acciones: tomar y abrir la charla, marcar
+  resuelta, descartar. Sin salidas nuevas a Meta. **No existe todavía**: aprobar/rechazar un alta con aviso
+  automático, cruzar el comprobante contra la factura, "Asignar a…". "Vencimientos…" abre la página vieja de alertas.
+- Faltan etapas 4 (Salientes), 5 (restyle Dashboard/Panel/Agente + oscuro), 6 (facturas en ficha).
   Plantillas desde el chat con ventana 24 h cerrada: todavía no.

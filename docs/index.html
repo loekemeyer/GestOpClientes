@@ -340,7 +340,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.19.1">
+  <link rel="stylesheet" href="gestop2.css?v=0.20.0">
 </head>
 <body>
 
@@ -1152,6 +1152,19 @@
         <aside class="cm-ficha" id="cmFicha"><section><h4>Ficha del cliente</h4><div style="color:var(--g-muted)">Elegí una conversación.</div></section></aside>
       </div>
     </div>
+    <!-- Page: Centro de mensajes › Tareas (rediseño etapa 3, gestop2.js) -->
+    <div class="page" id="pageTareas">
+      <div class="tk" id="tkRoot">
+        <section class="tk-lista-col">
+          <div class="cm-top">
+            <div class="tk-resumen" id="tkResumen">Cargando…</div>
+            <div class="cm-chips" id="tkChips"></div>
+          </div>
+          <div class="cm-lista" id="tkLista"><div class="cm-vacio">Cargando…</div></div>
+        </section>
+        <section class="tk-detalle" id="tkDetalle"><div class="cm-vacio">Elegí una tarea de la lista.</div></section>
+      </div>
+    </div>
     </div>
   </div>
 </div>
@@ -1363,7 +1376,7 @@ function pintarEsperaBanner(abiertas) {
     const circulo = { rojo: "🔴", amarillo: "🟡", verde: "🟢" }[a.nivel] || (a.urgente ? "🔴" : "🟢");
     return `<span class="espera-chip${a.urgente ? " urg" : ""}"${click}>${circulo} ${esc(quien)}<small>${esc(a.label)} · hace ${durTexto((a.espera_min || 0) * 60000)}${a.tomada_por ? ` · ✋ ${esc(a.tomada_por)}` : ""}</small></span>`;
   }).join("");
-  const mas = `<span class="espera-todas" onclick="event.stopPropagation();showPage('alertas')">${abiertas.length > 4 ? `y ${abiertas.length - 4} más · ` : ""}ver todas en 🔔 Alertas →</span>`;
+  const mas = `<span class="espera-todas" onclick="event.stopPropagation();showPage('tareas')">${abiertas.length > 4 ? `y ${abiertas.length - 4} más · ` : ""}ver todas en Tareas →</span>`;
   el.className = "espera-banner" + (urg ? " hay-urgente" : "");
   el.innerHTML = `<b class="largo">👤 ${abiertas.length} esperando a una persona${urg ? ` · ${urg} urgente${urg > 1 ? "s" : ""}` : ""}</b>` +
     `<b class="corto">👤 ${abiertas.length} esperando${urg ? ` · ${urg} 🔴` : ""}</b>${chips}${mas}`;
@@ -3676,7 +3689,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.19.1</div>
-<script src="gestop2.js?v=0.19.1"></script>
+<div style="position:fixed;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.20.0</div>
+<script src="gestop2.js?v=0.20.0"></script>
 </body>
 </html>
