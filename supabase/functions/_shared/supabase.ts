@@ -32,3 +32,15 @@ export async function getIsisClient() {
   });
   return _isisClient;
 }
+
+/** Cliente del proyecto de Gestión Virgilio (mismo proyecto que ISIS) en otro schema — planify, public… */
+// deno-lint-ignore no-explicit-any
+const _gestion: Record<string, any> = {};
+export async function getGestionClient(schema: string) {
+  if (_gestion[schema]) return _gestion[schema];
+  const url = Deno.env.get("ISIS_SUPABASE_URL") ?? await getSetting("isis_supabase_url") ?? "";
+  const key = Deno.env.get("ISIS_SUPABASE_SERVICE_KEY") ?? await getSetting("isis_supabase_service_key") ?? "";
+  if (!url || !key) throw new Error("Gestión Supabase credentials not configured");
+  _gestion[schema] = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false }, db: { schema } });
+  return _gestion[schema];
+}
