@@ -60,9 +60,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "La NP entra a una tanda con fecha de salida en la Programación. Camión propio.",
     // Sin el saludo "Hola X, te escribimos de Loekemeyer" (Pablo, 29/09): ya se presentó en pedido_recibido. sql/088.
-    variables: ["fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)"],
-    body: "Tu pedido del {{1}} ya tiene fecha: lo entregamos el {{2}}.\nTe avisamos cuando salga en el camión.",
-    ejemplos: ["22/09", "miércoles 30/09"],
+    // {{3}} = dirección de entrega del pedido (sucursal_entrega de Gestión, v_pedidos_web). sql/090.
+    variables: ["fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)", "dirección de entrega"],
+    body: "Tu pedido del {{1}} ya tiene fecha: lo entregamos el {{2}} en {{3}}.\nTe avisamos cuando salga en el camión.",
+    ejemplos: ["22/09", "miércoles 30/09", "Lamadrid 157 - S.M. Tucumán"],
   },
   {
     name: "pedido_programado_expreso",
