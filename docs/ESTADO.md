@@ -2,7 +2,7 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-09-28.
+> Última actualización: 2026-09-29.
 
 ## 🔑 Accesos, permisos y dónde está cada cosa (LEER PRIMERO)
 
@@ -513,6 +513,18 @@ Un commit que sólo toca docs NO dispara deploy.
   en Tareas, pago y reclamo caen en Cobranzas). Regla fija: nunca mandar al cliente a otro mail/WhatsApp.
   Prompt corregido: "mayorista de artículos de cocina y bazar" (decía "fábrica de cubiertos y cuchillería") y los
   descuentos por forma de pago existen (la IA negaba el 25 % de contado).
+- **Derivaciones configurables (Pablo, 29/09, v0.23.0):** Panel de Control › 🧭 Derivaciones muestra cada motivo
+  que necesita a una persona (quién lo dispara, semáforo, vencimiento) y edita si abre tarea en Planify y para quién
+  (persona o sector). Se guarda en `app_settings.wa_derivaciones` (`{prueba_employee_id, motivos:{cat:{planify,
+  employee_id, department_id}}}`); lo leen `_shared/derivaciones.ts` → `lk_alerta-planify`. Sin fila rige la config
+  vieja `wa_alertas_planify` (mismo comportamiento que antes). En prueba TODO va a `prueba_employee_id`; en
+  producción sector > persona > defecto. Lo 🔴 urgente va a Planify siempre. Motivo nuevo de la IA: `entrega`
+  (pedido sin fecha que el cliente necesita, no llegó, fecha distinta) — muchos pedidos no tienen fecha y eso es normal.
+- **Agendar con un click (Pablo, 29/09, v0.23.0):** en la ficha de Conversaciones, si el número lo reconoce sólo el
+  teléfono del ERP ("Sin agendar") → botón "Agendar a <cliente>"; si no se reconoce → buscador por código o razón
+  social. Inserta en `bot_customer_whatsapps` (principal si el cliente no tiene otro), no manda nada. Es lo que
+  hace que las herramientas de la IA (que usan `bot_cliente_por_whatsapp`, sólo agendados) vean sus pedidos: al
+  29/09 hay 2 números agendados. `lk_conversaciones` acciones `buscar_cliente` y `agendar`.
 - **Pedidos anulados / borrados NO existen para el bot (Pablo, 28/09, v0.22.2):** `orders.status` no sirve (todos
   'pendiente'); la anulación vive en Gestión: `GV_Pedidos_Anulados` y `GV_Pedidos_Prueba_Historial` (empresa lk).
   `_shared/pedidos-anulados.ts` (`sinAnulados`, caché 60 s, tope 3 s) los saca de: estado de pedidos y modificar

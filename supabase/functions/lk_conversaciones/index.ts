@@ -57,7 +57,7 @@ async function nombreUsuario(email: string): Promise<string> {
 const MOTIVO: Record<string, string> = {
   cliente_molesto: "Cliente molesto", respuesta_aviso_cambio: "Cambio de pedido", escalation: "Pidió una persona",
   consulta_stock: "Consulta sin stock", comprobante_recibido: "Comprobante recibido", comprobante_error: "Comprobante con error",
-  reclamo: "Reclamo", pago: "Pago o importe", cambio_pedido: "Cambio de pedido", pedido_no_encontrado: "Pedido que no aparece",
+  reclamo: "Reclamo", pago: "Pago o importe", cambio_pedido: "Cambio de pedido", pedido_no_encontrado: "Pedido que no aparece", entrega: "Consulta de entrega",
   alta_cliente: "Alta de cliente", llm_timeout: "El bot no respondió", llm_error: "El bot falló", faq_no_match: "Pregunta sin respuesta",
 };
 // deno-lint-ignore no-explicit-any
@@ -292,7 +292,45 @@ serve(async (req) => {
           }
         } catch (e) { console.error("lk_conversaciones ficha: Gestión no respondió", e); }
       }
-      return json({ ok: true, phone, identificado: !!cli, cliente, entrega, pedidos, avisos: av ?? [], facturas, deuda });
+      // agendado = el teléfono está en bot_customer_whatsapps (lo que usan las herramientas de la IA). Si sólo lo
+      // reconoce el teléfono del ERP, la ficha ofrece "Agendar" con un click (Pablo, 29/09).
+      const agendado = cli?.source === "vinculo";
+      return json({ ok: true, phone, identificado: !!cli, agendado, fuente: cli?.source ?? null, cliente, entrega, pedidos, avisos: av ?? [], facturas, deuda });
+    }
+
+    if (action === "buscar_cliente") {
+      // Para agendar un número que no se reconoce: busca por código exacto o por razón social.
+      const q = String(body.q ?? "").trim();
+      if (q.length < 2) return json({ ok: true, clientes: [] });
+      let qb = sb.from("customers").select("id, cod_cliente, business_name, localidad").limit(8);
+      qb = /^\d+$/.test(q) ? qb.eq("cod_cliente", Number(q)) : qb.ilike("business_name", `%${q.replace(/[%_,()]/g, " ")}%`);
+      const { data, error } = await qb.order("business_name");
+      if (error) return json({ ok: false, error: error.message }, 200);
+      return json({ ok: true, clientes: data ?? [] });
+    }
+
+    if (action === "agendar") {
+      // Vincula el teléfono al cliente (bot_customer_whatsapps), como una vinculación aprobada pero sin
+      // solicitud: lo confirma la persona que atiende. Principal si el cliente no tiene otro. No manda nada:
+      // el número no se entera; desde ahí el bot le muestra pedidos, descuentos y fechas de esa cuenta.
+      const phone = canon(body.phone);
+      const customerId = String(body.customer_id ?? "");
+      if (!phone || !customerId) return json({ error: "phone y customer_id requeridos" }, 400);
+      const { data: c } = await sb.from("customers").select("id, cod_cliente, business_name").eq("id", customerId).maybeSingle();
+      if (!c) return json({ ok: false, error: "cliente no encontrado" }, 200);
+      const { data: ya } = await sb.from("bot_customer_whatsapps").select("id, customer_id").like("whatsapp", `%${ult10(phone)}`);
+      if ((ya ?? []).length) {
+        const mismo = (ya ?? []).some((r) => r.customer_id === c.id);
+        return json({ ok: false, error: mismo ? "Ya estaba agendado a este cliente." : "Ese número ya está agendado a otro cliente." }, 200);
+      }
+      const { count } = await sb.from("bot_customer_whatsapps").select("id", { count: "exact", head: true })
+        .eq("customer_id", c.id).eq("is_primary", true);
+      const { error } = await sb.from("bot_customer_whatsapps").insert({
+        customer_id: c.id, cod_cliente: c.cod_cliente, whatsapp: phone, is_primary: !count, empresa: "LK",
+      });
+      if (error) return json({ ok: false, error: error.message }, 200);
+      console.log(`lk_conversaciones: ${phone} agendado a ${c.cod_cliente} por ${gate.email}`);
+      return json({ ok: true, cliente: c.business_name, principal: !count });
     }
 
     if (action === "salientes") {

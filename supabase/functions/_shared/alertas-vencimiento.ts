@@ -25,6 +25,7 @@ export const CATEGORIAS: Record<string, { label: string; min: number }> = {
   pago:                   { label: "Pago o importe", min: 120 },
   cambio_pedido:          { label: "Cambio o cancelación de pedido", min: 60 },
   pedido_no_encontrado:   { label: "Pedido que no aparece", min: 60 },
+  entrega:                { label: "Entrega: sin fecha, no llegó o fecha distinta", min: 120 },
   otro:                   { label: "Otros", min: 240 },
   whitelist_gate:         { label: "Número fuera de la lista de prueba", min: 1440 },
 };
@@ -65,7 +66,7 @@ export function urgente(a: any): boolean {
 export type Nivel = "rojo" | "amarillo" | "verde";
 export const SEMAFORO: Record<Nivel, string> = { rojo: "🔴", amarillo: "🟡", verde: "🟢" };
 const CATEGORIAS_AMARILLAS = new Set(["escalation", "consulta_stock", "faq_no_match", "llm_timeout", "llm_error",
-  "reclamo", "pago", "pedido_no_encontrado"]);
+  "reclamo", "pago", "pedido_no_encontrado", "entrega"]);
 // deno-lint-ignore no-explicit-any
 export function nivel(a: any): Nivel {
   if (urgente(a)) return "rojo";

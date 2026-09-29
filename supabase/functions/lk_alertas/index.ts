@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
 import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
+import { derivaciones, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
+import { getGestionClient } from "../_shared/supabase.ts";
 
 // lk_alertas — bandeja de alertas para humanos (wa_alertas_humano) con vencimiento.
 // La usa el dashboard (menú 🔔 Alertas). Sólo admins (requireAdmin).
@@ -13,6 +15,8 @@ import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimiento
 //        llave) y cierra la alerta y su tarea de Planify.
 //   {action:"adjunto", comprobante_id} → link firmado (10 min) al archivo del comprobante (bucket privado)
 //   {action:"config_get"} / {action:"config_save", vencimientos:{categoria: minutos}}
+//   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{planify, employee_id, department_id}}}
+//        → Configuración › Derivaciones: a dónde va cada motivo (app_settings.wa_derivaciones, _shared/derivaciones.ts)
 //
 // Vencimiento: minutos por CATEGORÍA (contexto.motivo si lo hay, si no el tipo), guardados en
 // app_settings.wa_alertas_vencimiento (JSON). vence_at = created_at + minutos.
@@ -84,6 +88,47 @@ serve(async (req) => {
         .upsert({ key: SETTING, value: JSON.stringify(limpio) }, { onConflict: "key" });
       if (error) return json({ ok: false, error: error.message }, 200);
       console.log(`lk_alertas: vencimientos actualizados por ${gate.email}`, JSON.stringify(limpio));
+      return json({ ok: true });
+    }
+
+    if (body.action === "derivaciones_get") {
+      const [der, v] = await Promise.all([derivaciones(), vencimientos()]);
+      // Personas y sectores de Planify (Gestión). Si Gestión no contesta, el panel muestra los ids.
+      let empleados: unknown[] = [], sectores: unknown[] = [];
+      try {
+        const g = await getGestionClient("planify");
+        const [e, d] = await Promise.all([
+          g.from("employees").select("id, nombre").eq("activo", true).order("nombre"),
+          g.from("departments").select("id, nombre").eq("activo", true).order("nombre"),
+        ]);
+        empleados = e.data ?? []; sectores = d.data ?? [];
+      } catch (e) { console.error("lk_alertas derivaciones: Planify no respondió", e); }
+      const { data: llave } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
+      const niv = (cat: string) => nivel({ tipo: cat, contexto: { motivo: cat } });
+      return json({
+        ok: true, llave: llave?.value ?? "0", prueba_employee_id: der.prueba_employee_id, defecto: der.defecto,
+        empleados, sectores,
+        motivos: Object.entries(CATEGORIAS).filter(([k]) => k !== "whitelist_gate").map(([k, c]) => ({
+          categoria: k, label: c.label, origen: ORIGEN[k] ?? "", nivel: niv(k), minutos: v[k], ...der.motivos[k],
+        })),
+      });
+    }
+
+    if (body.action === "derivaciones_save") {
+      const id = (x: unknown) => (x === null || x === "" || x === undefined ? null : Number(x) > 0 ? Math.round(Number(x)) : NaN);
+      const prueba = id(body.prueba_employee_id);
+      if (Number.isNaN(prueba)) return json({ ok: false, error: "Persona de prueba inválida." }, 400);
+      const motivos: Record<string, unknown> = {};
+      for (const [k, r] of Object.entries((body.motivos ?? {}) as Record<string, Record<string, unknown>>)) {
+        if (!(k in CATEGORIAS) || k === "whitelist_gate") return json({ ok: false, error: `Motivo desconocido: ${k}` }, 400);
+        const e = id(r.employee_id), d = id(r.department_id);
+        if (Number.isNaN(e) || Number.isNaN(d)) return json({ ok: false, error: `Destino inválido en ${k}` }, 400);
+        motivos[k] = { planify: !!r.planify, employee_id: e, department_id: d };
+      }
+      const { error } = await supabase.from("app_settings")
+        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos }) }, { onConflict: "key" });
+      if (error) return json({ ok: false, error: error.message }, 200);
+      console.log(`lk_alertas: derivaciones actualizadas por ${gate.email}`);
       return json({ ok: true });
     }
 

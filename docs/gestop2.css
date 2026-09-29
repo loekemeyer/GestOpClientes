@@ -301,3 +301,10 @@ html.dark { color-scheme: dark; }
 /* Simulador de WhatsApp (Pruebas) en oscuro: la paleta oscura de WhatsApp. */
 html.dark { --wa-bg:#0b141a; --wa-in:#202c33; --wa-out:#005c4b; }
 html.dark .chat-messages { background-image: none; }
+
+/* Ficha › Agendar con un click (v0.23.0) */
+.cm-ficha .agendar { font-size: 12px; }
+.cm-ficha .agendar p { margin: 4px 0 8px; color: var(--g-muted); line-height: 1.4; }
+.cm-ficha section.agendar { border-left: 3px solid var(--warn); padding-left: 10px; }
+.cm-ficha div.agendar { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.cm-ficha .agendar input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }

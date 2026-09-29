@@ -340,7 +340,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.22.3">
+  <link rel="stylesheet" href="gestop2.css?v=0.23.0">
 </head>
 <body>
 
@@ -674,6 +674,7 @@
           <div class="subtab" id="cfgTabPagos" onclick="showConfigTab('pagos')">💰 Descuentos</div>
           <div class="subtab" id="cfgTabPlantillas" onclick="showConfigTab('plantillas')">📨 Plantillas</div>
           <div class="subtab" id="cfgTabVinculos" onclick="showConfigTab('vinculos')">🔐 Vinculaciones <span id="vincBadge" class="cat-pill pendiente" style="display:none;"></span></div>
+          <div class="subtab" id="cfgTabDeriv" onclick="showConfigTab('deriv')">🧭 Derivaciones</div>
         </div>
 
         <div class="subpanel active" id="cfgPanelAcceso">
@@ -868,6 +869,23 @@
             <div style="margin-top:1.1rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
               <button class="config-btn small" onclick="loadDescuentos()">↺ Restaurar guardado</button>
               <span class="config-status" id="dtoSaveStatus"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="cfgPanelDeriv">
+          <div class="config-section">
+            <h3>🧭 A dónde va cada caso que necesita a una persona</h3>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
+              Todo caso aparece siempre en <b>Centro de mensajes › Tareas</b>. Acá se decide si además abre una tarea en
+              <b>Planify</b> y para quién. Con <b>sector</b>, le aparece a todo el sector y la toma el primero que aprieta
+              "Me encargo yo"; si no, a la persona. Lo 🔴 urgente va a Planify aunque diga "No".
+            </p>
+            <div id="derivPrueba" class="config-row" style="margin-bottom:0.6rem;"></div>
+            <div id="derivList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.7rem;">
+              <button class="config-btn primary" onclick="saveDerivaciones()">Guardar</button>
+              <span id="derivStatus" class="config-status"></span>
             </div>
           </div>
         </div>
@@ -2947,13 +2965,52 @@ async function refreshCosts() {
 // Panel de Control: pestañas. Los datos los sigue cargando loadConfigPage() al abrir la página;
 // la de Plantillas trae además las definiciones del repo (no depende de Meta).
 function showConfigTab(tab) {
-  const map = { acceso: "Acceso", limite: "Limite", pagos: "Pagos", plantillas: "Plantillas", vinculos: "Vinculos" };
+  const map = { acceso: "Acceso", limite: "Limite", pagos: "Pagos", plantillas: "Plantillas", vinculos: "Vinculos", deriv: "Deriv" };
   for (const [k, cap] of Object.entries(map)) {
     document.getElementById("cfgTab" + cap).classList.toggle("active", k === tab);
     document.getElementById("cfgPanel" + cap).classList.toggle("active", k === tab);
   }
   if (tab === "plantillas") loadTplDefs();
   if (tab === "vinculos") loadVinculos();
+  if (tab === "deriv") loadDerivaciones();
+}
+
+// --- Derivaciones: a dónde va cada motivo que necesita a una persona (lk_alertas, _shared/derivaciones.ts) ---
+const NIVEL_TXT = { rojo: "🔴 urgente", amarillo: "🟡 pronto", verde: "🟢 puede esperar" };
+async function loadDerivaciones() {
+  const box = document.getElementById("derivList"), top = document.getElementById("derivPrueba");
+  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_get" });
+  if (error || !data?.ok) { box.innerHTML = '<div class="bl-empty">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+  const opt = (lista, sel, vacio) => `<option value="">${vacio}</option>` + lista.map((x) =>
+    `<option value="${x.id}"${Number(sel) === x.id ? " selected" : ""}>${esc(x.nombre)}</option>`).join("");
+  const nombre = (lista, id) => lista.find((x) => x.id === Number(id))?.nombre || (id ? "#" + id : "");
+  const def = data.defecto?.department_id ? "sector " + nombre(data.sectores, data.defecto.department_id)
+    : data.defecto?.employee_id ? nombre(data.empleados, data.defecto.employee_id) : "nadie";
+  const enPrueba = data.llave !== "1";
+  top.innerHTML = `<label>Mientras la llave esté en prueba, todo va a:</label>
+    <select id="derivPruebaEmp">${opt(data.empleados, data.prueba_employee_id, "— nadie —")}</select>
+    <span class="hint">${enPrueba ? "La llave está en <b>prueba</b>: esto es lo que rige hoy. Lo de abajo rige en producción." : "La llave está en <b>producción</b>: rige lo de abajo."}</span>`;
+  box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo</th><th>Vence</th><th>Planify</th><th>Persona</th><th>Sector</th></tr>` +
+    data.motivos.map((m) => `<tr data-cat="${esc(m.categoria)}"><td><b>${esc(m.label)}</b></td><td class="hint" style="max-width:260px;">${esc(m.origen)}</td>
+      <td style="white-space:nowrap;">${NIVEL_TXT[m.nivel] || ""}</td><td style="white-space:nowrap;">${durTexto(m.minutos * 60000)}</td>
+      <td><select data-f="planify"><option value="1"${m.planify ? " selected" : ""}>Sí</option><option value="0"${m.planify ? "" : " selected"}>No, sólo Tareas</option></select></td>
+      <td><select data-f="employee_id">${opt(data.empleados, m.employee_id, "— por defecto —")}</select></td>
+      <td><select data-f="department_id">${opt(data.sectores, m.department_id, "— ninguno —")}</select></td></tr>`).join("") +
+    `</table><div class="hint" style="margin-top:0.4rem;">"Por defecto" = ${esc(def)}. Si elegís sector, gana el sector.</div>`;
+}
+async function saveDerivaciones() {
+  const st = document.getElementById("derivStatus");
+  const motivos = {};
+  document.querySelectorAll("#derivList tr[data-cat]").forEach((tr) => {
+    const v = (f) => tr.querySelector(`[data-f="${f}"]`).value;
+    motivos[tr.dataset.cat] = { planify: v("planify") === "1", employee_id: v("employee_id") || null, department_id: v("department_id") || null };
+  });
+  st.textContent = "Guardando…"; st.className = "config-status";
+  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: document.getElementById("derivPruebaEmp").value || null, motivos });
+  if (error || !data?.ok) { st.textContent = "✗ " + (data?.error || error?.message || "Error"); st.className = "config-status err"; return; }
+  st.textContent = "✓ Guardado"; st.className = "config-status ok";
+  loadDerivaciones();
+  setTimeout(() => { st.textContent = ""; }, 3000);
 }
 
 // --- Vinculaciones: aprobación humana de teléfonos nuevos (lk_vinculaciones, sql/072) ---
@@ -3691,7 +3748,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.22.3</div>
-<script src="gestop2.js?v=0.22.3"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.23.0</div>
+<script src="gestop2.js?v=0.23.0"></script>
 </body>
 </html>

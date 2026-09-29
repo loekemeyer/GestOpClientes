@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, supabase } from "../_shared/supabase.ts";
 import { CATEGORIAS, categoria, nivel, SEMAFORO, urgente } from "../_shared/alertas-vencimiento.ts";
+import { derivaciones, destino } from "../_shared/derivaciones.ts";
 const CATEGORIAS_LABEL = (c: string) => CORTO[c] ?? CATEGORIAS[c]?.label ?? c;
 
 // lk_alerta-planify — cada alerta que necesita a una persona se vuelve TAREA en Planify.
@@ -11,7 +12,8 @@ const CATEGORIAS_LABEL = (c: string) => CORTO[c] ?? CATEGORIAS[c]?.label ?? c;
 //   {action:"cerrar", alerta_id} → done=true en Planify (lo llama lk_alertas al marcar atendida/descartada)
 //   {action:"sync"}             → alertas abiertas cuya tarea ya no está o está hecha → atendidas
 //                                 (la app de Planify BORRA la fila al cerrar). Lo llama lk_fallas-mail.
-// Sólo x-lk-secret (LK_FN_CRON_SECRET). Config en app_settings.wa_alertas_planify:
+// Sólo x-lk-secret (LK_FN_CRON_SECRET). A quién va cada motivo: Configuración › Derivaciones
+// (app_settings.wa_derivaciones, ver _shared/derivaciones.ts); base vieja en app_settings.wa_alertas_planify:
 //   {"employee_id": 64, "categorias": ["escalation", …], "department_id"?: 8, "broadcast"?: true}.
 //   Id de la tarea → contexto.planify_task_id.
 // Cartel (Pablo, 28/09): las tareas salen con broadcast=true → Planify abre el aviso centrado que no se
@@ -22,7 +24,6 @@ const CATEGORIAS_LABEL = (c: string) => CORTO[c] ?? CATEGORIAS[c]?.label ?? c;
 // Semáforo en el nombre: 🔴 / 🟡 / 🟢 (ver nivel() en _shared/alertas-vencimiento.ts).
 
 const SECRET_NAME = "LK_FN_CRON_SECRET";
-const CONFIG_KEY = "wa_alertas_planify";
 const TZ = "America/Argentina/Buenos_Aires";
 
 const json = (data: unknown, status = 200) =>
@@ -52,16 +53,12 @@ const CORTO: Record<string, string> = {
   pago: "Pago o importe",
   cambio_pedido: "Cambio de pedido",
   pedido_no_encontrado: "Pedido que no aparece",
+  entrega: "Consulta de entrega",
 };
 
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);
 
 async function crear(alertaId: number) {
-  const { data: cfgRow } = await supabase.from("app_settings").select("value").eq("key", CONFIG_KEY).maybeSingle();
-  let cfg: { employee_id?: number; categorias?: string[]; department_id?: number; broadcast?: boolean } = {};
-  try { cfg = cfgRow?.value ? JSON.parse(cfgRow.value) : {}; } catch { /* config rota → no crea */ }
-  if ((!cfg.employee_id && !cfg.department_id) || !Array.isArray(cfg.categorias)) return { ok: true, creada: false, motivo: "sin config" };
-
   const { data: a } = await supabase.from("wa_alertas_humano")
     .select("id, tipo, phone, customer_id, contexto, estado, created_at").eq("id", alertaId).maybeSingle();
   if (!a) return { ok: false, error: "alerta no encontrada" };
@@ -70,12 +67,10 @@ async function crear(alertaId: number) {
   const niv = nivel(a);
   const { data: llaveRow } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
   const produccion = llaveRow?.value === "1";
-  const aSector = produccion && !!cfg.department_id;
-  if (!aSector && !cfg.employee_id) return { ok: true, creada: false, motivo: "sin destinatario en prueba (employee_id)" };
-  // Lo urgente (cliente molesto, cambio de pedido, reclamo…) va siempre a Planify.
-  // Lo que deriva la IA (derivar_a_persona) va siempre: si no, el cliente espera y nadie se entera.
-  const SIEMPRE = new Set(["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado"]);
-  if (!cfg.categorias.includes(cat) && !esUrg && !SIEMPRE.has(cat)) return { ok: true, creada: false, motivo: `categoría ${cat} no va a Planify` };
+  // A dónde va: Configuración › Derivaciones (_shared/derivaciones.ts). Lo urgente va siempre a Planify.
+  const der = await derivaciones();
+  const dest = destino(der, cat, esUrg, produccion);
+  if (!dest) return { ok: true, creada: false, motivo: `categoría ${cat} sólo va a Tareas (o sin destinatario)` };
   const ctx = a.contexto ?? {};
   if (ctx.planify_task_id) return { ok: true, creada: false, motivo: "ya tenía tarea" };
 
@@ -114,10 +109,10 @@ async function crear(alertaId: number) {
     time: fmt(ahora, { hour: "2-digit", minute: "2-digit", hour12: false }),
     date: fmt(ahora, { year: "numeric", month: "2-digit", day: "2-digit" }),
     note: nota, rec: "none", done: false,
-    ...(aSector
-      ? { assignment_type: "department", department_id: cfg.department_id, employee_id: null }
-      : { assignment_type: "employee", employee_id: cfg.employee_id, department_id: null }),
-    system_generated: false, broadcast: cfg.broadcast ?? true,
+    ...("department_id" in dest
+      ? { assignment_type: "department", department_id: dest.department_id, employee_id: null }
+      : { assignment_type: "employee", employee_id: dest.employee_id, department_id: null }),
+    system_generated: false, broadcast: der.broadcast,
   }).select("id").single();
   if (error) return { ok: false, error: error.message };
 

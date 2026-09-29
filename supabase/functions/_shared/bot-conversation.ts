@@ -40,8 +40,8 @@ const BOT_TOOLS: ToolDef[] = [
       properties: {
         motivo: {
           type: "string",
-          enum: ["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado", "alta_cliente", "escalation"],
-          description: "reclamo = NC/faltante/rotura/factura; pago = importes, pagos, comprobantes; cambio_pedido = agregar/sacar/anular; pedido_no_encontrado = dice que pidió y no está; alta_cliente = quiere ser cliente; escalation = cualquier otra cosa o pidió una persona.",
+          enum: ["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado", "entrega", "alta_cliente", "escalation"],
+          description: "reclamo = NC/faltante/rotura/factura; pago = importes, pagos, comprobantes; cambio_pedido = agregar/sacar/anular; pedido_no_encontrado = dice que pidió y no está; entrega = necesita fecha y el pedido no la tiene, no le llegó, o la fecha no coincide con la que le dijeron; alta_cliente = quiere ser cliente; escalation = cualquier otra cosa o pidió una persona.",
         },
         resumen: { type: "string", description: "Qué pide el cliente en una o dos frases, con los datos que dio (fechas, códigos, cantidades)." },
         urgente: { type: "boolean", description: "true si está molesto, apurado o menciona un problema grave." },

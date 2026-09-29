@@ -476,7 +476,10 @@ async function cmCargarFicha() {
     if (!d.identificado) {
       f.innerHTML = `<section>${cerrar}<h4>Ficha del cliente</h4><div class="rs"><i>No identificado</i></div>
         <div class="kv"><span>Teléfono</span><span>+${gesc(d.phone)}</span></div>
-        <p style="font-size:12px;color:var(--g-muted);margin-top:8px;line-height:1.4">No está vinculado a ningún cliente. Mientras no se verifique el teléfono, el bot no le muestra pedidos ni datos de la cuenta.</p></section>
+        <p style="font-size:12px;color:var(--g-muted);margin-top:8px;line-height:1.4">No está vinculado a ningún cliente. Mientras no se verifique el teléfono, el bot no le muestra pedidos ni datos de la cuenta.</p>
+        <div class="agendar"><b>Agendar a un cliente</b>
+          <input id="agQ" placeholder="Código o razón social" oninput="agBuscar()" autocomplete="off">
+          <div id="agRes"></div></div></section>
         ${fichaAvisos(d.avisos)}`;
       return;
     }
@@ -485,11 +488,37 @@ async function cmCargarFicha() {
     f.innerHTML = `<section>${cerrar}<h4>Ficha del cliente</h4><div class="rs">${gesc(c.business_name)}</div><div style="color:var(--g-muted)">Código ${gesc(c.cod_cliente)}</div>
         <div class="kv"><span>CUIT</span><span>${gesc(c.cuit || "—")}</span><span>Teléfono</span><span>+${gesc(d.phone)}</span><span>Localidad</span><span>${gesc(c.localidad || "—")}</span>
         <span>Vendedor</span><span>${gesc(c.vend || "—")}</span><span>Entrega</span><span>${d.entrega ? `<b>${gesc(d.entrega.modo)}</b>${d.entrega.detalle ? " · " + gesc(d.entrega.detalle) : ""}` : "—"}</span></div></section>
+      ${d.agendado ? "" : `<section class="agendar"><b>Sin agendar</b><p>Lo reconoce el teléfono del ERP, pero no está agendado: la IA todavía no ve sus pedidos ni descuentos.</p>
+        <button class="g-btn prim" onclick="agAgendar('${gesc(c.id)}', this)">Agendar a ${gesc(c.business_name)}</button></section>`}
       <section><h4>Pedidos recientes</h4>${(d.pedidos || []).length ? d.pedidos.map((p) =>
         `<div class="it"><span>Pedido del ${fechaCorta(p.creado)}<br><span style="color:var(--g-muted)">${p.fecha_entrega ? `${p.estado === "entregado" ? "entregado el" : "sale el"} ${ddmm(p.fecha_entrega)}` : "todavía sin fecha de salida"}</span></span><span class="est ${EP[p.estado] || "gris"}">${gesc(humanizar(p.estado))}</span></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Sin pedidos en la web.</div>`}</section>
       ${fichaSaldo(d.deuda)}${fichaFacturacion(d.facturas)}
       ${fichaAvisos(d.avisos)}`;
   } catch (e) { f.innerHTML = `<section><h4>Ficha del cliente</h4><div style="color:var(--g-muted)">No se pudo cargar: ${gesc(e.message)}</div></section>`; }
+}
+// Agendar con un click (Pablo, 29/09): vincula el teléfono de la charla al cliente (bot_customer_whatsapps).
+let agT = null;
+function agBuscar() {
+  clearTimeout(agT);
+  agT = setTimeout(async () => {
+    const q = (document.getElementById("agQ")?.value || "").trim(), box = document.getElementById("agRes");
+    if (!box) return;
+    if (q.length < 2) { box.innerHTML = ""; return; }
+    try {
+      const r = await conv({ action: "buscar_cliente", q });
+      box.innerHTML = (r.clientes || []).length ? r.clientes.map((c) => `<div class="it"><span>${gesc(c.business_name)}<br><span style="color:var(--g-muted)">Cód. ${gesc(c.cod_cliente)}${c.localidad ? " · " + gesc(c.localidad) : ""}</span></span>
+        <button class="g-btn" onclick="agAgendar('${gesc(c.id)}', this)">Agendar</button></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Sin resultados.</div>`;
+    } catch (e) { box.textContent = "No se pudo buscar: " + e.message; }
+  }, 300);
+}
+async function agAgendar(customerId, b) {
+  b.disabled = true; b.textContent = "Agendando…";
+  try {
+    const r = await conv({ action: "agendar", phone: G.convSel, customer_id: customerId });
+    if (!r.ok) throw new Error(r.error || "error");
+    toast(`Agendado a ${r.cliente}${r.principal ? " como número principal" : ""}.`);
+    cmCargarFicha();
+  } catch (e) { b.disabled = false; b.textContent = "Reintentar"; toast("No se pudo agendar: " + e.message); }
 }
 // Etapa 6: saldo (GV_Cobranza_Deuda_Viva) y pedidos mandados a facturar (Facturacion_NP), de Gestión.
 const ddmm = (f) => (f ? `${String(f).slice(8, 10)}/${String(f).slice(5, 7)}` : "—");
