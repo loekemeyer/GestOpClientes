@@ -123,7 +123,7 @@ const DATOS = /*__DATOS__*/null;
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const nf = (n, d = 0) => Number(n).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
-const pct = (a, b) => (b ? nf((100 * a) / b, 0) + " %" : "—");
+const pct = (a, b) => (b ? nf((100 * a) / b, 0) + "\u00a0%" : "—");
 const fdm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const FACTURAS = ["pedido_contado_s", "pedido_contado_p", "pedido_credito_s", "pedido_credito_p", "pedido_echeq_s", "pedido_echeq_p"];
 const EST = { hecho: "✅ Resuelto", parcial: "🔄 En parte", pendiente: "⏳ Pendiente" };
@@ -245,10 +245,14 @@ function numeros() {
   const total = T.ag + T.erp + T.sin, costo = (T.ag + T.erp) * S.tarifa_utility;
   const D = S.demora, modos = D.por_modo.filter((m) => m.modo !== "Total");
   const k = (n, t, c) => `<article class="card" style="--c:${c}"><div class="card-in"><div class="stat" style="text-align:left"><b style="font-size:40px;color:${c}">${n}</b><span style="font-size:17px">${t}</span></div></div></article>`;
+  // Pablo, 29/09: "le llegarían hoy: 46" se leía como "sólo se mandarían 46". Lo que importa es cuántos avisos habría y
+  // cuántos tienen a quién llegar; que hoy sólo haya 2 clientes agendados (de prueba) es una nota, no un número grande.
+  const conTel = T.ag + T.erp;
   v.innerHTML = `<h2 class="tit">Si los avisos hubieran estado prendidos</h2><p class="ayuda">Del ${fdm(S.desde)} al ${fdm(S.hasta)}, con pedidos reales.</p>
-    <div class="grid">${k(nf(total), "avisos se habrían mandado", "var(--azul)")}${k(nf(T.ag), `le llegarían hoy (${pct(T.ag, total)})`, "var(--verde)")}
-      ${k(nf(T.erp), "le llegarían si agendamos el teléfono", "var(--naranja)")}${k(nf(T.sin), "no llegarían: no tienen teléfono", "var(--rojo)")}
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))">${k(nf(total), "avisos se habrían mandado en 2 meses", "var(--azul)")}${k(nf(conTel), `tienen un teléfono para recibirlos (${pct(conTel, total)})`, "var(--verde)")}
+      ${k(nf(T.sin), `no tienen teléfono cargado (${pct(T.sin, total)})`, "var(--rojo)")}
       ${k("US$ " + nf(costo, 0), "costaría en los 2 meses", "var(--azul)")}</div>
+    <div class="falta" style="margin-top:14px">Hoy los avisos sólo salen a los números agendados a mano, que son ${nf(S.clientes.agendado)} clientes de prueba. Para que lleguen a los demás hay que usar el teléfono que ya está en el ERP: es una decisión pendiente, no falta de datos.</div>
     <h2 class="tit" style="margin-top:22px">Cuánto tarda un pedido en salir</h2>
     <div class="grid" style="margin-top:12px">${modos.map((m) => k(nf(m.mediana) + " días", `${esc(m.modo)}: la mitad sale antes`, "var(--azul)")).join("")}</div>`;
 }
