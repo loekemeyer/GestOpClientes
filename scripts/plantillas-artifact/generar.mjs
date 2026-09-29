@@ -21,6 +21,7 @@ const datos = JSON.parse(readFileSync(entrada, "utf8"));
 const disp = JSON.parse(readFileSync(join(aca, "disparadores.json"), "utf8"));
 const { PLANTILLAS } = await import(join(aca, "../../supabase/functions/_shared/plantillas-meta.ts"));
 const definido = Object.fromEntries(PLANTILLAS.map((p) => [p.name, p.body]));
+const ejemplosDef = Object.fromEntries(PLANTILLAS.map((p) => [p.name, p.ejemplos]));
 
 if (!Array.isArray(datos.plantillas) || !datos.plantillas.length) {
   console.error("datos.json sin plantillas: no genero nada (¿falló la consulta a Meta?)");
@@ -32,14 +33,19 @@ const plantillas = datos.plantillas.map((t) => {
   const d = disp.plantillas[t.name];
   if (!d) avisos.push(`sin disparador cargado: ${t.name}`);
   const def = definido[t.name];
+  // Si el sistema ya tiene un texto nuevo que Meta todavía no aprobó, el artifact muestra el nuevo (Pablo, 29/09).
+  const pendiente = def !== undefined && def.trim() !== String(t.body ?? "").trim();
   return {
     ...t,
+    body: pendiente ? def : t.body,
+    ejemplos: pendiente ? ejemplosDef[t.name] : t.ejemplos,
+    en_revision: pendiente,
     grupo: d?.grupo ?? "sin_clasificar",
     orden: d?.orden ?? 99,
     estado: d?.estado ?? "sin_clasificar",
     para: d?.para ?? "",
     sale: d?.sale ?? "Todavía no está documentado qué la dispara.",
-    difiere: def !== undefined && def.trim() !== String(t.body ?? "").trim(),
+    difiere: false,
     definido: def ?? null,
     uso: datos.uso?.[t.name] ?? null,
   };

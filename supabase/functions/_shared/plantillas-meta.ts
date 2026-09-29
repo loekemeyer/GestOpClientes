@@ -101,26 +101,29 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_en_viaje",
     language: ES, category: UT,
     disparo: "Carga Camión de la NP. Camión propio.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "dirección de entrega"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} ya salió en el camión hacia {{3}}.\nLo recibís en el día.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "Av. Corrientes 3864"],
+    // Sin la doble presentación (Pablo, 29/09, sql/094).
+    variables: ["fecha en que hizo el pedido (dd/mm)", "dirección de entrega"],
+    body: "Tu pedido del {{1}} ya salió en el camión hacia {{2}}.\nLo recibís en el día.",
+    ejemplos: ["22/09", "Av. Corrientes 3864"],
   },
   {
     name: "pedido_en_viaje_expreso",
     language: ES, category: UT,
     disparo: "Carga Camión de la NP, cuando sale por expreso (se entrega al expreso).",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "expreso"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} ya salió hacia {{3}}.\nDesde ahí el expreso te lo lleva con sus tiempos de entrega.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "Expreso Arias"],
+    // Sin la doble presentación (Pablo, 29/09, sql/094). {{2}} = expreso sin la palabra "Expreso".
+    variables: ["fecha en que hizo el pedido (dd/mm)", "expreso (sin la palabra Expreso)"],
+    body: "Tu pedido del {{1}} ya salió hacia Expreso {{2}}.\nDesde ahí el expreso te lo lleva con sus tiempos de entrega.",
+    ejemplos: ["22/09", "Arias"],
   },
   {
     name: "pedido_listo_retirar",
     language: ES, category: UT,
     // Horario = franjas de retiro de la web (9:00 a 12:00 y 13:00 a 16:30), Pablo 29/09.
     disparo: "Retira en depósito: el pedido web llega a 'facturado' en Gestión (cron lk_aviso-retiro-web, sql/083).",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 9 a 12 y de 13 a 16:30 h.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09"],
+    // Sin la doble presentación (Pablo, 29/09, sql/094).
+    variables: ["fecha en que hizo el pedido (dd/mm)"],
+    body: "Tu pedido del {{1}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 9 a 12 y de 13 a 16:30 h.",
+    ejemplos: ["22/09"],
   },
 
   // ── Pedido entregado (reparto propio). Pedido de Pablo Olejavetzky (28/09): el aviso de entregado
@@ -129,9 +132,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_entregado",
     language: ES, category: UT,
     disparo: "order_tracking pasa a 'entregado' y el pedido fue por reparto propio (no expreso ni retiro).",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} fue entregado.\nSi falta algo o llegó algo mal, avisanos por acá.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09"],
+    // Sin la doble presentación (Pablo, 29/09, sql/094).
+    variables: ["fecha en que hizo el pedido (dd/mm)"],
+    body: "Tu pedido del {{1}} fue entregado.\nSi falta algo o llegó algo mal, avisanos por acá.",
+    ejemplos: ["22/09"],
   },
 ];
 

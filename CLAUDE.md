@@ -393,6 +393,14 @@ Escritura de `wa_faq` desde el front: SIEMPRE vía la Edge Function
 `lk_faq-admin` (valida admin server-side). NUNCA reabrir un `anon_update` en
 `wa_faq`: la anon key es pública.
 
+## Artifacts del equipo: se actualizan en el MISMO cambio (Pablo, 29/09)
+
+Cada vez que cambie una plantilla de WhatsApp, un disparador de aviso o el manejo de una causa de consulta, en el mismo
+cambio se regeneran y se republican los dos artifacts (con `scripts/.../generar.mjs` y la foto de Meta de `datos.sql`):
+- **Plantillas de WhatsApp** — `scripts/plantillas-artifact/` → https://claude.ai/artifact/NxCBLWhQA9yghVk2mJ1Mcu
+- **Recorrido de un pedido web** — `scripts/flujo-pedido-artifact/` → https://claude.ai/artifact/1C6GyTJ3YYKPf9E3uC9kej
+Si el cambio todavía no está aprobado en Meta, el artifact muestra el texto del sistema (plantillas-meta.ts) y lo aclara.
+
 ## Testing
 
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`

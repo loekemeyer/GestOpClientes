@@ -139,7 +139,8 @@ function burbuja(p) {
   const head = p.header === "TEXT" && p.header_text ? `<div class="head">${esc(p.header_text)}</div>` : "";
   const pie = p.footer ? `<div class="pie">${esc(p.footer)}</div>` : "";
   const bots = (p.buttons || []).length ? `<div class="botones">${p.buttons.map((b) => `<span>${esc(b)}</span>`).join("")}</div>` : "";
-  return `<div class="chat"><div class="burbuja">${doc}${head}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
+  const rev = p.en_revision ? `<div style="font-size:13px;font-weight:700;color:#856404;background:#fff3cd;border-radius:6px;padding:4px 8px;margin-bottom:6px">🕓 Texto nuevo, en revisión en Meta</div>` : "";
+  return `<div class="chat"><div class="burbuja">${rev}${doc}${head}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
 }
 const veces = (name) => {
   const n = DATOS.simulacion?.uso_2m?.[name];

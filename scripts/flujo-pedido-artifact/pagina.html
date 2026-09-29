@@ -133,7 +133,8 @@ function burbuja(p) {
   const doc = p.header === "DOCUMENT" ? `<div class="doc"><i>PDF</i> Factura.pdf</div>` : "";
   const pie = p.footer ? `<div class="pie">${esc(p.footer)}</div>` : "";
   const bots = (p.buttons || []).length ? `<div class="botones">${p.buttons.map((b) => `<span>${esc(b)}</span>`).join("")}</div>` : "";
-  return `<div class="chat"><div class="burbuja">${doc}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
+  const rev = p.en_revision ? `<div style="font-size:13px;font-weight:700;color:#856404;background:#fff3cd;border-radius:6px;padding:4px 8px;margin-bottom:6px">🕓 Texto nuevo, en revisión en Meta</div>` : "";
+  return `<div class="chat"><div class="burbuja">${rev}${doc}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
 }
 const boton = ([tpl, etiqueta]) => `<button class="btn-msj" type="button" data-tpl="${esc(tpl)}"><span>${esc(etiqueta)}</span><small>Ver el mensaje ›</small></button>`;
 
