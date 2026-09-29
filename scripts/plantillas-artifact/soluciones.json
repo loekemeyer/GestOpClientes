@@ -25,7 +25,8 @@
           "tpl": "pedido_preparando",
           "como": "Se supone que desde que entra en armado el pedido ya no se modifica (a confirmar con Depósito). El aviso no lo dice."
         }
-      ]
+      ],
+      "resumen": "Todavía no tiene mensaje. Lo atiende el bot y una persona."
     },
     {
       "motivo": "Fecha o estado de entrega",
@@ -56,7 +57,8 @@
       "bot": "Contesta cada pedido con su estado y fecha, sin número de pedido. Expreso: el día que lo entregamos al expreso y que el viaje lo consulte con ellos. Sin fecha: 'todavía no tiene fecha de salida'.",
       "deriva": "Motivo 'entrega' si necesita la fecha igual, si dice que no le llegó (urgente) o si la fecha no coincide con la que le dijeron.",
       "falta": "",
-      "ejemplo": "«La web dice 30/09 y el detalle 13/10, ¿cuál vale?»"
+      "ejemplo": "«La web dice 30/09 y el detalle 13/10, ¿cuál vale?»",
+      "resumen": "Le avisamos la fecha antes de que pregunte."
     },
     {
       "motivo": "Pagos",
@@ -71,7 +73,8 @@
       "bot": "'¿Cuánto debo?' o 'el importe con el 25 %': le pasa cada factura impaga con importe, estado y descuento, y el saldo total, y avisa a Cobranzas. Alias y CBU: respuesta fija.",
       "deriva": "Motivo 'pago' si dice que ya pagó y no le figura; un comprobante adjunto crea la alerta 'Comprobante recibido'.",
       "falta": "Confirmar con Cobranzas si una factura vencida pierde el descuento.",
-      "ejemplo": "«Pasame el importe con el 25 % de contado»"
+      "ejemplo": "«Pasame el importe con el 25 % de contado»",
+      "resumen": "Al facturar le llega la factura con el importe y el CBU."
     },
     {
       "motivo": "NC, faltante o error de factura",
@@ -86,7 +89,8 @@
       "bot": "Registra el reclamo y le dice que una persona del equipo le escribe por acá; ya no lo manda a otro mail o WhatsApp.",
       "deriva": "Motivo 'reclamo' (NC, faltante, factura duplicada, descuento que no se aplicó).",
       "falta": "Decidir si el bot pide antes el artículo, la cantidad y una foto, para que Cobranzas no tenga que volver a preguntar.",
-      "ejemplo": "«Llegaron 59 aceiteras de 60, pido la NC»"
+      "ejemplo": "«Llegaron 59 aceiteras de 60, pido la NC»",
+      "resumen": "Le pedimos que nos avise por acá y una persona responde."
     },
     {
       "motivo": "Coordinar retiro",
@@ -109,7 +113,8 @@
       "bot": "El estado del pedido dice desde cuándo lo puede retirar; la respuesta fija del depósito da dirección, horario de la web y la regla de desarme. A un cliente de expreso nunca le ofrece retirar.",
       "deriva": "Urgencia de retiro ('¿puedo pasar hoy?') va a una persona.",
       "falta": "La respuesta fija del depósito no mira el pedido del cliente; 'paso mañana' no se registra ni se le avisa al depósito.",
-      "ejemplo": "«¿Mañana puedo pasar a retirar?»"
+      "ejemplo": "«¿Mañana puedo pasar a retirar?»",
+      "resumen": "Le avisamos el día y cuándo está listo para retirar."
     },
     {
       "motivo": "Lista de precios o cotizador",
@@ -119,7 +124,8 @@
       "bot": "La lista vigente es la de la web; explica el cotizador.",
       "deriva": "Pedido de Excel o de códigos de barras: se puede sumar como motivo nuevo en Configuración › Derivaciones.",
       "falta": "Definir qué archivo se manda (lista en Excel, códigos de barras) y quién lo manda.",
-      "ejemplo": "«¿Sigue vigente la lista de septiembre 2025?»"
+      "ejemplo": "«¿Sigue vigente la lista de septiembre 2025?»",
+      "resumen": "El bot le pasa el link de la web."
     },
     {
       "motivo": "Alta de cliente nuevo",
@@ -129,7 +135,8 @@
       "bot": "Toma los datos paso a paso y crea la solicitud; mínimo de compra con la respuesta fija.",
       "deriva": "Alerta de alta en Tareas: la persona aprueba o rechaza y el aviso al interesado sale por la cola.",
       "falta": "Validar con Ventas el texto de bienvenida.",
-      "ejemplo": "«Distribuidora de Villa María, queremos abrir cuenta»"
+      "ejemplo": "«Distribuidora de Villa María, queremos abrir cuenta»",
+      "resumen": "El bot toma los datos y una persona aprueba."
     },
     {
       "motivo": "Web: contraseña o acceso",
@@ -139,7 +146,8 @@
       "bot": "Contraseña: deriva con alerta.",
       "deriva": "Una persona le resuelve el acceso.",
       "falta": "'No me deja elegir sucursal' todavía no tiene respuesta; hay que ver si es un problema de la web.",
-      "ejemplo": "«No recuerdo la contraseña para cargar el pedido»"
+      "ejemplo": "«No recuerdo la contraseña para cargar el pedido»",
+      "resumen": "Lo pasa a una persona. Falta el reseteo automático."
     },
     {
       "motivo": "Stock o consulta de artículo",
@@ -149,7 +157,8 @@
       "bot": "Busca el artículo y le da precio y stock.",
       "deriva": "Sin stock: alerta 'Consulta sin stock'.",
       "falta": "'¿Cuándo ingresan?': no hay dato de ingresos; definir quién contesta.",
-      "ejemplo": "«¿Cuándo ingresan los artículos nuevos?»"
+      "ejemplo": "«¿Cuándo ingresan los artículos nuevos?»",
+      "resumen": "El bot dice si hay stock y cuándo ingresa."
     },
     {
       "motivo": "Mercadería rota o fallada",
@@ -164,7 +173,8 @@
       "bot": "Registra el reclamo como urgente.",
       "deriva": "Motivo 'reclamo' urgente.",
       "falta": "Aceptar la foto en lugar de contestar 'no se aceptan adjuntos'.",
-      "ejemplo": "«Los coladores de fideos vinieron todos rotos»"
+      "ejemplo": "«Los coladores de fideos vinieron todos rotos»",
+      "resumen": "Se registra el reclamo y una persona responde."
     }
   ],
   "fuera_de_alcance": "Fuera de la tabla: consumidores con producto fallado, CV, proveedores y phishing. Se pueden sumar como motivos nuevos en Configuración › Derivaciones; falta definir el canal de RR. HH., el mail de proveedores y la garantía al consumidor.",
