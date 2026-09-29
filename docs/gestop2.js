@@ -737,6 +737,10 @@ function tkPintarDetalle() {
     if (a.categoria === "comprobante_error") {
       cuerpo = `<h4>Qué pasó</h4><div class="alerta">El cliente mandó un comprobante y el bot no lo pudo guardar${a.error_detalle ? ` (${gesc(a.error_detalle)})` : ""}.</div>
         <div class="aviso">Pedíselo de nuevo desde la conversación.</div>`;
+    } else if (a.categoria === "reclamo" || a.categoria === "pago") {
+      cuerpo = (a.texto ? `<h4>Último mensaje del cliente</h4><div class="cita">${gesc(a.texto)}</div>` : "") +
+        (c?.id ? `<div class="cm-acciones"><button class="g-btn" onclick="tkAdjunto('${gesc(c.id)}')">Ver foto o archivo que mandó</button></div>`
+          : a.error_archivo ? `<div class="aviso">Mandó un archivo pero no se pudo guardar: pedíselo de nuevo desde la conversación.</div>` : "");
     } else if (c) {
       cuerpo = `<h4>Comprobante</h4>${kv([["Tipo", c.tipo ? gesc(humanizar(c.tipo)) : null], ["Importe", pesos(c.monto_total, c.moneda)],
         ["Fecha de la operación", c.fecha_operacion ? gesc(c.fecha_operacion.split("-").reverse().join("/")) : null],
@@ -754,6 +758,9 @@ function tkPintarDetalle() {
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
   } else {
     cuerpo = a.texto ? `<h4>Último mensaje del cliente</h4><div class="cita">${gesc(a.texto)}</div>` : "";
+    // Adjunto que mandó el cliente (Excel, foto de rotura, PDF): se abre desde acá.
+    if (a.comprobante?.id) cuerpo += `<div class="cm-acciones"><button class="g-btn" onclick="tkAdjunto('${gesc(a.comprobante.id)}')">Ver archivo que mandó</button></div>`;
+    else if (a.error_archivo) cuerpo += `<div class="aviso">Mandó un archivo pero no se pudo guardar: pedíselo de nuevo desde la conversación.</div>`;
   }
   d.innerHTML = `${volver}<div class="tk-card">${cab}${quien}${cuerpo}${acciones.replace("</div>", `${verConv}</div>`)}</div>`;
 }

@@ -783,33 +783,36 @@ async function ingestStatuses(body: any): Promise<void> {
 }
 
 // ─── Adjuntos ────────────────────────────────────────────────────────
-// Dos modos según el feature flag `app_settings.wa_comprobantes_activo`:
+// Decisión de Pablo (29/09): el bot NO rechaza adjuntos. Los recibe, los guarda y se los pasa a una
+// persona, que le escribe al cliente. Nada de "no enviar adjuntos".
 //
-//   0 (default, apagado) → placeholder: "no enviar adjuntos por ahora".
-//   1 (encendido)        → flujo de comprobantes:
-//                          1. Baja el archivo de Meta (2-step API)
-//                          2. Sube al bucket `wa-comprobantes`
-//                          3. Inserta fila en `wa_comprobantes` (status pending)
-//                          4. Dispara `lk_parse-comprobante` en background
-//                          5. Responde placeholder "muchas gracias, un vendedor
-//                             lo revisa" (matching auto y respuesta según
-//                             extracto llegan en el próximo iterado)
-//                          6. Encola alerta humana con el id del comprobante
+//   imagen / PDF / Excel / Word / CSV → baja de Meta, sube al bucket `wa-comprobantes`, fila en
+//     `wa_comprobantes` (es la tabla de adjuntos: la usa el botón "Ver adjunto" de Tareas) y alerta:
+//       · foto de una rotura o faltante (el texto o la charla de los últimos 30 min hablan de un
+//         reclamo) → motivo `reclamo`
+//       · comprobante de pago (el texto habla de pago/transferencia) → `comprobante_recibido`; el lector
+//         automático corre sólo con `app_settings.wa_comprobantes_activo` = 1
+//       · cualquier otro (lista de pedido en Excel, etc.) → `adjunto_recibido`
+//   audio / video / sticker → pide que lo escriba (no lo podemos escuchar ni ver) y avisa a una persona.
 //
-// Respeta kill switch y whitelist en ambos modos.
+// Si falla la bajada o la subida, igual contesta y deja la alerta (sin archivo): la persona se lo pide
+// de nuevo. Respeta kill switch y whitelist.
 
-const MSG_ADJUNTO_APAGADO =
-  "Por favor, no enviar ningún archivo adjunto a este número de momento. 🙏\n\n" +
-  "Si necesitás hacer una consulta o pasarnos información, escribinos por texto y te ayudamos.";
+const MSG_ADJUNTO_RECIBIDO = "Recibimos tu archivo. 🙌\nUna persona lo revisa y te escribe por acá.";
+const MSG_ADJUNTO_RECLAMO = "Recibimos la foto. 🙌\nUna persona revisa el reclamo y te escribe por acá.";
+const MSG_ADJUNTO_PAGO = "Recibimos tu comprobante. 🙌\nUna persona lo revisa y te confirma por acá.";
+const MSG_ADJUNTO_AUDIO =
+  "Por ahora no podemos escuchar audios ni ver videos. 🙏\nEscribinos tu consulta en un mensaje y te respondemos.";
 
-const MSG_ADJUNTO_GRACIAS =
-  "¡Muchas gracias! 🙌\n\nRecibimos tu adjunto. Un vendedor lo va a revisar y te confirmamos a la brevedad.";
-
-// Sólo estos MIME pasan al pipeline de comprobantes. El resto (audio, video,
-// sticker) siempre responde "no enviar adjuntos" incluso con flag encendida.
-const COMPROBANTE_MIMES = new Set([
+// Lo que se guarda y se pasa a una persona. Audio, video y sticker quedan afuera.
+const ADJUNTO_MIMES = new Set([
   "image/jpeg", "image/png", "image/webp", "application/pdf",
+  "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/csv", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+// Mismo criterio que RE_RECLAMO de faq.ts, más "foto de la rotura".
+const RE_ADJ_RECLAMO = /(\brot[oa]s?\b|\bromp|fallad|defectuos|mal estado|da[ñn]ad|vino\s+mal|lleg\w*\s+mal|\bme\s+falt|\bfalt(a|an|aron)\b|incorrect|equivocad|reclam|golpead|abollad|partid|quebrad)/i;
+const RE_ADJ_PAGO = /(comprobante|transfer|pagu[eé]|\bpago\b|deposit|abon[eé]|recibo de pago|cheque|echeq)/i;
 
 interface AdjuntoMsg {
   from: string;
@@ -836,11 +839,6 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
     return;
   }
 
-  // Feature flag: 0 = placeholder / 1 = flujo de comprobantes
-  const flagRaw = await getSetting("wa_comprobantes_activo");
-  const activo = Number(flagRaw ?? "0") === 1;
-
-  // Marcar leído (fire-and-forget)
   markRead(cfg.waPhoneId, cfg.waToken, msg.msgId).catch(() => {});
 
   // Loggear entrada en historial (aparece en Conversaciones)
@@ -848,152 +846,93 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
     ? `[ADJUNTO ${msg.type.toUpperCase()}] ${msg.caption}`
     : `[ADJUNTO ${msg.type.toUpperCase()}]`;
   try {
-    await supabase.rpc("bot_guardar_mensaje", {
-      p_telefono: phone, p_rol: "user", p_contenido: historialLabel,
-    });
+    await supabase.rpc("bot_guardar_mensaje", { p_telefono: phone, p_rol: "user", p_contenido: historialLabel });
   } catch (e) { console.error("adjunto: log inbound falló", e); }
 
-  if (!activo) {
-    // ── Modo APAGADO: placeholder + alerta ───────────────────────────
+  const responder = async (texto: string) => {
     try {
-      await enviarTexto(cfg, phone, MSG_ADJUNTO_APAGADO);
-      await supabase.rpc("bot_guardar_mensaje", {
-        p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_APAGADO,
-      });
-    } catch (e) { console.error("adjunto: reply apagado falló", e); }
-    try {
-      await supabase.from("wa_alertas_humano").insert({
-        tipo: "adjunto_no_soportado",
-        phone,
-        contexto: {
-          tipo_adjunto: msg.type,
-          wamid: msg.msgId,
-          contact_name: msg.name ?? null,
-          caption: msg.caption ?? null,
-        },
-      });
-    } catch { /* fire-and-forget */ }
-    return;
-  }
-
-  // ── Modo ENCENDIDO: flujo de comprobantes ─────────────────────────
-  // Tipos no soportados por el pipeline (audio/video/sticker) → placeholder apagado
-  const mime = msg.mediaMime ?? "";
-  if (msg.type === "audio" || msg.type === "video" || msg.type === "sticker" ||
-      (msg.type === "document" && !COMPROBANTE_MIMES.has(mime))) {
-    try {
-      await enviarTexto(cfg, phone, MSG_ADJUNTO_APAGADO);
-      await supabase.rpc("bot_guardar_mensaje", {
-        p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_APAGADO,
-      });
-    } catch (e) { console.error("adjunto: reply no soportado falló", e); }
-    return;
-  }
-
-  if (!msg.mediaId) {
-    console.error("[adjunto] flujo activo pero payload sin mediaId", msg);
-    try {
-      await supabase.from("wa_alertas_humano").insert({
-        tipo: "comprobante_error",
-        phone,
-        contexto: { motivo: "sin_media_id", wamid: msg.msgId, tipo_adjunto: msg.type },
-      });
-    } catch { /* fire-and-forget */ }
-    return;
-  }
-
-  // Identificar cliente (opcional; el matcheo posterior lo puede resolver también)
+      await enviarTexto(cfg, phone, texto);
+      await supabase.rpc("bot_guardar_mensaje", { p_telefono: phone, p_rol: "assistant", p_contenido: texto });
+    } catch (e) { console.error("adjunto: respuesta falló", e); }
+  };
   const customer = await getCustomerContext(phone);
+  const alerta = async (tipo: string, contexto: Record<string, unknown>) => {
+    try {
+      await supabase.from("wa_alertas_humano").insert({
+        tipo, phone, customer_id: customer?.customer_id ?? null,
+        contexto: { wamid: msg.msgId, tipo_adjunto: msg.type, contact_name: msg.name ?? null,
+          caption: msg.caption ?? null, texto: msg.caption ?? null, ...contexto },
+      });
+    } catch { /* fire-and-forget */ }
+  };
+
+  // ── Audio / video / sticker: no se guardan; se pide por escrito ──
+  const mime = (msg.mediaMime ?? "").toLowerCase().split(";")[0].trim();
+  const esGuardable = msg.type === "image" ? true
+    : msg.type === "document" ? (ADJUNTO_MIMES.has(mime) || /\.(xlsx?|csv|pdf|docx?|jpe?g|png|webp)$/i.test(msg.mediaFilename ?? ""))
+    : false;
+  if (!esGuardable) {
+    await responder(MSG_ADJUNTO_AUDIO);
+    if (msg.type !== "sticker") await alerta("adjunto_recibido", { motivo: "adjunto_recibido", sin_archivo: "audio_video", mime });
+    return;
+  }
+
+  // ── Qué es: reclamo con foto, comprobante de pago u otro archivo ──
+  let charla = msg.caption ?? "";
+  try {
+    const desde = new Date(Date.now() - 30 * 60_000).toISOString();
+    const { data: prev } = await supabase.from("wa_conversations").select("body")
+      .like("phone", `%${phone.replace(/\D/g, "").slice(-10)}`).eq("direction", "in").gte("created_at", desde)
+      .order("created_at", { ascending: false }).limit(5);
+    charla += " " + (prev ?? []).map((r) => String(r.body ?? "")).join(" ");
+  } catch { /* sin contexto: se clasifica por el texto del adjunto */ }
+  const esFoto = msg.type === "image" || /^image\//.test(mime);
+  const clase: "reclamo" | "pago" | "otro" =
+    esFoto && RE_ADJ_RECLAMO.test(charla) ? "reclamo"
+    : RE_ADJ_PAGO.test(charla) && (esFoto || mime === "application/pdf") ? "pago"
+    : "otro";
+  const tipoAlerta = clase === "pago" ? "comprobante_recibido" : clase === "reclamo" ? "reclamo" : "adjunto_recibido";
+  const motivo = clase === "reclamo" ? "reclamo" : clase === "pago" ? undefined : "adjunto_recibido";
+  const respuesta = clase === "reclamo" ? MSG_ADJUNTO_RECLAMO : clase === "pago" ? MSG_ADJUNTO_PAGO : MSG_ADJUNTO_RECIBIDO;
+
+  // ── Guardar el archivo (si algo falla, la persona se lo pide de nuevo) ──
   const codCliente = customer?.cod_cliente ? String(customer.cod_cliente) : null;
-
-  // 1. Bajar de Meta
-  let download;
-  try {
-    download = await downloadMediaFromMeta(msg.mediaId, cfg.waToken);
-  } catch (e) {
-    const errMsg = e instanceof Error ? e.message : String(e);
-    console.error("[adjunto] download Meta falló:", errMsg);
+  let comprobanteId: string | null = null;
+  let falla: string | null = null;
+  if (!msg.mediaId) falla = "sin_media_id";
+  else {
     try {
-      await supabase.from("wa_alertas_humano").insert({
-        tipo: "comprobante_error",
-        phone,
-        contexto: { motivo: "download_meta", error: errMsg, wamid: msg.msgId },
-      });
-    } catch { /* fire-and-forget */ }
-    return;
+      const download = await downloadMediaFromMeta(msg.mediaId, cfg.waToken);
+      const ext = extFromMime(download.mime) || extFromFilename(msg.mediaFilename) || "bin";
+      const storagePath = `${codCliente ?? phone}/${new Date().toISOString().slice(0, 7)}/${msg.msgId}.${ext}`;
+      const up = await supabase.storage.from("wa-comprobantes").upload(storagePath, download.bytes,
+        { contentType: download.mime, upsert: true });
+      if (up.error) throw new Error("upload_bucket: " + up.error.message);
+      const { data: ins, error: insErr } = await supabase.from("wa_comprobantes").insert({
+        wamid: msg.msgId, phone, cod_cliente: codCliente, caption: msg.caption ?? null,
+        storage_path: storagePath, mime_type: download.mime, size_bytes: download.fileSize,
+        status: clase === "pago" ? "pending" : "no_comprobante",
+      }).select("id").maybeSingle();
+      if (insErr) throw new Error("insert: " + insErr.message);
+      comprobanteId = ins?.id ?? null;
+    } catch (e) {
+      falla = e instanceof Error ? e.message : String(e);
+      console.error("[adjunto] no se pudo guardar:", falla);
+    }
   }
 
-  // 2. Subir al bucket. Path: {cod|phone}/{YYYY-MM}/{wamid}.{ext}
-  const ext = extFromMime(download.mime) || extFromFilename(msg.mediaFilename) || "bin";
-  const yyyyMm = new Date().toISOString().slice(0, 7);
-  const carpeta = codCliente ?? phone;
-  const storagePath = `${carpeta}/${yyyyMm}/${msg.msgId}.${ext}`;
-
-  const upload = await supabase.storage.from("wa-comprobantes").upload(
-    storagePath, download.bytes,
-    { contentType: download.mime, upsert: true },
-  );
-  if (upload.error) {
-    console.error("[adjunto] upload bucket falló:", upload.error.message);
-    try {
-      await supabase.from("wa_alertas_humano").insert({
-        tipo: "comprobante_error",
-        phone,
-        contexto: { motivo: "upload_bucket", error: upload.error.message, wamid: msg.msgId },
-      });
-    } catch { /* fire-and-forget */ }
-    return;
-  }
-
-  // 3. Insertar fila en wa_comprobantes
-  const { data: inserted, error: insErr } = await supabase.from("wa_comprobantes").insert({
-    wamid: msg.msgId,
-    phone,
-    cod_cliente: codCliente,
-    caption: msg.caption ?? null,
-    storage_path: storagePath,
-    mime_type: download.mime,
-    size_bytes: download.fileSize,
-    status: "pending",
-  }).select("id").maybeSingle();
-
-  if (insErr) {
-    console.error("[adjunto] insert wa_comprobantes falló:", insErr.message);
-    // Igual seguimos con placeholder y alerta.
-  }
-  const comprobanteId = inserted?.id ?? null;
-
-  // 4. Disparar parser en background (no bloqueamos la respuesta al cliente)
-  if (comprobanteId) {
+  // El lector automático de comprobantes sólo corre con el flag encendido.
+  if (comprobanteId && clase === "pago" && Number((await getSetting("wa_comprobantes_activo")) ?? "0") === 1) {
     triggerParser(comprobanteId).catch((e) =>
-      console.error("[adjunto] trigger parser falló:", e instanceof Error ? e.message : e),
-    );
+      console.error("[adjunto] trigger parser falló:", e instanceof Error ? e.message : e));
   }
 
-  // 5. Placeholder "muchas gracias"
-  try {
-    await enviarTexto(cfg, phone, MSG_ADJUNTO_GRACIAS);
-    await supabase.rpc("bot_guardar_mensaje", {
-      p_telefono: phone, p_rol: "assistant", p_contenido: MSG_ADJUNTO_GRACIAS,
-    });
-  } catch (e) { console.error("adjunto: reply gracias falló", e); }
-
-  // 6. Alerta humana con el id del comprobante (el badge del menú lo cuenta)
-  try {
-    await supabase.from("wa_alertas_humano").insert({
-      tipo: "comprobante_recibido",
-      phone,
-      customer_id: customer?.customer_id ?? null,
-      contexto: {
-        comprobante_id: comprobanteId,
-        wamid: msg.msgId,
-        tipo_adjunto: msg.type,
-        mime: download.mime,
-        caption: msg.caption ?? null,
-        contact_name: msg.name ?? null,
-      },
-    });
-  } catch { /* fire-and-forget */ }
+  await responder(respuesta);
+  await alerta(tipoAlerta, {
+    ...(motivo ? { motivo } : {}),
+    comprobante_id: comprobanteId, mime, archivo: msg.mediaFilename ?? null,
+    ...(falla ? { error_archivo: falla } : {}),
+  });
 }
 
 function extFromMime(mime: string): string | null {
@@ -1002,6 +941,11 @@ function extFromMime(mime: string): string | null {
   if (m.includes("png")) return "png";
   if (m.includes("webp")) return "webp";
   if (m.includes("pdf")) return "pdf";
+  if (m.includes("spreadsheetml")) return "xlsx";
+  if (m.includes("ms-excel")) return "xls";
+  if (m.includes("csv")) return "csv";
+  if (m.includes("wordprocessingml")) return "docx";
+  if (m.includes("msword")) return "doc";
   return null;
 }
 function extFromFilename(name?: string): string | null {
@@ -1381,7 +1325,21 @@ async function handleMessage(
     // que "te va a contactar un asesor a la brevedad" y NADIE se enteraba — el aviso
     // estaba escrito como comentario y sin conectar. Era una promesa falsa en producción.
     // Va después de responder, y con `await` sin `try`: `notificarHumano` nunca lanza.
-    if (faq.automation_level === "needs_human") {
+    if (faq.alerta) {
+      await notificarHumano({
+        tipo: "otro",
+        phone,
+        customerId: customer?.customer_id ?? null,
+        contexto: {
+          motivo: faq.alerta.motivo,
+          ...(faq.alerta.urgente !== undefined ? { urgente: faq.alerta.urgente } : {}),
+          ...(faq.alerta.pedidos?.length ? { pedido: faq.alerta.pedidos[0], pedidos: faq.alerta.pedidos } : {}),
+          detalle: faq.alerta.detalle ?? null,
+          texto_recibido: text.slice(0, 200),
+          razon_social: customer?.business_name ?? null,
+        },
+      });
+    } else if (faq.automation_level === "needs_human") {
       await notificarHumano({
         tipo: "escalation",
         phone,
@@ -1530,10 +1488,8 @@ Deno.serve(async (req: Request) => {
 
       const cfg = await loadConfig();
 
-      // Adjuntos (imagen, documento, audio, video, sticker): por ahora
-      // NO los descargamos ni parseamos — solo respondemos placeholder pidiendo
-      // que no se envíen. El flujo de comprobantes se activa en un paso posterior
-      // (ver tabla wa_comprobantes y bucket wa-comprobantes).
+      // Adjuntos (imagen, documento, audio, video, sticker): se guardan y se pasan a una
+      // persona (ver handleAdjunto).
       const TIPOS_ADJUNTO = ["image", "document", "audio", "video", "sticker"];
       if (TIPOS_ADJUNTO.includes(msg.type)) {
         await handleAdjunto(msg, cfg);

@@ -20,6 +20,8 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   blacklist:              { label: "Escribió un número bloqueado", min: 1440 },
   faq_no_match:           { label: "Pregunta sin respuesta", min: 240 },
   consulta_stock:         { label: "Consulta de stock sin disponibilidad", min: 120 },
+  acceso_web:             { label: "Problema con la web (acceso o sucursal)", min: 120 },
+  adjunto_recibido:       { label: "Mandó un archivo (Excel, foto, PDF o audio)", min: 120 },
   // Motivos que elige la IA al derivar (herramienta derivar_a_persona, 29/09).
   reclamo:                { label: "Reclamo: NC, faltante, rotura o factura", min: 120 },
   pago:                   { label: "Pago o importe", min: 120 },
@@ -85,7 +87,7 @@ export function urgente(a: any): boolean {
 export type Nivel = "rojo" | "amarillo" | "verde";
 export const SEMAFORO: Record<Nivel, string> = { rojo: "🔴", amarillo: "🟡", verde: "🟢" };
 const CATEGORIAS_AMARILLAS = new Set(["escalation", "consulta_stock", "faq_no_match", "llm_timeout", "llm_error",
-  "reclamo", "pago", "pedido_no_encontrado", "entrega"]);
+  "reclamo", "pago", "pedido_no_encontrado", "entrega", "adjunto_recibido", "acceso_web"]);
 // deno-lint-ignore no-explicit-any
 export function nivel(a: any): Nivel {
   if (urgente(a)) return "rojo";

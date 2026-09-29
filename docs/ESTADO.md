@@ -315,6 +315,17 @@ el killswitch, sin ningún consumidor de esa cola.
 
 ## Bot de chat (webhook)
 
+**Adjuntos, pedido duplicado y sucursal (29/09, Pablo):**
+- **Adjuntos**: ya no se contesta "no enviar adjuntos". Imagen/PDF/Excel/CSV/Word se bajan de Meta, van al bucket
+  `wa-comprobantes` + fila en `wa_comprobantes` y se crea la tarea con botón "Ver archivo". Foto con charla de rotura
+  (últimos 30 min o texto) → motivo `reclamo`; texto de pago → `comprobante_recibido` (el lector automático sólo con
+  `wa_comprobantes_activo`=1); el resto → `adjunto_recibido`. Audio/video → pide que lo escriba. Si no se puede
+  guardar, igual contesta y la tarea sale con `error_archivo`. **Excel/Word necesitan sql/098** (mime del bucket).
+- **Pedido duplicado** ("apreté confirmar varias veces"): `faq.ts` `pedidosDuplicados` busca en 7 días pedidos con
+  el mismo importe a ≤30 min; si hay, lo dice y deja tarea `cambio_pedido` urgente. No anula nada.
+- **"No me deja elegir sucursal"** → tarea `acceso_web`.
+- Las alertas que sale de una respuesta fija las crea el webhook desde `FaqResult.alerta`.
+
 - Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). **Stateless**: cada mensaje cae por
   las mismas compuertas. Mapa visual: `docs/mapa-flujo-bot.html`.
 - **Flujo cara-al-cliente (acordado 2026-09-04, `handleMessage` 0→6):**

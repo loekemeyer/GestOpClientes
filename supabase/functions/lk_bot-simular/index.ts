@@ -131,7 +131,8 @@ serve(async (req) => {
         const faq = await handleFaq(text, { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
         if (faq) {
           reply = faq.reply; via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`;
-          if (faq.automation_level === "needs_human") SIM.alertas.push({ tipo: "escalation", faq_id: faq.faq_id ?? null });
+          if (faq.alerta) SIM.alertas.push({ tipo: "otro", motivo: faq.alerta.motivo, urgente: faq.alerta.urgente ?? null, pedidos: faq.alerta.pedidos ?? null });
+          else if (faq.automation_level === "needs_human") SIM.alertas.push({ tipo: "escalation", faq_id: faq.faq_id ?? null });
         }
       }
       // 6. agente IA

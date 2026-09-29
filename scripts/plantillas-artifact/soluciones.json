@@ -8,8 +8,8 @@
       "estado": "parcial",
       "previene": [],
       "bot": "Confirma los pedidos cargados con fecha y estado. Un cambio ('agregá 60 sacacorchos') lo toma con el detalle y lo deriva; ya no contesta 'no se toman pedidos por WhatsApp'. Para pedidos nuevos indica la web (los pedidos por WhatsApp están apagados) y explica cómo hacerlo.",
-      "deriva": "Motivo 'cambio_pedido' (urgente) para agregar, sacar, anular o un pedido duplicado; 'pedido_no_encontrado' si lo cargó y no aparece; un Excel o foto adjunto crea una alerta para que alguien lo cargue.",
-      "falta": "El pedido de modificación no tiene plantilla: el cliente escribe él, así que se contesta con texto libre dentro de las 24 h. Lo único que se puede hacer con una plantilla es avisarle de antemano hasta cuándo puede modificar (en pedido_programado); falta confirmar ese límite con Depósito. Decidir además quién carga los pedidos que llegan en Excel o foto, y cambiar el mensaje de adjunto, que hoy es hostil.",
+      "deriva": "Motivo 'cambio_pedido' (urgente) para agregar, sacar, anular o un pedido duplicado; 'pedido_no_encontrado' si lo cargó y no aparece; un Excel o foto adjunto se guarda y crea una tarea con el archivo para que alguien lo cargue. Si dice que apretó confirmar varias veces, el bot busca pedidos con el mismo importe cargados con minutos de diferencia, se lo dice y deja una tarea urgente (no anula nada).",
+      "falta": "El pedido de modificación no tiene plantilla: el cliente escribe él, así que se contesta con texto libre dentro de las 24 h. Lo único que se puede hacer con una plantilla es avisarle de antemano hasta cuándo puede modificar (en pedido_programado); falta confirmar ese límite con Depósito. Decidir quién carga los pedidos que llegan en Excel o foto.",
       "consultas": 123,
       "ejemplo": "«Agregá 60 sacacorchos 067 al pedido web»",
       "relacionadas": [
@@ -63,7 +63,7 @@
         }
       ],
       "bot": "'¿Cuánto debo?' o 'el importe con el 25 %': le pasa cada factura impaga con importe, estado y descuento, y el saldo total, y avisa a Cobranzas. Alias y CBU: respuesta fija.",
-      "deriva": "Motivo 'pago' si dice que ya pagó y no le figura; un comprobante adjunto crea la alerta 'Comprobante recibido'.",
+      "deriva": "Motivo 'pago' si dice que ya pagó y no le figura; un comprobante adjunto se guarda y crea la tarea 'Comprobante recibido' con el archivo.",
       "falta": "Confirmar con Cobranzas si una factura vencida pierde el descuento.",
       "ejemplo": "«Pasame el importe con el 25 % de contado»",
       "resumen": "Al facturar le llega la factura con el importe y el CBU."
@@ -137,7 +137,7 @@
       "previene": [],
       "bot": "Contraseña: deriva con alerta.",
       "deriva": "Una persona le resuelve el acceso.",
-      "falta": "'No me deja elegir sucursal' todavía no tiene respuesta; hay que ver si es un problema de la web.",
+      "falta": "Reseteo de clave con aprobación (en construcción). 'No me deja elegir sucursal' ya se deriva como problema de acceso a la web.",
       "ejemplo": "«No recuerdo la contraseña para cargar el pedido»",
       "resumen": "Lo pasa a una persona. Falta el reseteo automático."
     },
@@ -164,7 +164,7 @@
       ],
       "bot": "Registra el reclamo como urgente.",
       "deriva": "Motivo 'reclamo' urgente.",
-      "falta": "Aceptar la foto en lugar de contestar 'no se aceptan adjuntos'.",
+      "falta": "Nada: la foto de la rotura se recibe y va con el reclamo (\"Recibimos la foto, una persona revisa el reclamo\").",
       "ejemplo": "«Los coladores de fideos vinieron todos rotos»",
       "resumen": "Se registra el reclamo y una persona responde."
     }

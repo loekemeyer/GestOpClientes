@@ -233,6 +233,7 @@ serve(async (req) => {
           } : null,
           comprobante: ctx.comprobante_id ? (comps[String(ctx.comprobante_id)] ?? { id: ctx.comprobante_id }) : null,
           error_detalle: a.tipo === "comprobante_error" ? (ctx.error ?? ctx.motivo ?? null) : null,
+          error_archivo: ctx.error_archivo ?? null,
         };
       }).sort((x, y) => {
         // Abiertas primero; dentro de las abiertas: urgentes, después vencidas, después por vencimiento.

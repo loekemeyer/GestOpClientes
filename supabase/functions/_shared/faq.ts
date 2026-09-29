@@ -26,6 +26,9 @@ export interface FaqResult {
   /** true cuando la respuesta YA saluda (la FAQ del saludo inicial): el call-site
    *  no debe volver a anteponerle "¡Hola X! 👋". */
   yaSaluda?: boolean;
+  /** Pablo, 29/09: respuesta que además deja una tarea para una persona (pedido duplicado, acceso a la web).
+   *  La crea el call-site (webhook), igual que el aviso de needs_human. */
+  alerta?: { motivo: string; urgente?: boolean; pedidos?: number[]; detalle?: string };
 }
 
 // Pablo, 28/09: al cliente NUNCA se le muestra el número de pedido (se nombra por la fecha) y cada pedido
@@ -101,6 +104,25 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (customer && RE_DIRECCION_ENTREGA.test(text)) {
     const r = await destinoPedidos(customer);
     if (r) return { reply: r, intent: "destino_entrega", automation_level: "semi_auto" };
+  }
+  // Pablo, 29/09: "apreté confirmar varias veces" / "se me duplicó el pedido". El bot busca pedidos del cliente con el
+  // mismo importe y pocos minutos de diferencia; si los hay lo dice y deja una tarea urgente. No anula nada.
+  if (customer && RE_DUPLICADO.test(text)) {
+    const d = await pedidosDuplicados(customer);
+    if (d) {
+      return { reply: `Veo ${d.cantidad} pedidos del ${d.del} por ${d.importe}, cargados con ${d.minutos} de diferencia.\n` +
+        `No anulamos nada por nuestra cuenta: una persona revisa cuál queda y te confirma por acá.`,
+        intent: "pedido_duplicado", automation_level: "semi_auto",
+        alerta: { motivo: "cambio_pedido", urgente: true, pedidos: d.ids, detalle: "Posible pedido duplicado" } };
+    }
+    return { reply: "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido (mismo importe cargado dos veces).\n" +
+      "Si ves uno de más en la web, decinos de qué fecha es y lo revisamos.", intent: "pedido_duplicado", automation_level: "semi_auto" };
+  }
+  // Pablo, 29/09: "no me deja elegir la sucursal" es un problema de acceso a la web: lo revisa una persona.
+  if (RE_SUCURSAL_WEB.test(text)) {
+    return { reply: "Una persona revisa tu acceso a la web y las sucursales de entrega cargadas, y te escribe por acá.",
+      intent: "acceso_web", automation_level: "needs_human", topic: "Acceso a la web: no puede elegir sucursal",
+      alerta: { motivo: "acceso_web", detalle: "No puede elegir sucursal en la web" } };
   }
   const { data: matches, error } = await supabase.rpc("wa_faq_match", { p_text: text });
   if (error || !matches?.length) return null;
@@ -291,6 +313,30 @@ const RE_RETIRO = /\b(retir(o|ar|arlo|arla|amos|a)|pas(ar|o|amos) a buscar|busca
 const RE_DIRECCION_ENTREGA = /(mi|la)\s+direcci[oó]n\s+de\s+(entrega|env[ií]o)|a\s+d[oó]nde\s+(me\s+)?(lo|la|los|las)?\s*(mand|env[ií]|entreg|despach|llev)|a\s+qu[eé]\s+(sucursal|direcci[oó]n|expreso|transporte)|d[oó]nde\s+(me\s+)?(lo\s+)?entregan|por\s+qu[eé]\s+(expreso|transporte)|qu[eé]\s+(expreso|transporte)\s+(me\s+)?(lo\s+)?(lleva|mand|us)/i;
 
 // A dónde va cada pedido abierto del cliente: sucursal de entrega cargada en la web y, si sale por expreso, cuál.
+const RE_DUPLICADO = /((pedido|confirm|carg|compra)[^.?!]{0,40}(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez|tres veces)|(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez)[^.?!]{0,40}(pedido|confirm|carg))/i;
+const RE_SUCURSAL_WEB = /(no\s+(me\s+)?(deja|puedo|aparece|figura|sale)[^.?!]{0,30}sucursal|sucursal[^.?!]{0,30}no\s+(me\s+)?(deja|aparece|figura|sale|puedo))/i;
+
+async function pedidosDuplicados(customer: NonNullable<Customer>): Promise<{ cantidad: number; del: string; importe: string; minutos: string; ids: number[] } | null> {
+  const { data: crudos } = await supabase.from("orders").select("id, created_at, total").eq("customer_id", customer.id)
+    .gte("created_at", new Date(Date.now() - 7 * 86400_000).toISOString()).order("created_at", { ascending: true }).limit(50);
+  const ords = await sinAnulados(crudos ?? []);
+  const f = (iso: string) => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso)); return `${p.slice(8, 10)}/${p.slice(5, 7)}`; };
+  for (let i = 0; i < ords.length; i++) {
+    const grupo = [ords[i]];
+    for (let j = i + 1; j < ords.length; j++) {
+      const mismo = Math.round(Number(ords[j].total || 0)) === Math.round(Number(ords[i].total || 0)) && Number(ords[i].total) > 0;
+      const cerca = new Date(ords[j].created_at).getTime() - new Date(grupo[grupo.length - 1].created_at).getTime() <= 30 * 60_000;
+      if (mismo && cerca) grupo.push(ords[j]);
+    }
+    if (grupo.length > 1) {
+      const min = Math.max(1, Math.round((new Date(grupo[grupo.length - 1].created_at).getTime() - new Date(grupo[0].created_at).getTime()) / 60_000));
+      return { cantidad: grupo.length, del: f(grupo[0].created_at), importe: "$" + Math.round(Number(grupo[0].total)).toLocaleString("es-AR"),
+        minutos: min === 1 ? "1 minuto" : `${min} minutos`, ids: grupo.map((o) => Number(o.id)) };
+    }
+  }
+  return null;
+}
+
 async function destinoPedidos(customer: NonNullable<Customer>): Promise<string | null> {
   const { data: crudos } = await supabase.from("orders").select("id, created_at, total").eq("customer_id", customer.id)
     .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString()).order("created_at", { ascending: false }).limit(10);
