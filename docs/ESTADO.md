@@ -521,12 +521,13 @@ Un commit que sólo toca docs NO dispara deploy.
   producción sector > persona > defecto. Lo 🔴 urgente va a Planify siempre. Motivo nuevo de la IA: `entrega`
   (pedido sin fecha que el cliente necesita, no llegó, fecha distinta) — muchos pedidos no tienen fecha y eso es normal.
   "No me llegó / tenía que llegar" (`RE_NO_LLEGO` en faq.ts) saltea las FAQ y va a la IA, que deriva.
+- **Preparando (Pablo, 29/09, sql/085):** `pedido_preparando` cuando el pedido web entra en armado en Gestión
+  (`wa_avisos_preparando_web`, mismo cron `lk_aviso-retiro-web`), una vez por pedido (context `web_preparando`).
 - **Reparto: dos avisos (Pablo, 29/09, sql/084):** al facturar sale la factura (lk_factura-check); al recibir,
   `pedido_entregado` cuando order_tracking pasa a 'entregado' (antes aprobada y sin disparador). Chequeado: los 64
   pedidos web entregados en Gestión figuran entregados en order_tracking y no hay salidas vencidas sin entregar.
 - **Horario del depósito = franjas de la web (Pablo, 29/09):** 9:00 a 12:00 y 13:00 a 16:30. `pedido_listo_retirar`
-  editada en Meta. Las respuestas fijas wa_faq #4, #5, #9, #17 y #21 todavía dicen 10 a 12 / 13 a 16 (UPDATE a la
-  espera del "sí"). Regla de retiro que ya dicen #4/#9: si no se retira en la fecha acordada se desarma al día
+  editada en Meta y respuestas fijas wa_faq #4, #5, #9, #17 y #21 actualizadas (UPDATE con "sí" de Pablo). Regla de retiro que ya dicen #4/#9: si no se retira en la fecha acordada se desarma al día
   siguiente; un único cambio avisando un día antes, hasta dos días después de la fecha original.
 - **Aviso "listo para retirar" de pedidos web (Pablo, 29/09, sql/083):** cron `lk_aviso-retiro-web` (cada 10 min) →
   `wa_avisos_retiro_web()`: pedidos web de retiro que en Gestión (`virgilio.gv_pedido_web_estado_pagina`, FDW en

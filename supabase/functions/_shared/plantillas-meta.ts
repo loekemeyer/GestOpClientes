@@ -90,9 +90,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
   {
     name: "pedido_preparando",
     language: ES, category: UT,
-    disparo: "Primer EP (inicio de picking) de la tanda de la NP. Todos los modos. Si cae el mismo día que la programación, va sólo éste.",
+    // Texto = el aprobado en Meta (29/09). Conectada por Pablo 29/09: "conectala en armado" (sql/085).
+    disparo: "El pedido web entra en armado en Gestión (cron lk_aviso-retiro-web, cada 10 min). Todos los modos.",
     variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nEstamos preparando tu pedido del {{2}} en el depósito.\nSale el {{3}} y te avisamos por acá.",
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nEstamos preparando tu pedido del {{2}} en el depósito.\nSale el {{3}} de nuestro depósito.",
     ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "miércoles 30/09"],
   },
 

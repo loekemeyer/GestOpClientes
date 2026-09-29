@@ -66,9 +66,9 @@
     "pedido_preparando": {
       "grupo": "pedido",
       "orden": 6,
-      "estado": "sin_disparador",
+      "estado": "conectada",
       "para": "Todos",
-      "sale": "Pensada para cuando empieza el armado en el depósito. Todavía no hay nada que la mande."
+      "sale": "Cuando el pedido web entra en armado en Gestión (revisa cada 10 minutos)."
     },
     "pedido_en_viaje": {
       "grupo": "pedido",

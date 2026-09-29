@@ -88,10 +88,6 @@
     {
       "tpl": "pedido_reprogramado",
       "por": "No hay historial de cambios de fecha para contarlo (se registra desde el 28/09)."
-    },
-    {
-      "tpl": "pedido_preparando",
-      "por": "Aprobada, pero nada la dispara."
     }
   ],
   "demora": {
@@ -197,6 +193,6 @@
     "pedido_echeq_s": 6,
     "pedido_echeq_p": 4,
     "pedido_reprogramado": null,
-    "pedido_preparando": 0
+    "pedido_preparando": 278
   }
 }
