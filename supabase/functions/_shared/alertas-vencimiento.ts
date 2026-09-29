@@ -20,6 +20,11 @@ export const CATEGORIAS: Record<string, { label: string; min: number }> = {
   blacklist:              { label: "Escribió un número bloqueado", min: 1440 },
   faq_no_match:           { label: "Pregunta sin respuesta", min: 240 },
   consulta_stock:         { label: "Consulta de stock sin disponibilidad", min: 120 },
+  // Motivos que elige la IA al derivar (herramienta derivar_a_persona, 29/09).
+  reclamo:                { label: "Reclamo: NC, faltante, rotura o factura", min: 120 },
+  pago:                   { label: "Pago o importe", min: 120 },
+  cambio_pedido:          { label: "Cambio o cancelación de pedido", min: 60 },
+  pedido_no_encontrado:   { label: "Pedido que no aparece", min: 60 },
   otro:                   { label: "Otros", min: 240 },
   whitelist_gate:         { label: "Número fuera de la lista de prueba", min: 1440 },
 };
@@ -44,7 +49,7 @@ export async function vencimientos(): Promise<Record<string, number>> {
 
 // Urgencia de una alerta: la que se guardó al crearla (contexto.urgente, ver alertas.ts) o, para las
 // alertas viejas que no la tienen, por categoría + texto.
-const CATEGORIAS_URGENTES = new Set(["cliente_molesto", "respuesta_aviso_cambio", "comprobante_error"]);
+const CATEGORIAS_URGENTES = new Set(["cliente_molesto", "respuesta_aviso_cambio", "comprobante_error", "cambio_pedido"]);
 // deno-lint-ignore no-explicit-any
 export function urgente(a: any): boolean {
   const ctx = a?.contexto ?? {};
@@ -59,7 +64,8 @@ export function urgente(a: any): boolean {
 // recibido, alta de cliente, el resto).
 export type Nivel = "rojo" | "amarillo" | "verde";
 export const SEMAFORO: Record<Nivel, string> = { rojo: "🔴", amarillo: "🟡", verde: "🟢" };
-const CATEGORIAS_AMARILLAS = new Set(["escalation", "consulta_stock", "faq_no_match", "llm_timeout", "llm_error"]);
+const CATEGORIAS_AMARILLAS = new Set(["escalation", "consulta_stock", "faq_no_match", "llm_timeout", "llm_error",
+  "reclamo", "pago", "pedido_no_encontrado"]);
 // deno-lint-ignore no-explicit-any
 export function nivel(a: any): Nivel {
   if (urgente(a)) return "rojo";

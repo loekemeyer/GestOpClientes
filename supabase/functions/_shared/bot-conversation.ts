@@ -30,6 +30,26 @@ export const PEDIDOS_POR_WHATSAPP = false;
 
 const BOT_TOOLS: ToolDef[] = [
   {
+    // 29/09 (estudio de cobertura): la IA no tenía cómo pasar la charla a una persona y "derivaba" dando mails y
+    // otros WhatsApp. Esta herramienta crea la alerta (Centro de mensajes › Tareas + cartel de Planify).
+    name: "derivar_a_persona",
+    description:
+      "Pasa la conversación a una persona del equipo: queda como alerta en el Centro de mensajes y le llega a quien atiende. Usala SIEMPRE que haga falta alguien: reclamos (nota de crédito, faltante, mercadería rota, factura mal o duplicada, descuento que no se aplicó), pagos o importes que no coinciden, cambios o cancelaciones de pedido, un pedido que el cliente dice haber hecho y no aparece, alta de cliente, problemas con la web que no podés resolver, o cuando el cliente pide hablar con alguien. Después de usarla decile al cliente que una persona del equipo le escribe por acá. Nunca le des mails ni otros números para que se arregle solo.",
+    input_schema: {
+      type: "object",
+      properties: {
+        motivo: {
+          type: "string",
+          enum: ["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado", "alta_cliente", "escalation"],
+          description: "reclamo = NC/faltante/rotura/factura; pago = importes, pagos, comprobantes; cambio_pedido = agregar/sacar/anular; pedido_no_encontrado = dice que pidió y no está; alta_cliente = quiere ser cliente; escalation = cualquier otra cosa o pidió una persona.",
+        },
+        resumen: { type: "string", description: "Qué pide el cliente en una o dos frases, con los datos que dio (fechas, códigos, cantidades)." },
+        urgente: { type: "boolean", description: "true si está molesto, apurado o menciona un problema grave." },
+      },
+      required: ["motivo", "resumen"],
+    },
+  },
+  {
     name: "consultar_mis_pedidos",
     description:
       "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total, método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
@@ -218,7 +238,7 @@ async function buildSystemPrompt(
     ? `\nDocumento rector (definido por Loekemeyer desde el Panel — respetalo salvo que contradiga la Seguridad de más abajo):\n---\n${rector}\n---\n`
     : "";
 
-  return `Sos el asistente WhatsApp de Loekemeyer Hnos S.R.L., fábrica de cubiertos y artículos de cuchillería.
+  return `Sos el asistente WhatsApp de Loekemeyer Hnos S.R.L., mayorista de artículos de cocina y bazar (peladores, abrelatas, sacacorchos, coladores, ralladores y más).
 Atendés a clientes mayoristas. Sos amable, conciso y profesional.
 
 Cliente actual: ${customerName} (código: ${codCliente})
@@ -229,8 +249,7 @@ Información del negocio:
 - Pedido mínimo: $500.000
 - Retiro mínimo en fábrica: $300.000
 - Descuento por pago web: 2%
-- Contacto ventas: ventas@loekemeyer.com / WhatsApp 1131181021
-- Cobranzas: +54 11 6557-4113
+- Descuentos por forma de pago (contado, 30/60/90 días, e-cheq): existen y dependen del cliente. Consultalos con consultar_mis_descuentos; nunca digas que no existen.
 - Web: loekemeyer.com
 ${rectorBloque}
 ${REGLAS_OPERATIVAS}
@@ -267,6 +286,21 @@ async function executeTool(
     if (efecto) return { data: { ok: true, simulado: true, mensaje: "Hecho." } };
   }
   switch (name) {
+    case "derivar_a_persona": {
+      const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
+      const motivo = String(input.motivo ?? "escalation");
+      await notificarHumano({
+        tipo: motivo === "alta_cliente" ? "alta_cliente_nuevo" : "escalation", phone,
+        customerId: cli?.[0]?.customer_id ?? null,
+        contexto: {
+          motivo, texto: String(input.resumen ?? "").slice(0, 500), origen: "agente_ia",
+          razon_social: cli?.[0]?.customer_name ?? null,
+          ...(typeof input.urgente === "boolean" ? { urgente: input.urgente } : {}),
+        },
+      });
+      return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por acá." } };
+    }
+
     case "consultar_mis_pedidos": {
       const pedir = Math.min(10, Number(input.limite ?? 5) || 5);
       const { data: crudos, error } = await supabase.rpc("bot_mis_pedidos", {

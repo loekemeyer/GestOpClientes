@@ -585,7 +585,7 @@ const ESTADO_COMP = { pending: "Sin leer todavía", parsed: "Leído", matched: "
   rejected: "Rechazado", no_comprobante: "No parece un comprobante", error: "No se pudo leer" };
 const NIVEL_RANGO = { rojo: 0, amarillo: 1, verde: 2 };
 function tipoDeAlerta(a) {
-  if (a.categoria === "comprobante_recibido" || a.categoria === "comprobante_error") return "cob";
+  if (["comprobante_recibido", "comprobante_error", "pago", "reclamo"].includes(a.categoria)) return "cob";
   if (a.categoria === "alta_cliente") return "alta";
   return "der";
 }

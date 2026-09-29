@@ -57,6 +57,7 @@ async function nombreUsuario(email: string): Promise<string> {
 const MOTIVO: Record<string, string> = {
   cliente_molesto: "Cliente molesto", respuesta_aviso_cambio: "Cambio de pedido", escalation: "Pidió una persona",
   consulta_stock: "Consulta sin stock", comprobante_recibido: "Comprobante recibido", comprobante_error: "Comprobante con error",
+  reclamo: "Reclamo", pago: "Pago o importe", cambio_pedido: "Cambio de pedido", pedido_no_encontrado: "Pedido que no aparece",
   alta_cliente: "Alta de cliente", llm_timeout: "El bot no respondió", llm_error: "El bot falló", faq_no_match: "Pregunta sin respuesta",
 };
 // deno-lint-ignore no-explicit-any

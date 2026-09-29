@@ -473,7 +473,7 @@ Un commit que sólo toca docs NO dispara deploy.
 
 ## Front
 
-`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.22.2`). Bumpear con cada cambio de front.
+`docs/index.html`, servido por GitHub Pages desde `main`. Badge de versión abajo a la derecha (hoy `v0.22.3`). Bumpear con cada cambio de front.
 
 **Rediseño (Claude Design, Pablo 28/09) — etapas 1 y 2 hechas en v0.19.0:**
 - `docs/gestop2.css` (tokens claro/oscuro, sidebar, banda de la llave, Centro de mensajes; las páginas viejas
@@ -507,6 +507,12 @@ Un commit que sólo toca docs NO dispara deploy.
   `--amb-bg`, `--pur-bg`…), el modo oscuro vale en todo el sistema (el simulador de Pruebas usa la paleta oscura
   de WhatsApp) y el título/pestañas de cada página ya no se repiten (están en el encabezado). Colores que quedan
   fijos a propósito: los de WhatsApp en el simulador y los de Google en el login.
+- **La IA deriva a una persona (29/09):** herramienta `derivar_a_persona` (bot-conversation.ts) → `notificarHumano`
+  con motivo `reclamo` / `pago` / `cambio_pedido` / `pedido_no_encontrado` / `alta_cliente` / `escalation`
+  (categorías nuevas en alertas-vencimiento.ts; van siempre a Planify aunque no estén en `wa_alertas_planify`;
+  en Tareas, pago y reclamo caen en Cobranzas). Regla fija: nunca mandar al cliente a otro mail/WhatsApp.
+  Prompt corregido: "mayorista de artículos de cocina y bazar" (decía "fábrica de cubiertos y cuchillería") y los
+  descuentos por forma de pago existen (la IA negaba el 25 % de contado).
 - **Pedidos anulados / borrados NO existen para el bot (Pablo, 28/09, v0.22.2):** `orders.status` no sirve (todos
   'pendiente'); la anulación vive en Gestión: `GV_Pedidos_Anulados` y `GV_Pedidos_Prueba_Historial` (empresa lk).
   `_shared/pedidos-anulados.ts` (`sinAnulados`, caché 60 s, tope 3 s) los saca de: estado de pedidos y modificar

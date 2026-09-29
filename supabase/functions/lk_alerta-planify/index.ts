@@ -48,6 +48,10 @@ const CORTO: Record<string, string> = {
   comprobante_recibido: "Comprobante recibido",
   comprobante_error: "Comprobante con error",
   consulta_stock: "Consulta sin stock",
+  reclamo: "Reclamo",
+  pago: "Pago o importe",
+  cambio_pedido: "Cambio de pedido",
+  pedido_no_encontrado: "Pedido que no aparece",
 };
 
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);
@@ -69,7 +73,9 @@ async function crear(alertaId: number) {
   const aSector = produccion && !!cfg.department_id;
   if (!aSector && !cfg.employee_id) return { ok: true, creada: false, motivo: "sin destinatario en prueba (employee_id)" };
   // Lo urgente (cliente molesto, cambio de pedido, reclamo…) va siempre a Planify.
-  if (!cfg.categorias.includes(cat) && !esUrg) return { ok: true, creada: false, motivo: `categoría ${cat} no va a Planify` };
+  // Lo que deriva la IA (derivar_a_persona) va siempre: si no, el cliente espera y nadie se entera.
+  const SIEMPRE = new Set(["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado"]);
+  if (!cfg.categorias.includes(cat) && !esUrg && !SIEMPRE.has(cat)) return { ok: true, creada: false, motivo: `categoría ${cat} no va a Planify` };
   const ctx = a.contexto ?? {};
   if (ctx.planify_task_id) return { ok: true, creada: false, motivo: "ya tenía tarea" };
 
