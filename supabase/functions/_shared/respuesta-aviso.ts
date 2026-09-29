@@ -30,6 +30,21 @@ const RE_CAMBIO_FUERTE = /(reprogram|posterg|cancel|anul|cambi\w*\s+(la\s+|el\s+
 // Pablo, 29/09: "Agregá 60 sacacorchos al pedido web" (agregar/sacar algo de un pedido ya hecho) va directo a un asesor,
 // sin preguntar antes qué modelo es: la persona lo confirma con el cliente. Chequeo humano primero.
 const RE_EDITA_PEDIDO = /\b(agreg|sum[aá]|a[ñn]ad|sac[aá]|quit)\w*[^?.!]{0,60}\b(al|del|en el|a mi|de mi)\s+pedido/i;
+// Pablo, 29/09: "¿Puedo retirarlo el sábado 3?" / "¿paso el jueves?" — pide un día de retiro. Los retiros son de lunes a
+// viernes; si pide fin de semana se le explica y se le ofrece reprogramar; si pide un día hábil se deriva a un asesor
+// para reprogramar el retiro (antes caía en la respuesta fija del depósito, #4, que no contestaba la pregunta).
+const RE_RETIRO_DIA = /\b(retir|pas(o|ar|amos|ás|as)\b|busc)\w*[^?.!]{0,40}\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s*\/\s*\d{1,2})/i;
+const HORARIO_RETIRO = "de lunes a viernes, de 9 a 12 y de 13 a 16:30 h";
+function pideFinDeSemana(t: string): boolean {
+  if (/s[aá]bado|domingo/i.test(t)) return true;
+  const m = t.match(/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/);
+  if (!m) return false;
+  const hoy = new Date();
+  let d = new Date(Date.UTC(hoy.getUTCFullYear(), Number(m[2]) - 1, Number(m[1]), 15));
+  if (d.getTime() < hoy.getTime() - 60 * 86400_000) d = new Date(Date.UTC(hoy.getUTCFullYear() + 1, Number(m[2]) - 1, Number(m[1]), 15));
+  const dia = d.getUTCDay();
+  return dia === 0 || dia === 6;
+}
 const RE_NO_PUEDO = /\bno\s+(pue\w*|pod\w*|voy|vamos|llego|llegamos|estoy|estamos)\b/i;
 const RE_FECHA_O_RETIRO = /(\b\d{1,2}\s*\/\s*\d{1,2}\b|\bel\s+\d{1,2}\b|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|ma[nñ]ana|semana|fecha|\bd[ií]a\b|retir|pasar|buscar|entreg|recib)/i;
 const RE_CUANDO = /(cu[aá]ndo|a qu[eé] hora|horario|qu[eé] d[ií]a|lleg|entreg|sale|salida|d[oó]nde est|en qu[eé] (va|est))/i;
@@ -107,7 +122,11 @@ export async function pedidoDeCambio(
 ): Promise<string | null> {
   if (!customer) return null;
   const t = text.trim();
-  if (!(RE_CAMBIO_FUERTE.test(t) || RE_EDITA_PEDIDO.test(t) || (RE_NO_PUEDO.test(t) && RE_FECHA_O_RETIRO.test(t)))) return null;
+  const retiroDia = RE_RETIRO_DIA.test(t);
+  if (retiroDia && pideFinDeSemana(t)) {
+    return `Los retiros son ${HORARIO_RETIRO}; los fines de semana el depósito está cerrado. Podemos reprogramar tu retiro para otro día hábil: ¿qué día te queda bien?`;
+  }
+  if (!(retiroDia || RE_CAMBIO_FUERTE.test(t) || RE_EDITA_PEDIDO.test(t) || (RE_NO_PUEDO.test(t) && RE_FECHA_O_RETIRO.test(t)))) return null;
 
   // Pedido abierto más reciente del cliente (últimos 60 días, no entregado según Gestión).
   const { data: ords } = await supabase.from("orders").select("id, created_at")
@@ -127,6 +146,9 @@ export async function pedidoDeCambio(
     contexto: { motivo: "respuesta_aviso_cambio", pedido: ped.id, texto_recibido: t.slice(0, 300),
       razon_social: customer.business_name },
   });
+  if (retiroDia) {
+    return `Le paso a un asesor el retiro de tu pedido del ${fechaCorta(ped.created_at)} para reprogramarlo y te confirma por acá. 🙏 Recordá que los retiros son ${HORARIO_RETIRO}.`;
+  }
   return `Le paso tu pedido del ${fechaCorta(ped.created_at)} a un asesor para que coordine el cambio y te escriba por acá. 🙏`;
 }
 
