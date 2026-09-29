@@ -342,7 +342,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.25.12">
+  <link rel="stylesheet" href="gestop2.css?v=0.25.13">
 </head>
 <body>
 
@@ -661,6 +661,16 @@
               </table>
             </div>
           </div>
+        </details>
+
+        <!-- ── IA — gasto por día y motivo (lk_ia-puntaje action gasto, sql/107 · Pablo 29/09) ── -->
+        <details class="dash-section" ontoggle="if (this.open) loadIaGasto()">
+          <summary>
+            <span class="dash-sec-title">💰 IA — gasto por día y motivo</span>
+            <span class="dash-sec-hint">Últimos 14 días, en dólares</span>
+            <button class="config-btn small icono" title="Actualizar" style="margin-left:auto;" onclick="event.preventDefault(); loadIaGasto();">⟳</button>
+          </summary>
+          <div class="dash-sec-body"><div id="igBody"><div class="toggle-desc">Cargando…</div></div></div>
         </details>
 
         <!-- ── IA — puntaje de respuestas (lk_ia-puntaje, sql/101 · Pablo 29/09) ── -->
@@ -1329,6 +1339,36 @@ sbAuth.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_IN" && !appInitialized) checkSession();
 });
 
+// --- IA: gasto por día y motivo (lk_ia-puntaje action gasto) ---
+const IG_MOTIVO = { pago: "Pagos y facturas", entrega: "Entregas y estado de pedidos", stock: "Stock e ingresos", productos: "Productos y catálogo",
+  cambio_pedido: "Cambios de pedido", reclamo: "Reclamos", pedido_no_encontrado: "Pedido que no aparece", escalation: "Pidió una persona",
+  alta_cliente: "Alta de cliente", consulta_general: "Consulta general", sin_motivo: "Sin motivo (antes del 29/09)" };
+async function loadIaGasto() {
+  const box = document.getElementById("igBody");
+  try {
+    const { data, error } = await authedInvoke("lk_ia-puntaje", { action: "gasto", dias: 14 });
+    if (error || !data?.ok) { box.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+    const $ = (n) => "US$ " + Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const td = 'style="padding:0.35rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap"';
+    const th = 'style="padding:0.35rem 0.6rem;border-bottom:1px solid var(--border);text-align:right;font-size:0.75rem;color:var(--muted);font-weight:600"';
+    const usos = [["clientes", "Clientes"], ["simulador", "Simulador"], ["puntaje", "Puntaje"], ["otros", "Otros"]];
+    const dias = data.por_dia || [];
+    const tot = (d) => usos.reduce((a, [k]) => a + (d[k]?.usd || 0), 0);
+    const tablaDia = dias.length ? `<table style="border-collapse:collapse;font-size:0.84rem;margin-bottom:1rem">
+      <tr><th ${th.replace("right", "left")}>Día</th>${usos.map(([, l]) => `<th ${th}>${l}</th>`).join("")}<th ${th}>Total</th></tr>
+      ${dias.map((d) => `<tr><td ${td.replace("right", "left")}>${esc(d.dia.split("-").reverse().slice(0, 2).join("/"))}</td>${usos.map(([k]) => `<td ${td}>${d[k] ? $(d[k].usd) : "—"}</td>`).join("")}<td ${td}><b>${$(tot(d))}</b></td></tr>`).join("")}
+    </table>` : '<div class="toggle-desc">Sin gasto en estos días.</div>';
+    const mot = data.por_motivo || [];
+    const max = Math.max(0.0001, ...mot.map((m) => m.usd));
+    const tablaMot = mot.length ? `<table style="border-collapse:collapse;font-size:0.84rem">
+      <tr><th ${th.replace("right", "left")}>Motivo (sólo clientes)</th><th ${th}>Gasto</th><th ${th}>Consultas a la IA</th><th ${th}></th></tr>
+      ${mot.map((m) => `<tr><td ${td.replace("right", "left")}>${esc(IG_MOTIVO[m.motivo] || m.motivo)}</td><td ${td}>${$(m.usd)}</td><td ${td}>${m.llamadas.toLocaleString("es-AR")}</td>
+        <td style="padding:0.35rem 0.6rem;border-bottom:1px solid var(--border);width:120px"><div style="height:8px;border-radius:4px;background:var(--accent);width:${Math.round(100 * m.usd / max)}%"></div></td></tr>`).join("")}
+    </table>` : '<div class="toggle-desc">Todavía no hay consultas de clientes con motivo.</div>';
+    box.innerHTML = `<h4 style="margin:0 0 0.4rem;font-size:0.8rem">Por día</h4><div style="overflow-x:auto">${tablaDia}</div>
+      <h4 style="margin:0.4rem 0 0.4rem;font-size:0.8rem">Por motivo · últimos 14 días</h4><div style="overflow-x:auto">${tablaMot}</div>`;
+  } catch (e) { box.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(e.message) + "</div>"; }
+}
 // --- IA: puntaje de respuestas (lk_ia-puntaje) ---
 const IP_CRIT = [["correcta", "Correcta"], ["resolvio", "Resolvió"], ["derivo", "Derivó bien"], ["reglas", "Reglas"], ["tono", "Tono"]];
 async function loadIaPuntaje() {
@@ -3951,7 +3991,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.12</div>
-<script src="gestop2.js?v=0.25.12"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.13</div>
+<script src="gestop2.js?v=0.25.13"></script>
 </body>
 </html>

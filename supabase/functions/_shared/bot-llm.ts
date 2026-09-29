@@ -127,7 +127,7 @@ export async function markModelDown(id: number, msg: string) {
   }
 }
 
-export function logUsage(res: ModelResult, isFreeTier: boolean, phone: string | null, fnName: string) {
+export function logUsage(res: ModelResult, isFreeTier: boolean, phone: string | null, fnName: string, motivo: string | null = null) {
   const rates = isFreeTier ? { input: 0, output: 0 } : (COST_PER_MTOK[res.model] ?? { input: 3, output: 15 });
   const cost = (res.inputTokens * rates.input + res.outputTokens * rates.output) / 1_000_000;
   supabase.from("bot_token_usage").insert({
@@ -137,6 +137,7 @@ export function logUsage(res: ModelResult, isFreeTier: boolean, phone: string | 
     estimated_cost_usd: cost,
     function_name: fnName,
     phone,
+    motivo,   // sql/107: para qué consultó el cliente (tablero de gasto por motivo)
   }).then(() => {}).catch((e: unknown) => console.error("[bot-llm.logUsage]", e));
 }
 

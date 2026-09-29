@@ -829,6 +829,24 @@ export interface ConversationResult {
   modelo?: string;
 }
 
+// Pablo, 29/09 (tablero de gasto por motivo): para qué consultó el cliente, deducido de las herramientas que usó la IA
+// en el turno. Si derivó, manda el motivo de la derivación. Sin herramientas = conversación general.
+const MOTIVO_HERRAMIENTA: Record<string, string> = {
+  consultar_mis_facturas: "pago", consultar_mis_descuentos: "pago",
+  consultar_mis_pedidos: "entrega", consultar_detalle_pedido: "entrega", consultar_mi_entrega: "entrega",
+  solicitar_agregado_pedido: "cambio_pedido",
+  consultar_stock: "stock", consultar_proximos_ingresos: "stock", buscar_productos: "productos",
+  consultar_novedades: "productos", consultar_mis_top_productos: "productos", enviar_catalogo: "productos",
+  enviar_fotos_producto: "productos", consultar_kb: "consulta_general",
+};
+function motivoDelTurno(usadas: Array<{ nombre: string; input: unknown }>): string {
+  // deno-lint-ignore no-explicit-any
+  const der = usadas.find((u) => u.nombre === "derivar_a_persona")?.input as any;
+  if (der?.motivo) return String(der.motivo);
+  for (const u of usadas) if (MOTIVO_HERRAMIENTA[u.nombre]) return MOTIVO_HERRAMIENTA[u.nombre];
+  return "consulta_general";
+}
+
 export async function runConversation(
   userText: string,
   phone: string,
@@ -879,6 +897,9 @@ export async function runConversation(
 
   const allMedia: MediaAction[] = [];
   const usadas: Array<{ nombre: string; input: unknown; resultado: string }> = [];
+  // El uso de cada llamada se registra al final del turno, con el motivo (se sabe recién cuando terminó).
+  const usos: Array<{ res: Parameters<typeof logUsage>[0]; free: boolean }> = [];
+  const registrarUsos = () => { const m = motivoDelTurno(usadas); for (const u of usos) logUsage(u.res, u.free, phone, fuente, m); };
   const downThisTurn = new Set<number>(); // modelos que ya fallaron en este turno
 
   for (let iter = 0; iter < 5; iter++) {
@@ -919,6 +940,7 @@ export async function runConversation(
       // Toda la cadena cayó (incluido el fallback de env).
       const isTimeout = /timeout|abort/i.test(lastErr);
       await notificarHumano({ tipo: isTimeout ? "llm_timeout" : "llm_error", phone, contexto: { userText, iter, error: lastErr.slice(0, 500) } });
+      registrarUsos();
       return {
         reply: isTimeout
           ? "⏳ [TIMEOUT] El LLM no respondió a tiempo. Se avisó a un humano; el cliente no recibió mensaje."
@@ -930,9 +952,10 @@ export async function runConversation(
     }
 
     // Log de tokens/costo (alimenta el panel "IA — gastos y uso").
-    logUsage(res, used.isFreeTier, phone, fuente);
+    usos.push({ res, free: used.isFreeTier });
 
     if (!res.toolCalls.length) {
+      registrarUsos();
       return { reply: res.text || "¿En qué más te puedo ayudar?", media: allMedia, herramientas: usadas, modelo: used.model };
     }
 
@@ -950,6 +973,7 @@ export async function runConversation(
     history.push({ role: "tool", results });
   }
 
+  registrarUsos();
   return {
     reply: "Disculpá, no pude completar tu consulta. ¿Podés reformular tu pregunta?",
     media: allMedia,

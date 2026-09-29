@@ -355,6 +355,10 @@ el killswitch, sin ningún consumidor de esa cola.
   Desde sql/106 también "entregado al expreso" (`pedido_en_viaje_expreso`, context `tracking_entregado` para que
   trg_order_tracking_notify no lo repita al marcarse entregado al día siguiente).
 - **Pedido recibido con razón social** (29/09, sql/104): revierte sql/093; la plantilla aprobada en Meta es de 5 variables.
+- **Gasto de IA por día y motivo** (29/09, sql/107): `bot_token_usage.motivo` se llena al final de cada turno de la IA con
+  el motivo deducido de las herramientas (derivación → su motivo; facturas → pago; pedidos/entregas → entrega; stock…;
+  sin herramientas → consulta_general). Dashboard › 💰 IA — gasto por día y motivo (`lk_ia-puntaje` action `gasto`):
+  por día separado en clientes / simulador / puntaje, y por motivo sólo clientes. Lo anterior queda "sin motivo".
 - **Puntaje de la IA** (29/09, sql/101): el webhook guarda cada respuesta del agente IA en `wa_ia_puntajes` (pregunta,
   respuesta, herramientas con su resultado recortado, modelo). Cron `lk_ia-puntaje` cada 10 min → Haiku puntúa 1-5
   correcta / resolvió / derivó bien / reglas / tono (máx. 15 por corrida, 3 intentos). Dashboard › 🎯 IA — puntaje de

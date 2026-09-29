@@ -152,6 +152,34 @@ serve(async (req) => {
       });
     }
 
+    // Pablo, 29/09: tablero de gasto de IA por día y por motivo (bot_token_usage; motivo desde sql/107).
+    //   {action:"gasto", dias?} → por_dia: [{dia, uso, usd, llamadas}] · por_motivo: [{motivo, usd, llamadas}] (sólo clientes)
+    if (body.action === "gasto") {
+      const dias = Math.min(90, Math.max(1, Number(body.dias ?? 14)));
+      const desde = new Date(Date.now() - dias * 86400_000).toISOString();
+      const { data, error } = await supabase.from("bot_token_usage")
+        .select("created_at, function_name, motivo, estimated_cost_usd").gte("created_at", desde).limit(20000);
+      if (error) return json({ ok: false, error: error.message }, 200);
+      const USO: Record<string, string> = { "lk_whatsapp-webhook": "clientes", "lk_bot-simular": "simulador", "lk_chat-test": "simulador", "lk_ia-puntaje": "puntaje" };
+      const dia = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso));
+      const pd: Record<string, Record<string, { usd: number; n: number }>> = {};
+      const pm: Record<string, { usd: number; n: number }> = {};
+      for (const r of data ?? []) {
+        const uso = USO[String(r.function_name ?? "")] ?? "otros";
+        const d = dia(r.created_at);
+        const usd = Number(r.estimated_cost_usd ?? 0);
+        pd[d] ??= {}; pd[d][uso] ??= { usd: 0, n: 0 }; pd[d][uso].usd += usd; pd[d][uso].n++;
+        if (uso === "clientes") { const m = String(r.motivo ?? "sin_motivo"); pm[m] ??= { usd: 0, n: 0 }; pm[m].usd += usd; pm[m].n++; }
+      }
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      return json({
+        ok: true, dias,
+        por_dia: Object.entries(pd).sort((a, b) => b[0].localeCompare(a[0]))
+          .map(([d, u]) => ({ dia: d, ...Object.fromEntries(Object.entries(u).map(([k, v]) => [k, { usd: r2(v.usd), llamadas: v.n }])) })),
+        por_motivo: Object.entries(pm).map(([m, v]) => ({ motivo: m, usd: r2(v.usd), llamadas: v.n })).sort((a, b) => b.usd - a.usd),
+      });
+    }
+
     if (body.action === "marcar") {
       const id = Number(body.id);
       const revision = String(body.revision ?? "");
