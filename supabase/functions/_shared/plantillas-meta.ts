@@ -68,9 +68,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_programado_expreso",
     language: ES, category: UT,
     disparo: "Idem pedido_programado, cuando el pedido sale por expreso.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)", "expreso"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} ya tiene fecha: lo despachamos el {{3}} por {{4}}.\nTe avisamos cuando lo entreguemos al expreso.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "miércoles 30/09", "Expreso Arias"],
+    // Sin la doble presentación (Pablo, 29/09). {{3}} es el nombre del expreso sin la palabra "Expreso" (sql/089).
+    variables: ["fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)", "expreso (sin la palabra Expreso)"],
+    body: "Tu pedido del {{1}} ya tiene fecha: lo despachamos el {{2}} a Expreso {{3}}.\nTe avisamos cuando lo entreguemos al expreso.",
+    ejemplos: ["22/09", "miércoles 30/09", "Arias"],
   },
   {
     name: "pedido_programado_retira",

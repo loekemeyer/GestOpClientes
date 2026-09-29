@@ -380,7 +380,7 @@ async function handleTemplatesPreview(body: Record<string, unknown>) {
     return { etapa, template: name, params, texto, opcional };
   };
   const pasos = modo === "expreso"
-    ? [P("Programado", "pedido_programado_expreso", [rs, fp, sal, expreso]),
+    ? [P("Programado", "pedido_programado_expreso", [fp, sal, expreso.replace(/^expreso\s+/i, "")]),
        P("Cambio de fecha", "pedido_reprogramado", [rs, fp, nueva], true),
        P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
        { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
