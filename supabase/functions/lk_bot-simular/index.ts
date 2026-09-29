@@ -8,6 +8,12 @@ import { atenderMalHumor } from "../_shared/humor.ts";
 import { handleFaq } from "../_shared/faq.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
+import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
+
+// Botonera del Simulador: avisos de seguimiento + las 6 de factura (con el PDF de la factura en el mensaje).
+const AVISOS = [...PLANTILLAS.map((p) => ({ name: p.name, disparo: p.disparo, body: p.body, ejemplos: p.ejemplos, factura: false })),
+  ...PLANTILLAS_FACTURA.map((p) => ({ ...p, factura: true }))];
+const rellenar = (body: string, vals: string[]) => body.replace(/\{\{(\d+)\}\}/g, (m, n) => vals[Number(n) - 1] ?? m);
 
 // lk_bot-simular — simulador del bot: corre una charla completa con la MISMA lógica que el webhook
 // (3c respuesta a aviso → 4 preguntas frecuentes → 6 agente IA) como si escribiera un cliente, sin
@@ -57,7 +63,7 @@ serve(async (req) => {
     }
 
     if (body.action === "avisos") {
-      return json({ ok: true, avisos: PLANTILLAS.map((p) => ({ name: p.name, cuando: p.disparo, texto: renderPlantilla(p.name, Object.fromEntries(p.ejemplos.map((v, i) => [String(i + 1), v]))) })) });
+      return json({ ok: true, avisos: AVISOS.map((p) => ({ name: p.name, cuando: p.disparo, factura: p.factura, texto: rellenar(p.body, p.ejemplos) })) });
     }
 
     const { data: c } = await supabase.from("customers")
@@ -88,9 +94,11 @@ serve(async (req) => {
     for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
       if (paso.aviso) {
         const nombre = String(paso.aviso);
-        const def = PLANTILLAS.find((x) => x.name === nombre);
-        const porDefecto = def ? Object.fromEntries(def.ejemplos.map((v, i) => [String(i + 1), i === 0 ? c.business_name : v])) : null;
-        const texto = renderPlantilla(nombre, (paso.params ?? porDefecto) as Record<string, unknown> | null) ?? "";
+        const def = AVISOS.find((x) => x.name === nombre);
+        // Sin params: los valores de ejemplo; en los de seguimiento {{1}} es la razón social del cliente.
+        const vals = paso.params ? Object.values(paso.params as Record<string, unknown>).map(String)
+          : def ? def.ejemplos.map((v, i) => (i === 0 && !def.factura ? c.business_name : v)) : [];
+        const texto = def ? rellenar(def.body, vals) : (renderPlantilla(nombre, null) ?? "");
         SIM.historial.push({ rol: "assistant", creado_en: ahora(),
           contenido: `[Aviso automático ${nombre}${paso.pedido ? ` · pedido ${paso.pedido}` : ""}]\n${texto}` });
         salida.push({ aviso: nombre, texto });

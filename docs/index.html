@@ -342,7 +342,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.24.2">
+  <link rel="stylesheet" href="gestop2.css?v=0.25.1">
 </head>
 <body>
 
@@ -1609,7 +1609,7 @@ async function simInit() {
     if (error || !data?.ok) { cont.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
     _sim.avisos = data.avisos;
     cont.innerHTML = data.avisos.map((a) =>
-      `<button class="config-btn small sim-aviso" title="${esc(a.cuando || "")}" onclick="simAviso('${esc(a.name)}')">${esc(a.name.replace(/^pedido_/, "").replace(/_/g, " "))}</button>`).join("");
+      `<button class="config-btn small sim-aviso" title="${esc(a.cuando || "")}" onclick="simAviso('${esc(a.name)}', ${a.factura ? "true" : "false"})">${a.factura ? "🧾 " : ""}${esc(a.name.replace(/^pedido_/, "").replace(/_s$/, " (1 fc)").replace(/_p$/, " (varias)").replace(/_/g, " "))}</button>`).join("");
     simReset();
   } catch (e) {
     cont.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(e.message) + "</div>";
@@ -1631,12 +1631,12 @@ async function simLlamar(pasos) {
   return data.charla[0];
 }
 
-async function simAviso(name) {
+async function simAviso(name, factura) {
   if (_sim.ocupado) return;
   _sim.ocupado = true;
   try {
     const r = await simLlamar([{ aviso: name }]);
-    simAgregar("in", `<div style="white-space:pre-wrap;">${esc(r.texto)}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(name)}</div><span class="time">${simHora()}</span>`);
+    simAgregar("in", `${factura ? '<div style="font-size:0.8rem;padding:0.4rem;border-radius:6px;background: var(--card);margin-bottom:0.4rem;">📄 Factura.pdf</div>' : ""}<div style="white-space:pre-wrap;">${esc(r.texto)}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(name)}</div><span class="time">${simHora()}</span>`);
     _sim.historial.push({ rol: "assistant", contenido: `[Aviso automático ${name}]\n${r.texto}` });
   } catch (e) { simAgregar("system", "⚠️ " + esc(e.message)); }
   _sim.ocupado = false;
@@ -3914,7 +3914,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.0</div>
-<script src="gestop2.js?v=0.24.2"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.1</div>
+<script src="gestop2.js?v=0.25.1"></script>
 </body>
 </html>
