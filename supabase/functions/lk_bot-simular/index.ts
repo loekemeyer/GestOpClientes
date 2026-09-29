@@ -82,7 +82,15 @@ serve(async (req) => {
       // Sin teléfono en el pedido: el agendado del cliente (sólo lectura) para que las herramientas encuentren sus pedidos.
       const { data: w } = await supabase.from("bot_customer_whatsapps").select("whatsapp")
         .eq("customer_id", c.id).order("is_primary", { ascending: false }).limit(1).maybeSingle();
-      telSim = String(w?.whatsapp ?? "").replace(/\D/g, "") || TEL_SIMULADO;
+      telSim = String(w?.whatsapp ?? "").replace(/\D/g, "");
+      // Sin agendado: el teléfono del ERP (el bot también reconoce por ahí, sql/097). Antes caía al número simulado y
+      // las herramientas decían "no tenés pedidos" a clientes que sí tienen (cliente 4286, 29/09).
+      if (!telSim) {
+        const { data: erp } = await supabase.from("wa_clientes_telefono").select("telefono").eq("cod_cliente", c.cod_cliente).limit(1).maybeSingle();
+        const { data: cw } = await supabase.from("customers").select("whatsapp").eq("id", c.id).maybeSingle();
+        telSim = String(erp?.telefono ?? cw?.whatsapp ?? "").replace(/\D/g, "");
+      }
+      telSim ||= TEL_SIMULADO;
     }
     SIM.activo = true;
     SIM.historial = Array.isArray(body.historial)
