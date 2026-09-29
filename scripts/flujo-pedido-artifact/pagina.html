@@ -116,14 +116,23 @@ const PASOS = [
     que: "El pedido pasa a “programado” con su fecha. Si la fecha cambia después, se avisa de nuevo.",
     msj: { reparto: ["pedido_programado", "Programado"], expreso: ["pedido_programado_expreso", "Programado, con el nombre del expreso"], retira: ["pedido_programado_retira", "Programado para retirar"] },
     extra: ["pedido_reprogramado", "Si cambia la fecha: aviso de reprogramación"] },
+  { t: "Depósito lo arma", c: "var(--azul)", dispara: [["t-trigger", "⚙️ Automático al pasar a “en preparación”"], ["t-tiempo", "⏱️ Unos días antes de la salida"]],
+    que: "El pedido pasa a “en preparación”. Hasta acá el cliente puede pedir por WhatsApp que le agreguen artículos; desde acá, tiene que cargar un pedido nuevo en la web.",
+    msj: { reparto: null, expreso: null, retira: null },
+    nada: { reparto: "No hay aviso: ya sabe la fecha desde el paso anterior.", expreso: "No hay aviso: ya sabe la fecha desde el paso anterior.", retira: "No hay aviso: ya sabe el día desde el paso anterior." } },
   { t: "Se factura", c: "var(--verde)", dispara: [["t-trigger", "⚙️ Automático al facturar"], ["t-cron", "🔁 Retiro: revisa cada 10 min"]],
     que: "Le llega la factura en PDF con el importe, el descuento y los datos de pago. Si retira, además se avisa que ya puede pasar.",
     msj: { reparto: ["pedido_contado_s", "Factura (6 versiones según forma de pago)"], expreso: ["pedido_contado_s", "Factura (6 versiones según forma de pago)"], retira: ["pedido_contado_s", "Factura (6 versiones según forma de pago)"] },
     extraModo: { retira: ["pedido_listo_retirar", "Listo para retirar en Virgilio 2788"] } },
+  { t: "Sale del depósito", c: "var(--verde)", dispara: [["t-trigger", "⚙️ Automático al despachar"], ["t-tiempo", "⏱️ El día de la salida"]],
+    que: "El pedido sale en el camión propio o se entrega al expreso.",
+    msj: { reparto: ["pedido_en_viaje", "Salió en el camión"], expreso: ["pedido_en_viaje_expreso", "Entregado al expreso"], retira: null },
+    ojo: { reparto: "⚠️ Hoy este aviso sólo sale para pedidos cargados en ISIS: a los pedidos web de reparto todavía no les llega (pendiente)." },
+    nada: { retira: "No hay aviso: el cliente pasa a buscarlo al depósito." } },
   { t: "El cliente lo recibe", c: "var(--verde)", dispara: [["t-trigger", "⚙️ Automático al marcar entregado"], ["t-tiempo", "⏱️ Al marcarlo Depósito"]],
-    que: "Se avisa que el pedido salió o llegó, según cómo se entrega. Si falta algo, el cliente puede avisar por el mismo chat.",
-    msj: { reparto: ["pedido_entregado", "Pedido entregado"], expreso: ["pedido_en_viaje_expreso", "Entregado al expreso"], retira: null },
-    nada: { retira: "No hay aviso: el cliente ya lo retiró en el depósito." } },
+    que: "Se avisa que el pedido llegó. Si falta algo, el cliente puede avisar por el mismo chat.",
+    msj: { reparto: ["pedido_entregado", "Pedido entregado"], expreso: null, retira: null },
+    nada: { expreso: "No hay aviso: el viaje desde el expreso lo maneja el expreso, con sus tiempos.", retira: "No hay aviso: el cliente ya lo retiró en el depósito." } },
 ];
 
 function cuerpo(body, ej) {
@@ -143,8 +152,9 @@ function pintar() {
   document.querySelectorAll("#modos button").forEach((b) => b.addEventListener("click", () => { modo = b.dataset.m; pintar(); }));
   document.getElementById("linea").innerHTML = PASOS.map((p, i) => {
     const m = p.msj[modo], ex = p.extraModo?.[modo], nada = p.nada?.[modo];
-    const cuerpoMsj = m ? `<div class="msj"><b>💬 Mensaje que recibe</b>${boton(m)}${ex ? boton(ex) : ""}${p.extra ? boton(p.extra) : ""}</div>`
-      : `<div class="msj nada"><b>Sin mensaje</b>${esc(nada || "")}</div>`;
+    const ojo = p.ojo?.[modo] ? `<div style="font-size:15px;color:#856404;background:#fff3cd;border-radius:8px;padding:8px 10px;margin-top:8px">${esc(p.ojo[modo])}</div>` : "";
+    const cuerpoMsj = (m ? `<div class="msj"><b>💬 Mensaje que recibe</b>${boton(m)}${ex ? boton(ex) : ""}${p.extra ? boton(p.extra) : ""}</div>`
+      : `<div class="msj nada"><b>Sin mensaje</b>${esc(nada || "")}</div>`) + ojo;
     return `<div class="paso"><div class="riel"><div class="n">${i + 1}</div><div class="tramo"></div></div>
       <div class="tarjeta" style="--c:${p.c}"><h2>${esc(p.t)}</h2>
         <div class="dispara">${p.dispara.map(([c, t]) => `<span class="tag ${c}">${esc(t)}</span>`).join("")}</div>

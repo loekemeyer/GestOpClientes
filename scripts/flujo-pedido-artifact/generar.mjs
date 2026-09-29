@@ -8,7 +8,7 @@ const aca = dirname(fileURLToPath(import.meta.url));
 const [, , entrada, salida] = process.argv;
 const d = JSON.parse(readFileSync(entrada, "utf8"));
 const usa = ["pedido_recibido", "pedido_programado", "pedido_programado_expreso", "pedido_programado_retira", "pedido_reprogramado",
-  "pedido_contado_s", "pedido_listo_retirar", "pedido_entregado", "pedido_en_viaje_expreso"];
+  "pedido_contado_s", "pedido_listo_retirar", "pedido_en_viaje", "pedido_entregado", "pedido_en_viaje_expreso"];
 // Texto del sistema (plantillas-meta.ts) cuando difiere de Meta: es el que va a salir una vez aprobado.
 const { PLANTILLAS } = await import(join(aca, "../../supabase/functions/_shared/plantillas-meta.ts"));
 const plantillas = d.plantillas.filter((p) => usa.includes(p.name)).map((p) => {

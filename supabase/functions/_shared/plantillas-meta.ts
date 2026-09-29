@@ -47,12 +47,13 @@ export const PLANTILLAS: PlantillaMeta[] = [
     disparo: "El pedido queda enviado (orders.sheets_sent pasa a true, sql/082). El total de orders es sin IVA.",
     // {{5}} (Pablo, 29/09): fecha estimada por la demora real del modo (p90 de 90 días) o, si retira y eligió día
     // en la web, ese día y franja. Lo arma wa_fecha_estimada_calc y queda en wa_fecha_estimada para medir cumplimiento.
-    // "¡Hola!" sin la razón social (Pablo, 29/09: repetitivo). sql/093.
-    variables: ["fecha del pedido (dd/mm)", "total sin IVA ($ con punto de miles)", "método de pago (texto limpio, sin el descuento)", "entrega estimada (texto)"],
+    // Con la razón social (Pablo, 29/09: "por ser el primer mensaje"); los demás avisos van sin nombre. sql/104
+    // (revierte sql/093, que la había sacado).
+    variables: ["razón social", "fecha del pedido (dd/mm)", "total sin IVA ($ con punto de miles)", "método de pago (texto limpio, sin el descuento)", "entrega estimada (texto)"],
     // Texto de Pablo (29/09): "Entrega estimada <día>" + "En breve te confirmamos el día exacto de programación".
     // {{5}} es sólo el día (y, si va por expreso o retira, la aclaración entre paréntesis): sql/087.
-    body: "¡Hola! Te escribimos de Loekemeyer.\nRecibimos tu pedido del {{1}} por {{2}} + IVA.\nMétodo de pago: {{3}}.\nEntrega estimada: {{4}}.\nEn breve te confirmamos el día exacto de programación.",
-    ejemplos: ["28/09", "$9.446", "contado", "martes 20/10"],
+    body: "¡Hola {{1}}! Te escribimos de Loekemeyer.\nRecibimos tu pedido del {{2}} por {{3}} + IVA.\nMétodo de pago: {{4}}.\nEntrega estimada: {{5}}.\nEn breve te confirmamos el día exacto de programación.",
+    ejemplos: ["Autoservicio Capo SA", "28/09", "$9.446", "contado", "martes 20/10"],
   },
 
   // ── 1 · Pedido programado ────────────────────────────────────────────────
