@@ -107,8 +107,8 @@
     .chat-messages .msg.in { background: var(--wa-in); float: left; border-top-left-radius: 0; }
     .chat-messages .msg.out { background: var(--wa-out); float: right; border-top-right-radius: 0; }
     .chat-messages .msg .time { font-size: 0.65rem; color: var(--muted); float: right; margin: 4px 0 -4px 8px; }
-    .sim-avisos { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-    .sim-aviso { text-transform: capitalize; }
+    .sim-avisos { display: flex; flex-direction: column; align-items: stretch; gap: 0.35rem; }
+    .sim-aviso { text-transform: capitalize; text-align: left; }
     .chat-messages .msg.system { background: var(--amb-bg); float: none; max-width: 85%; margin: 0.5rem auto; text-align: center; font-size: 0.8rem; color: var(--warn); border-radius: 6px; }
     .chat-messages::after { content: ""; display: table; clear: both; }
     .chat-messages .typing { float: left; background: var(--wa-in); border-top-left-radius: 0; padding: 0.6rem 1rem; }
@@ -342,7 +342,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.25.1">
+  <link rel="stylesheet" href="gestop2.css?v=0.25.2">
 </head>
 <body>
 
@@ -1593,6 +1593,8 @@ function tplChatAll() {
 
 // --- Simulador: escribir como cliente + botonera de avisos (lk_bot-simular) ---
 var _sim = { cod: 4210, historial: [], avisos: null, ocupado: false };
+// Nombres de botón que no salen bien del nombre de la plantilla (Pablo, 29/09).
+const SIM_ETIQUETA = { pedido_programado: "programado envío" };
 
 function simAgregar(cls, html) {
   const box = document.getElementById("simMessages");
@@ -1609,7 +1611,7 @@ async function simInit() {
     if (error || !data?.ok) { cont.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
     _sim.avisos = data.avisos;
     cont.innerHTML = data.avisos.map((a) =>
-      `<button class="config-btn small sim-aviso" title="${esc(a.cuando || "")}" onclick="simAviso('${esc(a.name)}', ${a.factura ? "true" : "false"})">${a.factura ? "🧾 " : ""}${esc(a.name.replace(/^pedido_/, "").replace(/_s$/, " (1 fc)").replace(/_p$/, " (varias)").replace(/_/g, " "))}</button>`).join("");
+      `<button class="config-btn small sim-aviso" title="${esc(a.cuando || "")}" onclick="simAviso('${esc(a.name)}', ${a.factura ? "true" : "false"})">${a.factura ? "🧾 " : ""}${esc(SIM_ETIQUETA[a.name] || a.name.replace(/^pedido_/, "").replace(/_s$/, " (1 fc)").replace(/_p$/, " (varias)").replace(/_/g, " "))}</button>`).join("");
     simReset();
   } catch (e) {
     cont.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(e.message) + "</div>";
@@ -3914,7 +3916,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.1</div>
-<script src="gestop2.js?v=0.25.1"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.2</div>
+<script src="gestop2.js?v=0.25.2"></script>
 </body>
 </html>
