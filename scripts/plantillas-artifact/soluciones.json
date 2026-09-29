@@ -1,0 +1,171 @@
+{
+  "_nota": "Pestaña 'Cómo lo resolvemos' del artifact de plantillas (Pablo, 29/09). Una fila por motivo de consulta del estudio de cobertura (docs/ESTUDIO-COBERTURA-2026-09.md, 712 consultas del 28/07 al 28/09). estado: hecho | parcial | pendiente. Mantener a mano cuando cambie el manejo de un motivo. Causas, cantidades y ejemplos = tabla de Pablo (29/09): una consulta por contacto y por día; una consulta puede tener más de una causa. 'Pasar o modificar pedido' agrupa confirmar, modificar, pedido fuera de la web, error de carga y cómo pedir.",
+  "total_consultas": 712,
+  "periodo": "28/07 al 28/09",
+  "motivos": [
+    {
+      "motivo": "Pasar o modificar pedido",
+      "estado": "parcial",
+      "previene": [
+        {
+          "tpl": "pedido_recibido",
+          "como": "Llega solo cuando el pedido queda enviado, uno por pedido, con importe, forma de pago y entrega estimada: confirma que se cargó y deja ver enseguida si hay un duplicado."
+        },
+        {
+          "tpl": "pedido_programado",
+          "como": "Al avisar la fecha abre la ventana para pedir cambios; si responde a ese aviso pidiendo agregar o sacar algo, se crea la alerta 'Cambio de pedido' urgente."
+        },
+        {
+          "tpl": "pedido_preparando",
+          "como": "Marca el límite: cuando el pedido entra en armado ya no se modifica."
+        }
+      ],
+      "bot": "Confirma los pedidos cargados con fecha y estado. Un cambio ('agregá 60 sacacorchos') lo toma con el detalle y lo deriva; ya no contesta 'no se toman pedidos por WhatsApp'. Para pedidos nuevos indica la web (los pedidos por WhatsApp están apagados) y explica cómo hacerlo.",
+      "deriva": "Motivo 'cambio_pedido' (urgente) para agregar, sacar, anular o un pedido duplicado; 'pedido_no_encontrado' si lo cargó y no aparece; un Excel o foto adjunto crea una alerta para que alguien lo cargue.",
+      "falta": "Poner en el aviso de programado hasta cuándo se puede modificar. Decidir si los pedidos que mandan por Excel o foto los carga una persona o se les pide siempre la web, y cambiar el mensaje de adjunto, que hoy es hostil.",
+      "consultas": 123,
+      "ejemplo": "«Agregá 60 sacacorchos 067 al pedido web»"
+    },
+    {
+      "motivo": "Fecha o estado de entrega",
+      "consultas": 112,
+      "estado": "hecho",
+      "previene": [
+        {
+          "tpl": "pedido_recibido",
+          "como": "Al cargar el pedido ya le dice la entrega estimada (demora real de su modo) o el día de retiro que eligió."
+        },
+        {
+          "tpl": "pedido_programado",
+          "como": "Cuando tiene fecha, le avisa el día; hay una versión para expreso y otra para retiro."
+        },
+        {
+          "tpl": "pedido_preparando",
+          "como": "Cuando entra en armado, le confirma que está en el depósito y el día de salida."
+        },
+        {
+          "tpl": "pedido_reprogramado",
+          "como": "Si cambia la fecha, se lo avisa antes de que pregunte."
+        },
+        {
+          "tpl": "pedido_entregado",
+          "como": "Reparto: le avisa cuando lo recibe."
+        }
+      ],
+      "bot": "Contesta cada pedido con su estado y fecha, sin número de pedido. Expreso: el día que lo entregamos al expreso y que el viaje lo consulte con ellos. Sin fecha: 'todavía no tiene fecha de salida'.",
+      "deriva": "Motivo 'entrega' si necesita la fecha igual, si dice que no le llegó (urgente) o si la fecha no coincide con la que le dijeron.",
+      "falta": "",
+      "ejemplo": "«La web dice 30/09 y el detalle 13/10, ¿cuál vale?»"
+    },
+    {
+      "motivo": "Pagos",
+      "consultas": 101,
+      "estado": "hecho",
+      "previene": [
+        {
+          "tpl": "pedido_contado_s",
+          "como": "Al facturar le llega la factura con el importe, el importe con descuento y hasta cuándo, y el alias y CBU (6 plantillas según contado, crédito o e-cheq, y 1 o varias facturas)."
+        }
+      ],
+      "bot": "'¿Cuánto debo?' o 'el importe con el 25 %': le pasa cada factura impaga con importe, estado y descuento, y el saldo total, y avisa a Cobranzas. Alias y CBU: respuesta fija.",
+      "deriva": "Motivo 'pago' si dice que ya pagó y no le figura; un comprobante adjunto crea la alerta 'Comprobante recibido'.",
+      "falta": "Confirmar con Cobranzas si una factura vencida pierde el descuento.",
+      "ejemplo": "«Pasame el importe con el 25 % de contado»"
+    },
+    {
+      "motivo": "NC, faltante o error de factura",
+      "consultas": 85,
+      "estado": "parcial",
+      "previene": [
+        {
+          "tpl": "pedido_entregado",
+          "como": "Al recibir el pedido le dice 'si falta algo o llegó algo mal, avisanos por acá': el reclamo entra por el canal correcto."
+        }
+      ],
+      "bot": "Registra el reclamo y le dice que una persona del equipo le escribe por acá; ya no lo manda a otro mail o WhatsApp.",
+      "deriva": "Motivo 'reclamo' (NC, faltante, factura duplicada, descuento que no se aplicó).",
+      "falta": "Decidir si el bot pide antes el artículo, la cantidad y una foto, para que Cobranzas no tenga que volver a preguntar.",
+      "ejemplo": "«Llegaron 59 aceiteras de 60, pido la NC»"
+    },
+    {
+      "motivo": "Coordinar retiro",
+      "consultas": 78,
+      "estado": "parcial",
+      "previene": [
+        {
+          "tpl": "pedido_recibido",
+          "como": "Si eligió día en la web: 'lo retirás el miércoles 30/09, de 9:00 a 12:00'."
+        },
+        {
+          "tpl": "pedido_programado_retira",
+          "como": "Le confirma el día en que va a estar listo."
+        },
+        {
+          "tpl": "pedido_listo_retirar",
+          "como": "Cuando el pedido web queda facturado: 'está listo para retirar en Virgilio 2788', con el horario de la web (9 a 12 y 13 a 16:30)."
+        }
+      ],
+      "bot": "El estado del pedido dice desde cuándo lo puede retirar; la respuesta fija del depósito da dirección, horario de la web y la regla de desarme. A un cliente de expreso nunca le ofrece retirar.",
+      "deriva": "Urgencia de retiro ('¿puedo pasar hoy?') va a una persona.",
+      "falta": "La respuesta fija del depósito no mira el pedido del cliente; 'paso mañana' no se registra ni se le avisa al depósito.",
+      "ejemplo": "«¿Mañana puedo pasar a retirar?»"
+    },
+    {
+      "motivo": "Lista de precios o cotizador",
+      "consultas": 67,
+      "estado": "parcial",
+      "previene": [],
+      "bot": "La lista vigente es la de la web; explica el cotizador.",
+      "deriva": "Pedido de Excel o de códigos de barras: se puede sumar como motivo nuevo en Configuración › Derivaciones.",
+      "falta": "Definir qué archivo se manda (lista en Excel, códigos de barras) y quién lo manda.",
+      "ejemplo": "«¿Sigue vigente la lista de septiembre 2025?»"
+    },
+    {
+      "motivo": "Alta de cliente nuevo",
+      "consultas": 64,
+      "estado": "hecho",
+      "previene": [],
+      "bot": "Toma los datos paso a paso y crea la solicitud; mínimo de compra con la respuesta fija.",
+      "deriva": "Alerta de alta en Tareas: la persona aprueba o rechaza y el aviso al interesado sale por la cola.",
+      "falta": "Validar con Ventas el texto de bienvenida.",
+      "ejemplo": "«Distribuidora de Villa María, queremos abrir cuenta»"
+    },
+    {
+      "motivo": "Web: contraseña o acceso",
+      "consultas": 37,
+      "estado": "parcial",
+      "previene": [],
+      "bot": "Contraseña: deriva con alerta.",
+      "deriva": "Una persona le resuelve el acceso.",
+      "falta": "'No me deja elegir sucursal' todavía no tiene respuesta; hay que ver si es un problema de la web.",
+      "ejemplo": "«No recuerdo la contraseña para cargar el pedido»"
+    },
+    {
+      "motivo": "Stock o consulta de artículo",
+      "consultas": 27,
+      "estado": "parcial",
+      "previene": [],
+      "bot": "Busca el artículo y le da precio y stock.",
+      "deriva": "Sin stock: alerta 'Consulta sin stock'.",
+      "falta": "'¿Cuándo ingresan?': no hay dato de ingresos; definir quién contesta.",
+      "ejemplo": "«¿Cuándo ingresan los artículos nuevos?»"
+    },
+    {
+      "motivo": "Mercadería rota o fallada",
+      "consultas": 18,
+      "estado": "parcial",
+      "previene": [
+        {
+          "tpl": "pedido_entregado",
+          "como": "Invita a avisar por acá si algo llegó mal."
+        }
+      ],
+      "bot": "Registra el reclamo como urgente.",
+      "deriva": "Motivo 'reclamo' urgente.",
+      "falta": "Aceptar la foto en lugar de contestar 'no se aceptan adjuntos'.",
+      "ejemplo": "«Los coladores de fideos vinieron todos rotos»"
+    }
+  ],
+  "fuera_de_alcance": "Fuera de la tabla: consumidores con producto fallado, CV, proveedores y phishing. Se pueden sumar como motivos nuevos en Configuración › Derivaciones; falta definir el canal de RR. HH., el mail de proveedores y la garantía al consumidor.",
+  "contactos": 236
+}

@@ -152,6 +152,30 @@ table.datos tr.total td { font-weight: 700; border-bottom: 0; }
   .barra { grid-template-columns: minmax(0, 1fr) 48px; }
   .barra .pista { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* Pestaña "Cómo lo resolvemos" */
+.sol-resumen { display: flex; flex-direction: column; gap: 10px; }
+.sol-barra { display: flex; gap: 2px; height: 26px; }
+.sol-barra div { height: 100%; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.sol-barra div:first-child { border-radius: 4px 0 0 4px; } .sol-barra div:last-child { border-radius: 0 4px 4px 0; }
+.st-hecho { background: var(--s-hoy); } .st-parcial { background: var(--s-erp); } .st-pendiente { background: var(--s-sin); }
+.causa { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.causa-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.causa-cab h3 { margin: 0; font-size: 18px; }
+.causa-cab .ej { color: var(--muted); font-style: italic; font-size: 14px; margin-top: 2px; }
+.causa-num { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.causa-num b { font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1; }
+.causa-num span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pill-e { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; }
+.pill-e.hecho { color: var(--ok); background: var(--ok-bg); } .pill-e.parcial { color: var(--blue); background: var(--blue-bg); } .pill-e.pendiente { color: var(--bad); background: var(--bad-bg); }
+.causa-cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.causa-cols h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.causa-cols p { margin: 0; font-size: 14px; }
+.prev { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.tpl-link { font: inherit; font-family: var(--f-mono); font-size: 12.5px; background: var(--accent-soft); color: var(--accent); border: 0; border-radius: 5px; padding: 1px 6px; cursor: pointer; }
+.tpl-link:hover { text-decoration: underline; }
+.falta { font-size: 14px; border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; background: var(--warn-bg); border-radius: 0 6px 6px 0; }
+@media (max-width: 860px) { .causa-cols { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) {
   .tpl { grid-template-columns: minmax(0, 1fr); }
   .buscar { margin-left: 0; width: 100%; }
@@ -173,6 +197,7 @@ table.datos tr.total td { font-weight: 700; border-bottom: 0; }
   <div class="tabs" role="tablist" id="tabs">
     <button class="tab" role="tab" id="tab-plantillas" aria-selected="true" aria-controls="v-plantillas" type="button">Plantillas</button>
     <button class="tab" role="tab" id="tab-simulacion" aria-selected="false" aria-controls="v-simulacion" type="button">Últimos 2 meses</button>
+    <button class="tab" role="tab" id="tab-soluciones" aria-selected="false" aria-controls="v-soluciones" type="button">Cómo lo resolvemos</button>
   </div>
 
   <div class="vista" id="v-plantillas" role="tabpanel" aria-labelledby="tab-plantillas">
@@ -181,6 +206,8 @@ table.datos tr.total td { font-weight: 700; border-bottom: 0; }
   </div>
 
   <div class="vista" id="v-simulacion" role="tabpanel" aria-labelledby="tab-simulacion" hidden></div>
+
+  <div class="vista" id="v-soluciones" role="tabpanel" aria-labelledby="tab-soluciones" hidden></div>
 
   <footer>
     Se actualiza sola todos los días con lo que dice Meta. Precio por mensaje entregado en Argentina: Utility US$ 0,026 · Marketing US$ 0,0618.
@@ -385,7 +412,7 @@ function simulacion() {
 }
 
 function pestanas() {
-  const tabs = [["plantillas", "v-plantillas"], ["simulacion", "v-simulacion"]];
+  const tabs = [["plantillas", "v-plantillas"], ["simulacion", "v-simulacion"], ["soluciones", "v-soluciones"]];
   const ir = (id) => {
     for (const [k, v] of tabs) {
       document.getElementById("tab-" + k).setAttribute("aria-selected", String(k === id));
@@ -394,10 +421,47 @@ function pestanas() {
   };
   for (const [k] of tabs) document.getElementById("tab-" + k).addEventListener("click", () => { ir(k); try { history.replaceState(null, "", "#" + k); } catch {} });
   if (location.hash === "#simulacion") ir("simulacion");
+  if (location.hash === "#soluciones") ir("soluciones");
+  window.irA = ir;
+}
+
+// ── Cómo lo resolvemos: cada causa de consulta con el aviso que la previene, lo que contesta el bot y cuándo deriva ──
+const EST_TXT = { hecho: "Resuelto", parcial: "En parte", pendiente: "Pendiente" };
+function soluciones() {
+  const S = DATOS.soluciones, v = document.getElementById("v-soluciones");
+  if (!S) { v.innerHTML = `<div class="vacio">Todavía no está cargado.</div>`; return; }
+  const T = S.total_consultas, suma = (e) => S.motivos.filter((m) => m.estado === e).reduce((a, m) => a + m.consultas, 0);
+  const tot = { hecho: suma("hecho"), parcial: suma("parcial"), pendiente: suma("pendiente") };
+  const nombreTpl = (t) => t === "pedido_contado_s" ? "pedido_contado_s y las otras 5 de factura" : t;
+  v.innerHTML = `
+    <div class="grupo-cab"><h2>Cómo resolvemos cada causa de consulta</h2>
+      <p>Las ${nf(T)} consultas por WhatsApp del ${esc(S.periodo)} (${nf(S.contactos)} contactos), ordenadas por cantidad. Para cada causa: qué aviso automático la evita, qué contesta el bot y cuándo pasa a una persona.</p></div>
+    <div class="sol-resumen">
+      <div class="sol-barra" role="img" aria-label="Consultas por estado">${["hecho", "parcial", "pendiente"].filter((e) => tot[e]).map((e) =>
+        `<div class="st-${e}" style="width:${(100 * tot[e]) / T}%" title="${EST_TXT[e]}: ${nf(tot[e])} consultas">${EST_TXT[e]} ${pct(tot[e], T)}</div>`).join("")}</div>
+      <div class="leyenda">${["hecho", "parcial", "pendiente"].filter((e) => tot[e]).map((e) => `<span><i class="st-${e}"></i>${EST_TXT[e]}: ${nf(tot[e])} consultas</span>`).join("")}</div>
+    </div>
+    ${S.motivos.map((m) => `<article class="causa">
+      <div class="causa-cab"><div><h3>${esc(m.motivo)}</h3>${m.ejemplo ? `<div class="ej">${esc(m.ejemplo)}</div>` : ""}</div>
+        <div class="causa-num"><b>${nf(m.consultas)}</b><span>${pct(m.consultas, T)} de las consultas</span><span class="pill-e ${esc(m.estado)}">${EST_TXT[m.estado] || m.estado}</span></div></div>
+      <div class="causa-cols">
+        <div><h4>Lo previene</h4>${(m.previene || []).length ? `<ul class="prev">${m.previene.map((p) =>
+          `<li><button class="tpl-link" type="button" data-tpl="${esc(p.tpl)}" title="Ver la plantilla">${esc(nombreTpl(p.tpl))}</button> ${esc(p.como)}</li>`).join("")}</ul>` : `<p style="color:var(--muted)">Ningún aviso automático.</p>`}</div>
+        <div><h4>Qué contesta el bot</h4><p>${esc(m.bot)}</p></div>
+        <div><h4>Cuándo pasa a una persona</h4><p>${esc(m.deriva || "No hace falta.")}</p></div>
+      </div>
+      ${m.falta ? `<div class="falta"><b>Falta:</b> ${esc(m.falta)}</div>` : ""}
+    </article>`).join("")}
+    <p class="hint" style="color:var(--muted);font-size:13px;margin:0">${esc(S.fuera_de_alcance || "")} Una consulta puede tener más de una causa; se cuenta una por contacto y por día.</p>`;
+  v.querySelectorAll(".tpl-link").forEach((b) => b.addEventListener("click", () => {
+    filtro = null; texto = b.dataset.tpl; resumen(); pintar(); window.irA("plantillas");
+    const q = document.getElementById("q"); if (q) q.value = texto;
+    window.scrollTo({ top: 0 });
+  }));
 }
 
 if (DATOS) {
-  simulacion(); pestanas();
+  simulacion(); soluciones(); pestanas();
   document.getElementById("generado").textContent = `Actualizado el ${fecha(DATOS.generado)} · ${DATOS.plantillas.length} plantillas en Meta`;
   llave(); resumen(); pintar();
 } else {

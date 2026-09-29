@@ -57,7 +57,14 @@ if (plantillas.some((p) => p.grupo === "sin_clasificar")) {
 const simPath = join(aca, "simulacion.json");
 const simulacion = existsSync(simPath) ? JSON.parse(readFileSync(simPath, "utf8")) : null;
 
-const payload = { generado: datos.generado, llave: datos.llave, grupos, plantillas, simulacion };
+// "Cómo lo resolvemos": cómo se maneja cada causa de consulta (a mano, soluciones.json).
+const solPath = join(aca, "soluciones.json");
+const soluciones = existsSync(solPath) ? JSON.parse(readFileSync(solPath, "utf8")) : null;
+for (const m of soluciones?.motivos ?? []) for (const pr of m.previene ?? []) {
+  if (!datos.plantillas.some((t) => t.name === pr.tpl)) avisos.push(`soluciones.json nombra una plantilla que no está en Meta: ${pr.tpl}`);
+}
+
+const payload = { generado: datos.generado, llave: datos.llave, grupos, plantillas, simulacion, soluciones };
 const html = readFileSync(join(aca, "pagina.html"), "utf8")
   .replace("/*__DATOS__*/null", JSON.stringify(payload).replace(/</g, "\\u003c"));
 writeFileSync(salida, html);
