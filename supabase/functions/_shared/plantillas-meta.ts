@@ -48,8 +48,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
     // {{5}} (Pablo, 29/09): fecha estimada por la demora real del modo (p90 de 90 días) o, si retira y eligió día
     // en la web, ese día y franja. Lo arma wa_fecha_estimada_calc y queda en wa_fecha_estimada para medir cumplimiento.
     variables: ["razón social", "fecha del pedido (dd/mm)", "total sin IVA ($ con punto de miles)", "método de pago (texto limpio, sin el descuento)", "entrega estimada (texto)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nRecibimos tu pedido del {{2}} por {{3}} + IVA.\nMétodo de pago: {{4}}.\nEntrega: {{5}}.\nTe avisamos por acá cuando se confirme.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "28/09", "$9.446", "contado", "sale antes del martes 20/10"],
+    // Texto de Pablo (29/09): "Entrega estimada <día>" + "En breve te confirmamos el día exacto de programación".
+    // {{5}} es sólo el día (y, si va por expreso o retira, la aclaración entre paréntesis): sql/087.
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nRecibimos tu pedido del {{2}} por {{3}} + IVA.\nMétodo de pago: {{4}}.\nEntrega estimada: {{5}}.\nEn breve te confirmamos el día exacto de programación.",
+    ejemplos: ["Comercial Ejemplo S.R.L", "28/09", "$9.446", "contado", "martes 20/10"],
   },
 
   // ── 1 · Pedido programado ────────────────────────────────────────────────
