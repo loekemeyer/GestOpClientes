@@ -136,6 +136,11 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // (no-cliente). Devolvemos null para NO servir el texto estático.
   if (top.automation_level === "inteligencia") return null;
 
+  // Pablo, 29/09 (incidencia "entrega"): "no me llegó", "tenía que llegar ayer", "todavía nada" es un reclamo, no
+  // una consulta de estado: la respuesta fija (#9, lista de pedidos) no lo resuelve. Va a la IA, que deriva
+  // (derivar_a_persona, motivo "entrega").
+  if (customer && RE_NO_LLEGO.test(text)) return null;
+
   // Pablo, 28/09: si el pedido abierto del cliente va por EXPRESO, no se le ofrece retiro (las distancias son
   // grandes): ante "¿puedo pasar a buscarlo?" se le dice por qué expreso va y que el viaje lo maneja el expreso.
   if (customer && RE_RETIRO.test(text)) {
@@ -251,6 +256,7 @@ async function lookupPaymentData(faq: any, customer: Customer): Promise<string |
   return renderTemplate(String(tpl), { nombre_cliente: customer?.business_name, alias, cbu }).trim();
 }
 
+const RE_NO_LLEGO = /\b(no (me )?(lleg[oó]|vino|entregaron|trajeron)|nunca lleg|todav[ií]a no (lleg|vino|me)|ten[ií]a que (llegar|venir|haber llegado)|deb[ií]a (llegar|venir)|sigo esperando|no lleg[oó] nada)/i;
 const RE_RETIRO = /\b(retir(o|ar|arlo|arla|amos|a)|pas(ar|o|amos) a buscar|buscarlo|ir a buscar|lo busco|voy a buscar)\b/i;
 
 /** Pedido abierto más reciente del cliente que va por expreso (no anulado, no entregado). null si no hay. */

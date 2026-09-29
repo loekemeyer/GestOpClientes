@@ -520,6 +520,7 @@ Un commit que sólo toca docs NO dispara deploy.
   vieja `wa_alertas_planify` (mismo comportamiento que antes). En prueba TODO va a `prueba_employee_id`; en
   producción sector > persona > defecto. Lo 🔴 urgente va a Planify siempre. Motivo nuevo de la IA: `entrega`
   (pedido sin fecha que el cliente necesita, no llegó, fecha distinta) — muchos pedidos no tienen fecha y eso es normal.
+  "No me llegó / tenía que llegar" (`RE_NO_LLEGO` en faq.ts) saltea las FAQ y va a la IA, que deriva.
 - **Agendar con un click (Pablo, 29/09, v0.23.0):** en la ficha de Conversaciones, si el número lo reconoce sólo el
   teléfono del ERP ("Sin agendar") → botón "Agendar a <cliente>"; si no se reconoce → buscador por código o razón
   social. Inserta en `bot_customer_whatsapps` (principal si el cliente no tiene otro), no manda nada. Es lo que
