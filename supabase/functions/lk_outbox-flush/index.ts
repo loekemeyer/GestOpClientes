@@ -91,8 +91,10 @@ Deno.serve(async () => {
           historyText = `[Aviso automático ${m.template_name ?? ctx}${pedido}]\n${texto}`;
         }
       } catch (_) { /* si falla, queda el formato de siempre */ }
-      // Loggear el envío saliente en el historial para que aparezca en Conversaciones.
+      // Loggear el envío saliente en el historial para que aparezca en Conversaciones. La clave temporal (reseteo de
+      // clave, bienvenida del alta) se tapa: en la cola la tapa el trigger de sql/103.
       try {
+        historyText = historyText.replace(/Clave: \S+/g, "Clave: ••••••••");
         await sb.rpc("bot_guardar_mensaje", { p_telefono: canon(m.phone), p_rol: "assistant", p_contenido: historyText });
       } catch (_) { /* no bloquear el flush si falla el log */ }
       sent++;

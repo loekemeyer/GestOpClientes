@@ -334,7 +334,8 @@ el killswitch, sin ningún consumidor de esa cola.
 - **Reseteo de clave** (29/09): cliente identificado + `RE_CLAVE` (faq.ts) → "tu usuario es tu CUIT, una persona te genera
   una clave" + tarea `reseteo_clave`. En Tareas, "Generar clave temporal y mandarla" → `lk_alertas` `reset_clave`:
   `auth.admin.updateUserById` en PaginaLK (4 letras + 4 números) y aviso por `wa_outbox`. La clave NO queda en la alerta,
-  pero sí en el cuerpo del mensaje (wa_outbox / conversación, sólo service_role y el dashboard).
+  y se tapa ("Clave: ••••••••") en la cola apenas el mensaje sale, falla o queda retenido (trigger de sql/103) y en el
+  historial de la conversación (lk_outbox-flush). Con la llave en '0' queda 'pending' y legible hasta que se despache.
 - **Simulador › "Crear tareas de prueba"** (29/09): con el tilde, cada alerta que crearía el bot se inserta de verdad
   en `wa_alertas_humano` con `contexto.simulador=true`, número = el de `wa_envio_contactos` (Thomy) y 🧪 en Tareas y en
   Planify (Planify siempre a quien desarrolla). `lk_alertas` bloquea Aplicar / Generar clave salvo cliente 99862
