@@ -9,6 +9,9 @@
 //   Los pedidos que no entran por la web (cargados en Gestión) programados sin pickear hoy son ~45 cajas
 //   en total; no se restan todavía.
 // Al cliente NUNCA se le da el número: "hay", "stock limitado" o "sin stock".
+// Ingreso estimado (Pablo, 29/09: "¿no tenés datos del PPP para responder eso?"): GV_Importados_Baches de Gestión
+// (lotes de importados en curso con fecha_reingreso = fecha estimada de ingreso a depósito). Se da SIEMPRE como
+// fecha estimada ("alrededor del dd/mm, puede cambiar"), sólo para artículos sin stock o con stock limitado.
 
 import { getGestionClient, supabase } from "./supabase.ts";
 
@@ -64,4 +67,59 @@ export function textoStock(desc: string, cod: string, s: StockArticulo, cajasPed
 export function stockNecesitaHumano(s: StockArticulo, cajasPedidas?: number | null): boolean {
   if (cajasPedidas && cajasPedidas > 0) return s.disponible < cajasPedidas;
   return s.nivel !== "hay";
+}
+
+export interface IngresoEstimado {
+  fecha: string;        // YYYY-MM-DD, fecha estimada de ingreso a depósito
+  demorado: boolean;    // la fecha ya pasó y el lote no llegó
+}
+
+const hoyAR = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+/** Próximo ingreso estimado de un artículo importado (lote en curso con unidades pendientes). null si no hay dato. */
+export async function ingresoEstimado(cod: string): Promise<IngresoEstimado | null> {
+  const c = String(cod ?? "").trim().toUpperCase();
+  if (!c) return null;
+  const g = await getGestionClient("public");
+  const { data, error } = await g.from("GV_Importados_Baches")
+    .select("cod_art, unidades, unidades_llegadas, fecha_reingreso, estado")
+    .eq("estado", "en_curso").in("cod_art", [c]).not("fecha_reingreso", "is", null)
+    .order("fecha_reingreso", { ascending: true }).limit(10);
+  if (error) throw new Error(`ingreso Gestión: ${error.message}`);
+  const f = (data ?? []).find((x: { unidades: number; unidades_llegadas: number | null }) => Number(x.unidades) > Number(x.unidades_llegadas ?? 0));
+  if (!f) return null;
+  const fecha = String(f.fecha_reingreso).slice(0, 10);
+  return { fecha, demorado: fecha < hoyAR() };
+}
+
+/** Texto para sumar al de stock. Vacío si no hay dato (el asesor confirma). */
+export function textoIngreso(ing: IngresoEstimado | null): string {
+  if (!ing) return "";
+  if (ing.demorado) return " Está en camino, pero la fecha de ingreso se demoró: un asesor te confirma la nueva fecha.";
+  return ` Estimamos que ingresa alrededor del ${ddmm(ing.fecha)} (es una fecha estimada y puede cambiar).`;
+}
+
+/** Artículos de la web (con código en products) que ingresan en los próximos `dias` días, del más cercano al más lejano. */
+export async function proximosIngresos(dias = 45, max = 8): Promise<Array<{ cod: string; descripcion: string; ingreso_estimado: string }>> {
+  const g = await getGestionClient("public");
+  const hoy = hoyAR();
+  const tope = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(Date.now() + dias * 86400000));
+  const { data, error } = await g.from("GV_Importados_Baches")
+    .select("cod_art, unidades, unidades_llegadas, fecha_reingreso")
+    .eq("estado", "en_curso").gte("fecha_reingreso", hoy).lte("fecha_reingreso", tope)
+    .order("fecha_reingreso", { ascending: true }).limit(200);
+  if (error) throw new Error(`ingresos Gestión: ${error.message}`);
+  const pend = (data ?? []).filter((x: { unidades: number; unidades_llegadas: number | null }) => Number(x.unidades) > Number(x.unidades_llegadas ?? 0));
+  if (!pend.length) return [];
+  const { data: prods } = await supabase.from("products").select("cod, description, active").in("cod", pend.map((x: { cod_art: string }) => x.cod_art));
+  const desc = new Map((prods ?? []).filter((p: { active: boolean }) => p.active).map((p: { cod: string; description: string }) => [p.cod, p.description]));
+  const vistos = new Set<string>(), out: Array<{ cod: string; descripcion: string; ingreso_estimado: string }> = [];
+  for (const x of pend as Array<{ cod_art: string; fecha_reingreso: string }>) {
+    if (!desc.has(x.cod_art) || vistos.has(x.cod_art)) continue;
+    vistos.add(x.cod_art);
+    out.push({ cod: x.cod_art, descripcion: String(desc.get(x.cod_art)).trim(), ingreso_estimado: ddmm(String(x.fecha_reingreso)) });
+    if (out.length >= max) break;
+  }
+  return out;
 }

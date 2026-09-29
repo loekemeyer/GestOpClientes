@@ -521,6 +521,12 @@ Un commit que sólo toca docs NO dispara deploy.
   producción sector > persona > defecto. Lo 🔴 urgente va a Planify siempre. Motivo nuevo de la IA: `entrega`
   (pedido sin fecha que el cliente necesita, no llegó, fecha distinta) — muchos pedidos no tienen fecha y eso es normal.
   "No me llegó / tenía que llegar" (`RE_NO_LLEGO` en faq.ts) saltea las FAQ y va a la IA, que deriva.
+- **Ingreso estimado de importados (Pablo, 29/09, causa "stock", 27 consultas):** `consultar_stock` suma "Estimamos que
+  ingresa alrededor del dd/mm (fecha estimada, puede cambiar)" cuando el artículo está sin stock o limitado y hay un lote
+  en curso en Gestión (`GV_Importados_Baches`: estado en_curso, unidades > unidades_llegadas, `fecha_reingreso`); si la fecha
+  ya pasó dice que se demoró y un asesor confirma. Herramienta nueva `consultar_proximos_ingresos` para "¿cuándo ingresan
+  los artículos nuevos?" (artículos activos de la web que llegan en 45 días, hasta 8, sin cantidades). Al 29/09: 90 lotes
+  en curso, 88 artículos, del 22/09 al 18/12, 4 sin fecha. Antes la respuesta de stock decía "no agregues fechas de ingreso".
 - **Teléfonos de Chef en clientes de LK (29/09, sql/086, auditoría 616):** `wa_clientes_telefono` se copiaba de
   `virgilio.whatsapp_clientes` (Gestión, SIN empresa): 171 teléfonos sólo de clientes de Chef colgaban del código y 43
   caían en un cliente de LK con el mismo código (ej. 2360 Senki ← Indianapolis de CH). `sincronizar_ppp` ahora saca

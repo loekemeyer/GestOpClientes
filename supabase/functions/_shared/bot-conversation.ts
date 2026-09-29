@@ -4,7 +4,7 @@
 import { getGestionClient, supabase } from "./supabase.ts";
 import { derivaciones, motivosIA } from "./derivaciones.ts";
 import { notificarHumano } from "./alertas.ts";
-import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
+import { ingresoEstimado, proximosIngresos, stockArticulo, stockNecesitaHumano, textoIngreso, textoStock } from "./stock.ts";
 import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { REGLAS_OPERATIVAS, bloqueSeguridad } from "./agente-fijos.ts";
@@ -120,6 +120,13 @@ const BOT_TOOLS: ToolDef[] = [
       },
       required: ["query"],
     },
+  },
+  {
+    // Pablo, 29/09 (causa "stock", 27 consultas): "¿cuándo ingresan los artículos nuevos?" sin decir cuál.
+    name: "consultar_proximos_ingresos",
+    description:
+      "Lista los artículos de la web que ingresan a depósito en los próximos días, con fecha ESTIMADA. Usala cuando pregunta en general cuándo ingresan los artículos nuevos o qué viene. Si pregunta por un artículo puntual, usá consultar_stock. Decile siempre que son fechas estimadas y pueden cambiar.",
+    input_schema: { type: "object", properties: {} },
   },
   {
     name: "consultar_stock",
@@ -498,11 +505,27 @@ async function executeTool(
               razon_social: cli?.[0]?.customer_name ?? null },
           });
         }
-        return { data: { texto_para_el_cliente: textoStock(p.description, p.cod, st, cajas),
-          regla: "Pasale este texto tal cual; no agregues cantidades ni fechas de ingreso." } };
+        // Sin stock o limitado: fecha estimada de ingreso si hay un lote en curso (Gestión › Importados).
+        let ing = null;
+        if (st.nivel !== "hay" || (cajas && st.disponible < cajas)) {
+          try { ing = await ingresoEstimado(p.cod); } catch (e) { console.error("ingresoEstimado:", e); }
+        }
+        return { data: { texto_para_el_cliente: textoStock(p.description, p.cod, st, cajas) + textoIngreso(ing),
+          regla: "Pasale este texto tal cual; no agregues cantidades ni otras fechas. La fecha de ingreso siempre es estimada." } };
       } catch (e) {
         console.error("consultar_stock:", e);
         return { data: { mensaje: "No pude consultar el stock ahora. Decile que un asesor le confirma y ofrecé derivar." } };
+      }
+    }
+
+    case "consultar_proximos_ingresos": {
+      try {
+        const lista = await proximosIngresos(45, 8);
+        if (!lista.length) return { data: { mensaje: "No tengo fechas de ingreso para los próximos días. Ofrecé que un asesor se lo confirme." } };
+        return { data: { articulos: lista, nota: "Fechas estimadas: pueden cambiar. No des cantidades." } };
+      } catch (e) {
+        console.error("consultar_proximos_ingresos:", e);
+        return { data: { mensaje: "No pude consultar los ingresos ahora. Decile que un asesor le confirma." } };
       }
     }
 
@@ -641,7 +664,7 @@ const AUDITABLE_TOOLS = new Set([
   "consultar_kb", "kb_agregar", "kb_eliminar", "kb_listar",
   "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
   "consultar_mi_historial", "consultar_mis_pedidos", "consultar_detalle_pedido",
-  "consultar_mis_descuentos", "consultar_mis_facturas", "consultar_novedades", "consultar_stock",
+  "consultar_mis_descuentos", "consultar_mis_facturas", "consultar_novedades", "consultar_stock", "consultar_proximos_ingresos",
 ]);
 
 async function auditTool(
