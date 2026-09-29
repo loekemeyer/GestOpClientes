@@ -116,9 +116,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
   {
     name: "pedido_listo_retirar",
     language: ES, category: UT,
-    disparo: "Retira en depósito: sale al facturar (la Carga Camión de un Retira es el cliente llevándoselo).",
+    // Horario = franjas de retiro de la web (9:00 a 12:00 y 13:00 a 16:30), Pablo 29/09.
+    disparo: "Retira en depósito: el pedido web llega a 'facturado' en Gestión (cron lk_aviso-retiro-web, sql/083).",
     variables: ["razón social", "fecha en que hizo el pedido (dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 10 a 12 y de 13 a 16 h.",
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 9 a 12 y de 13 a 16:30 h.",
     ejemplos: ["Comercial Ejemplo S.R.L", "22/09"],
   },
 

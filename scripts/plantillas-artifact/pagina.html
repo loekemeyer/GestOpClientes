@@ -63,6 +63,11 @@ details.grupo > .lista { margin-top: 14px; }
 
 .tpl { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); overflow: hidden; }
 .ficha { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cabeza { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.uso2m { display: flex; flex-direction: column; align-items: flex-end; text-align: right; flex: none; line-height: 1.1; }
+.uso2m b { font-size: 24px; font-variant-numeric: tabular-nums; color: var(--accent); }
+.uso2m span { font-size: 11.5px; color: var(--muted); }
+.uso2m.cero b { color: var(--muted); }
 .nombre { font-family: var(--f-mono); font-size: 14px; font-weight: 500; word-break: break-all; }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
@@ -219,6 +224,14 @@ function burbuja(p) {
   return `<div class="chat"><div class="burbuja">${doc}${head}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
 }
 
+// Veces que se habría mandado en los últimos 2 meses (simulacion.json › uso_2m). Sólo plantillas del bot de clientes.
+function uso2m(name) {
+  const U = DATOS.simulacion?.uso_2m;
+  if (!U || !(name in U)) return "";
+  const n = U[name];
+  if (n === null) return `<div class="uso2m cero" title="No hay historial para contarlo"><b>s/d</b><span>últimos 2 meses</span></div>`;
+  return `<div class="uso2m${n ? "" : " cero"}" title="Veces que se habría mandado del ${fdm(DATOS.simulacion.desde)} al ${fdm(DATOS.simulacion.hasta)}"><b>${nf(n)}</b><span>en 2 meses</span></div>`;
+}
 function ficha(p) {
   const e = ESTADOS[p.estado] || ESTADOS.sin_clasificar;
   const pl = (n, s, pp) => `${n} ${n === 1 ? s : pp}`;
@@ -228,7 +241,7 @@ function ficha(p) {
   const dif = p.difiere ? `<div class="nota"><b>El texto en Meta no es el que tiene definido el sistema.</b> Lo que sale es lo de la burbuja. El sistema tiene:<pre>${esc(p.definido)}</pre></div>` : "";
   const estadoMeta = p.status !== "APPROVED" ? `<span class="pill e-sin_disparador">Meta: ${esc(p.status)}</span>` : "";
   return `<div class="ficha">
-    <div class="nombre">${esc(p.name)}</div>
+    <div class="cabeza"><div class="nombre">${esc(p.name)}</div>${uso2m(p.name)}</div>
     <div class="pills"><span class="pill e-${esc(p.estado)}" title="${esc(e.desc)}">${esc(e.txt)}</span>${estadoMeta}<span class="pill cat">${esc(CAT[p.category] || p.category)}</span></div>
     <dl class="kv"><dt>Cuándo sale</dt><dd>${esc(p.sale)}</dd>${p.para ? `<dt>Para</dt><dd>${esc(p.para)}</dd>` : ""}${uso ? `<dt>Salió (30 d)</dt><dd>${esc(uso)}</dd>` : ""}</dl>
     ${dif}${vars}</div>`;

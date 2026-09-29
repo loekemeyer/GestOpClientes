@@ -66,20 +66,32 @@
       "agendado": 11,
       "erp": 33,
       "sin": 1
+    },
+    {
+      "tpl": "pedido_entregado",
+      "que": "Entregado · reparto",
+      "agendado": 0,
+      "erp": 90,
+      "sin": 15,
+      "detalle": "nuevo desde el 29/09 (sql/084)"
+    },
+    {
+      "tpl": "pedido_listo_retirar",
+      "que": "Listo para retirar · web",
+      "agendado": 10,
+      "erp": 30,
+      "sin": 1,
+      "detalle": "nuevo desde el 29/09 (sql/083)"
     }
   ],
   "no_cuentan": [
-    {
-      "tpl": "pedido_listo_retirar",
-      "por": "Nunca sale para pedidos web: el aviso mira la Programación de LK, donde los NP web no están; la zona \"Retira\" vive en PPP_Web_Programacion de Gestión."
-    },
     {
       "tpl": "pedido_reprogramado",
       "por": "No hay historial de cambios de fecha para contarlo (se registra desde el 28/09)."
     },
     {
-      "tpl": "pedido_preparando · pedido_entregado",
-      "por": "Aprobadas, pero nada las dispara."
+      "tpl": "pedido_preparando",
+      "por": "Aprobada, pero nada la dispara."
     }
   ],
   "demora": {
@@ -167,5 +179,24 @@
     "En los NP que no son web, la Programación nunca dice \"Retira\" (son Zona 1 a 7 y Super): un retiro cargado por fuera de la web recibiría \"ya salió en el camión hacia …\".",
     "El aviso de despacho no filtra por empresa: un NP de Chef cuyo código de cliente coincida con uno de LK agendado le llegaría a ese cliente de LK.",
     "1 pedido tiene el estado \"#VALUE!\" en el seguimiento (error de planilla que llegó a la base)."
-  ]
+  ],
+  "uso_2m": {
+    "_nota": "Veces que se habría mandado cada plantilla del 31/07 al 28/09 (todas, sin mirar si el cliente tiene teléfono). Facturas: grupos cliente+día de isis_lk.documentos por condición de venta (431; Facturacion_NP da 400).",
+    "pedido_recibido": 403,
+    "pedido_programado": 160,
+    "pedido_programado_expreso": 160,
+    "pedido_programado_retira": 45,
+    "pedido_en_viaje_expreso": 132,
+    "pedido_entregado": 105,
+    "pedido_listo_retirar": 41,
+    "pedido_en_viaje": 104,
+    "pedido_contado_s": 216,
+    "pedido_contado_p": 142,
+    "pedido_credito_s": 31,
+    "pedido_credito_p": 32,
+    "pedido_echeq_s": 6,
+    "pedido_echeq_p": 4,
+    "pedido_reprogramado": null,
+    "pedido_preparando": 0
+  }
 }
