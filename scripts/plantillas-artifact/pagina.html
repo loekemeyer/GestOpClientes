@@ -1,17 +1,16 @@
 <title>Plantillas de WhatsApp Loekemeyer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
 <style>
-/* Layout: una columna de lectura; cada plantilla es una fila "ficha | burbuja" que se apila en el teléfono.
-   Orden = ciclo de vida del pedido, no alfabético. Lo interno y lo viejo queda plegado al final. */
+/* Layout: pensado para gente no técnica. Semáforo arriba, tres pestañas, tarjetas con el mensaje a la vista y el detalle plegado. */
 :root {
   --bg: #eef1ee; --surface: #ffffff; --ink: #16201c; --muted: #56635c; --line: #d6ddd8;
   --accent: #0d6b57; --accent-soft: #dcefe8;
   --wall: #e7e1d6; --bubble: #ffffff; --bubble-ink: #111b21; --bubble-meta: #667781;
   --ok: #17663f; --ok-bg: #dcf2e4; --warn: #8a5300; --warn-bg: #fbecd0;
   --bad: #9d2530; --bad-bg: #f8dfe1; --grey: #5d6660; --grey-bg: #e6e9e7; --blue: #2d5a86; --blue-bg: #e0eaf4;
-  --s-hoy: #1baf7a; --s-erp: #2a78d6; --s-sin: #eb6834; --s-bar: #2a78d6;
+  --s-hoy: #1baf7a; --s-erp: #2a78d6; --s-sin: #eb6834;
   --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
@@ -21,179 +20,197 @@
   --wall: #0b141a; --bubble: #202c33; --bubble-ink: #e9edef; --bubble-meta: #8696a0;
   --ok: #7fd6a2; --ok-bg: #173323; --warn: #f0bf62; --warn-bg: #3a2c12; --bad: #f2939b; --bad-bg: #3b1c20;
   --grey: #aab3ad; --grey-bg: #252d2a; --blue: #9cc2ea; --blue-bg: #1b2a3a;
-  --s-hoy: #199e70; --s-erp: #3987e5; --s-sin: #d95926; --s-bar: #3987e5; color-scheme: dark; } }
+  --s-hoy: #199e70; --s-erp: #3987e5; --s-sin: #d95926; color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #0f1412; --surface: #171e1b; --ink: #e6ece8; --muted: #9aa8a0; --line: #2a3531;
   --accent: #5fc7a8; --accent-soft: #173229;
   --wall: #0b141a; --bubble: #202c33; --bubble-ink: #e9edef; --bubble-meta: #8696a0;
   --ok: #7fd6a2; --ok-bg: #173323; --warn: #f0bf62; --warn-bg: #3a2c12; --bad: #f2939b; --bad-bg: #3b1c20;
   --grey: #aab3ad; --grey-bg: #252d2a; --blue: #9cc2ea; --blue-bg: #1b2a3a;
-  --s-hoy: #199e70; --s-erp: #3987e5; --s-sin: #d95926; --s-bar: #3987e5; color-scheme: dark; }
+  --s-hoy: #199e70; --s-erp: #3987e5; --s-sin: #d95926; color-scheme: dark; }
 
 * { box-sizing: border-box; }
-body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
-.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 28px; }
-h1 { font-size: 30px; line-height: 1.15; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
-h2 { font-size: 20px; margin: 0; text-wrap: balance; }
-.sub { color: var(--muted); margin: 6px 0 0; max-width: 68ch; }
-.meta-line { color: var(--muted); font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.45; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 28px 16px 56px; display: flex; flex-direction: column; gap: 24px; }
+h1 { font-size: 32px; line-height: 1.1; margin: 0; letter-spacing: -0.015em; font-weight: 800; text-wrap: balance; }
+h2 { font-size: 22px; margin: 0; font-weight: 700; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; font-size: 17px; }
+.meta-line { color: var(--muted); font-size: 13px; margin-top: 6px; }
 code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+button { font: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-.llave { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; }
-.llave b { display: block; }
-.llave .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 7px; flex: none; }
+/* Semáforo de envíos */
+.llave { border-radius: 14px; padding: 16px 18px; display: flex; gap: 14px; align-items: center; background: var(--surface); border: 2px solid var(--line); }
+.llave .luz { width: 22px; height: 22px; border-radius: 50%; flex: none; box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 22%, transparent); }
+.llave b { display: block; font-size: 18px; }
+.llave span.d { color: var(--muted); font-size: 15px; }
 
+.tabs { display: flex; gap: 6px; background: var(--grey-bg); border-radius: 12px; padding: 5px; }
+.tab { flex: 1; font-weight: 700; font-size: 16px; background: none; border: 0; color: var(--muted); padding: 11px 8px; cursor: pointer; border-radius: 9px; }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.vista { display: flex; flex-direction: column; gap: 24px; }
+.vista[hidden] { display: none; }
+.titulo p { margin: 4px 0 0; color: var(--muted); font-size: 16px; max-width: 70ch; }
+
+/* Filtros */
 .resumen { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.chip { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 5px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.chip { font-size: 14px; font-weight: 600; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 7px 14px; cursor: pointer; display: inline-flex; gap: 7px; align-items: center; }
 .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
-.chip .n { font-weight: 700; font-variant-numeric: tabular-nums; }
-.chip:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip .n { font-variant-numeric: tabular-nums; opacity: .75; }
 .buscar { margin-left: auto; min-width: 0; }
-.buscar input { font: inherit; font-size: 14px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); width: 240px; max-width: 100%; }
+.buscar input { font: inherit; font-size: 15px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); width: 240px; max-width: 100%; }
 
-section.grupo { display: flex; flex-direction: column; gap: 14px; }
-.grupo-cab { display: flex; flex-direction: column; gap: 2px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
-.grupo-cab p { margin: 0; color: var(--muted); font-size: 14px; max-width: 72ch; }
+/* Grupos y tarjetas */
+.grupos { display: flex; flex-direction: column; gap: 34px; }
+.grupo-cab { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+.grupo-cab p { margin: 0; color: var(--muted); font-size: 15px; max-width: 72ch; }
 details.grupo > summary { list-style: none; cursor: pointer; }
 details.grupo > summary::-webkit-details-marker { display: none; }
 details.grupo > summary h2::after { content: " ▸"; color: var(--muted); font-size: 16px; }
 details.grupo[open] > summary h2::after { content: " ▾"; }
-details.grupo > .lista { margin-top: 14px; }
-.lista { display: flex; flex-direction: column; gap: 12px; }
-
-.tpl { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); overflow: hidden; }
-.ficha { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.cabeza { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.uso2m { display: flex; flex-direction: column; align-items: flex-end; text-align: right; flex: none; line-height: 1.1; }
-.uso2m b { font-size: 24px; font-variant-numeric: tabular-nums; color: var(--accent); }
-.uso2m span { font-size: 11.5px; color: var(--muted); }
-.uso2m.cero b { color: var(--muted); }
-.nombre { font-family: var(--f-mono); font-size: 14px; font-weight: 500; word-break: break-all; }
-.pills { display: flex; flex-wrap: wrap; gap: 6px; }
-.pill { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px 10px; }
+.est { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; border-radius: 999px; padding: 4px 11px 4px 9px; }
+.est i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
 .e-conectada { color: var(--ok); background: var(--ok-bg); }
 .e-prueba { color: var(--warn); background: var(--warn-bg); }
 .e-sin_disparador { color: var(--bad); background: var(--bad-bg); }
 .e-legado, .e-sin_clasificar { color: var(--grey); background: var(--grey-bg); }
 .e-otro_sistema { color: var(--blue); background: var(--blue-bg); }
-.cat { color: var(--muted); background: transparent; border: 1px solid var(--line); font-weight: 500; }
-.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 14px; margin: 0; }
-.kv dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 2px; }
-.kv dd { margin: 0; min-width: 0; }
-.nota { font-size: 13px; border-radius: 8px; padding: 8px 10px; color: var(--bad); background: var(--bad-bg); }
+.uso2m { text-align: right; line-height: 1; flex: none; }
+.uso2m b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); display: block; }
+.uso2m span { font-size: 12px; color: var(--muted); }
+.uso2m.cero b { color: var(--muted); }
+.card .chat { flex: 1; }
+.card-pie { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+.cuando { margin: 0; }
+.cuando b { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; display: block; }
+.para { font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 2px 9px; align-self: flex-start; }
+.mas summary { cursor: pointer; font-size: 14px; color: var(--accent); font-weight: 600; }
+.mas dl { margin: 8px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; font-size: 14px; }
+.mas dt { color: var(--muted); }
+.mas dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.nota { font-size: 13px; border-radius: 8px; padding: 8px 10px; color: var(--bad); background: var(--bad-bg); margin-top: 8px; }
 .nota pre { white-space: pre-wrap; font-family: var(--f-body); margin: 6px 0 0; color: var(--ink); }
-.vars { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
-.vars span b { font-family: var(--f-mono); font-weight: 500; color: var(--ink); }
 
-.chat { background: var(--wall); padding: 16px 18px 16px 14px; display: flex; align-items: flex-start; min-width: 0; }
-.burbuja { background: var(--bubble); color: var(--bubble-ink); border-radius: 0 10px 10px 10px; padding: 7px 9px 5px; max-width: 100%; box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13); position: relative; font-size: 14px; line-height: 1.4; min-width: 0; }
+/* Burbuja de WhatsApp */
+.chat { background: var(--wall); padding: 14px 16px 14px 14px; display: flex; align-items: flex-start; min-width: 0; }
+.burbuja { background: var(--bubble); color: var(--bubble-ink); border-radius: 0 10px 10px 10px; padding: 8px 10px 5px; max-width: 100%; box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13); position: relative; font-size: 15px; line-height: 1.4; min-width: 0; }
 .burbuja::before { content: ""; position: absolute; left: -7px; top: 0; border-top: 0 solid transparent; border-right: 8px solid var(--bubble); border-bottom: 10px solid transparent; }
 .burbuja .doc { display: flex; gap: 8px; align-items: center; background: color-mix(in srgb, var(--bubble-meta) 14%, transparent); border-radius: 6px; padding: 8px; margin-bottom: 6px; font-size: 13px; }
 .burbuja .doc i { font-style: normal; font-weight: 700; font-size: 10px; color: #fff; background: #d9534f; border-radius: 3px; padding: 2px 4px; }
 .burbuja .head { font-weight: 700; margin-bottom: 4px; }
 .burbuja .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
-.burbuja .var { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 3px; padding: 0 2px; }
+.burbuja .var { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 3px; padding: 0 2px; }
 .burbuja .pie { color: var(--bubble-meta); font-size: 12.5px; margin-top: 4px; }
-.burbuja .hora { color: var(--bubble-meta); font-size: 11px; text-align: right; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.burbuja .hora { color: var(--bubble-meta); font-size: 11px; text-align: right; margin-top: 2px; }
 .botones { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; border-top: 1px solid color-mix(in srgb, var(--bubble-meta) 25%, transparent); }
 .botones span { text-align: center; color: #1a8fd6; font-size: 14px; padding: 6px 0 2px; }
 
 .vacio { color: var(--muted); padding: 24px 0; }
 footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
 
-
-/* Pestañas y sección "Últimos 2 meses" */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
-.tab { font: inherit; font-weight: 600; font-size: 15px; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); padding: 8px 12px; cursor: pointer; margin-bottom: -1px; }
-.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
-.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.vista { display: flex; flex-direction: column; gap: 28px; }
-.vista[hidden], .tabla-wrap[hidden] { display: none; }
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
-.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
-.kpi .v { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.kpi .l { font-size: 13px; color: var(--muted); }
-.kpi .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: 0; }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.panel h3 { margin: 0; font-size: 17px; text-wrap: balance; }
-.panel .bajada { margin: -8px 0 0; color: var(--muted); font-size: 14px; max-width: 72ch; }
-.leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
-.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
-.leyenda i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-.barras { display: flex; flex-direction: column; gap: 10px; }
-.barra { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr) 56px; gap: 12px; align-items: center; font-size: 14px; }
-.barra .nom { min-width: 0; }
-.barra .nom small { display: block; color: var(--muted); font-size: 12px; }
-.barra .tot { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-.pista { display: flex; gap: 2px; height: 22px; }
-.seg { height: 100%; min-width: 3px; cursor: default; display: flex; align-items: center; justify-content: flex-start; padding-left: 6px; font-size: 11.5px; font-weight: 600; color: #fff; overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.seg:first-child { border-radius: 4px 0 0 4px; } .seg:last-child { border-radius: 0 4px 4px 0; } .seg:only-child { border-radius: 4px; }
-.seg:hover { filter: brightness(1.08); }
-.histo { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; }
-.histo .eje-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--muted); text-align: right; height: 180px; font-variant-numeric: tabular-nums; }
-.histo .area { position: relative; height: 180px; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--line);
-  background-image: linear-gradient(var(--line) 1px, transparent 1px); background-size: 100% 25%; }
-.histo .col { flex: 1; background: var(--s-bar); border-radius: 4px 4px 0 0; min-height: 2px; }
-.histo .col:hover { filter: brightness(1.1); }
+/* Últimos 2 meses */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel h3 { margin: 0; font-size: 19px; text-wrap: balance; }
+.panel .bajada { margin: -8px 0 0; color: var(--muted); font-size: 15px; }
+.grande { display: flex; flex-direction: column; gap: 12px; }
+.grande .num { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.grande .num b { font-size: 44px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.grande .num span { color: var(--muted); font-size: 16px; }
+.apilada { display: flex; gap: 3px; height: 44px; }
+.apilada div { height: 100%; display: flex; align-items: center; padding-left: 12px; min-width: 8px; color: #fff; font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.apilada div:first-child { border-radius: 8px 0 0 8px; } .apilada div:last-child { border-radius: 0 8px 8px 0; }
+.tres { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tres .k { border-radius: 12px; padding: 12px 14px; background: var(--grey-bg); display: flex; flex-direction: column; gap: 2px; border-top: 5px solid var(--c); }
+.tres .k b { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tres .k span { font-size: 14px; color: var(--muted); }
+.costo { font-size: 16px; }
+.costo b { font-size: 20px; }
+.barras { display: flex; flex-direction: column; gap: 12px; }
+.barra { display: grid; grid-template-columns: minmax(0, 210px) minmax(0, 1fr) 48px; gap: 12px; align-items: center; font-size: 15px; }
+.barra .nom { min-width: 0; font-weight: 600; }
+.barra .nom small { display: block; color: var(--muted); font-size: 12.5px; font-weight: 400; }
+.barra .tot { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.pista { display: flex; gap: 2px; height: 26px; }
+.seg { height: 100%; min-width: 3px; display: flex; align-items: center; padding-left: 7px; font-size: 12.5px; font-weight: 700; color: #fff; overflow: hidden; white-space: nowrap; }
+.seg:first-child { border-radius: 5px 0 0 5px; } .seg:last-child { border-radius: 0 5px 5px 0; } .seg:only-child { border-radius: 5px; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); }
+.leyenda span { display: inline-flex; align-items: center; gap: 7px; }
+.leyenda i { width: 13px; height: 13px; border-radius: 4px; display: inline-block; }
+.histo { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 8px; }
+.histo .eje-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--muted); text-align: right; height: 180px; }
+.histo .area { position: relative; height: 180px; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--line); background-image: linear-gradient(var(--line) 1px, transparent 1px); background-size: 100% 25%; }
+.histo .col { flex: 1; background: var(--s-erp); border-radius: 4px 4px 0 0; min-height: 2px; }
 .histo .x { grid-column: 2; display: flex; gap: 2px; font-size: 11px; color: var(--muted); }
-.histo .x span { flex: 1; text-align: center; font-variant-numeric: tabular-nums; }
-.promesa { position: absolute; top: -4px; bottom: 0; border-left: 2px dashed var(--ink); pointer-events: none; }
-.promesa b { position: absolute; top: -2px; left: 6px; font-size: 12px; white-space: nowrap; background: var(--surface); padding: 0 4px; }
-table.datos { border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
-table.datos th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 4px 14px 6px 0; border-bottom: 1px solid var(--line); vertical-align: bottom; }
-table.datos td { padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); }
-table.datos td.n, table.datos th.n { text-align: right; }
-table.datos tr.total td { font-weight: 700; border-bottom: 0; }
-.tabla-wrap { overflow-x: auto; }
-.ver-tabla { font: inherit; font-size: 13px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; align-self: flex-start; text-decoration: underline; }
-.hallazgos { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; max-width: 80ch; }
-.tip { position: fixed; z-index: 10; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12.5px; padding: 6px 9px; border-radius: 6px; max-width: 260px; line-height: 1.35; font-variant-numeric: tabular-nums; }
-@media (max-width: 760px) {
-  .barra { grid-template-columns: minmax(0, 1fr) 48px; }
-  .barra .pista { grid-column: 1 / -1; grid-row: 2; }
-}
+.histo .x span { flex: 1; text-align: center; }
+.promesa { position: absolute; top: -4px; bottom: 0; border-left: 3px dashed var(--s-sin); pointer-events: none; }
+.promesa b { position: absolute; top: -2px; left: 6px; font-size: 13px; white-space: nowrap; background: var(--surface); padding: 0 4px; color: var(--s-sin); }
+.modos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.modo { background: var(--grey-bg); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+.modo h4 { margin: 0; font-size: 15px; }
+.modo b { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.modo span { font-size: 14px; color: var(--muted); }
+.modo .cumple { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 4px; }
+.modo .cumple i { display: block; height: 100%; background: var(--s-hoy); }
+.hallazgos { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; max-width: 80ch; }
+.tip { position: fixed; z-index: 10; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; padding: 6px 9px; border-radius: 6px; max-width: 260px; line-height: 1.35; }
 
-/* Pestaña "Cómo lo resolvemos" */
-.sol-resumen { display: flex; flex-direction: column; gap: 10px; }
-.sol-barra { display: flex; gap: 2px; height: 26px; }
-.sol-barra div { height: 100%; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
-.sol-barra div:first-child { border-radius: 4px 0 0 4px; } .sol-barra div:last-child { border-radius: 0 4px 4px 0; }
+/* Consultas */
+.estados { display: flex; flex-direction: column; gap: 10px; }
+.sol-barra { display: flex; gap: 3px; height: 44px; }
+.sol-barra div { height: 100%; display: flex; align-items: center; padding-left: 12px; color: #fff; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.sol-barra div:first-child { border-radius: 8px 0 0 8px; } .sol-barra div:last-child { border-radius: 0 8px 8px 0; }
 .st-hecho { background: var(--s-hoy); } .st-parcial { background: var(--s-erp); } .st-pendiente { background: var(--s-sin); }
-.causa { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
-.causa-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.causa-cab h3 { margin: 0; font-size: 18px; }
-.causa-cab .ej { color: var(--muted); font-style: italic; font-size: 14px; margin-top: 2px; }
-.causa-num { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.causa-num b { font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1; }
-.causa-num span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.pill-e { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; }
+.filas { display: flex; flex-direction: column; gap: 10px; }
+details.fila { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+details.fila > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 88px auto; gap: 14px; align-items: center; }
+details.fila > summary::-webkit-details-marker { display: none; }
+details.fila[open] > summary { border-bottom: 1px solid var(--line); }
+.f-nom { font-weight: 700; font-size: 17px; min-width: 0; }
+.f-nom small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; font-style: italic; }
+.f-barra { height: 22px; background: var(--grey-bg); border-radius: 6px; overflow: hidden; }
+.f-barra span { display: block; height: 100%; border-radius: 6px; }
+.f-num { text-align: right; line-height: 1.1; }
+.f-num b { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; display: block; }
+.f-num small { color: var(--muted); font-size: 12.5px; }
+.pill-e { font-size: 13px; font-weight: 700; border-radius: 999px; padding: 4px 12px; white-space: nowrap; }
 .pill-e.hecho { color: var(--ok); background: var(--ok-bg); } .pill-e.parcial { color: var(--blue); background: var(--blue-bg); } .pill-e.pendiente { color: var(--bad); background: var(--bad-bg); }
-.causa-cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
-.causa-cols h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-.causa-cols p { margin: 0; font-size: 14px; }
-.prev { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
-.tpl-link { font: inherit; font-family: var(--f-mono); font-size: 12.5px; background: var(--accent-soft); color: var(--accent); border: 0; border-radius: 5px; padding: 1px 6px; cursor: pointer; }
+.f-det { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.f-det h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.f-det p { margin: 0; font-size: 15px; }
+.f-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.falta { font-size: 15px; padding: 10px 12px; background: var(--warn-bg); color: var(--ink); border-radius: 10px; }
+.falta b { color: var(--warn); }
+.tpls-causa { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.tpls-causa > span { color: var(--muted); font-weight: 700; }
+.tpls-causa .ninguna { font-style: italic; font-weight: 400; }
+.tpl-link { font-family: var(--f-mono); font-size: 13px; background: var(--accent-soft); color: var(--accent); border: 0; border-radius: 8px; padding: 5px 10px; cursor: pointer; font-weight: 500; }
 .tpl-link:hover { text-decoration: underline; }
-.tpls-causa { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
-.tpls-causa > span { color: var(--muted); font-weight: 600; margin-right: 2px; }
-.tpls-causa .ninguna { color: var(--muted); font-style: italic; font-weight: 400; }
+.prev { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 15px; }
 .mini-chat { background: var(--wall); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
-.mini-chat .burbuja { font-size: 13px; max-width: 420px; }
-/* Popup de plantilla (se abre al tocar el nombre de una plantilla en "Cómo lo resolvemos") */
+.mini-chat .burbuja { font-size: 13.5px; max-width: 420px; }
+
+/* Popup de plantilla */
 .modal-fondo { position: fixed; inset: 0; z-index: 30; background: rgba(8, 14, 12, 0.6); display: flex; padding: 16px; overflow-y: auto; }
-.modal { background: var(--bg); color: var(--ink); border-radius: 14px; width: 100%; max-width: 940px; margin: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4); }
+.modal { background: var(--bg); color: var(--ink); border-radius: 16px; width: 100%; max-width: 900px; margin: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4); }
 .modal-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.modal-cab b { font-size: 15px; }
-.modal-cerrar { font: inherit; font-size: 14px; font-weight: 600; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-.modal-cerrar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.modal .lista { gap: 12px; }
-.falta { font-size: 14px; border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; background: var(--warn-bg); border-radius: 0 6px 6px 0; }
-@media (max-width: 860px) { .causa-cols { grid-template-columns: minmax(0, 1fr); } }
+.modal-cab b { font-size: 17px; }
+.modal-cerrar { font-size: 15px; font-weight: 700; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 8px 16px; cursor: pointer; }
+
 @media (max-width: 760px) {
-  .tpl { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 27px; }
   .buscar { margin-left: 0; width: 100%; }
   .buscar input { width: 100%; }
-  h1 { font-size: 25px; }
+  .barra { grid-template-columns: minmax(0, 1fr) 44px; }
+  .barra .pista { grid-column: 1 / -1; grid-row: 2; }
+  details.fila > summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .f-barra { grid-column: 1 / -1; grid-row: 2; }
+  .f-num { grid-row: 1; grid-column: 2; }
+  .pill-e { grid-column: 1; grid-row: 3; justify-self: start; }
+  .grande .num b { font-size: 36px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -201,21 +218,21 @@ table.datos tr.total td { font-weight: 700; border-bottom: 0; }
 <div class="wrap">
   <header>
     <h1>Plantillas de WhatsApp</h1>
-    <p class="sub">Los mensajes que Loekemeyer manda por WhatsApp sin que nadie los escriba: cuándo sale cada uno, a quién le llega y qué dice. Son las plantillas aprobadas en Meta; los valores entre resaltado son un ejemplo de lo que completa el sistema.</p>
+    <p class="sub">Los mensajes que el bot manda solo a los clientes.</p>
     <div class="meta-line" id="generado"></div>
   </header>
 
   <div class="llave" id="llave"></div>
 
   <div class="tabs" role="tablist" id="tabs">
-    <button class="tab" role="tab" id="tab-plantillas" aria-selected="true" aria-controls="v-plantillas" type="button">Plantillas</button>
+    <button class="tab" role="tab" id="tab-plantillas" aria-selected="true" aria-controls="v-plantillas" type="button">Mensajes</button>
     <button class="tab" role="tab" id="tab-simulacion" aria-selected="false" aria-controls="v-simulacion" type="button">Últimos 2 meses</button>
-    <button class="tab" role="tab" id="tab-soluciones" aria-selected="false" aria-controls="v-soluciones" type="button">Cómo lo resolvemos</button>
+    <button class="tab" role="tab" id="tab-soluciones" aria-selected="false" aria-controls="v-soluciones" type="button">Consultas</button>
   </div>
 
   <div class="vista" id="v-plantillas" role="tabpanel" aria-labelledby="tab-plantillas">
     <div class="resumen" id="resumen" role="group" aria-label="Filtrar por estado"></div>
-    <main id="grupos"></main>
+    <main id="grupos" class="grupos"></main>
   </div>
 
   <div class="vista" id="v-simulacion" role="tabpanel" aria-labelledby="tab-simulacion" hidden></div>
@@ -223,8 +240,7 @@ table.datos tr.total td { font-weight: 700; border-bottom: 0; }
   <div class="vista" id="v-soluciones" role="tabpanel" aria-labelledby="tab-soluciones" hidden></div>
 
   <footer>
-    Se actualiza sola todos los días con lo que dice Meta. Precio por mensaje entregado en Argentina: Utility US$ 0,026 · Marketing US$ 0,0618.
-    "Salió" cuenta los avisos del bot de clientes de los últimos 30 días (no los de otros sistemas).
+    Se actualiza sola todos los días. Costo por mensaje en Argentina: aviso US$ 0,026 · promoción US$ 0,0618.
   </footer>
 </div>
 
@@ -232,14 +248,14 @@ table.datos tr.total td { font-weight: 700; border-bottom: 0; }
 const DATOS = /*__DATOS__*/null;
 
 const ESTADOS = {
-  conectada: { txt: "Se manda", desc: "Hay un disparador activo." },
-  prueba: { txt: "En prueba", desc: "Conectada, pero hoy sólo sale al número de prueba." },
-  sin_disparador: { txt: "Sin disparador", desc: "Aprobada en Meta, pero nada la manda todavía." },
+  conectada: { txt: "Se manda", desc: "Hay algo que la dispara." },
+  prueba: { txt: "Solo prueba", desc: "Hoy solo sale al número de prueba." },
+  sin_disparador: { txt: "Sin conectar", desc: "Aprobada en Meta, pero nada la manda todavía." },
   legado: { txt: "Ya no se usa", desc: "Versión anterior." },
   otro_sistema: { txt: "Otro sistema", desc: "La manda Planify o Gestión Productiva." },
   sin_clasificar: { txt: "Sin clasificar", desc: "Falta documentar qué la manda." },
 };
-const CAT = { UTILITY: "Utility · US$ 0,026", MARKETING: "Marketing · US$ 0,0618", AUTHENTICATION: "Autenticación" };
+const CAT = { UTILITY: "Aviso · US$ 0,026", MARKETING: "Promoción · US$ 0,0618", AUTHENTICATION: "Autenticación" };
 const PLEGADOS = new Set(["legado", "otros"]);
 let filtro = null, texto = "";
 
@@ -248,11 +264,12 @@ const fecha = (iso) => {
   try { return new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" }); }
   catch { return iso || ""; }
 };
-const ddmm = (d) => (d ? `${String(d).slice(8, 10)}/${String(d).slice(5, 7)}` : "");
+const nf = (n, d = 0) => Number(n).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (a, b) => (b ? nf((100 * a) / b, 0) + " %" : "—");
+const fdm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-// Negrita de WhatsApp (*así*) y variables con su ejemplo resaltado.
 function cuerpo(body, ej) {
-  let h = esc(body).replace(/\{\{(\d+)\}\}/g, (m, n) => `<span class="var" title="{{${n}}}">${esc((ej || [])[n - 1] ?? m)}</span>`);
+  let h = esc(body).replace(/\{\{(\d+)\}\}/g, (m, n) => `<span class="var">${esc((ej || [])[n - 1] ?? m)}</span>`);
   return h.replace(/\*([^*\n]+)\*/g, "<b>$1</b>");
 }
 
@@ -264,27 +281,29 @@ function burbuja(p) {
   return `<div class="chat"><div class="burbuja">${doc}${head}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
 }
 
-// Veces que se habría mandado en los últimos 2 meses (simulacion.json › uso_2m). Sólo plantillas del bot de clientes.
 function uso2m(name) {
   const U = DATOS.simulacion?.uso_2m;
   if (!U || !(name in U)) return "";
   const n = U[name];
-  if (n === null) return `<div class="uso2m cero" title="No hay historial para contarlo"><b>s/d</b><span>últimos 2 meses</span></div>`;
-  return `<div class="uso2m${n ? "" : " cero"}" title="Veces que se habría mandado del ${fdm(DATOS.simulacion.desde)} al ${fdm(DATOS.simulacion.hasta)}"><b>${nf(n)}</b><span>en 2 meses</span></div>`;
+  if (n === null) return `<div class="uso2m cero"><b>s/d</b><span>en 2 meses</span></div>`;
+  return `<div class="uso2m${n ? "" : " cero"}"><b>${nf(n)}</b><span>${n === 1 ? "vez" : "veces"} en 2 meses</span></div>`;
 }
-function ficha(p) {
+
+// Tarjeta de una plantilla: estado y uso arriba, mensaje en el medio, cuándo sale abajo. El detalle técnico queda plegado.
+function tarjeta(p) {
   const e = ESTADOS[p.estado] || ESTADOS.sin_clasificar;
-  const pl = (n, s, pp) => `${n} ${n === 1 ? s : pp}`;
-  const uso = p.uso ? `${pl(p.uso.enviados, "enviado", "enviados")}${p.uso.retenidos ? ` · ${pl(p.uso.retenidos, "retenido", "retenidos")} por la llave` : ""}${p.uso.ultimo ? ` · último ${ddmm(p.uso.ultimo)}` : ""}` : "";
-  const nVars = (p.ejemplos || []).length;
-  const vars = nVars ? `<div class="vars">${p.ejemplos.map((v, i) => `<span><b>{{${i + 1}}}</b> ${esc(v)}</span>`).join("")}</div>` : "";
-  const dif = p.difiere ? `<div class="nota"><b>El texto en Meta no es el que tiene definido el sistema.</b> Lo que sale es lo de la burbuja. El sistema tiene:<pre>${esc(p.definido)}</pre></div>` : "";
-  const estadoMeta = p.status !== "APPROVED" ? `<span class="pill e-sin_disparador">Meta: ${esc(p.status)}</span>` : "";
-  return `<div class="ficha">
-    <div class="cabeza"><div class="nombre">${esc(p.name)}</div>${uso2m(p.name)}</div>
-    <div class="pills"><span class="pill e-${esc(p.estado)}" title="${esc(e.desc)}">${esc(e.txt)}</span>${estadoMeta}<span class="pill cat">${esc(CAT[p.category] || p.category)}</span></div>
-    <dl class="kv"><dt>Cuándo sale</dt><dd>${esc(p.sale)}</dd>${p.para ? `<dt>Para</dt><dd>${esc(p.para)}</dd>` : ""}${uso ? `<dt>Salió (30 d)</dt><dd>${esc(uso)}</dd>` : ""}</dl>
-    ${dif}${vars}</div>`;
+  const filas = [["Nombre", `<code>${esc(p.name)}</code>`], ["Tipo", esc(CAT[p.category] || p.category)]];
+  if (p.status !== "APPROVED") filas.push(["Meta", `<b style="color:var(--bad)">${esc(p.status)}</b>`]);
+  if (p.uso) filas.push(["Salió (30 días)", `${nf(p.uso.enviados)}${p.uso.retenidos ? ` · ${nf(p.uso.retenidos)} retenidos` : ""}`]);
+  const dif = p.difiere ? `<div class="nota"><b>El texto en Meta no es el definido en el sistema.</b> Sale lo que muestra el mensaje. El sistema tiene:<pre>${esc(p.definido)}</pre></div>` : "";
+  return `<article class="card">
+    <div class="card-top"><span class="est e-${esc(p.estado)}" title="${esc(e.desc)}"><i></i>${esc(e.txt)}</span>${uso2m(p.name)}</div>
+    ${burbuja(p)}
+    <div class="card-pie">
+      ${p.para ? `<span class="para">${esc(p.para)}</span>` : ""}
+      <p class="cuando"><b>Cuándo sale</b>${esc(p.sale)}</p>
+      <details class="mas"><summary>Más datos</summary><dl>${filas.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>${dif}</details>
+    </div></article>`;
 }
 
 function coincide(p) {
@@ -300,14 +319,12 @@ function pintar() {
     const items = DATOS.plantillas.filter((p) => p.grupo === g.id && coincide(p)).sort((a, b) => a.orden - b.orden);
     if (!items.length) return "";
     const cab = `<div class="grupo-cab"><h2>${esc(g.titulo)} <span style="color:var(--muted);font-weight:500">· ${items.length}</span></h2><p>${esc(g.bajada)}</p></div>`;
-    const lista = `<div class="lista">${items.map((p) => `<article class="tpl">${ficha(p)}${burbuja(p)}</article>`).join("")}</div>`;
-    const abierto = !PLEGADOS.has(g.id) || filtro || texto;
+    const lista = `<div class="rejilla">${items.map(tarjeta).join("")}</div>`;
     return PLEGADOS.has(g.id)
-      ? `<details class="grupo"${abierto ? " open" : ""}><summary>${cab}</summary>${lista}</details>`
+      ? `<details class="grupo"${filtro || texto ? " open" : ""}><summary>${cab}</summary>${lista}</details>`
       : `<section class="grupo">${cab}${lista}</section>`;
   }).join("");
-  cont.innerHTML = html || `<div class="vacio">Ninguna plantilla coincide con el filtro.</div>`;
-  cont.style.display = "flex"; cont.style.flexDirection = "column"; cont.style.gap = "36px";
+  cont.innerHTML = html || `<div class="vacio">Ninguna plantilla coincide.</div>`;
 }
 
 function resumen() {
@@ -317,86 +334,77 @@ function resumen() {
   document.getElementById("resumen").innerHTML =
     `<button class="chip" type="button" data-e="" aria-pressed="${!filtro}">Todas <span class="n">${DATOS.plantillas.length}</span></button>` +
     orden.map((k) => `<button class="chip" type="button" data-e="${k}" aria-pressed="${filtro === k}" title="${esc(ESTADOS[k].desc)}">${esc(ESTADOS[k].txt)} <span class="n">${cuenta[k]}</span></button>`).join("") +
-    `<label class="buscar"><input id="q" type="search" placeholder="Buscar por nombre o texto" value="${esc(texto)}" aria-label="Buscar plantilla"></label>`;
-  document.querySelectorAll("#resumen .chip").forEach((b) => b.addEventListener("click", () => {
-    filtro = b.dataset.e || null; resumen(); pintar();
-  }));
+    `<label class="buscar"><input id="q" type="search" placeholder="Buscar" value="${esc(texto)}" aria-label="Buscar plantilla"></label>`;
+  document.querySelectorAll("#resumen .chip").forEach((b) => b.addEventListener("click", () => { filtro = b.dataset.e || null; resumen(); pintar(); }));
   const q = document.getElementById("q");
   q.addEventListener("input", () => { texto = q.value.trim(); pintar(); });
 }
 
 function llave() {
   const L = {
-    "0": { c: "var(--bad)", t: "Envíos apagados", d: "Hoy no sale ningún mensaje automático: quedan en cola." },
-    prueba: { c: "var(--warn)", t: "Envíos en prueba", d: "Hoy los mensajes automáticos sólo le llegan al número de prueba. A los clientes todavía no les llega nada." },
-    "1": { c: "var(--ok)", t: "Envíos a clientes activos", d: "Los mensajes automáticos les llegan a los clientes con el número agendado." },
+    "0": { c: "var(--bad)", t: "Envíos apagados", d: "No sale ningún mensaje. Quedan en cola." },
+    prueba: { c: "var(--warn)", t: "Envíos en prueba", d: "Los mensajes solo le llegan al número de prueba. A los clientes todavía no." },
+    "1": { c: "var(--ok)", t: "Envíos a clientes activos", d: "Los mensajes les llegan a los clientes con el número agendado." },
   }[DATOS.llave] || { c: "var(--grey)", t: "Estado de envíos desconocido", d: "" };
-  document.getElementById("llave").innerHTML = `<span class="dot" style="background:${L.c}"></span><div><b>${L.t}</b>${esc(L.d)}</div>`;
+  document.getElementById("llave").innerHTML = `<span class="luz" style="color:${L.c};background:${L.c}"></span><div><b>${L.t}</b><span class="d">${esc(L.d)}</span></div>`;
 }
 
-
-// ── Últimos 2 meses: cómo se habría comportado el sistema de avisos con los datos reales ──
-const nf = (n, d = 0) => Number(n).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
-const pct = (a, b) => (b ? nf((100 * a) / b, 1) + " %" : "—");
-const fdm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 let tip;
 function tooltip(el, html) {
   el.addEventListener("mouseenter", () => { tip = tip || Object.assign(document.createElement("div"), { className: "tip" }); document.body.appendChild(tip); tip.innerHTML = html; });
-  el.addEventListener("mousemove", (e) => { if (!tip) return; const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY + 16) + "px"; });
+  el.addEventListener("mousemove", (e) => { if (!tip) return; tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = (e.clientY + 16) + "px"; });
   el.addEventListener("mouseleave", () => tip?.remove());
 }
 
+// ── Últimos 2 meses ──
 function simulacion() {
   const S = DATOS.simulacion, v = document.getElementById("v-simulacion");
-  if (!S) { v.innerHTML = `<div class="vacio">Todavía no hay simulación cargada.</div>`; return; }
+  if (!S) { v.innerHTML = `<div class="vacio">Todavía no hay datos.</div>`; return; }
   const av = S.avisos.map((a) => ({ ...a, total: a.agendado + a.erp + a.sin })).sort((a, b) => b.total - a.total);
   const T = av.reduce((t, a) => ({ agendado: t.agendado + a.agendado, erp: t.erp + a.erp, sin: t.sin + a.sin, total: t.total + a.total }), { agendado: 0, erp: 0, sin: 0, total: 0 });
   const alcanzables = T.agendado + T.erp, costo = alcanzables * S.tarifa_utility;
-  const SEG = [["agendado", "Le llega hoy", "var(--s-hoy)", "el número ya está agendado"], ["erp", "Llegaría al agendarlo", "var(--s-erp)", "el cliente tiene teléfono en el ERP"], ["sin", "Sin teléfono", "var(--s-sin)", "no hay ningún teléfono cargado"]];
+  const SEG = [["agendado", "Le llega hoy", "var(--s-hoy)", "el número ya está agendado"], ["erp", "Le llegaría si lo agendamos", "var(--s-erp)", "tiene teléfono en el ERP"], ["sin", "Sin teléfono", "var(--s-sin)", "no hay ningún teléfono cargado"]];
   const D = S.demora, maxH = Math.max(...D.hist.map((h) => h[1]));
   const topeY = Math.ceil(maxH / 20) * 20;
   const idxPromesa = D.hist.findIndex(([b]) => b > D.promesa - 3 && b <= D.promesa);
+  const modos = D.por_modo.filter((m) => m.modo !== "Total"), total = D.por_modo.find((m) => m.modo === "Total");
 
   v.innerHTML = `
-    <div class="grupo-cab"><h2>Qué habría pasado en los últimos 2 meses</h2>
-      <p>Si los avisos hubieran estado prendidos del ${fdm(S.desde)} al ${fdm(S.hasta)}: cuántos habrían salido, a cuántos les habría llegado y cuánto habría costado. Calculado el ${fdm(S.calculado)} con los pedidos, despachos y facturas reales (sin pedidos anulados ni de prueba).</p></div>
-    <div class="kpis">
-      <div class="kpi"><span class="v">${nf(T.total)}</span><span class="l">avisos se habrían mandado (${nf(S.pedidos)} pedidos web)</span></div>
-      <div class="kpi"><span class="v">${pct(T.agendado, T.total)}</span><span class="l"><i class="sw" style="background:var(--s-hoy)"></i>le habrían llegado hoy: ${nf(T.agendado)}</span></div>
-      <div class="kpi"><span class="v">${pct(alcanzables, T.total)}</span><span class="l"><i class="sw" style="background:var(--s-erp)"></i>llegarían agendando los teléfonos del ERP: ${nf(alcanzables)}</span></div>
-      <div class="kpi"><span class="v">${pct(T.sin, T.total)}</span><span class="l"><i class="sw" style="background:var(--s-sin)"></i>no llegarían nunca, sin teléfono: ${nf(T.sin)}</span></div>
-      <div class="kpi"><span class="v">US$ ${nf(costo, 2)}</span><span class="l">costo de los ${nf(alcanzables)} que llegarían (≈ US$ ${nf(costo / 2, 2)} por mes)</span></div>
-    </div>
+    <div class="titulo"><h2>Si los avisos hubieran estado prendidos</h2>
+      <p>Del ${fdm(S.desde)} al ${fdm(S.hasta)}, con pedidos reales.</p></div>
 
-    <section class="panel" aria-labelledby="h-alc">
-      <h3 id="h-alc">A cuántos les habría llegado cada aviso</h3>
-      <p class="bajada">Cada barra es el 100 % de los avisos de ese tipo en los 2 meses. Hoy hay ${nf(S.clientes.agendado)} clientes agendados; ${nf(S.clientes.erp)} tienen teléfono en el ERP y ${nf(S.clientes.sin)} no tienen ninguno.</p>
-      <div class="leyenda">${SEG.map(([, t, c]) => `<span><i style="background:${c}"></i>${t}</span>`).join("")}</div>
-      <div class="barras" id="barras"></div>
-      <button class="ver-tabla" type="button" data-t="t-alc">Ver como tabla</button>
-      <div class="tabla-wrap" id="t-alc" hidden><table class="datos"><thead><tr><th>Aviso</th><th class="n">Total</th><th class="n">Le llega hoy</th><th class="n">Al agendar</th><th class="n">Sin teléfono</th><th class="n">Llegarían</th></tr></thead><tbody>
-        ${av.map((a) => `<tr><td>${esc(a.que)}</td><td class="n">${nf(a.total)}</td><td class="n">${nf(a.agendado)}</td><td class="n">${nf(a.erp)}</td><td class="n">${nf(a.sin)}</td><td class="n">${pct(a.agendado + a.erp, a.total)}</td></tr>`).join("")}
-        <tr class="total"><td>Total</td><td class="n">${nf(T.total)}</td><td class="n">${nf(T.agendado)}</td><td class="n">${nf(T.erp)}</td><td class="n">${nf(T.sin)}</td><td class="n">${pct(alcanzables, T.total)}</td></tr></tbody></table></div>
-      <div style="font-size:13px;color:var(--muted)"><b style="color:var(--ink)">No entran en la cuenta:</b> ${S.no_cuentan.map((n) => `<code>${esc(n.tpl)}</code>: ${esc(n.por)}`).join(" · ")}</div>
+    <section class="panel">
+      <div class="grande">
+        <div class="num"><b>${nf(T.total)}</b><span>avisos se habrían mandado</span></div>
+        <div class="apilada" role="img" aria-label="Alcance de los avisos">${SEG.map(([k, t, c]) => T[k] ? `<div style="width:${(100 * T[k]) / T.total}%;background:${c}">${T[k] / T.total >= 0.08 ? pct(T[k], T.total) : ""}</div>` : "").join("")}</div>
+        <div class="tres">${SEG.map(([k, t, c, por]) => `<div class="k" style="--c:${c}"><b>${nf(T[k])}</b><span>${t}</span></div>`).join("")}</div>
+        <div class="costo">Costo de los ${nf(alcanzables)} que llegarían: <b>US$ ${nf(costo, 2)}</b> (unos US$ ${nf(costo / 2, 2)} por mes)</div>
+      </div>
     </section>
 
-    <section class="panel" aria-labelledby="h-dem">
-      <h3 id="h-dem">Cuánto tardan los pedidos en salir</h3>
-      <p class="bajada">${esc(D.que)} ${nf(D.por_modo.at(-1).n)} pedidos con fecha. La línea marca la promesa de ${D.promesa} días corridos ("tu pedido estará listo antes del …").</p>
+    <section class="panel">
+      <h3>A cuántos les llega cada aviso</h3>
+      <div class="leyenda">${SEG.map(([, t, c]) => `<span><i style="background:${c}"></i>${t}</span>`).join("")}</div>
+      <div class="barras" id="barras"></div>
+    </section>
+
+    <section class="panel">
+      <h3>Cuánto tarda un pedido en salir</h3>
+      <div class="modos">
+        ${[total, ...modos].filter(Boolean).map((m) => `<div class="modo"><h4>${m.modo === "Total" ? "Todos los pedidos" : esc(m.modo)}</h4><b>${nf(m.mediana)} días</b><span>tarda la mitad de los pedidos</span>
+          <div class="cumple" title="${nf(m.pct14, 0)} % sale dentro de ${D.promesa} días"><i style="width:${m.pct14}%"></i></div><span>${nf(m.pct14, 0)} % sale antes de los ${D.promesa} días</span></div>`).join("")}
+      </div>
       <div class="histo">
         <div class="eje-y"><span>${topeY}</span><span>${topeY * 3 / 4}</span><span>${topeY / 2}</span><span>${topeY / 4}</span><span>0</span></div>
         <div class="area" id="histo">${D.hist.map(([b, n]) => `<div class="col" style="height:${(100 * n) / topeY}%" data-b="${b}" data-n="${n}"></div>`).join("")}
-          <div class="promesa" style="left:calc(${((idxPromesa + 1) / D.hist.length) * 100}% - 1px)"><b>promesa ${D.promesa} días</b></div></div>
-        <div class="x">${D.hist.map(([b], i) => `<span>${i === D.hist.length - 1 ? b + "+" : b + "–" + (b + 2)}</span>`).join("")}</div>
+          <div class="promesa" style="left:calc(${((idxPromesa + 1) / D.hist.length) * 100}% - 1px)"><b>promesa: ${D.promesa} días</b></div></div>
+        <div class="x">${D.hist.map(([b], i) => `<span>${i === D.hist.length - 1 ? b + "+" : b}</span>`).join("")}</div>
       </div>
-      <div class="tabla-wrap"><table class="datos"><thead><tr><th>Modo de entrega</th><th class="n">Pedidos</th><th class="n">La mitad sale<br>antes de (días)</th><th class="n">9 de cada 10<br>salen antes de</th><th class="n">Dentro de<br>${D.promesa} días</th></tr></thead><tbody>
-        ${D.por_modo.map((m) => `<tr class="${m.modo === "Total" ? "total" : ""}"><td>${esc(m.modo)}</td><td class="n">${nf(m.n)}</td><td class="n">${nf(m.mediana)}</td><td class="n">${nf(m.p90, m.p90 % 1 ? 1 : 0)}</td><td class="n">${nf(m.pct14, 1)} %</td></tr>`).join("")}</tbody></table></div>
+      <div style="font-size:13px;color:var(--muted)">Cada barra son los pedidos que salieron a esos días de cargados.</div>
     </section>
 
-    <section class="panel" aria-labelledby="h-hal">
-      <h3 id="h-hal">Lo que apareció al hacer la cuenta</h3>
-      <ul class="hallazgos">${S.hallazgos.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>
-    </section>`;
+    <details class="panel"><summary style="cursor:pointer;font-weight:700;font-size:17px">Para revisar (${S.hallazgos.length})</summary>
+      <ul class="hallazgos" style="margin-top:12px">${S.hallazgos.map((h) => `<li>${esc(h)}</li>`).join("")}</ul></details>`;
 
   const barras = document.getElementById("barras");
   for (const a of av) {
@@ -409,19 +417,16 @@ function simulacion() {
       const w = (100 * a[k]) / a.total;
       const seg = Object.assign(document.createElement("div"), { className: "seg" });
       seg.style.cssText = `width:${w}%;background:${c}`;
-      if (w >= 12) seg.textContent = nf(w, 0) + " %";
-      tooltip(seg, `<b>${esc(a.que)}</b><br>${t}: ${nf(a[k])} de ${nf(a.total)} (${pct(a[k], a.total)})<br>${por}`);
+      if (w >= 14) seg.textContent = nf(w, 0) + " %";
+      tooltip(seg, `<b>${esc(a.que)}</b><br>${t}: ${nf(a[k])} de ${nf(a.total)}<br>${por}`);
       pista.appendChild(seg);
     }
     barras.appendChild(fila);
   }
   document.querySelectorAll("#histo .col").forEach((c) => {
     const b = Number(c.dataset.b), n = Number(c.dataset.n);
-    tooltip(c, `${b >= 30 ? "30 días o más" : `${b} a ${b + 2} días`}<br><b>${nf(n)} pedidos</b> (${pct(n, D.por_modo.at(-1).n)})`);
+    tooltip(c, `${b >= 30 ? "30 días o más" : `${b} a ${b + 2} días`}<br><b>${nf(n)} pedidos</b>`);
   });
-  document.querySelectorAll(".ver-tabla").forEach((b) => b.addEventListener("click", () => {
-    const t = document.getElementById(b.dataset.t); t.hidden = !t.hidden; b.textContent = t.hidden ? "Ver como tabla" : "Ocultar tabla";
-  }));
 }
 
 function pestanas() {
@@ -435,59 +440,59 @@ function pestanas() {
   for (const [k] of tabs) document.getElementById("tab-" + k).addEventListener("click", () => { ir(k); try { history.replaceState(null, "", "#" + k); } catch {} });
   if (location.hash === "#simulacion") ir("simulacion");
   if (location.hash === "#soluciones") ir("soluciones");
-  window.irA = ir;
 }
 
-// ── Cómo lo resolvemos: cada causa de consulta con el aviso que la previene, lo que contesta el bot y cuándo deriva ──
+// ── Consultas: cada causa como una fila con barra; al abrirla se ve qué aviso la evita, qué hace el bot y qué falta ──
 const EST_TXT = { hecho: "Resuelto", parcial: "En parte", pendiente: "Pendiente" };
+const EST_COL = { hecho: "var(--s-hoy)", parcial: "var(--s-erp)", pendiente: "var(--s-sin)" };
 function soluciones() {
   const S = DATOS.soluciones, v = document.getElementById("v-soluciones");
   if (!S) { v.innerHTML = `<div class="vacio">Todavía no está cargado.</div>`; return; }
   const T = S.total_consultas, suma = (e) => S.motivos.filter((m) => m.estado === e).reduce((a, m) => a + m.consultas, 0);
   const tot = { hecho: suma("hecho"), parcial: suma("parcial"), pendiente: suma("pendiente") };
-  const nombreTpl = (t) => t === "pedido_contado_s" ? "las 6 de factura" : t;
-  // Las 6 de factura se nombran juntas; el resto, una por una.
+  const max = Math.max(...S.motivos.map((m) => m.consultas));
   const FACTURAS = ["pedido_contado_s", "pedido_contado_p", "pedido_credito_s", "pedido_credito_p", "pedido_echeq_s", "pedido_echeq_p"];
   const expandir = (t) => t === "pedido_contado_s" ? FACTURAS : [t];
-  const chip = (t, etiqueta) => `<button class="tpl-link" type="button" data-tpl="${esc(t)}" title="Ver la plantilla">${esc(etiqueta || t)}</button>`;
+  const chip = (t, etiqueta) => `<button class="tpl-link" type="button" data-tpl="${esc(t)}" title="Ver el mensaje">${esc(etiqueta || t)}</button>`;
   const chipDe = (t) => t === "pedido_contado_s" ? chip(FACTURAS.join(","), "las 6 de factura") : chip(t);
   const mini = (t) => {
     const pl = DATOS.plantillas.find((x) => x.name === t);
     return pl ? `<div class="mini-chat"><div class="burbuja">${pl.header === "DOCUMENT" ? `<div class="doc"><i>PDF</i> Factura.pdf</div>` : ""}<div class="txt">${cuerpo(pl.body, pl.ejemplos)}</div></div></div>` : "";
   };
-  const relac = (m) => (m.relacionadas || []).length ? `<h4 style="margin-top:12px">Avisos relacionados (no resuelven este mensaje)</h4><ul class="prev">${m.relacionadas.map((p) =>
-    `<li>${chip(p.tpl)}: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : "";
   const tplsCausa = (m) => {
     const todas = [...new Set((m.previene || []).flatMap((p) => expandir(p.tpl)))];
-    const rel = [...new Set((m.relacionadas || []).map((p) => p.tpl))];
-    return `<div class="tpls-causa"><span>Plantillas que lo trabajan:</span>${todas.length ? todas.map((t) => chip(t)).join("")
-      : `<span class="ninguna">ninguna: lo resuelve el bot en la conversación</span>`}${rel.length ? `<span style="margin-left:12px">Relacionadas, no lo resuelven:</span>${rel.map((t) => chip(t)).join("")}` : ""}</div>`;
+    return `<div class="tpls-causa"><span>Mensajes que ayudan:</span>${todas.length ? todas.map((t) => chip(t)).join("") : `<span class="ninguna">ninguno, lo resuelve el bot en la charla</span>`}</div>`;
   };
-  v.innerHTML = `
-    <div class="grupo-cab"><h2>Cómo resolvemos cada causa de consulta</h2>
-      <p>Las ${nf(T)} consultas por WhatsApp del ${esc(S.periodo)} (${nf(S.contactos)} contactos), ordenadas por cantidad. Para cada causa: qué aviso automático la evita, qué contesta el bot y cuándo pasa a una persona.</p></div>
-    <div class="sol-resumen">
-      <div class="sol-barra" role="img" aria-label="Consultas por estado">${["hecho", "parcial", "pendiente"].filter((e) => tot[e]).map((e) =>
-        `<div class="st-${e}" style="width:${(100 * tot[e]) / T}%" title="${EST_TXT[e]}: ${nf(tot[e])} consultas">${EST_TXT[e]} ${pct(tot[e], T)}</div>`).join("")}</div>
-      <div class="leyenda">${["hecho", "parcial", "pendiente"].filter((e) => tot[e]).map((e) => `<span><i class="st-${e}"></i>${EST_TXT[e]}: ${nf(tot[e])} consultas</span>`).join("")}</div>
-    </div>
-    ${S.motivos.map((m) => `<article class="causa">
-      <div class="causa-cab"><div><h3>${esc(m.motivo)}</h3>${m.ejemplo ? `<div class="ej">${esc(m.ejemplo)}</div>` : ""}</div>
-        <div class="causa-num"><b>${nf(m.consultas)}</b><span>${pct(m.consultas, T)} de las consultas</span><span class="pill-e ${esc(m.estado)}">${EST_TXT[m.estado] || m.estado}</span></div></div>
+  const detalle = (m) => `<div class="f-det">
       ${tplsCausa(m)}
-      <div class="causa-cols">
-        <div><h4>Lo previene</h4>${(m.previene || []).length ? `<ul class="prev">${m.previene.map((p) =>
-          `<li>${chipDe(p.tpl)}: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : `<p style="color:var(--muted)">Ningún aviso automático.</p>`}${relac(m)}</div>
+      <div class="f-cols">
         <div><h4>Qué contesta el bot</h4><p>${esc(m.bot)}</p></div>
         <div><h4>Cuándo pasa a una persona</h4><p>${esc(m.deriva || "No hace falta.")}</p></div>
       </div>
       ${m.falta ? `<div class="falta"><b>Falta:</b> ${esc(m.falta)}</div>` : ""}
-    </article>`).join("")}
-    <p class="hint" style="color:var(--muted);font-size:13px;margin:0">${esc(S.fuera_de_alcance || "")} Una consulta puede tener más de una causa; se cuenta una por contacto y por día.</p>`;
+      ${(m.previene || []).length ? `<div><h4>Cómo ayuda cada mensaje</h4><ul class="prev">${m.previene.map((p) => `<li>${chipDe(p.tpl)} ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul></div>` : ""}
+      ${(m.relacionadas || []).length ? `<div><h4>Parecidos, pero no lo resuelven</h4><ul class="prev">${m.relacionadas.map((p) => `<li>${chip(p.tpl)} ${esc(p.como)}</li>`).join("")}</ul></div>` : ""}
+    </div>`;
+
+  v.innerHTML = `
+    <div class="titulo"><h2>Por qué nos escriben los clientes</h2>
+      <p>${nf(T)} consultas del ${esc(S.periodo)}. Tocá una para ver cómo la resolvemos.</p></div>
+    <section class="panel estados">
+      <div class="sol-barra" role="img" aria-label="Consultas por estado">${["hecho", "parcial", "pendiente"].filter((e) => tot[e]).map((e) =>
+        `<div class="st-${e}" style="width:${(100 * tot[e]) / T}%" title="${EST_TXT[e]}: ${nf(tot[e])} consultas">${pct(tot[e], T)}</div>`).join("")}</div>
+      <div class="leyenda">${["hecho", "parcial", "pendiente"].filter((e) => tot[e]).map((e) => `<span><i class="st-${e}"></i>${EST_TXT[e]}: ${nf(tot[e])} consultas</span>`).join("")}</div>
+    </section>
+    <div class="filas">${S.motivos.map((m) => `<details class="fila">
+      <summary>
+        <div class="f-nom">${esc(m.motivo)}${m.ejemplo ? `<small>${esc(m.ejemplo)}</small>` : ""}</div>
+        <div class="f-barra"><span style="width:${(100 * m.consultas) / max}%;background:${EST_COL[m.estado] || "var(--grey)"}"></span></div>
+        <div class="f-num"><b>${nf(m.consultas)}</b><small>${pct(m.consultas, T)}</small></div>
+        <span class="pill-e ${esc(m.estado)}">${EST_TXT[m.estado] || m.estado}</span>
+      </summary>${detalle(m)}</details>`).join("")}</div>`;
   v.querySelectorAll(".tpl-link").forEach((b) => b.addEventListener("click", () => abrirPlantilla(b.dataset.tpl.split(","), b)));
 }
 
-// Popup con la ficha y el mensaje de una o varias plantillas. Se cierra con Esc, con el botón o tocando afuera.
+// Popup con la tarjeta de una o varias plantillas. Se cierra con Esc, con el botón o tocando afuera.
 function abrirPlantilla(nombres, origen) {
   const lista = nombres.map((n) => DATOS.plantillas.find((x) => x.name === n)).filter(Boolean);
   if (!lista.length) return;
@@ -495,8 +500,8 @@ function abrirPlantilla(nombres, origen) {
   const fondo = document.createElement("div");
   fondo.className = "modal-fondo";
   fondo.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="Plantilla ${esc(lista[0].name)}">
-    <div class="modal-cab"><b>${lista.length > 1 ? `Las ${lista.length} plantillas de factura` : "Plantilla de WhatsApp"}</b><button class="modal-cerrar" type="button">Cerrar</button></div>
-    <div class="lista">${lista.map((p) => `<article class="tpl">${ficha(p)}${burbuja(p)}</article>`).join("")}</div></div>`;
+    <div class="modal-cab"><b>${lista.length > 1 ? `Las ${lista.length} plantillas de factura` : "Así le llega al cliente"}</b><button class="modal-cerrar" type="button">Cerrar</button></div>
+    <div class="rejilla">${lista.map(tarjeta).join("")}</div></div>`;
   const cerrar = () => { fondo.remove(); document.removeEventListener("keydown", tecla); document.body.style.overflow = ""; origen?.focus(); };
   const tecla = (e) => { if (e.key === "Escape") cerrar(); };
   fondo.addEventListener("click", (e) => { if (e.target === fondo) cerrar(); });
