@@ -69,11 +69,46 @@ async function llamarPlanify(body: Record<string, unknown>): Promise<void> {
   }
 }
 
+async function esInterna(req: Request): Promise<boolean> {
+  const recibido = req.headers.get("x-lk-secret") ?? "";
+  if (!recibido) return false;
+  let esperado = Deno.env.get("LK_FN_CRON_SECRET") ?? "";
+  if (!esperado) {
+    const { data } = await supabase.rpc("krikos_secret", { p_name: "LK_FN_CRON_SECRET" });
+    esperado = typeof data === "string" ? data : "";
+  }
+  return esperado.length > 0 && recibido === esperado;
+}
+
+// Aviso al cliente por la cola. Las tareas de prueba 🧪 (Simulador) NUNCA mandan nada (Pablo, 29/09): el mensaje queda
+// guardado como retenido (el despacho sólo toma 'pending'), con context 'prueba_…' y la clave tapada.
+// deno-lint-ignore no-explicit-any
+async function encolar(alerta: any, fila: { phone: string; body: string; context: string; ref_id: string }) {
+  if (alerta?.contexto?.simulador === true) {
+    return await supabase.from("wa_outbox").insert({ ...fila, body: fila.body.replace(/Clave: \S+/g, "Clave: ••••••••"),
+      context: "prueba_" + fila.context, status: "held_no_whitelist" });
+  }
+  return await supabase.from("wa_outbox").insert(fila);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const body = await req.json();
-    const gate = await requireAdmin(body);
+    // Pablo, 29/09: las pruebas del Simulador las puede correr Claude con la llamada interna (x-lk-secret), pero SÓLO sobre
+    // tareas 🧪 (contexto.simulador) y sólo las acciones de los botones; bloqueoPrueba además exige el cliente 99862.
+    const interna = await esInterna(req);
+    const ACCIONES_PRUEBA = ["aplicar_agregado", "reset_clave", "sucursal_agregar", "mail_cambiar", "list"];
+    let gate: { ok: true; email: string } | { ok: false; error: string; status: number };
+    if (interna && ACCIONES_PRUEBA.includes(String(body.action))) {
+      gate = { ok: true, email: "prueba interna (simulador)" };
+      if (body.action !== "list") {
+        const { data: t } = await supabase.from("wa_alertas_humano").select("contexto").eq("id", Number(body.id)).maybeSingle();
+        if (t?.contexto?.simulador !== true) return json({ ok: false, error: "La llamada interna sólo puede tocar tareas de prueba 🧪." }, 403);
+      }
+    } else {
+      gate = await requireAdmin(body);
+    }
     if (!gate.ok) return json({ error: gate.error }, gate.status);
 
     if (body.action === "config_get") {
@@ -247,6 +282,7 @@ serve(async (req) => {
           error_archivo: ctx.error_archivo ?? null,
           agregar: Array.isArray(ctx.agregar) ? ctx.agregar : null,
           sucursal: ctx.sucursal ?? null,
+          mail_nuevo: ctx.mail_nuevo ?? null,
           aplicable: ctx.aplicable === true,
         };
       }).sort((x, y) => {
@@ -320,7 +356,7 @@ serve(async (req) => {
       await supabase.from("wa_prospect_leads").update({ status: "approved", customer_id: customerId, updated_at: new Date().toISOString() }).eq("id", leadId);
       const texto = `¡Bienvenido a Loekemeyer! 🎉 Ya sos cliente (código ${cod}).\n` +
         `Hacé tus pedidos en loekemeyer.com → "Pedidos Mayorista":\nUsuario: ${cw.username}\nClave: ${pin}\nNo la compartas con nadie.`;
-      const { error: eO } = await supabase.from("wa_outbox").insert({ phone: l.phone ?? a.phone, body: texto, context: "alta_aprobada", ref_id: String(leadId) });
+      const { error: eO } = await encolar(a, { phone: l.phone ?? a.phone, body: texto, context: "alta_aprobada", ref_id: String(leadId) });
       await supabase.from("wa_alertas_humano").update({
         estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
         contexto: { ...a.contexto, decision_alta: "approve", cod_cliente_asignado: cod, vend, dto_vol: dto, customer_id: customerId },
@@ -352,13 +388,36 @@ serve(async (req) => {
       });
       if (eI) return json({ ok: false, error: "No se pudo agregar la dirección: " + eI.message }, 200);
       const texto = `Listo: agregamos la dirección ${label} a tu cuenta. La vas a poder elegir en tu próximo pedido en loekemeyer.com.`;
-      const { error: eO } = await supabase.from("wa_outbox").insert({ phone: a.phone, body: texto, context: "sucursal_agregada", ref_id: String(id) });
+      const { error: eO } = await encolar(a, { phone: a.phone, body: texto, context: "sucursal_agregada", ref_id: String(id) });
       await supabase.from("wa_alertas_humano").update({
         estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
         contexto: { ...a.contexto, sucursal_slot: slot },
       }).eq("id", id);
       await llamarPlanify({ action: "cerrar", alerta_id: id });
       return json({ ok: true, slot, label, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
+    }
+
+    // Pablo, 29/09: cambio de mail pedido por WhatsApp (solicitar_cambio_mail). Actualiza customers.mail.
+    if (body.action === "mail_cambiar") {
+      const id = Number(body.id);
+      if (!id) return json({ ok: false, error: "falta id" }, 400);
+      const { data: a } = await supabase.from("wa_alertas_humano").select("id, phone, customer_id, contexto, estado").eq("id", id).maybeSingle();
+      const mail = String(a?.contexto?.mail_nuevo ?? "").trim();
+      if (!a || !mail) return json({ ok: false, error: "La tarea no es un cambio de mail." }, 200);
+      if (!["pendiente", "notificado"].includes(a.estado)) return json({ ok: false, error: "La tarea ya estaba resuelta." }, 200);
+      if (!a.customer_id) return json({ ok: false, error: "La tarea no tiene cliente identificado." }, 200);
+      const bloq = await bloqueoPrueba(a);
+      if (bloq) return json({ ok: false, error: bloq }, 200);
+      const { data: c } = await supabase.from("customers").select("mail").eq("id", a.customer_id).maybeSingle();
+      const { error: eU } = await supabase.from("customers").update({ mail }).eq("id", a.customer_id);
+      if (eU) return json({ ok: false, error: "No se pudo cambiar el mail: " + eU.message }, 200);
+      const { error: eO } = await encolar(a, { phone: a.phone, body: `Listo: actualizamos tu mail a ${mail}.`, context: "mail_cambiado", ref_id: String(id) });
+      await supabase.from("wa_alertas_humano").update({
+        estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
+        contexto: { ...a.contexto, mail_anterior: c?.mail ?? null },
+      }).eq("id", id);
+      await llamarPlanify({ action: "cerrar", alerta_id: id });
+      return json({ ok: true, mail, mail_anterior: c?.mail ?? null, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
     }
 
     // Vendedores para el alta (Wpp_Vendedores: "V.13 Luis Moñin" → 13).
@@ -386,7 +445,7 @@ serve(async (req) => {
         .update({ status: decision === "approve" ? "approved" : "rejected", updated_at: new Date().toISOString() }).eq("id", leadId);
       if (eL) return json({ ok: false, error: eL.message }, 200);
       const texto = avisoAlta(decision, String(lead.razon_social ?? ""), cod);
-      const { error: eO } = await supabase.from("wa_outbox").insert({
+      const { error: eO } = await encolar(a, {
         phone: lead.phone ?? a.phone, body: texto,
         context: decision === "approve" ? "alta_aprobada" : "alta_rechazada", ref_id: String(leadId),
       });
@@ -413,7 +472,7 @@ serve(async (req) => {
       const pesos = (n: number) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
       const texto = `Listo: sumamos a tu pedido del ${p.slice(8, 10)}/${p.slice(5, 7)}:\n` +
         (r.lineas as string[]).map((l) => `• ${l}`).join("\n") + `\nNuevo total: ${pesos(r.total_nuevo)} + IVA.`;
-      const { error: eO } = await supabase.from("wa_outbox").insert({
+      const { error: eO } = await encolar(aa, {
         phone: r.phone, body: texto, context: "agregado_aplicado", ref_id: String(r.pedido),
       });
       await llamarPlanify({ action: "cerrar", alerta_id: id });
@@ -445,7 +504,7 @@ serve(async (req) => {
       if (eP) return json({ ok: false, error: "No se pudo cambiar la clave: " + eP.message }, 200);
       const texto = `Te generamos una clave nueva para la web (loekemeyer.com → "Pedidos Mayorista"):\n` +
         `Usuario: ${usuario}\nClave: ${clave}\nNo la compartas con nadie.`;
-      const { error: eO } = await supabase.from("wa_outbox").insert({ phone: a.phone, body: texto, context: "clave_temporal", ref_id: String(id) });
+      const { error: eO } = await encolar(a, { phone: a.phone, body: texto, context: "clave_temporal", ref_id: String(id) });
       await supabase.from("wa_alertas_humano").update({
         estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
         contexto: { ...a.contexto, clave_reseteada_at: new Date().toISOString() },

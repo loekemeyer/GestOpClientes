@@ -94,6 +94,12 @@ const BOT_TOOLS: ToolDef[] = [
     },
   },
   {
+    // Pablo, 29/09: cambio de mail con aprobación de una persona (lk_alertas mail_cambiar).
+    name: "solicitar_cambio_mail",
+    description: "Pide cambiar el mail de la cuenta del cliente; una persona lo aprueba. Antes confirmale el mail nuevo (\"¿Cambio tu mail a nombre@dominio.com?\") y recién con su sí, llamala.",
+    input_schema: { type: "object", properties: { mail: { type: "string", description: "Mail nuevo, confirmado con el cliente" } }, required: ["mail"] },
+  },
+  {
     name: "consultar_mis_pedidos",
     description:
       "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total, método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
@@ -383,6 +389,19 @@ async function executeTool(
         },
       });
       return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por acá." } };
+    }
+
+    case "solicitar_cambio_mail": {
+      const mail = String(input.mail ?? "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return { data: { error: "Ese mail no parece válido: pedíselo de nuevo." } };
+      const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
+      if (!cli?.[0]?.customer_id) return { data: { error: "No identifiqué la cuenta de este número. Derivá con derivar_a_persona." } };
+      await notificarHumano({
+        tipo: "escalation", phone, customerId: cli[0].customer_id,
+        contexto: { motivo: "cambio_datos", origen: "agente_ia", mail_nuevo: mail, texto: `Cambiar el mail a ${mail}`,
+          razon_social: cli[0].customer_name ?? null, urgente: false },
+      });
+      return { data: { ok: true, texto_para_el_cliente: `Listo, pedí que cambien tu mail a ${mail}. Una persona lo revisa y te confirmamos por acá.`, regla: "Pasale este texto tal cual." } };
     }
 
     case "solicitar_nueva_sucursal": {
@@ -789,7 +808,7 @@ const AUDITABLE_TOOLS = new Set([
   "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
   "consultar_mi_historial", "consultar_mis_pedidos", "consultar_detalle_pedido",
   "consultar_mis_descuentos", "consultar_mis_facturas", "consultar_novedades", "consultar_stock", "consultar_proximos_ingresos",
-  "solicitar_agregado_pedido", "solicitar_nueva_sucursal",
+  "solicitar_agregado_pedido", "solicitar_nueva_sucursal", "solicitar_cambio_mail",
 ]);
 
 async function auditTool(
@@ -871,7 +890,7 @@ export interface ConversationResult {
 const MOTIVO_HERRAMIENTA: Record<string, string> = {
   consultar_mis_facturas: "pago", consultar_mis_descuentos: "pago",
   consultar_mis_pedidos: "entrega", consultar_detalle_pedido: "entrega", consultar_mi_entrega: "entrega",
-  solicitar_agregado_pedido: "cambio_pedido", solicitar_nueva_sucursal: "cambio_datos",
+  solicitar_agregado_pedido: "cambio_pedido", solicitar_nueva_sucursal: "cambio_datos", solicitar_cambio_mail: "cambio_datos",
   consultar_stock: "stock", consultar_proximos_ingresos: "stock", buscar_productos: "productos",
   consultar_novedades: "productos", consultar_mis_top_productos: "productos", enviar_catalogo: "productos",
   enviar_fotos_producto: "productos", consultar_kb: "consulta_general",

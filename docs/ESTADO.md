@@ -360,6 +360,10 @@ el killswitch, sin ningún consumidor de esa cola.
   `solicitar_nueva_sucursal` → tarea `cambio_datos`; en Tareas "Agregar dirección" (`lk_alertas` `sucursal_agregar`)
   inserta en `customer_delivery_addresses` (slot siguiente, `pending_isis=true`) y avisa al cliente por la cola.
   "Cambié de dirección" ya no cae en la FAQ #4 (`RE_NUEVA_DIRECCION` → IA).
+- **Cambio de mail** (29/09): `solicitar_cambio_mail` → tarea `cambio_datos` con `mail_nuevo` → "Cambiar mail" (`mail_cambiar`).
+- **Tareas de prueba 🧪 nunca mandan mensajes** (29/09): `lk_alertas` encola sus avisos como `held_no_whitelist` con
+  context `prueba_…` y la clave tapada. La llamada interna (x-lk-secret) sólo puede tocar tareas 🧪 (y bloqueoPrueba exige
+  el cliente 99862): así Claude corre las pruebas sin login.
 - **Gasto de IA por día y motivo** (29/09, sql/107): `bot_token_usage.motivo` se llena al final de cada turno de la IA con
   el motivo deducido de las herramientas (derivación → su motivo; facturas → pago; pedidos/entregas → entrega; stock…;
   sin herramientas → consulta_general). Dashboard › 💰 IA — gasto por día y motivo (`lk_ia-puntaje` action `gasto`):

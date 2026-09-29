@@ -757,6 +757,9 @@ function tkPintarDetalle() {
       ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
       <div class="aviso">Cargalo en el ERP y aprobalo acá: se crea en la web y le llega el acceso por WhatsApp.</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
+  } else if (a.mail_nuevo) {
+    cuerpo = `<h4>Cambio de mail</h4>${kv([["Mail nuevo", `<b>${gesc(a.mail_nuevo)}</b>`]])}
+      <div class="cm-acciones"><button class="g-btn prim" onclick="tkCambiarMail()">Cambiar mail</button></div>`;
   } else if (a.sucursal) {
     const x = a.sucursal;
     cuerpo = `<h4>Dirección de entrega nueva</h4>${kv([["Calle y número", `<b>${gesc(x.calle_altura)}</b>`], ["Localidad", gesc(x.localidad || "")],
@@ -798,6 +801,17 @@ async function tkResolver(estado) {
   try {
     await tkInvoke("lk_alertas", { action: "resolver", id: t.a.id, estado });
     toast(estado === "atendido" ? "Tarea resuelta." : "Tarea descartada.");
+    G.tareaSel = null; tkVolver();
+    await tkCargar();
+    if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
+  } catch (e) { toast("No se pudo: " + e.message); }
+}
+async function tkCambiarMail() {
+  const t = tkActual(); if (!t || !t.a) return;
+  if (!confirm("¿Cambiar el mail de la cuenta del cliente y avisarle?")) return;
+  try {
+    const r = await tkInvoke("lk_alertas", { action: "mail_cambiar", id: t.a.id });
+    toast(`Mail cambiado a ${r.mail}.` + (r.aviso_encolado ? " El aviso quedó en la cola." : " No se pudo encolar el aviso."));
     G.tareaSel = null; tkVolver();
     await tkCargar();
     if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
