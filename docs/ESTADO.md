@@ -359,8 +359,9 @@ el killswitch, sin ningún consumidor de esa cola.
   $896.668 ($741.048 + IVA)." con una línea en blanco tras el saludo, como `pedido_recibido_v2` (sistema de versiones).
   El disparador arma `{{3}}` según la versión activa: con la vieja (que ya dice "+ IVA") sigue mandando sólo el neto.
 - **Factura contado: el total a pagar primero** (Pablo, 29/09): `pedido_contado_p` se edita A MANO en WhatsApp Manager
-  (tiene encabezado Documento; texto en `docs/plantillas_whatsapp.md`). `lk_factura-check` (`contadoPrimero`) lee el texto
-  aprobado y ordena las variables solo; mientras Meta la revisa no está APPROVED y queda `held_tpl_no_aprobada`.
+  (tiene encabezado Documento; texto en `docs/plantillas_whatsapp.md`: total a pagar arriba, detalle antes del total).
+  `lk_factura-check` (`ordenContado`) lee el texto aprobado, ordena las variables por la posición de cada bloque y guarda
+  en el historial ese mismo cuerpo con los valores; mientras Meta la revisa no está APPROVED y queda `held_tpl_no_aprobada`.
   Además la factura enviada queda en `bot_historial_chat` (se ve en Conversaciones y el bot sabe a qué le contestan).
 - **Pedido recibido con razón social** (29/09, sql/104): revierte sql/093; la plantilla aprobada en Meta es de 5 variables.
 - **Decisiones de Pablo (29/09, cierre del día):** (1) reparto que no sale: en standby, no se arma nada (el aviso "ya salió"

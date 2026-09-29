@@ -116,14 +116,17 @@ async function tplStatus(name: string): Promise<string | null> {
 async function tplParamCount(name: string): Promise<number | null> {
   await refreshTpls(); const v = _tplParams![name]; return (v === undefined) ? null : v;
 }
-// Pablo, 29/09: en las de contado el "Total a pagar Contado" va primero (arriba de "Total de tu(s) factura(s)"). Se
-// edita a mano en WhatsApp Manager; el orden de las variables sigue al texto que Meta tenga, así no hay que tocar
-// nada el día que la aprueba. Mientras la edición está en revisión, la plantilla no está APPROVED y no se manda.
-async function contadoPrimero(name: string): Promise<boolean> {
+// Pablo, 29/09: en las de contado el total a pagar va primero y el detalle antes del total de las facturas. Se edita a
+// mano en WhatsApp Manager; el orden de las variables sigue al texto que Meta tenga (posición de cada bloque), así no
+// hay que tocar nada el día que la aprueba. Mientras la edición está en revisión no está APPROVED y no se manda.
+type Bloque = "total" | "detalle" | "pago";
+async function ordenContado(name: string): Promise<{ orden: Bloque[]; body: string } | null> {
   await refreshTpls();
   const b = _tplBody[name] ?? "";
-  const a = b.indexOf("Total a pagar Contado"), t = b.indexOf("Total de tu");
-  return a >= 0 && t >= 0 && a < t;
+  const pos: Array<[Bloque, number]> = [["total", b.search(/Total de tus? factura/)],
+    ["detalle", b.search(/Detalle por factura/)], ["pago", b.search(/Total a pagar\W*Contado/)]];
+  if (pos.some(([k, i]) => i < 0 && !(k === "detalle"))) return null;   // texto desconocido → orden de siempre
+  return { orden: pos.filter(([, i]) => i >= 0).sort((x, y) => x[1] - y[1]).map(([k]) => k), body: b };
 }
 // Cantidad de {{n}} esperada por formato/grupo, para autodetectar contra Meta.
 function countV1(grupo: string, esMultiple: boolean): number { return grupo === "contado" ? (esMultiple ? 4 : 2) : (esMultiple ? 8 : 6); }
@@ -290,13 +293,7 @@ function fechaLimiteContado(fechaISO: string, dias: number): string {
 }
 // Reconstrucción legible del mensaje (preview/auditoría). Debe respetar el ORDEN de params
 // según el formato: v2 intercala el %dto y agrega alias/CBU; v1 no.
-function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: string, cbu: string, v2: boolean, primero = false): string {
-  if (primero) { // contado v2 con el total a pagar arriba: {pct, contado, total[, n, detalle]}
-    const cuerpo = esMultiple
-      ? [SALUDO, "", `*Total a pagar Contado (${p[0]}% Dto): ${p[1]}*`, "", `Total de tus facturas (con IVA): ${p[2]}, en ${p[3]} facturas.`, "", `Detalle por factura: ${p[4]}`]
-      : [SALUDO, "", `*Total a pagar Contado (${p[0]}% Dto): ${p[1]}*`, "", `Total de tu factura (con IVA): ${p[2]}`];
-    return cuerpo.join("\n") + "\n" + pagoFooter(alias, cbu);
-  }
+function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: string, cbu: string, v2: boolean): string {
   const sav2 = (f: string, a: string, c: string) => ["", `*Pagando hasta el ${f} podes ahorrarte ${a}.*`, `*Total Contado: ${c}*`];
   const sav1 = (f: string, a: string, c: string) => ["", `*Pagando hasta el ${f} podes ahorrarte ${a}.`, `Total Contado: ${c}*`];
   let cuerpo: string[];
@@ -374,13 +371,25 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
       ? [...base, label, fmtARS(montoCliente), metodoPct, fechaLimite, fmtARS(ahorro), fmtARS(montoContado)]
       : [...base, label, fmtARS(montoCliente), fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
   }
-  // Contado con el total a pagar arriba (según el texto de Meta): {pct, contado} pasan adelante.
-  const primero = v2 && grupo === "contado" && await contadoPrimero(template);
-  if (primero) params = [params[params.length - 2], params[params.length - 1], ...params.slice(0, -2)];
+  // Contado v2: las variables van en el orden de los bloques del texto aprobado en Meta (ordenContado) y el texto del
+  // historial es ese mismo cuerpo con los valores, así coincide con lo que leyó el cliente.
+  let textoMeta: string | null = null;
+  const oc = v2 && grupo === "contado" ? await ordenContado(template) : null;
+  if (oc) {
+    const bloques: Record<Bloque, string[]> = {
+      total: esMultiple ? [fmtARS(total_sum), String(n)] : [fmtARS(total_sum)],
+      detalle: esMultiple ? [lista] : [],
+      pago: [contadoPct, fmtARS(montoContado)],
+    };
+    params = oc.orden.flatMap((k) => bloques[k]);
+    const todos = [...params, cfg.alias, cfg.cbu];
+    const cuenta = (oc.body.match(/\{\{\d+\}\}/g) ?? []).length;
+    if (cuenta === todos.length) textoMeta = oc.body.replace(/\{\{(\d+)\}\}/g, (_m, i) => todos[Number(i) - 1] ?? "");
+  }
   if (v2) params = [...params, cfg.alias, cfg.cbu]; // pie de pago (variables) sólo en v2
   return {
     template, language: "es_AR", metodo, grupo, n_facturas: n, multiple: esMultiple, formato: v2 ? "v2" : "v1",
-    params, lista_facturas: lista, texto_legible: textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu, v2, primero),
+    params, lista_facturas: lista, texto_legible: textoMeta ?? textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu, v2),
     total_sum, total_fmt: fmtARS(total_sum),
     desglose: {
       total_civa: fmtARS(total_sum), dto_cliente: `${Math.round(dto * 100)}%`, plazo_dias: label || null,
