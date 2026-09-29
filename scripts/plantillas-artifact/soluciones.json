@@ -6,25 +6,26 @@
     {
       "motivo": "Pasar o modificar pedido",
       "estado": "parcial",
-      "previene": [
+      "previene": [],
+      "bot": "Confirma los pedidos cargados con fecha y estado. Un cambio ('agregá 60 sacacorchos') lo toma con el detalle y lo deriva; ya no contesta 'no se toman pedidos por WhatsApp'. Para pedidos nuevos indica la web (los pedidos por WhatsApp están apagados) y explica cómo hacerlo.",
+      "deriva": "Motivo 'cambio_pedido' (urgente) para agregar, sacar, anular o un pedido duplicado; 'pedido_no_encontrado' si lo cargó y no aparece; un Excel o foto adjunto crea una alerta para que alguien lo cargue.",
+      "falta": "El pedido de modificación no tiene plantilla: el cliente escribe él, así que se contesta con texto libre dentro de las 24 h. Lo único que se puede hacer con una plantilla es avisarle de antemano hasta cuándo puede modificar (en pedido_programado); falta confirmar ese límite con Depósito. Decidir además quién carga los pedidos que llegan en Excel o foto, y cambiar el mensaje de adjunto, que hoy es hostil.",
+      "consultas": 123,
+      "ejemplo": "«Agregá 60 sacacorchos 067 al pedido web»",
+      "relacionadas": [
         {
           "tpl": "pedido_recibido",
-          "como": "Llega solo cuando el pedido queda enviado, uno por pedido, con importe, forma de pago y entrega estimada: confirma que se cargó y deja ver enseguida si hay un duplicado."
+          "como": "Confirma lo que se cargó (importe, forma de pago, entrega estimada), así el cliente puede detectar un error o un duplicado. No habla de cambios."
         },
         {
           "tpl": "pedido_programado",
-          "como": "Al avisar la fecha abre la ventana para pedir cambios; si responde a ese aviso pidiendo agregar o sacar algo, se crea la alerta 'Cambio de pedido' urgente."
+          "como": "Si el cliente responde a este aviso pidiendo un cambio, el sistema crea la alerta 'Cambio de pedido' urgente. El texto del aviso no dice que el pedido se pueda modificar."
         },
         {
           "tpl": "pedido_preparando",
-          "como": "Marca el límite: cuando el pedido entra en armado ya no se modifica."
+          "como": "Se supone que desde que entra en armado el pedido ya no se modifica (a confirmar con Depósito). El aviso no lo dice."
         }
-      ],
-      "bot": "Confirma los pedidos cargados con fecha y estado. Un cambio ('agregá 60 sacacorchos') lo toma con el detalle y lo deriva; ya no contesta 'no se toman pedidos por WhatsApp'. Para pedidos nuevos indica la web (los pedidos por WhatsApp están apagados) y explica cómo hacerlo.",
-      "deriva": "Motivo 'cambio_pedido' (urgente) para agregar, sacar, anular o un pedido duplicado; 'pedido_no_encontrado' si lo cargó y no aparece; un Excel o foto adjunto crea una alerta para que alguien lo cargue.",
-      "falta": "Poner en el aviso de programado hasta cuándo se puede modificar. Decidir si los pedidos que mandan por Excel o foto los carga una persona o se les pide siempre la web, y cambiar el mensaje de adjunto, que hoy es hostil.",
-      "consultas": 123,
-      "ejemplo": "«Agregá 60 sacacorchos 067 al pedido web»"
+      ]
     },
     {
       "motivo": "Fecha o estado de entrega",
@@ -79,7 +80,7 @@
       "previene": [
         {
           "tpl": "pedido_entregado",
-          "como": "Al recibir el pedido le dice 'si falta algo o llegó algo mal, avisanos por acá': el reclamo entra por el canal correcto."
+          "como": "Al recibir un pedido de reparto propio dice 'si falta algo o llegó algo mal, avisanos por acá'. No lo reciben los pedidos por expreso ni los de retiro."
         }
       ],
       "bot": "Registra el reclamo y le dice que una persona del equipo le escribe por acá; ya no lo manda a otro mail o WhatsApp.",
@@ -157,7 +158,7 @@
       "previene": [
         {
           "tpl": "pedido_entregado",
-          "como": "Invita a avisar por acá si algo llegó mal."
+          "como": "Al recibir un pedido de reparto propio dice 'si falta algo o llegó algo mal, avisanos por acá'. No lo reciben los pedidos por expreso ni los de retiro."
         }
       ],
       "bot": "Registra el reclamo como urgente.",

@@ -446,10 +446,13 @@ function soluciones() {
     const pl = DATOS.plantillas.find((x) => x.name === t);
     return pl ? `<div class="mini-chat"><div class="burbuja">${pl.header === "DOCUMENT" ? `<div class="doc"><i>PDF</i> Factura.pdf</div>` : ""}<div class="txt">${cuerpo(pl.body, pl.ejemplos)}</div></div></div>` : "";
   };
+  const relac = (m) => (m.relacionadas || []).length ? `<h4 style="margin-top:12px">Avisos relacionados (no resuelven este mensaje)</h4><ul class="prev">${m.relacionadas.map((p) =>
+    `<li><b>${esc(p.tpl)}</b>: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : "";
   const tplsCausa = (m) => {
     const todas = [...new Set((m.previene || []).flatMap((p) => expandir(p.tpl)))];
+    const rel = [...new Set((m.relacionadas || []).map((p) => p.tpl))];
     return `<div class="tpls-causa"><span>Plantillas que lo trabajan:</span>${todas.length ? todas.map(chip).join("")
-      : `<span class="ninguna">ninguna: lo resuelve el bot en la conversación</span>`}</div>`;
+      : `<span class="ninguna">ninguna: lo resuelve el bot en la conversación</span>`}${rel.length ? `<span style="margin-left:12px">Relacionadas, no lo resuelven:</span>${rel.map(chip).join("")}` : ""}</div>`;
   };
   v.innerHTML = `
     <div class="grupo-cab"><h2>Cómo resolvemos cada causa de consulta</h2>
@@ -465,7 +468,7 @@ function soluciones() {
       ${tplsCausa(m)}
       <div class="causa-cols">
         <div><h4>Lo previene</h4>${(m.previene || []).length ? `<ul class="prev">${m.previene.map((p) =>
-          `<li><b>${esc(nombreTpl(p.tpl))}</b>: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : `<p style="color:var(--muted)">Ningún aviso automático.</p>`}</div>
+          `<li><b>${esc(nombreTpl(p.tpl))}</b>: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : `<p style="color:var(--muted)">Ningún aviso automático.</p>`}${relac(m)}</div>
         <div><h4>Qué contesta el bot</h4><p>${esc(m.bot)}</p></div>
         <div><h4>Cuándo pasa a una persona</h4><p>${esc(m.deriva || "No hace falta.")}</p></div>
       </div>

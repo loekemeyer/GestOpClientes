@@ -60,7 +60,7 @@ const simulacion = existsSync(simPath) ? JSON.parse(readFileSync(simPath, "utf8"
 // "Cómo lo resolvemos": cómo se maneja cada causa de consulta (a mano, soluciones.json).
 const solPath = join(aca, "soluciones.json");
 const soluciones = existsSync(solPath) ? JSON.parse(readFileSync(solPath, "utf8")) : null;
-for (const m of soluciones?.motivos ?? []) for (const pr of m.previene ?? []) {
+for (const m of soluciones?.motivos ?? []) for (const pr of [...(m.previene ?? []), ...(m.relacionadas ?? [])]) {
   if (!datos.plantillas.some((t) => t.name === pr.tpl)) avisos.push(`soluciones.json nombra una plantilla que no está en Meta: ${pr.tpl}`);
 }
 
