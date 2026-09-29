@@ -179,6 +179,14 @@ table.datos tr.total td { font-weight: 700; border-bottom: 0; }
 .tpls-causa .ninguna { color: var(--muted); font-style: italic; font-weight: 400; }
 .mini-chat { background: var(--wall); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
 .mini-chat .burbuja { font-size: 13px; max-width: 420px; }
+/* Popup de plantilla (se abre al tocar el nombre de una plantilla en "Cómo lo resolvemos") */
+.modal-fondo { position: fixed; inset: 0; z-index: 30; background: rgba(8, 14, 12, 0.6); display: flex; padding: 16px; overflow-y: auto; }
+.modal { background: var(--bg); color: var(--ink); border-radius: 14px; width: 100%; max-width: 940px; margin: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4); }
+.modal-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal-cab b { font-size: 15px; }
+.modal-cerrar { font: inherit; font-size: 14px; font-weight: 600; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.modal-cerrar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.modal .lista { gap: 12px; }
 .falta { font-size: 14px; border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; background: var(--warn-bg); border-radius: 0 6px 6px 0; }
 @media (max-width: 860px) { .causa-cols { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) {
@@ -441,18 +449,19 @@ function soluciones() {
   // Las 6 de factura se nombran juntas; el resto, una por una.
   const FACTURAS = ["pedido_contado_s", "pedido_contado_p", "pedido_credito_s", "pedido_credito_p", "pedido_echeq_s", "pedido_echeq_p"];
   const expandir = (t) => t === "pedido_contado_s" ? FACTURAS : [t];
-  const chip = (t) => `<button class="tpl-link" type="button" data-tpl="${esc(t)}" title="Ver la plantilla">${esc(t)}</button>`;
+  const chip = (t, etiqueta) => `<button class="tpl-link" type="button" data-tpl="${esc(t)}" title="Ver la plantilla">${esc(etiqueta || t)}</button>`;
+  const chipDe = (t) => t === "pedido_contado_s" ? chip(FACTURAS.join(","), "las 6 de factura") : chip(t);
   const mini = (t) => {
     const pl = DATOS.plantillas.find((x) => x.name === t);
     return pl ? `<div class="mini-chat"><div class="burbuja">${pl.header === "DOCUMENT" ? `<div class="doc"><i>PDF</i> Factura.pdf</div>` : ""}<div class="txt">${cuerpo(pl.body, pl.ejemplos)}</div></div></div>` : "";
   };
   const relac = (m) => (m.relacionadas || []).length ? `<h4 style="margin-top:12px">Avisos relacionados (no resuelven este mensaje)</h4><ul class="prev">${m.relacionadas.map((p) =>
-    `<li><b>${esc(p.tpl)}</b>: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : "";
+    `<li>${chip(p.tpl)}: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : "";
   const tplsCausa = (m) => {
     const todas = [...new Set((m.previene || []).flatMap((p) => expandir(p.tpl)))];
     const rel = [...new Set((m.relacionadas || []).map((p) => p.tpl))];
-    return `<div class="tpls-causa"><span>Plantillas que lo trabajan:</span>${todas.length ? todas.map(chip).join("")
-      : `<span class="ninguna">ninguna: lo resuelve el bot en la conversación</span>`}${rel.length ? `<span style="margin-left:12px">Relacionadas, no lo resuelven:</span>${rel.map(chip).join("")}` : ""}</div>`;
+    return `<div class="tpls-causa"><span>Plantillas que lo trabajan:</span>${todas.length ? todas.map((t) => chip(t)).join("")
+      : `<span class="ninguna">ninguna: lo resuelve el bot en la conversación</span>`}${rel.length ? `<span style="margin-left:12px">Relacionadas, no lo resuelven:</span>${rel.map((t) => chip(t)).join("")}` : ""}</div>`;
   };
   v.innerHTML = `
     <div class="grupo-cab"><h2>Cómo resolvemos cada causa de consulta</h2>
@@ -468,18 +477,34 @@ function soluciones() {
       ${tplsCausa(m)}
       <div class="causa-cols">
         <div><h4>Lo previene</h4>${(m.previene || []).length ? `<ul class="prev">${m.previene.map((p) =>
-          `<li><b>${esc(nombreTpl(p.tpl))}</b>: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : `<p style="color:var(--muted)">Ningún aviso automático.</p>`}${relac(m)}</div>
+          `<li>${chipDe(p.tpl)}: ${esc(p.como)}${mini(p.tpl)}</li>`).join("")}</ul>` : `<p style="color:var(--muted)">Ningún aviso automático.</p>`}${relac(m)}</div>
         <div><h4>Qué contesta el bot</h4><p>${esc(m.bot)}</p></div>
         <div><h4>Cuándo pasa a una persona</h4><p>${esc(m.deriva || "No hace falta.")}</p></div>
       </div>
       ${m.falta ? `<div class="falta"><b>Falta:</b> ${esc(m.falta)}</div>` : ""}
     </article>`).join("")}
     <p class="hint" style="color:var(--muted);font-size:13px;margin:0">${esc(S.fuera_de_alcance || "")} Una consulta puede tener más de una causa; se cuenta una por contacto y por día.</p>`;
-  v.querySelectorAll(".tpl-link").forEach((b) => b.addEventListener("click", () => {
-    filtro = null; texto = b.dataset.tpl; resumen(); pintar(); window.irA("plantillas");
-    const q = document.getElementById("q"); if (q) q.value = texto;
-    window.scrollTo({ top: 0 });
-  }));
+  v.querySelectorAll(".tpl-link").forEach((b) => b.addEventListener("click", () => abrirPlantilla(b.dataset.tpl.split(","), b)));
+}
+
+// Popup con la ficha y el mensaje de una o varias plantillas. Se cierra con Esc, con el botón o tocando afuera.
+function abrirPlantilla(nombres, origen) {
+  const lista = nombres.map((n) => DATOS.plantillas.find((x) => x.name === n)).filter(Boolean);
+  if (!lista.length) return;
+  document.querySelector(".modal-fondo")?.remove();
+  const fondo = document.createElement("div");
+  fondo.className = "modal-fondo";
+  fondo.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="Plantilla ${esc(lista[0].name)}">
+    <div class="modal-cab"><b>${lista.length > 1 ? `Las ${lista.length} plantillas de factura` : "Plantilla de WhatsApp"}</b><button class="modal-cerrar" type="button">Cerrar</button></div>
+    <div class="lista">${lista.map((p) => `<article class="tpl">${ficha(p)}${burbuja(p)}</article>`).join("")}</div></div>`;
+  const cerrar = () => { fondo.remove(); document.removeEventListener("keydown", tecla); document.body.style.overflow = ""; origen?.focus(); };
+  const tecla = (e) => { if (e.key === "Escape") cerrar(); };
+  fondo.addEventListener("click", (e) => { if (e.target === fondo) cerrar(); });
+  fondo.querySelector(".modal-cerrar").addEventListener("click", cerrar);
+  document.addEventListener("keydown", tecla);
+  document.body.style.overflow = "hidden";
+  document.body.appendChild(fondo);
+  fondo.querySelector(".modal-cerrar").focus();
 }
 
 if (DATOS) {
