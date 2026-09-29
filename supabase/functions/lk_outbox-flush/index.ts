@@ -10,6 +10,7 @@ import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderPlantilla } from "../_shared/plantillas-meta.ts";
+import { leerVersiones, nombreActivo } from "../_shared/plantillas-version.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -44,6 +45,8 @@ Deno.serve(async () => {
   const { data: batch, error } = await sb.rpc("bot_flush_outbox", { p_limit: 20 });
   if (error) return json({ ok: false, error: error.message }, 500);
 
+  // Versión de cada plantilla que se manda hoy (pedido_recibido → pedido_recibido_v2 cuando Meta aprobó la nueva).
+  const versiones = await leerVersiones(sb);
   let sent = 0, failed = 0;
   // deno-lint-ignore no-explicit-any
   const errors: any[] = [];
@@ -57,7 +60,7 @@ Deno.serve(async () => {
       payload = {
         messaging_product: "whatsapp", to: m.phone, type: "template",
         template: {
-          name: m.template_name, language: { code: lang },
+          name: nombreActivo(versiones, m.template_name), language: { code: lang },
           components: params.length ? [{ type: "body", parameters: params.map((p) => ({ type: "text", text: p })) }] : [],
         },
       };

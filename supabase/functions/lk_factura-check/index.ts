@@ -2,6 +2,7 @@ import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
+import { leerVersiones, nombreActivo } from "../_shared/plantillas-version.ts";
 
 // lk_factura-check — Etapa 5 del pipeline de facturación (PaginaLK).
 //
@@ -167,7 +168,8 @@ async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null) {
   components.push({ type: "body", parameters: (mensaje.params ?? []).map((t: string) => ({ type: "text", text: t })) });
   const payload = {
     messaging_product: "whatsapp", to, type: "template",
-    template: { name: mensaje.template, language: { code: mensaje.language || "es_AR" }, components },
+    // Versión activa de la plantilla (sistema de versiones, _shared/plantillas-version.ts).
+    template: { name: nombreActivo(await leerVersiones(paginalk), mensaje.template), language: { code: mensaje.language || "es_AR" }, components },
   };
   try {
     const res = await fetch(`${META_API}/${phoneId}/messages`, {

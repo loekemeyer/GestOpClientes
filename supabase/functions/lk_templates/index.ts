@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { PLANTILLAS, componentesMeta, validar } from "../_shared/plantillas-meta.ts";
+import { leerVersiones, nombreActivo, siguienteNombre, type Versiones } from "../_shared/plantillas-version.ts";
 
 // Función dedicada a plantillas WhatsApp: listar (Meta) + enviar prueba.
 // Sólo depende de _shared/admin-gate.ts (verificación de admin); no toca
@@ -117,8 +118,9 @@ serve(async (req) => {
     // mismo patrón que notify-tracking-status): sólo puede LISTAR y SINCRONIZAR plantillas, nunca
     // mandar mensajes. Todo lo demás exige sesión de admin del dashboard.
     const interno = await esLlamadaInterna(req);
-    if (interno && (body.action === "templates_sync" || body.action === "templates_list" || body.action === "templates_defs")) {
+    if (interno && (body.action === "templates_sync" || body.action === "templates_list" || body.action === "templates_defs" || body.action === "templates_promover")) {
       if (body.action === "templates_sync") return await handleTemplatesSync(body, "interno:LK_FN_CRON_SECRET");
+      if (body.action === "templates_promover") return await handleTemplatesPromover(body, "interno:LK_FN_CRON_SECRET");
       if (body.action === "templates_list") return await handleTemplatesList(body.status);
       return json({ ok: true, plantillas: PLANTILLAS.map((p) => ({ ...p, errores: validar(p) })) });
     }
@@ -129,6 +131,7 @@ serve(async (req) => {
     if (body.action === "templates_list") return await handleTemplatesList(body.status);
     if (body.action === "template_send") return await handleTemplateSend(body);
     if (body.action === "templates_sync") return await handleTemplatesSync(body, gate.email);
+    if (body.action === "templates_promover") return await handleTemplatesPromover(body, gate.email);
     // Definiciones del repo (plantillas-meta.ts), sin consultar a Meta: el panel las muestra
     // aunque el token esté caído.
     if (body.action === "templates_preview") return await handleTemplatesPreview(body);
@@ -256,9 +259,18 @@ function bodyDe(t: any): string {
   return (t?.components ?? []).find((c: any) => c.type === "BODY")?.text ?? "";
 }
 
+async function guardarVersiones(v: Versiones) {
+  await supabase.from("app_settings").upsert({ key: "wa_plantillas_version", value: JSON.stringify(v) }, { onConflict: "key" });
+}
+
 async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: string) {
   const aplicar = body.aplicar === true;
   const solo = Array.isArray(body.solo) ? (body.solo as unknown[]).map(String) : null;
+  // `version_nueva: ["pedido_recibido", …]`: en vez de EDITAR la aprobada (1 cada 24 h y se corta mientras Meta revisa)
+  // se crea pedido_recibido_v2 y se sigue mandando la activa hasta que Meta apruebe la nueva (templates_promover).
+  const pideVersion = new Set(Array.isArray(body.version_nueva) ? (body.version_nueva as unknown[]).map(String) : []);
+  const versiones = await leerVersiones(supabase);
+  let versionesCambiaron = false;
 
   const token = await metaToken();
   if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
@@ -276,15 +288,24 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
   // deno-lint-ignore no-explicit-any
   const enMeta = new Map<string, any>((data.data ?? []).map((t: any) => [`${t.name}|${t.language}`, t]));
 
+  const nombresMeta = new Set<string>((data.data ?? []).map((t: { name: string }) => t.name));
   const plan = [];
   for (const p of PLANTILLAS) {
     if (solo && !solo.includes(p.name)) continue;
     const errores = validar(p);
-    const actual = enMeta.get(`${p.name}|${p.language}`);
+    const activa = nombreActivo(versiones, p.name);
+    let destino = versiones[p.name]?.nueva ?? activa;
+    // Versión nueva pedida y la activa tiene otro texto: se crea base_vN en vez de editar.
+    let creaVersion = false;
+    if (pideVersion.has(p.name) && !versiones[p.name]?.nueva && bodyDe(enMeta.get(`${activa}|${p.language}`)) !== p.body) {
+      destino = siguienteNombre(p.name, versiones, nombresMeta);
+      creaVersion = true;
+    }
+    const actual = enMeta.get(`${destino}|${p.language}`);
     const accion = errores.length ? "invalida" : !actual ? "crear" : bodyDe(actual) === p.body ? "igual" : "editar";
     // deno-lint-ignore no-explicit-any
     const fila: Record<string, any> = {
-      name: p.name, accion, estado_meta: actual?.status ?? "NO_EXISTE",
+      name: p.name, nombre_meta: destino, ...(destino !== activa ? { activa } : {}), accion, estado_meta: actual?.status ?? "NO_EXISTE",
       ...(errores.length ? { errores } : {}),
       ...(accion === "editar" ? { texto_meta: bodyDe(actual), texto_nuevo: p.body } : {}),
       ...(accion === "editar" && actual?.status === "APPROVED"
@@ -294,7 +315,7 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
     if (aplicar && (accion === "crear" || accion === "editar")) {
       const url = accion === "crear" ? `${META_API}/${wabaId}/message_templates` : `${META_API}/${actual.id}`;
       const payload = accion === "crear"
-        ? { name: p.name, language: p.language, category: p.category, components: componentesMeta(p) }
+        ? { name: destino, language: p.language, category: p.category, components: componentesMeta(p) }
         : { components: componentesMeta(p) };
       const r = await fetch(url, {
         method: "POST",
@@ -305,12 +326,50 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
       fila.resultado = out.error
         ? { ok: false, error: `Meta (#${out.error.code ?? "?"}${out.error.error_subcode ? "/" + out.error.error_subcode : ""}): ${out.error.error_user_msg ?? out.error.message ?? ""}` }
         : { ok: true, id: out.id ?? actual?.id ?? null, status: out.status ?? "PENDING", category: out.category ?? null };
-      console.log(`templates_sync ${accion} ${p.name} por ${adminEmail}:`, JSON.stringify(fila.resultado));
+      console.log(`templates_sync ${accion} ${destino} por ${adminEmail}:`, JSON.stringify(fila.resultado));
+      if (creaVersion && fila.resultado.ok) {
+        versiones[p.name] = { activa, nueva: destino };
+        versionesCambiaron = true;
+      }
     }
     plan.push(fila);
   }
+  if (versionesCambiaron) await guardarVersiones(versiones);
 
   return json({ ok: true, aplicado: aplicar, waba_id: wabaId, waba_source: wabaSource, plan });
+}
+
+// ── templates_promover: pasa a mandar la versión nueva cuando Meta la aprobó (cron cada 30 min, sql/096) ──
+// Con `borrar_vieja: true` además borra de Meta la versión anterior (irreversible: el nombre no se puede reusar por un
+// tiempo). Por defecto NO borra: la vieja queda aprobada y sin uso.
+async function handleTemplatesPromover(body: Record<string, unknown>, quien: string) {
+  const versiones = await leerVersiones(supabase);
+  const pendientes = Object.entries(versiones).filter(([, x]) => x.nueva);
+  if (!pendientes.length) return json({ ok: true, promovidas: [], pendientes: [] });
+  const token = await metaToken();
+  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
+  const { wabaId } = await resolveWaba(token);
+  if (!wabaId) return json({ ok: false, error: "No se pudo determinar el WABA." }, 200);
+  const res = await fetch(`${META_API}/${wabaId}/message_templates?limit=250&fields=name,status`, { headers: { Authorization: `Bearer ${token}` } });
+  const data = await res.json();
+  if (data.error) return json({ ok: false, error: `Meta: ${data.error.message ?? ""}` }, 200);
+  const estado = new Map<string, string>((data.data ?? []).map((t: { name: string; status: string }) => [t.name, t.status]));
+  const promovidas: Array<Record<string, unknown>> = [], siguen: Array<Record<string, unknown>> = [];
+  for (const [base, x] of pendientes) {
+    const st = estado.get(x.nueva!) ?? "NO_EXISTE";
+    if (st !== "APPROVED") { siguen.push({ base, nueva: x.nueva, estado: st }); continue; }
+    const vieja = x.activa ?? base;
+    versiones[base] = { activa: x.nueva };
+    let borrada: unknown = null;
+    if (body.borrar_vieja === true && vieja !== x.nueva) {
+      const d = await fetch(`${META_API}/${wabaId}/message_templates?name=${encodeURIComponent(vieja)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      borrada = await d.json();
+    }
+    promovidas.push({ base, ahora: x.nueva, antes: vieja, borrada });
+    console.log(`templates_promover ${base}: ${vieja} → ${x.nueva} por ${quien}`);
+  }
+  if (promovidas.length) await guardarVersiones(versiones);
+  return json({ ok: true, promovidas, pendientes: siguen });
 }
 
 // ── templates_preview: chat de prueba de plantillas (dashboard) ──
