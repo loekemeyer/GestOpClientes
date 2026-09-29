@@ -1,136 +1,121 @@
 <title>Plantillas de WhatsApp Loekemeyer</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700;800&display=swap">
 <style>
-/* Layout: una sola columna, letra grande, una idea por bloque. Sin gráficos: números grandes y frases cortas. */
+/* Estilo del Dashboard FAQs: fondo degradé azul grisáceo, encabezado centrado azul, tarjetas blancas con borde izquierdo de color por estado, cajas de color para el "cómo funciona". Look claro único. */
 :root {
-  --bg: #f1f3f1; --surface: #ffffff; --ink: #14201b; --muted: #4f5d56; --line: #cfd8d3;
-  --accent: #0d6b57; --accent-soft: #dcefe8;
+  color-scheme: light;
+  --azul: #0066cc; --verde: #4caf50; --naranja: #ff9800; --rojo: #f44336; --gris: #9e9e9e;
+  --ink: #333333; --muted: #666666; --line: #dddddd;
+  --v-bg: #c8e6c9; --v-ink: #2e7d32; --n-bg: #fff3cd; --n-ink: #856404; --r-bg: #f8bbd0; --r-ink: #c2185b; --a-bg: #e3f2fd; --a-ink: #1565c0;
   --wall: #e7e1d6; --bubble: #ffffff; --bubble-ink: #111b21; --bubble-meta: #667781;
-  --ok: #17663f; --ok-bg: #d8f0e0; --warn: #7a4a00; --warn-bg: #fbe7c4; --bad: #9d2530; --bad-bg: #f8dfe1;
-  --grey: #4f5d56; --grey-bg: #e4e8e5;
-  --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0f1412; --surface: #171e1b; --ink: #eef3ef; --muted: #a8b5ad; --line: #2c3833;
-  --accent: #6fd0b1; --accent-soft: #173229;
-  --wall: #0b141a; --bubble: #202c33; --bubble-ink: #e9edef; --bubble-meta: #8696a0;
-  --ok: #86dba8; --ok-bg: #173323; --warn: #f3c56e; --warn-bg: #3a2c12; --bad: #f4979f; --bad-bg: #3b1c20;
-  --grey: #b0bab4; --grey-bg: #252d2a; color-scheme: dark; } }
-:root[data-theme="dark"] {
-  --bg: #0f1412; --surface: #171e1b; --ink: #eef3ef; --muted: #a8b5ad; --line: #2c3833;
-  --accent: #6fd0b1; --accent-soft: #173229;
-  --wall: #0b141a; --bubble: #202c33; --bubble-ink: #e9edef; --bubble-meta: #8696a0;
-  --ok: #86dba8; --ok-bg: #173323; --warn: #f3c56e; --warn-bg: #3a2c12; --bad: #f4979f; --bad-bg: #3b1c20;
-  --grey: #b0bab4; --grey-bg: #252d2a; color-scheme: dark; }
-
-* { box-sizing: border-box; }
-body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 19px; line-height: 1.4; }
-.wrap { max-width: 860px; margin: 0 auto; padding: 28px 16px 56px; display: flex; flex-direction: column; gap: 22px; }
-h1 { font-size: 36px; line-height: 1.1; margin: 0; font-weight: 800; text-wrap: balance; }
-h2 { font-size: 26px; margin: 0; font-weight: 800; text-wrap: balance; }
-.sub { color: var(--muted); margin: 6px 0 0; font-size: 21px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e4e9f1; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) fixed; color: var(--ink); padding: 30px 16px; font-size: 17px; line-height: 1.4; min-height: 100vh; }
+.container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 button { font: inherit; }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--azul); outline-offset: 2px; }
 
-.llave { border-radius: 16px; padding: 16px 20px; display: flex; gap: 16px; align-items: center; font-weight: 700; font-size: 21px; }
-.llave .luz { width: 26px; height: 26px; border-radius: 50%; flex: none; background: currentColor; }
-.llave small { display: block; font-weight: 400; font-size: 18px; color: var(--ink); }
-.ll-0 { background: var(--bad-bg); color: var(--bad); } .ll-prueba { background: var(--warn-bg); color: var(--warn); } .ll-1 { background: var(--ok-bg); color: var(--ok); }
+.header { text-align: center; }
+.header h1 { font-size: 34px; color: var(--azul); margin-bottom: 8px; text-wrap: balance; }
+.header p { font-size: 18px; color: var(--muted); }
 
-.tabs { display: flex; gap: 8px; }
-.tab { flex: 1; font-weight: 800; font-size: 20px; background: var(--grey-bg); border: 0; color: var(--muted); padding: 14px 8px; cursor: pointer; border-radius: 12px; }
-.tab[aria-selected="true"] { background: var(--accent); color: #fff; }
-.vista { display: flex; flex-direction: column; gap: 14px; }
+.caja { background: #fff; border-radius: 12px; padding: 18px 20px; box-shadow: 0 4px 15px rgba(0,0,0,.1); }
+.llave { display: flex; gap: 14px; align-items: center; border-left: 6px solid var(--c, var(--gris)); font-size: 20px; font-weight: 700; }
+.llave small { display: block; font-size: 17px; font-weight: 400; color: var(--muted); }
+.llave .luz { width: 24px; height: 24px; border-radius: 50%; background: var(--c); flex: none; }
+.ll-0 { --c: var(--rojo); } .ll-prueba { --c: var(--naranja); } .ll-1 { --c: var(--verde); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px; }
+.stat { text-align: center; }
+.stat b { display: block; font-size: 34px; color: var(--azul); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 14px; color: var(--muted); }
+
+.filtros { display: flex; gap: 10px; flex-wrap: wrap; }
+.filtros.sec { margin-top: 12px; }
+.filter-label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+.filter-btn { padding: 9px 18px; border: 2px solid var(--line); background: #fff; color: var(--ink); border-radius: 22px; cursor: pointer; font-size: 16px; font-weight: 700; }
+.filter-btn:hover { border-color: var(--azul); }
+.filter-btn[aria-pressed="true"], .filter-btn[aria-selected="true"] { background: var(--azul); border-color: var(--azul); color: #fff; }
+.filter-btn.f-hecho { border-color: var(--verde); } .filter-btn.f-hecho[aria-pressed="true"] { background: var(--verde); }
+.filter-btn.f-parcial { border-color: var(--naranja); } .filter-btn.f-parcial[aria-pressed="true"] { background: var(--naranja); }
+.filter-btn.f-pendiente { border-color: var(--rojo); } .filter-btn.f-pendiente[aria-pressed="true"] { background: var(--rojo); }
+
 .vista[hidden] { display: none; }
-.ayuda { margin: 0; color: var(--muted); font-size: 19px; }
-
-/* Problemas */
-.problema { width: 100%; text-align: left; background: var(--surface); color: var(--ink); border: 2px solid var(--line); border-radius: 16px; padding: 16px 18px; cursor: pointer; display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 4px 16px; align-items: center; }
-.problema:hover { border-color: var(--accent); }
-.problema .n { grid-row: span 2; text-align: center; line-height: 1; }
-.problema .n b { font-size: 36px; font-weight: 800; display: block; font-variant-numeric: tabular-nums; }
-.problema .n small { font-size: 14px; color: var(--muted); }
-.problema h3 { margin: 0; font-size: 23px; line-height: 1.2; }
-.arregla { font-size: 20px; }
-.arregla::before { content: "→ "; color: var(--accent); font-weight: 800; }
-.sello { margin-top: 6px; font-size: 16px; font-weight: 800; border-radius: 999px; padding: 3px 12px; justify-self: start; }
-.hecho { color: var(--ok); background: var(--ok-bg); } .parcial { color: var(--warn); background: var(--warn-bg); } .pendiente { color: var(--bad); background: var(--bad-bg); }
-.problema .meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-
-/* Mensajes */
-.grupo h2 { margin-bottom: 12px; }
-.lista { display: flex; flex-direction: column; gap: 16px; }
-.msj { background: var(--surface); border: 2px solid var(--line); border-radius: 16px; overflow: hidden; }
-.msj-cab { padding: 14px 18px 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
-.msj-cab b { font-size: 21px; }
-.msj-cab span { font-size: 17px; color: var(--muted); }
-.msj .cuando { padding: 12px 18px 16px; font-size: 20px; margin: 0; }
-.msj .cuando small { display: block; font-size: 15px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-.noenvia { color: var(--bad); font-weight: 700; }
-details.otros > summary { cursor: pointer; font-weight: 800; font-size: 21px; color: var(--accent); padding: 8px 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 20px; }
+.card { background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,.1); border-left: 6px solid var(--c, var(--azul)); display: flex; flex-direction: column; min-width: 0; overflow: hidden; text-align: left; transition: transform .2s, box-shadow .2s; }
+button.card { cursor: pointer; border-top: 0; border-right: 0; border-bottom: 0; color: var(--ink); width: 100%; }
+button.card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,.15); }
+.c-hecho, .c-conectada { --c: var(--verde); } .c-parcial, .c-prueba { --c: var(--naranja); } .c-pendiente, .c-sin_disparador { --c: var(--rojo); } .c-legado, .c-otro_sistema, .c-sin_clasificar { --c: var(--gris); }
+.card-in { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.fila-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.num { display: inline-block; background: var(--c); color: #fff; padding: 5px 14px; border-radius: 14px; font-size: 14px; font-weight: 700; }
+.sello { padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 700; }
+.s-hecho, .s-conectada { background: var(--v-bg); color: var(--v-ink); } .s-parcial, .s-prueba { background: var(--n-bg); color: var(--n-ink); } .s-pendiente, .s-sin_disparador { background: var(--r-bg); color: var(--r-ink); } .s-legado, .s-otro_sistema, .s-sin_clasificar { background: #eee; color: #555; }
+.pregunta { font-size: 22px; font-weight: 700; line-height: 1.25; }
+.ejemplo { background: #f9f9f9; border-left: 3px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 16px; color: #555; font-style: italic; }
+.flow { border-left: 3px solid var(--c); border-radius: 6px; padding: 10px 12px; font-size: 17px; }
+.flow b { display: block; font-size: 15px; margin-bottom: 3px; }
+.flow.c-hecho, .flow.c-conectada { background: var(--v-bg); color: var(--v-ink); } .flow.c-parcial, .flow.c-prueba { background: var(--n-bg); color: var(--n-ink); } .flow.c-pendiente, .flow.c-sin_disparador { background: var(--r-bg); color: var(--r-ink); } .flow.c-legado, .flow.c-otro_sistema { background: #eee; color: #444; }
+.meta { border-top: 1px solid #eee; padding-top: 10px; font-size: 14px; color: #888; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.meta .ver { color: var(--azul); font-weight: 700; }
+.noenvia { color: var(--r-ink); font-weight: 700; }
+details.otros > summary { cursor: pointer; font-weight: 700; font-size: 19px; color: var(--azul); padding: 6px 0; margin: 8px 0; }
+h2.tit { font-size: 24px; color: var(--ink); margin: 6px 0 4px; }
+.ayuda { color: var(--muted); font-size: 17px; margin-bottom: 12px; }
 
 /* Burbuja de WhatsApp */
-.chat { background: var(--wall); padding: 16px 18px 16px 16px; display: flex; align-items: flex-start; min-width: 0; }
-.burbuja { background: var(--bubble); color: var(--bubble-ink); border-radius: 0 12px 12px 12px; padding: 10px 12px 6px; max-width: 100%; box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13); position: relative; font-size: 18px; line-height: 1.4; min-width: 0; }
+.chat { background: var(--wall); padding: 14px 16px 14px 14px; display: flex; align-items: flex-start; min-width: 0; }
+.burbuja { background: var(--bubble); color: var(--bubble-ink); border-radius: 0 12px 12px 12px; padding: 10px 12px 6px; max-width: 100%; box-shadow: 0 1px 0.5px rgba(11,20,26,.13); position: relative; font-size: 17px; line-height: 1.4; min-width: 0; }
 .burbuja::before { content: ""; position: absolute; left: -7px; top: 0; border-top: 0 solid transparent; border-right: 8px solid var(--bubble); border-bottom: 10px solid transparent; }
-.burbuja .doc { display: flex; gap: 8px; align-items: center; background: color-mix(in srgb, var(--bubble-meta) 14%, transparent); border-radius: 6px; padding: 8px; margin-bottom: 6px; font-size: 16px; }
+.burbuja .doc { display: flex; gap: 8px; align-items: center; background: #eef0f1; border-radius: 6px; padding: 8px; margin-bottom: 6px; font-size: 15px; }
 .burbuja .doc i { font-style: normal; font-weight: 700; font-size: 11px; color: #fff; background: #d9534f; border-radius: 3px; padding: 2px 4px; }
 .burbuja .head { font-weight: 700; margin-bottom: 4px; }
 .burbuja .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
-.burbuja .var { background: color-mix(in srgb, var(--accent) 20%, transparent); border-radius: 3px; padding: 0 2px; }
-.burbuja .pie { color: var(--bubble-meta); font-size: 15px; margin-top: 4px; }
-.burbuja .hora { color: var(--bubble-meta); font-size: 13px; text-align: right; margin-top: 2px; }
-.botones { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; border-top: 1px solid color-mix(in srgb, var(--bubble-meta) 25%, transparent); }
-.botones span { text-align: center; color: #1a8fd6; font-size: 17px; padding: 6px 0 2px; }
-
-/* Números */
-.dato { background: var(--surface); border: 2px solid var(--line); border-radius: 16px; padding: 16px 20px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
-.dato b { font-size: 44px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-.dato span { font-size: 21px; }
-.dato.g b { color: var(--ok); } .dato.a b { color: var(--warn); } .dato.r b { color: var(--bad); }
-.par { display: flex; flex-direction: column; gap: 8px; }
+.burbuja .var { background: #d6ebe3; border-radius: 3px; padding: 0 2px; }
+.burbuja .pie { color: var(--bubble-meta); font-size: 14px; margin-top: 4px; }
+.burbuja .hora { color: var(--bubble-meta); font-size: 12px; text-align: right; margin-top: 2px; }
+.botones { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; border-top: 1px solid #e3e6e8; }
+.botones span { text-align: center; color: #1a8fd6; font-size: 16px; padding: 6px 0 2px; }
 
 /* Popup */
-.modal-fondo { position: fixed; inset: 0; z-index: 30; background: rgba(8, 14, 12, 0.65); display: flex; padding: 14px; overflow-y: auto; }
-.modal { background: var(--bg); color: var(--ink); border-radius: 18px; width: 100%; max-width: 640px; margin: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4); }
+.modal-fondo { position: fixed; inset: 0; z-index: 30; background: rgba(20,30,50,.6); display: flex; padding: 14px; overflow-y: auto; }
+.modal { background: #f5f7fa; color: var(--ink); border-radius: 14px; width: 100%; max-width: 620px; margin: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.4); }
 .modal-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.modal-cab h2 { font-size: 24px; }
-.modal-cerrar { font-size: 19px; font-weight: 800; background: var(--accent); color: #fff; border: 0; border-radius: 12px; padding: 10px 20px; cursor: pointer; }
-.modal h4 { margin: 0 0 4px; font-size: 15px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.modal p { margin: 0; font-size: 20px; }
+.modal-cab h2 { font-size: 24px; color: var(--azul); }
+.modal-cerrar { font-size: 17px; font-weight: 700; background: var(--azul); color: #fff; border: 0; border-radius: 22px; padding: 9px 20px; cursor: pointer; }
+.modal h4 { font-size: 13px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.modal p { font-size: 19px; }
 .modal .bloque { display: flex; flex-direction: column; gap: 10px; }
-.modal .msj { border-radius: 14px; }
-.falta { font-size: 19px; padding: 12px 14px; background: var(--warn-bg); border-radius: 12px; }
-.falta b { color: var(--warn); }
+.falta { font-size: 18px; padding: 12px 14px; background: var(--n-bg); color: var(--n-ink); border-radius: 8px; border-left: 3px solid var(--naranja); }
 
-@media (max-width: 560px) {
-  h1 { font-size: 30px; }
-  .tab { font-size: 17px; padding: 12px 4px; }
-  .problema { grid-template-columns: 64px minmax(0, 1fr); }
-  .problema .n b { font-size: 30px; }
-  .dato b { font-size: 38px; }
-}
+@media (max-width: 560px) { .header h1 { font-size: 28px; } body { padding: 20px 16px; } }
 </style>
 
-<div class="wrap">
-  <header>
-    <h1>Plantillas de WhatsApp</h1>
-    <p class="sub">Qué problema arregla cada mensaje automático.</p>
-  </header>
-
-  <div class="llave" id="llave"></div>
-
-  <div class="tabs" role="tablist">
-    <button class="tab" role="tab" id="tab-problemas" aria-selected="true" aria-controls="v-problemas" type="button">Problemas</button>
-    <button class="tab" role="tab" id="tab-mensajes" aria-selected="false" aria-controls="v-mensajes" type="button">Mensajes</button>
-    <button class="tab" role="tab" id="tab-numeros" aria-selected="false" aria-controls="v-numeros" type="button">Números</button>
+<div class="container">
+  <div class="header">
+    <h1>📱 Plantillas de WhatsApp Loekemeyer</h1>
+    <p>Qué problema arregla cada mensaje automático</p>
   </div>
 
-  <div class="vista" id="v-problemas" role="tabpanel" aria-labelledby="tab-problemas"></div>
-  <div class="vista" id="v-mensajes" role="tabpanel" aria-labelledby="tab-mensajes" hidden></div>
-  <div class="vista" id="v-numeros" role="tabpanel" aria-labelledby="tab-numeros" hidden></div>
+  <div class="caja llave" id="llave"></div>
+
+  <div class="caja stats" id="stats"></div>
+
+  <div class="caja">
+    <span class="filter-label">Ver:</span>
+    <div class="filtros" role="tablist" id="tabs">
+      <button class="filter-btn" role="tab" id="tab-problemas" aria-selected="true" type="button">💬 Problemas</button>
+      <button class="filter-btn" role="tab" id="tab-mensajes" aria-selected="false" type="button">📨 Mensajes</button>
+      <button class="filter-btn" role="tab" id="tab-numeros" aria-selected="false" type="button">🔢 Números</button>
+    </div>
+    <div id="filtros-prob">
+      <span class="filter-label" style="margin-top:16px">Filtrar por estado:</span>
+      <div class="filtros" id="f-estado"></div>
+    </div>
+  </div>
+
+  <div class="vista" id="v-problemas" role="tabpanel"></div>
+  <div class="vista" id="v-mensajes" role="tabpanel" hidden></div>
+  <div class="vista" id="v-numeros" role="tabpanel" hidden></div>
 </div>
 
 <script>
@@ -141,7 +126,9 @@ const nf = (n, d = 0) => Number(n).toLocaleString("es-AR", { minimumFractionDigi
 const pct = (a, b) => (b ? nf((100 * a) / b, 0) + " %" : "—");
 const fdm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const FACTURAS = ["pedido_contado_s", "pedido_contado_p", "pedido_credito_s", "pedido_credito_p", "pedido_echeq_s", "pedido_echeq_p"];
-const EST = { hecho: "Resuelto", parcial: "En parte", pendiente: "Pendiente" };
+const EST = { hecho: "✅ Resuelto", parcial: "🔄 En parte", pendiente: "⏳ Pendiente" };
+const EST_MSJ = { conectada: "✅ Se manda", prueba: "🔄 Solo prueba", sin_disparador: "⛔ Sin conectar", legado: "Ya no se usa", otro_sistema: "Otro sistema", sin_clasificar: "Sin clasificar" };
+let filtroEstado = "";
 
 function cuerpo(body, ej) {
   const h = esc(body).replace(/\{\{(\d+)\}\}/g, (m, n) => `<span class="var">${esc((ej || [])[n - 1] ?? m)}</span>`);
@@ -156,13 +143,16 @@ function burbuja(p) {
 }
 const veces = (name) => {
   const n = DATOS.simulacion?.uso_2m?.[name];
-  return n === undefined || n === null ? "" : `<span>${nf(n)} ${n === 1 ? "vez" : "veces"} en 2 meses</span>`;
+  return n === undefined || n === null ? "" : `${nf(n)} ${n === 1 ? "vez" : "veces"} en 2 meses`;
 };
-// Tarjeta de un mensaje: el mensaje tal como llega y una frase de cuándo sale.
+
+// Tarjeta de un mensaje: estado, el mensaje tal como llega y cuándo sale.
 function tarjeta(p) {
-  const apagado = p.estado === "sin_disparador" ? `<span class="noenvia">Todavía no se manda</span>` : "";
-  return `<article class="msj"><div class="msj-cab"><b>${esc(p.para || p.name)}</b>${veces(p.name) || apagado}</div>${burbuja(p)}
-    <p class="cuando"><small>Sale cuando</small>${esc(p.sale)}</p></article>`;
+  return `<article class="card c-${esc(p.estado)}"><div class="card-in">
+    <div class="fila-top"><span class="num">${esc(p.para || "Todos")}</span><span class="sello s-${esc(p.estado)}">${EST_MSJ[p.estado] || ""}</span></div></div>
+    ${burbuja(p)}
+    <div class="card-in"><div class="flow c-${esc(p.estado)}"><b>Sale cuando</b>${esc(p.sale)}</div>
+      <div class="meta"><span>${veces(p.name) || "&nbsp;"}</span></div></div></article>`;
 }
 
 function llave() {
@@ -172,36 +162,52 @@ function llave() {
     "1": ["ll-1", "Envíos activos", "Los mensajes les llegan a los clientes."],
   }[DATOS.llave] || ["ll-prueba", "Estado desconocido", ""];
   const el = document.getElementById("llave");
-  el.className = "llave " + L[0];
+  el.classList.add(L[0]);
   el.innerHTML = `<span class="luz"></span><div>${L[1]}<small>${L[2]}</small></div>`;
 }
 
-// ── Problemas: cada causa con su arreglo en una línea. Tocarla abre el mensaje. ──
+function stats() {
+  const S = DATOS.soluciones, ms = S?.motivos || [];
+  const suma = (e) => ms.filter((m) => m.estado === e).reduce((a, m) => a + m.consultas, 0);
+  const activos = DATOS.plantillas.filter((p) => p.estado === "conectada" || p.estado === "prueba").length;
+  const item = (n, t, c) => `<div class="stat"><b${c ? ` style="color:${c}"` : ""}>${n}</b><span>${t}</span></div>`;
+  document.getElementById("stats").innerHTML =
+    item(nf(S?.total_consultas || 0), "Consultas en 2 meses") + item(nf(suma("hecho")), "✅ Resueltas", "var(--verde)") +
+    item(nf(suma("parcial")), "🔄 En parte", "var(--naranja)") + item(activos, "Mensajes activos");
+}
+
+// ── Problemas ──
 function problemas() {
   const S = DATOS.soluciones, v = document.getElementById("v-problemas");
   if (!S) { v.innerHTML = ""; return; }
-  v.innerHTML = `<h2>Por qué nos escriben los clientes</h2>
-    <p class="ayuda">${nf(S.total_consultas)} consultas en 2 meses. Tocá una para ver cómo se arregla.</p>` +
-    S.motivos.map((m, i) => `<button class="problema" type="button" data-i="${i}">
-      <div class="n"><b>${nf(m.consultas)}</b><small>${pct(m.consultas, S.total_consultas)}</small></div>
-      <h3>${esc(m.motivo)}</h3>
-      <div class="meta"><span class="arregla">${esc(m.resumen || "")}</span><span class="sello ${esc(m.estado)}">${EST[m.estado] || m.estado}</span></div>
-    </button>`).join("");
-  v.querySelectorAll(".problema").forEach((b) => b.addEventListener("click", () => abrirProblema(S.motivos[Number(b.dataset.i)], b)));
+  const items = S.motivos.map((m, i) => ({ m, i })).filter(({ m }) => !filtroEstado || m.estado === filtroEstado);
+  v.innerHTML = `<div class="grid">${items.map(({ m, i }) => `<button class="card c-${esc(m.estado)}" type="button" data-i="${i}"><div class="card-in">
+      <div class="fila-top"><span class="num">${nf(m.consultas)} consultas · ${pct(m.consultas, S.total_consultas)}</span><span class="sello s-${esc(m.estado)}">${EST[m.estado] || m.estado}</span></div>
+      <div class="pregunta">${esc(m.motivo)}</div>
+      ${m.ejemplo ? `<div class="ejemplo">${esc(m.ejemplo)}</div>` : ""}
+      <div class="flow c-${esc(m.estado)}"><b>Cómo se arregla</b>${esc(m.resumen || "")}</div>
+      <div class="meta"><span>Tocá para ver el mensaje</span><span class="ver">Ver ›</span></div></div></button>`).join("")}</div>`;
+  v.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => abrirProblema(S.motivos[Number(b.dataset.i)], b)));
+}
+function filtrosEstado() {
+  const S = DATOS.soluciones; if (!S) return;
+  const n = (e) => S.motivos.filter((m) => m.estado === e).length;
+  const bt = (e, t, c) => `<button class="filter-btn ${c}" type="button" data-e="${e}" aria-pressed="${filtroEstado === e}">${t}</button>`;
+  const el = document.getElementById("f-estado");
+  el.innerHTML = bt("", "Todos", "") + bt("hecho", `✅ Resueltos (${n("hecho")})`, "f-hecho") + bt("parcial", `🔄 En parte (${n("parcial")})`, "f-parcial") + (n("pendiente") ? bt("pendiente", `⏳ Pendientes (${n("pendiente")})`, "f-pendiente") : "");
+  el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { filtroEstado = b.dataset.e; filtrosEstado(); problemas(); }));
 }
 
 function abrirProblema(m, origen) {
   const nombres = [...new Set((m.previene || []).flatMap((p) => p.tpl === "pedido_contado_s" ? FACTURAS : [p.tpl]))];
   const lista = nombres.map((n) => DATOS.plantillas.find((x) => x.name === n)).filter(Boolean);
-  const cuerpoMod = `
+  modal(m.motivo, `
     <div class="bloque"><h4>Cómo se arregla</h4><p>${esc(m.resumen || "")}</p></div>
-    ${lista.length ? `<div class="bloque"><h4>${lista.length > 1 ? "Los mensajes que le llegan" : "El mensaje que le llega"}</h4>${lista.map(tarjeta).join("")}</div>`
+    ${lista.length ? `<div class="bloque"><h4>${lista.length > 1 ? "Los mensajes que le llegan" : "El mensaje que le llega"}</h4><div class="grid" style="grid-template-columns:1fr">${lista.map(tarjeta).join("")}</div></div>`
       : `<div class="bloque"><h4>Qué contesta el bot</h4><p>${esc(m.bot)}</p></div>`}
     ${m.deriva ? `<div class="bloque"><h4>Cuándo lo ve una persona</h4><p>${esc(m.deriva)}</p></div>` : ""}
-    ${m.falta ? `<div class="falta"><b>Falta:</b> ${esc(m.falta)}</div>` : ""}`;
-  modal(m.motivo, cuerpoMod, origen);
+    ${m.falta ? `<div class="falta"><b>Falta:</b> ${esc(m.falta)}</div>` : ""}`, origen);
 }
-
 function modal(titulo, html, origen) {
   document.querySelector(".modal-fondo")?.remove();
   const fondo = document.createElement("div");
@@ -218,50 +224,46 @@ function modal(titulo, html, origen) {
   fondo.querySelector(".modal-cerrar").focus();
 }
 
-// ── Mensajes: los que se mandan, por etapa. Lo viejo y lo de otros sistemas queda plegado. ──
+// ── Mensajes ──
 function mensajes() {
   const v = document.getElementById("v-mensajes");
-  const activos = DATOS.grupos.filter((g) => !["legado", "otros"].includes(g.id));
   const bloque = (g) => {
     const items = DATOS.plantillas.filter((p) => p.grupo === g.id).sort((a, b) => a.orden - b.orden);
-    return items.length ? `<section class="grupo"><h2>${esc(g.titulo)}</h2><p class="ayuda" style="margin-bottom:12px">${esc(g.bajada)}</p><div class="lista">${items.map(tarjeta).join("")}</div></section>` : "";
+    return items.length ? `<section><h2 class="tit">${esc(g.titulo)}</h2><p class="ayuda">${esc(g.bajada)}</p><div class="grid">${items.map(tarjeta).join("")}</div></section>` : "";
   };
   const resto = DATOS.plantillas.filter((p) => ["legado", "otros"].includes(p.grupo));
-  v.innerHTML = activos.map(bloque).join("") +
-    (resto.length ? `<details class="otros"><summary>Ver los ${resto.length} que ya no se usan o son de otros sistemas</summary><div class="lista" style="margin-top:12px">${resto.map(tarjeta).join("")}</div></details>` : "");
+  v.innerHTML = `<div style="display:flex;flex-direction:column;gap:24px">` + DATOS.grupos.filter((g) => !["legado", "otros"].includes(g.id)).map(bloque).join("") +
+    (resto.length ? `<details class="otros"><summary>Ver los ${resto.length} que ya no se usan o son de otros sistemas</summary><div class="grid">${resto.map(tarjeta).join("")}</div></details>` : "") + `</div>`;
 }
 
-// ── Números: lo justo, en grande. ──
+// ── Números ──
 function numeros() {
   const S = DATOS.simulacion, v = document.getElementById("v-numeros");
   if (!S) { v.innerHTML = `<p class="ayuda">Todavía no hay datos.</p>`; return; }
   const T = S.avisos.reduce((t, a) => ({ ag: t.ag + a.agendado, erp: t.erp + a.erp, sin: t.sin + a.sin }), { ag: 0, erp: 0, sin: 0 });
-  const total = T.ag + T.erp + T.sin, llegan = T.ag + T.erp, costo = llegan * S.tarifa_utility;
+  const total = T.ag + T.erp + T.sin, costo = (T.ag + T.erp) * S.tarifa_utility;
   const D = S.demora, modos = D.por_modo.filter((m) => m.modo !== "Total");
-  v.innerHTML = `<h2>Si los avisos hubieran estado prendidos</h2>
-    <p class="ayuda">Del ${fdm(S.desde)} al ${fdm(S.hasta)}, con pedidos reales.</p>
-    <div class="par">
-      <div class="dato"><b>${nf(total)}</b><span>avisos se habrían mandado</span></div>
-      <div class="dato g"><b>${nf(T.ag)}</b><span>le llegarían hoy a ${pct(T.ag, total)}</span></div>
-      <div class="dato a"><b>${nf(T.erp)}</b><span>le llegarían si agendamos el teléfono</span></div>
-      <div class="dato r"><b>${nf(T.sin)}</b><span>no llegarían: no tienen teléfono</span></div>
-      <div class="dato"><b>US$ ${nf(costo, 0)}</b><span>costaría en los 2 meses</span></div>
-    </div>
-    <h2 style="margin-top:12px">Cuánto tarda un pedido en salir</h2>
-    <div class="par">${modos.map((m) => `<div class="dato"><b>${nf(m.mediana)} días</b><span>${esc(m.modo)}: la mitad sale antes</span></div>`).join("")}</div>`;
+  const k = (n, t, c) => `<article class="card" style="--c:${c}"><div class="card-in"><div class="stat" style="text-align:left"><b style="font-size:40px;color:${c}">${n}</b><span style="font-size:17px">${t}</span></div></div></article>`;
+  v.innerHTML = `<h2 class="tit">Si los avisos hubieran estado prendidos</h2><p class="ayuda">Del ${fdm(S.desde)} al ${fdm(S.hasta)}, con pedidos reales.</p>
+    <div class="grid">${k(nf(total), "avisos se habrían mandado", "var(--azul)")}${k(nf(T.ag), `le llegarían hoy (${pct(T.ag, total)})`, "var(--verde)")}
+      ${k(nf(T.erp), "le llegarían si agendamos el teléfono", "var(--naranja)")}${k(nf(T.sin), "no llegarían: no tienen teléfono", "var(--rojo)")}
+      ${k("US$ " + nf(costo, 0), "costaría en los 2 meses", "var(--azul)")}</div>
+    <h2 class="tit" style="margin-top:22px">Cuánto tarda un pedido en salir</h2>
+    <div class="grid" style="margin-top:12px">${modos.map((m) => k(nf(m.mediana) + " días", `${esc(m.modo)}: la mitad sale antes`, "var(--azul)")).join("")}</div>`;
 }
 
 function pestanas() {
   const tabs = ["problemas", "mensajes", "numeros"];
-  const ir = (id) => tabs.forEach((k) => {
-    document.getElementById("tab-" + k).setAttribute("aria-selected", String(k === id));
-    document.getElementById("v-" + k).hidden = k !== id;
-  });
+  const ir = (id) => {
+    tabs.forEach((k) => { document.getElementById("tab-" + k).setAttribute("aria-selected", String(k === id)); document.getElementById("v-" + k).hidden = k !== id; });
+    document.getElementById("filtros-prob").hidden = id !== "problemas";
+  };
   tabs.forEach((k) => document.getElementById("tab-" + k).addEventListener("click", () => { ir(k); try { history.replaceState(null, "", "#" + k); } catch {} }));
   const h = location.hash.slice(1);
-  if (tabs.includes(h)) ir(h);
+  ir(tabs.includes(h) ? h : "problemas");
 }
 
-if (DATOS) { llave(); problemas(); mensajes(); numeros(); pestanas(); }
+if (DATOS) { llave(); stats(); filtrosEstado(); problemas(); mensajes(); numeros(); pestanas(); }
 else document.getElementById("v-problemas").innerHTML = `<p class="ayuda">Esta página se arma con generar.mjs: todavía no tiene datos.</p>`;
 </script>
+
