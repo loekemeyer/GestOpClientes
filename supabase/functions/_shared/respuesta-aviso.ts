@@ -35,7 +35,7 @@ const RE_EDITA_PEDIDO = /\b(agreg|sum[aá]|a[ñn]ad|sac[aá]|quit)\w*[^?.!]{0,60
 // para reprogramar el retiro (antes caía en la respuesta fija del depósito, #4, que no contestaba la pregunta).
 const RE_RETIRO_DIA = /\b(retir|pas(o|ar|amos|ás|as)\b|busc)\w*[^?.!]{0,40}\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s*\/\s*\d{1,2})/i;
 const HORARIO_RETIRO = "de lunes a viernes, de 9 a 12 y de 13 a 16:30 h";
-const DIAS = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+const DIAS_ASCII = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
 // Fecha (YYYY-MM-DD, hora AR) que pide el cliente: "el jueves" = el próximo jueves desde hoy; "el 3/10" = esa fecha.
 function fechaPedida(t: string): string | null {
   const hoyAR = new Date(Date.now() - 3 * 3600_000);
@@ -47,15 +47,11 @@ function fechaPedida(t: string): string | null {
     return new Date(d).toISOString().slice(0, 10);
   }
   const txt = t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const i = DIAS.findIndex((d) => new RegExp(`\\b${d}\\b`).test(txt));
+  const i = DIAS_ASCII.findIndex((d) => new RegExp(`\\b${d}\\b`).test(txt));
   if (i < 0) return null;
   const dif = (i - new Date(base).getUTCDay() + 7) % 7;
   return new Date(base + dif * 86400_000).toISOString().slice(0, 10);
 }
-const conDia = (iso: string) => {
-  const d = new Date(`${iso}T12:00:00Z`);
-  return `${["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][d.getUTCDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
-};
 function pideFinDeSemana(t: string): boolean {
   if (/s[aá]bado|domingo/i.test(t)) return true;
   const m = t.match(/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/);
