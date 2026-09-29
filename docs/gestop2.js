@@ -755,11 +755,11 @@ function tkPintarDetalle() {
       ["Entrega", gesc([l.direccion, l.localidad, l.provincia, l.codigo_postal ? "CP " + l.codigo_postal : ""].filter(Boolean).join(" · "))], ["Teléfono", gesc(l.telefono || "")],
       ["Mail", gesc(l.mail || "")], ["Expreso", gesc(l.expreso_nombre || "")], ["Tipo de comercio", gesc(l.tipo_comercio || "")],
       ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
-      <div class="aviso">Cargá el cliente en el ERP y aprobalo acá con su código, vendedor y descuento: se crea en la web con acceso (usuario = CUIT, clave temporal) y le llega la bienvenida por WhatsApp (sale según la llave).</div>
+      <div class="aviso">Cargalo en el ERP y aprobalo acá: se crea en la web y le llega el acceso por WhatsApp.</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
   } else if (a.motivo === "reseteo_clave") {
     cuerpo = `<h4>Pide clave nueva para la web</h4>${a.texto ? `<div class="cita">${gesc(a.texto)}</div>` : ""}
-      <div class="aviso">El número ya está vinculado a este cliente. Al generarla, la clave vieja deja de andar y la nueva le llega por WhatsApp (sale según la llave).</div>
+      <div class="aviso">La clave vieja deja de andar y la nueva le llega por WhatsApp.</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkResetClave()">Generar clave temporal y mandarla</button></div>`;
   } else if (a.agregar?.length) {
     // Pablo, 29/09: agregado a un pedido pedido por WhatsApp. "Aplicar" lo suma al pedido y le avisa al cliente.
@@ -767,7 +767,7 @@ function tkPintarDetalle() {
       <div class="tk-tels">${a.agregar.map((x) => `<div class="it"><span><b>${gesc(x.cajas)} cajas</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})</span>
         <span>${x.sin_stock ? `<span style="color:var(--g-danger);font-weight:700">Sin stock${x.ingreso_estimado ? ` · ingresa ~${gesc(String(x.ingreso_estimado).split("-").reverse().slice(0, 2).join("/"))}` : ""}</span>` : "Con stock"}</span></div>`).join("")}</div>
       ${a.aplicable
-        ? `<div class="aviso">Al aplicar se suma al pedido con el precio de lista y los descuentos del cliente, y se le avisa por WhatsApp con el total nuevo (sale según la llave).</div>
+        ? `<div class="aviso">Se suma al pedido con sus descuentos y se le avisa el total nuevo por WhatsApp.</div>
            <div class="cm-acciones"><button class="g-btn prim" onclick="tkAplicarAgregado()">Aplicar al pedido</button></div>`
         : `<div class="alerta">Tiene artículos sin stock: cargalo a mano cuando haya y marcá la tarea resuelta.</div>`}`;
   } else {
@@ -918,7 +918,7 @@ function slPintar() {
       <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Día</th><th>Salieron</th><th>Del bot*</th><th>De otros</th><th>Utilidad</th><th>Marketing</th><th>Conversación<br>(gratis)</th><th>Entregados</th><th>Leídos</th><th>Fallidos</th><th>Retenidos</th><th>Costo</th><th></th></tr></thead>
       <tbody>${filas}<tr class="tot"><td>Total</td>${celda(t.salieron)}${celda(t.bot)}${celda(t.otros)}${celda(t.utility)}${celda(t.marketing)}${celda(t.service)}${celda(t.entregados)}${celda(t.leidos)}${celda(t.fallidos, "mal")}${celda(t.retenidos, "ret")}<td>${usd(t.costo)}</td><td></td></tr></tbody></table></div>
       <div class="sl-ley"><span><i style="background:var(--accent)"></i>Del bot</span><span><i style="background:#8a8577"></i>De otros sistemas o personas</span><span><i style="background:#c62828"></i>Fallidos</span></div>
-      <div class="nota">* "Del bot": exacto para los avisos de la cola desde el 28/09 (se guarda el ID de Meta); las respuestas del bot en la charla y lo anterior se cuentan por teléfono y hora (±3 min). "De otros" es lo que sale del mismo número desde otros sistemas o desde la app.</div>
+      <div class="nota">* "De otros": lo que sale del mismo número desde otros sistemas o desde la app.</div>
     </div>
     <div class="sl-2col">
       <div class="sl-card"><h4>Fallidos por motivo</h4>${r.fallidos_por_motivo.length ? `<div class="sl-mot">${r.fallidos_por_motivo.map((m) => `<span>${gesc(m.texto)} <span style="color:var(--g-muted)">(${gesc(m.codigo)})</span></span><div class="bar" style="width:${(m.cant / maxMot) * 100}%"></div><b>${nfmt(m.cant)}</b>`).join("")}</div>` : `<div class="nota">No falló ningún mensaje en el período.</div>`}</div>

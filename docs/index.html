@@ -342,7 +342,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.25.10">
+  <link rel="stylesheet" href="gestop2.css?v=0.25.11">
 </head>
 <body>
 
@@ -480,7 +480,7 @@
 
         <div class="control-panel">
           <h4>📨 Prueba de plantillas</h4>
-          <div class="toggle-desc" style="margin-bottom:0.6rem;">Elegí un pedido web LK y avanzá etapa por etapa: ves el aviso que le llegaría al cliente con sus datos reales. Sólo lectura.</div>
+          <div class="toggle-desc" style="margin-bottom:0.6rem;">Elegí un pedido y avanzá etapa por etapa para ver cada aviso con sus datos reales. No envía nada.</div>
           <select id="tplChatOrder" onchange="tplChatLoad()" style="width:100%;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;background: var(--card);color: var(--text);">
             <option value="">Cargando pedidos…</option>
           </select>
@@ -519,17 +519,17 @@
 
         <div class="control-panel">
           <h4>🧪 Simulador</h4>
-          <div class="toggle-desc" style="margin-bottom:0.6rem;">El bot contesta con su lógica real (preguntas frecuentes, IA, herramientas). No manda WhatsApp ni crea pedidos; alertas sólo si tildás "Crear tareas de prueba". La IA gasta tokens como siempre.</div>
+          <div class="toggle-desc" style="margin-bottom:0.6rem;">Escribí como si fueras el cliente. No manda WhatsApp ni crea pedidos. La IA gasta como siempre.</div>
           <div style="display:flex;gap:0.4rem;">
             <input type="number" id="simCod" value="4210" placeholder="N° de cliente" style="flex:1;min-width:0;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
             <button class="config-btn small" onclick="simReset(document.getElementById('simCod').value)">Usar</button>
           </div>
           <label class="toggle-desc" style="display:flex;gap:0.4rem;align-items:flex-start;margin-top:0.6rem;cursor:pointer;">
             <input type="checkbox" id="simTareas" style="margin-top:0.15rem;">
-            <span><b>Crear tareas de prueba</b>: lo que el bot derivaría aparece de verdad en Tareas y en Planify, marcado 🧪, y las respuestas de la IA quedan para puntuar (Dashboard › IA — puntaje, fuera de los promedios). Aplicarlas (sumar al pedido, generar clave) sólo anda con el cliente de prueba <b>99862</b>; el aviso le llega al número de prueba.</span>
+            <span><b>Crear tareas de prueba 🧪</b>: aparecen en Tareas y se puntúan. Sólo se aplican con el cliente <b>99862</b>.</span>
           </label>
           <h4 style="margin-top:0.9rem;">📨 Avisos</h4>
-          <div class="toggle-desc" style="margin-bottom:0.5rem;">Tocá uno y le llega al cliente en el chat. Después contestale como cliente para ver cómo responde el bot.</div>
+          <div class="toggle-desc" style="margin-bottom:0.5rem;">Tocá un aviso y contestalo como cliente.</div>
           <div id="simAvisos" class="sim-avisos"><div class="toggle-desc">Cargando…</div></div>
         </div>
       </div>
@@ -611,7 +611,7 @@
         <details class="dash-section">
           <summary>
             <span class="dash-sec-title">🤖 IA — gastos y uso</span>
-            <span class="dash-sec-hint">Breakdown por modelo · más completo que el sidebar</span>
+            <span class="dash-sec-hint">Por modelo</span>
             <button class="config-btn small icono" title="Actualizar" style="margin-left:auto;" onclick="event.preventDefault(); loadIaDash();">⟳</button>
           </summary>
           <div class="dash-sec-body">
@@ -667,7 +667,7 @@
         <details class="dash-section" ontoggle="if (this.open) loadIaPuntaje()">
           <summary>
             <span class="dash-sec-title">🎯 IA — puntaje de respuestas</span>
-            <span class="dash-sec-hint">Haiku puntúa cada respuesta de la IA de 1 a 5 · las de 2 o menos, a revisar</span>
+            <span class="dash-sec-hint">Cada respuesta de la IA, de 1 a 5 · las de 2 o menos, a revisar</span>
             <button class="config-btn small" style="margin-left:auto;" onclick="event.preventDefault(); iaPuntajeEvaluar();">Evaluar pendientes</button>
           </summary>
           <div class="dash-sec-body">
@@ -684,13 +684,7 @@
         <h2>🔔 Alertas</h2>
         <div class="config-section">
           <h3>Esperando a una persona</h3>
-          <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
-            Lo que el bot no resolvió solo: cambios o cancelaciones de pedidos, pedidos de hablar con alguien,
-            clientes molestos, comprobantes, fallas del bot. Semáforo: 🔴 urgente (cliente molesto, cambio de pedido,
-            reclamo o apuro) · 🟡 contestar pronto (pidió hablar con alguien, consulta sin stock) · 🟢 puede esperar.
-            Van primero las rojas, después las amarillas y las verdes. Tocá el cliente o <b>💬 Charla</b> para abrir la conversación y contestar.
-            Cada tipo tiene un <b>tiempo de vencimiento</b> (editable abajo).
-          </p>
+          <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">Lo que el bot no pudo resolver solo. 🔴 urgente · 🟡 contestar pronto · 🟢 puede esperar. Tocá <b>💬 Charla</b> para contestar.</p>
           <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.6rem;">
             <button class="config-btn small" onclick="loadAlertas()">↻ Actualizar</button>
             <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" id="alResueltas" onchange="loadAlertas()"> Ver resueltas</label>
@@ -703,7 +697,7 @@
         <div class="config-section">
           <h3>⏱️ Tiempo de vencimiento por tipo</h3>
           <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
-            Cuánto puede esperar cada tipo de alerta antes de figurar como vencida. En horas y minutos.
+            Cuánto puede esperar cada tipo de alerta antes de vencerse.
           </p>
           <div id="alVenc" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
           <div style="margin-top:0.7rem;display:flex;align-items:center;gap:0.5rem;">
@@ -732,11 +726,7 @@
           <!-- Bot: Kill switch + Whitelist -->
           <div class="config-section">
             <h3>🛑 Kill switch del bot · Whitelist</h3>
-            <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
-              Mientras el <b>kill switch</b> esté <b>ON</b>, el bot <b>solo</b> responde a los números listados abajo.
-              Todos los demás mensajes se descartan silenciosamente (quedan registrados en <code>wa_alertas_humano</code> con motivo <code>whitelist_gate</code> para auditoría).
-              Cuando quieras abrir a todos los clientes, poné el toggle en <b>OFF</b>.
-            </p>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">Con esto <b>prendido</b>, el bot sólo contesta a los números de la lista. Apagalo para abrir a todos los clientes.</p>
             <div class="config-row">
               <label>Kill switch:</label>
               <label class="switch">
@@ -813,15 +803,12 @@
           <!-- Descuentos por pago -->
           <div class="config-section">
             <h3>💰 Descuentos por pago</h3>
-            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
-              Cada campo está <b>bloqueado</b>: tocá <b>✏️</b> para editar y <b>💾</b> para guardar (evita cambios
-              accidentales). El bot lee de Supabase apenas guardás. <b>↺ Restaurar</b> abajo descarta lo no guardado.
-            </p>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">Tocá <b>✏️</b> para editar y <b>💾</b> para guardar. Rige apenas guardás.</p>
 
             <!-- 1) Datos de pago (Alias / CBU) -->
             <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Datos de pago</div>
             <p class="hint" style="display:block;margin:-0.2rem 0 0.5rem;line-height:1.4;">
-              Alias y CBU se completan como <b>variables</b> en el pie de las 6 plantillas — sin re-editar Meta.
+              Salen en las 6 plantillas de factura; cambiarlos no requiere tocar Meta.
             </p>
             <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.3rem;">
               <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:1;min-width:230px;">
@@ -905,10 +892,7 @@
               <button class="config-btn primary" id="excSaveBtn" onclick="excSave()" style="display:none;">💾 Guardar</button>
               <span class="config-status" id="excSt"></span>
             </div>
-            <p class="hint" style="display:block;margin:-0.25rem 0 0.6rem;line-height:1.4;">
-              Si agregás un cliente acá, el bot usa <b>siempre</b> ese método para sus facturas,
-              ignorando la condición de venta de la factura. Match por CUIT (solo dígitos) o razón social exacta.
-            </p>
+            <p class="hint" style="display:block;margin:-0.25rem 0 0.6rem;line-height:1.4;">Los clientes de esta lista reciben siempre este método de pago en sus facturas. Se busca por CUIT o razón social exacta.</p>
             <div id="excAddRow" style="display:none;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
               <select id="excMetodo" style="min-width:160px;"></select>
               <select id="excTipo"><option value="cuit">CUIT</option><option value="razon">Razón social</option></select>
@@ -927,11 +911,7 @@
         <div class="subpanel" id="cfgPanelDeriv">
           <div class="config-section">
             <h3>🧭 A dónde va cada caso que necesita a una persona</h3>
-            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
-              Todo caso aparece siempre en <b>Centro de mensajes › Tareas</b>. Acá se decide si además abre una tarea en
-              <b>Planify</b> y para quién. Con <b>sector</b>, le aparece a todo el sector y la toma el primero que aprieta
-              "Me encargo yo"; si no, a la persona. Lo 🔴 urgente va a Planify aunque diga otra cosa. "Lo responde el bot" (sólo motivos que deriva la IA) = la IA no lo deriva y lo contesta ella.
-            </p>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">Todo va a <b>Tareas</b>. Acá elegís si además abre tarea en <b>Planify</b> y para quién. Lo 🔴 urgente va siempre.</p>
             <div id="derivPrueba" class="config-row" style="margin-bottom:0.6rem;"></div>
             <div id="derivList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
             <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.7rem;">
@@ -944,12 +924,7 @@
         <div class="subpanel" id="cfgPanelVinculos">
           <div class="config-section">
             <h3>🔐 Teléfonos nuevos pendientes de aprobación</h3>
-            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
-              Cuando un número que no está en el padrón de teléfonos de Gestión Virgilio escribe el CUIT de un cliente, <b>no se vincula solo</b>:
-              queda acá hasta que alguien confirme que el número es de esa empresa (por ejemplo, llamando a un teléfono que Gestión tiene de ese cliente).
-              Al aprobar o rechazar, al número se le encola un aviso (sale detrás de la llave de envíos). Si el cliente ya
-              tenía un número principal, a ése también se le avisa.
-            </p>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">Números nuevos que dieron el CUIT de un cliente. Confirmá que son de esa empresa antes de aprobar; al número se le avisa por WhatsApp.</p>
             <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
               <button class="config-btn small" onclick="loadVinculos()">↻ Actualizar</button>
               <span id="vincStatus" class="hint"></span>
@@ -962,11 +937,7 @@
           <!-- Plantillas de seguimiento → Meta (lk_templates · templates_sync) -->
           <div class="config-section">
             <h3>📨 Plantillas de seguimiento → Meta</h3>
-            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
-              Compara las plantillas definidas en el repo (<code>lk_templates/plantillas-meta.ts</code>) con las de Meta.
-              <b>Ver plan</b> no toca nada. <b>Subir</b> crea las que faltan y edita las que cambiaron; Meta las revisa
-              (minutos a 24 h). Una aprobada se edita máx. 1 vez/24 h y 10/30 días. No manda mensajes a nadie.
-            </p>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;"><b>Ver plan</b> muestra qué cambió, sin tocar nada. <b>Subir</b> las manda a Meta, que las revisa en hasta 24 h. No envía mensajes.</p>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
               <button class="config-btn" onclick="tplSync(false)">🔍 Ver plan</button>
               <button class="config-btn primary" onclick="tplSync(true)">⬆️ Subir a Meta</button>
@@ -3172,7 +3143,7 @@ function pintarDerivaciones() {
   const enPrueba = data.llave !== "1";
   top.innerHTML = `<label>Mientras la llave esté en prueba, todo lo de Planify va a:</label>
     <select id="derivPruebaEmp">${opt(data.empleados, data.prueba_employee_id, "— nadie —")}</select>
-    <span class="hint">${enPrueba ? "La llave está en <b>prueba</b>: esto es lo que rige hoy. Persona y sector rigen en producción." : "La llave está en <b>producción</b>: rigen persona y sector."}</span>`;
+    <span class="hint">${enPrueba ? "Llave en <b>prueba</b>: rige esto. Persona y sector, en producción." : "Llave en <b>producción</b>: rigen persona y sector."}</span>`;
   const destOpt = (m) => [["planify", "Planify + Tareas"], ["tareas", "Sólo Tareas"], ...(m.de_ia ? [["bot", "Lo responde el bot"]] : [])]
     .map(([v, t]) => `<option value="${v}"${m.destino === v ? " selected" : ""}>${t}</option>`).join("");
   const fila = (m) => {
@@ -3193,7 +3164,7 @@ function pintarDerivaciones() {
   };
   box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo</th><th>Vence</th><th>A dónde va</th><th>Persona</th><th>Sector</th><th></th></tr>` +
     data.motivos.map(fila).join("") +
-    `</table><div class="hint" style="margin-top:0.4rem;">"Por defecto" = ${esc(def)}. Si elegís sector, gana el sector. "Lo responde el bot" = la IA no lo deriva (salvo urgencia).</div>
+    `</table><div class="hint" style="margin-top:0.4rem;">Si elegís sector, gana el sector. "Lo responde el bot": la IA no lo deriva, salvo urgencia.</div>
     <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
     <span class="hint">Un motivo nuevo que la IA puede derivar. Rige al guardar.</span></div>`;
 }
@@ -3980,7 +3951,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.10</div>
-<script src="gestop2.js?v=0.25.10"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.11</div>
+<script src="gestop2.js?v=0.25.11"></script>
 </body>
 </html>
