@@ -521,6 +521,13 @@ Un commit que sólo toca docs NO dispara deploy.
   producción sector > persona > defecto. Lo 🔴 urgente va a Planify siempre. Motivo nuevo de la IA: `entrega`
   (pedido sin fecha que el cliente necesita, no llegó, fecha distinta) — muchos pedidos no tienen fecha y eso es normal.
   "No me llegó / tenía que llegar" (`RE_NO_LLEGO` en faq.ts) saltea las FAQ y va a la IA, que deriva.
+- **Teléfonos de Chef en clientes de LK (29/09, sql/086, auditoría 616):** `wa_clientes_telefono` se copiaba de
+  `virgilio.whatsapp_clientes` (Gestión, SIN empresa): 171 teléfonos sólo de clientes de Chef colgaban del código y 43
+  caían en un cliente de LK con el mismo código (ej. 2360 Senki ← Indianapolis de CH). `sincronizar_ppp` ahora saca
+  esas filas mirando `virgilio.gv_clientes_whatsapp` (FDW nueva a GV_Clientes_Whatsapp; en Gestión SELECT + política
+  lk_ppp_reader_sel para lk_ppp_reader). Pendiente: verificar que el regex quedó `\D` (una barra) y recargar la tabla
+  (o esperar la sincronización de las 10:00). Además, a pedido de Pablo: cliente 288 Torres y Liva sin el WhatsApp
+  interno 11 3118-1594 (`customers.whatsapp = null`); Tierra Nativa (3878, empresa del grupo) queda con el de RRHH.
 - **Preparando (Pablo, 29/09, sql/085):** `pedido_preparando` cuando el pedido web entra en armado en Gestión
   (`wa_avisos_preparando_web`, mismo cron `lk_aviso-retiro-web`), una vez por pedido (context `web_preparando`).
 - **Reparto: dos avisos (Pablo, 29/09, sql/084):** al facturar sale la factura (lk_factura-check); al recibir,
