@@ -51,6 +51,29 @@ const BOT_TOOLS: ToolDef[] = [
     },
   },
   {
+    // Pablo, 29/09: el cliente pide SUMAR artículos o cajas a un pedido ya hecho. La IA confirma primero modelo y cajas;
+    // esto chequea que el pedido no esté en armado y el stock, y deja la tarea con botón "Aplicar" (sql/099).
+    name: "solicitar_agregado_pedido",
+    description:
+      "Deja pedido un AGREGADO a un pedido que el cliente ya hizo (sumar artículos o subir cajas), para que una persona lo apruebe y se aplique. Sólo sirve para AGREGAR: para sacar, bajar cantidades o anular usá derivar_a_persona (motivo cambio_pedido). ANTES de usarla: (1) buscá cada artículo con buscar_productos; si hay más de uno posible, preguntale cuál; (2) confirmale con el cliente el código, la descripción y las cajas de cada uno y el pedido (por su fecha), por ejemplo \"¿Confirmo agregar 3 cajas de Pelador X (cód. 505) a tu pedido del 25/09?\"; (3) recién cuando diga que sí, llamala. Si devuelve sin_stock, pasale al cliente el texto y preguntale si igual lo quiere agregar; si insiste, volvé a llamarla con insiste=true. Pasale al cliente el texto_para_el_cliente que devuelve, tal cual.",
+    input_schema: {
+      type: "object",
+      properties: {
+        indice: { type: "integer", description: "Pedido al que se agrega (1 = el más reciente, el mismo índice de consultar_mis_pedidos)." },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { cod: { type: "string", description: "Código confirmado con el cliente" }, cajas: { type: "integer", description: "Cajas a SUMAR" } },
+            required: ["cod", "cajas"],
+          },
+        },
+        insiste: { type: "boolean", description: "true si el cliente ya sabe que algún artículo no tiene stock y lo quiere agregar igual." },
+      },
+      required: ["indice", "items"],
+    },
+  },
+  {
     name: "consultar_mis_pedidos",
     description:
       "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total, método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
@@ -340,6 +363,65 @@ async function executeTool(
         },
       });
       return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por acá." } };
+    }
+
+    case "solicitar_agregado_pedido": {
+      const { data: lista } = await supabase.rpc("bot_mis_pedidos", { p_telefono: phone, p_limit: 20 });
+      const vivos = await sinAnulados((lista ?? []) as Record<string, unknown>[], "order_id");
+      const elegido = vivos[Number(input.indice ?? 1) - 1];
+      if (!elegido) return { data: { error: "No encontré ese pedido. Preguntale de qué fecha es." } };
+      const pedido = Number(elegido.order_id);
+      const [{ data: ord }, { data: est }] = await Promise.all([
+        supabase.from("orders").select("id, created_at, enviado_a_compras_at, customer_id").eq("id", pedido).maybeSingle(),
+        supabase.rpc("bot_estado_pedidos_gv", { p_ids: [pedido] }),
+      ]);
+      if (!ord) return { data: { error: "No encontré ese pedido." } };
+      const del = (() => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(ord.created_at)); return `${p.slice(8, 10)}/${p.slice(5, 7)}`; })();
+      const estado = String(est?.[0]?.status ?? "recibido");
+      // Pablo, 29/09: se puede agregar hasta que el pedido entra en armado. Después, pedido nuevo en la web.
+      if (["en preparacion", "facturado", "entregado"].includes(estado) || ord.enviado_a_compras_at) {
+        return { data: { texto_para_el_cliente: `Tu pedido del ${del} ya está en armado, así que no le podemos sumar artículos. ` +
+          `Si querés, cargá un pedido nuevo con lo que te falta en loekemeyer.com → "Pedidos Mayorista" y lo sumamos a la entrega si llega a tiempo.`,
+          regla: "Pasale este texto tal cual. No derives." } };
+      }
+      const pedidos = (Array.isArray(input.items) ? input.items : []) as Array<{ cod: string; cajas: number }>;
+      if (!pedidos.length) return { data: { error: "Faltan los artículos a agregar (código y cajas)." } };
+      const agregar: Array<Record<string, unknown>> = [];
+      const sinStock: string[] = [];
+      for (const it of pedidos) {
+        const cod = String(it.cod ?? "").trim();
+        const cajas = Math.floor(Number(it.cajas));
+        if (!cod || !(cajas > 0)) return { data: { error: `Cantidad o código inválido (${cod}).` } };
+        const { data: p } = await supabase.from("products").select("id, cod, description, uxb, list_price, active, badge_status")
+          .eq("cod", cod).maybeSingle();
+        if (!p || !p.active) return { data: { error: `No encontré el código ${cod} activo en la web. Buscalo con buscar_productos.` } };
+        let st = null, ing = null;
+        try { st = await stockArticulo(p.cod); } catch (e) { console.error("agregado stock:", e); }
+        const falta = !st || st.disponible < cajas;
+        if (falta) {
+          try { ing = await ingresoEstimado(p.cod); } catch (e) { console.error("agregado ingreso:", e); }
+          sinStock.push(st ? textoStock(p.description, p.cod, st, cajas).replace(/ Le paso tu consulta[^.]*\./, "") + textoIngreso(ing)
+            : `No pude confirmar el stock de *${p.description}* (cód. ${p.cod}).`);
+        }
+        agregar.push({ product_id: p.id, cod: p.cod, descripcion: p.description, cajas, uxb: p.uxb, sin_stock: falta,
+          ingreso_estimado: ing?.fecha ?? null });
+      }
+      if (sinStock.length && input.insiste !== true) {
+        return { data: { sin_stock: true, texto_para_el_cliente: sinStock.join("\n") +
+          "\n¿Lo querés agregar igual? Si es así, una persona lo revisa y lo carga cuando haya stock.",
+          regla: "Pasale este texto y esperá su respuesta. Todavía NO quedó pedido nada." } };
+      }
+      const detalle = agregar.map((a) => `${a.cajas} cajas de ${a.descripcion} (cód. ${a.cod})${a.sin_stock ? " — sin stock" : ""}`).join("; ");
+      const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
+      await notificarHumano({
+        tipo: "escalation", phone, customerId: cli?.[0]?.customer_id ?? ord.customer_id ?? null,
+        contexto: { motivo: "cambio_pedido", origen: "agente_ia", pedido, agregar, aplicable: sinStock.length === 0,
+          texto: `Agregar al pedido del ${del}: ${detalle}${sinStock.length ? " (tiene artículos sin stock: cargar a mano)" : ""}`,
+          razon_social: cli?.[0]?.customer_name ?? null, urgente: true },
+      });
+      return { data: { ok: true, texto_para_el_cliente: `Listo, dejé pedido el agregado a tu pedido del ${del}:\n` +
+        agregar.map((a) => `• ${a.cajas} cajas de ${a.descripcion} (cód. ${a.cod})`).join("\n") +
+        `\nUna persona lo aprueba y te confirmamos por acá con el total nuevo.`, regla: "Pasale este texto tal cual." } };
     }
 
     case "consultar_mis_pedidos": {
@@ -665,6 +747,7 @@ const AUDITABLE_TOOLS = new Set([
   "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
   "consultar_mi_historial", "consultar_mis_pedidos", "consultar_detalle_pedido",
   "consultar_mis_descuentos", "consultar_mis_facturas", "consultar_novedades", "consultar_stock", "consultar_proximos_ingresos",
+  "solicitar_agregado_pedido",
 ]);
 
 async function auditTool(

@@ -756,6 +756,15 @@ function tkPintarDetalle() {
       ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
       <div class="aviso">El alta se carga en el ERP a mano. Después aprobala acá: se le avisa al cliente por WhatsApp (sale según la llave).</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
+  } else if (a.agregar?.length) {
+    // Pablo, 29/09: agregado a un pedido pedido por WhatsApp. "Aplicar" lo suma al pedido y le avisa al cliente.
+    cuerpo = `<h4>Agregar al pedido${a.pedido_fecha ? ` del ${gesc(a.pedido_fecha)}` : ""}</h4>
+      <div class="tk-tels">${a.agregar.map((x) => `<div class="it"><span><b>${gesc(x.cajas)} cajas</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})</span>
+        <span>${x.sin_stock ? `<span style="color:var(--g-danger);font-weight:700">Sin stock${x.ingreso_estimado ? ` · ingresa ~${gesc(String(x.ingreso_estimado).split("-").reverse().slice(0, 2).join("/"))}` : ""}</span>` : "Con stock"}</span></div>`).join("")}</div>
+      ${a.aplicable
+        ? `<div class="aviso">Al aplicar se suma al pedido con el precio de lista y los descuentos del cliente, y se le avisa por WhatsApp con el total nuevo (sale según la llave).</div>
+           <div class="cm-acciones"><button class="g-btn prim" onclick="tkAplicarAgregado()">Aplicar al pedido</button></div>`
+        : `<div class="alerta">Tiene artículos sin stock: cargalo a mano cuando haya y marcá la tarea resuelta.</div>`}`;
   } else {
     cuerpo = a.texto ? `<h4>Último mensaje del cliente</h4><div class="cita">${gesc(a.texto)}</div>` : "";
     // Adjunto que mandó el cliente (Excel, foto de rotura, PDF): se abre desde acá.
@@ -781,6 +790,18 @@ async function tkResolver(estado) {
     await tkCargar();
     if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
   } catch (e) { toast("No se pudo: " + e.message); }
+}
+async function tkAplicarAgregado() {
+  const t = tkActual(); if (!t || !t.a) return;
+  if (!confirm("¿Sumar estos artículos al pedido y avisarle al cliente?")) return;
+  try {
+    const r = await tkInvoke("lk_alertas", { action: "aplicar_agregado", id: t.a.id });
+    const $ = (n) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
+    toast(`Aplicado. Total: ${$(r.total_anterior)} → ${$(r.total_nuevo)} + IVA.` + (r.aviso_encolado ? "" : " (No se pudo encolar el aviso.)"));
+    G.tareaSel = null; tkVolver();
+    await tkCargar();
+    if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
+  } catch (e) { toast("No se pudo aplicar: " + e.message); }
 }
 async function tkAdjunto(id) {
   const w = window.open("about:blank", "_blank");

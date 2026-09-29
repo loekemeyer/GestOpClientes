@@ -234,6 +234,8 @@ serve(async (req) => {
           comprobante: ctx.comprobante_id ? (comps[String(ctx.comprobante_id)] ?? { id: ctx.comprobante_id }) : null,
           error_detalle: a.tipo === "comprobante_error" ? (ctx.error ?? ctx.motivo ?? null) : null,
           error_archivo: ctx.error_archivo ?? null,
+          agregar: Array.isArray(ctx.agregar) ? ctx.agregar : null,
+          aplicable: ctx.aplicable === true,
         };
       }).sort((x, y) => {
         // Abiertas primero; dentro de las abiertas: urgentes, después vencidas, después por vencimiento.
@@ -288,6 +290,25 @@ serve(async (req) => {
       await llamarPlanify({ action: "cerrar", alerta_id: id });
       console.log(`lk_alertas: alta ${decision} lead ${leadId} por ${gate.email}`);
       return json({ ok: true, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
+    }
+
+    // Pablo, 29/09: "Aplicar" un agregado pedido por WhatsApp (bot_aplicar_agregado, sql/099) y avisarle al cliente
+    // por la cola (sale según la llave).
+    if (body.action === "aplicar_agregado") {
+      const id = Number(body.id);
+      if (!id) return json({ ok: false, error: "falta id" }, 400);
+      const { data: r, error } = await supabase.rpc("bot_aplicar_agregado", { p_alerta_id: id, p_aprobado_por: gate.email });
+      if (error) return json({ ok: false, error: error.message }, 200);
+      const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(r.creado));
+      const pesos = (n: number) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
+      const texto = `Listo: sumamos a tu pedido del ${p.slice(8, 10)}/${p.slice(5, 7)}:\n` +
+        (r.lineas as string[]).map((l) => `• ${l}`).join("\n") + `\nNuevo total: ${pesos(r.total_nuevo)} + IVA.`;
+      const { error: eO } = await supabase.from("wa_outbox").insert({
+        phone: r.phone, body: texto, context: "agregado_aplicado", ref_id: String(r.pedido),
+      });
+      await llamarPlanify({ action: "cerrar", alerta_id: id });
+      console.log(`lk_alertas: agregado aplicado al pedido ${r.pedido} por ${gate.email}`);
+      return json({ ok: true, total_anterior: r.total_anterior, total_nuevo: r.total_nuevo, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
     }
 
     if (body.action === "adjunto") {

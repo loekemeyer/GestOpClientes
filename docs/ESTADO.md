@@ -325,6 +325,12 @@ el killswitch, sin ningún consumidor de esa cola.
   el mismo importe a ≤30 min; si hay, lo dice y deja tarea `cambio_pedido` urgente. No anula nada.
 - **"No me deja elegir sucursal"** → tarea `acceso_web`.
 - Las alertas que sale de una respuesta fija las crea el webhook desde `FaqResult.alerta`.
+- **Agregar a un pedido** (29/09): la IA confirma modelo y cajas y llama `solicitar_agregado_pedido` (bot-conversation.ts):
+  en armado/facturado/entregado o enviado a compras → no se puede, ofrece pedido nuevo en la web; sin stock → avisa la
+  fecha estimada de ingreso y, si insiste, la tarea sale "cargar a mano" (`aplicable=false`). Si no, alerta
+  `cambio_pedido` con `contexto.agregar` y botón **Aplicar** en Tareas → `lk_alertas` `aplicar_agregado` →
+  `bot_aplicar_agregado` (sql/099; no usa `edit_order_fast` porque exige `auth.uid()` de PaginaLK) + aviso por `wa_outbox`.
+  Sacar/anular sigue derivando directo (`RE_EDITA_PEDIDO` sólo sacar/quitar).
 
 - Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). **Stateless**: cada mensaje cae por
   las mismas compuertas. Mapa visual: `docs/mapa-flujo-bot.html`.

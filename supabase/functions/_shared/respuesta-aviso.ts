@@ -20,16 +20,18 @@ import { sinAnulados } from "./pedidos-anulados.ts";
 const VENTANA_HORAS = 48;
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
-const RE_CAMBIO = /(cancel|anul|cambi(ar|á|a|en|ame|arme|arlo|alo|emos)\b|modific|agreg|sum[aá]|quit|sac[aá]|\bno\s+(voy|vamos|estoy|estamos|pue\w*|pod\w*|llego|llegamos)\b|reci[eé]n\s+(el|la|para|a\s+partir)|otro d[ií]a|reprogram|posterg|adelant|devol|reclam|falt[aó]|equivoc|error)/i;
+const RE_CAMBIO = /(cancel|anul|cambi(ar|á|a|en|ame|arme|arlo|alo|emos)\b|modific|quit|sac[aá]|\bno\s+(voy|vamos|estoy|estamos|pue\w*|pod\w*|llego|llegamos)\b|reci[eé]n\s+(el|la|para|a\s+partir)|otro d[ií]a|reprogram|posterg|adelant|devol|reclam|falt[aó]|equivoc|error)/i;
 
 // Pedido de cambio de fecha / cancelación AUNQUE lo último no haya sido un aviso (simulación 28/09:
 // "No pueeo pasar el 30, puedo pasar recien el 4/10" caía en la FAQ de dirección del depósito).
 // Fuerte = alcanza sola. "No puedo / no llego…" sólo cuenta si además habla de una fecha, un día o
 // del retiro/entrega (para no derivar "no puedo abrir el catálogo").
+// Agregar (sin sacar) lo resuelve la IA con solicitar_agregado_pedido, aunque diga "modificar" (Pablo, 29/09).
+const RE_AGREGA = /\b(agreg|sum[aá]|a[ñn]ad)\w*/i;
 const RE_CAMBIO_FUERTE = /(reprogram|posterg|cancel|anul|cambi\w*\s+(la\s+|el\s+)?(fecha|d[ií]a|entrega|retiro)|otro\s+d[ií]a|reci[eé]n\s+(el|la|para|a\s+partir))/i;
-// Pablo, 29/09: "Agregá 60 sacacorchos al pedido web" (agregar/sacar algo de un pedido ya hecho) va directo a un asesor,
-// sin preguntar antes qué modelo es: la persona lo confirma con el cliente. Chequeo humano primero.
-const RE_EDITA_PEDIDO = /\b(agreg|sum[aá]|a[ñn]ad|sac[aá]|quit)\w*[^?.!]{0,60}\b(al|del|en el|a mi|de mi)\s+pedido/i;
+// Pablo, 29/09: SACAR algo de un pedido ya hecho va directo a un asesor. AGREGAR ya no: lo toma la IA, que confirma
+// modelo y cajas y deja la tarea con botón "Aplicar" (solicitar_agregado_pedido, sql/099).
+const RE_EDITA_PEDIDO = /\b(sac[aá]|quit)\w*[^?.!]{0,60}\b(al|del|en el|a mi|de mi)\s+pedido/i;
 // Pablo, 29/09: "¿Puedo retirarlo el sábado 3?" / "¿paso el jueves?" — pide un día de retiro. Los retiros son de lunes a
 // viernes; si pide fin de semana se le explica y se le ofrece reprogramar; si pide un día hábil se deriva a un asesor
 // para reprogramar el retiro (antes caía en la respuesta fija del depósito, #4, que no contestaba la pregunta).
@@ -203,7 +205,7 @@ export async function responderAviso(
   if (!aviso) return null;
   const t = text.trim();
 
-  if (RE_CAMBIO.test(t)) {
+  if (RE_CAMBIO.test(t) && !(RE_AGREGA.test(t) && !/\b(sac[aá]|quit|cancel|anul)/i.test(t))) {
     await notificarHumano({
       tipo: "escalation",
       phone,
