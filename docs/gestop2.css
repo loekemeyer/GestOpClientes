@@ -308,3 +308,27 @@ html.dark .chat-messages { background-image: none; }
 .cm-ficha section.agendar { border-left: 3px solid var(--warn); padding-left: 10px; }
 .cm-ficha div.agendar { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .cm-ficha .agendar input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
+
+/* Login con fondo (v0.24.1, Pablo 29/09: "me lastima verlo tan pelado"): base tinta, luz bordó arriba a la
+   izquierda, reflejo ámbar abajo, trama diagonal fina y la tarjeta crema con sombra. Mismo look en claro y oscuro. */
+.login-overlay {
+  background:
+    radial-gradient(900px 620px at 12% 8%, rgba(158, 32, 38, 0.55), transparent 62%),
+    radial-gradient(760px 520px at 92% 96%, rgba(170, 118, 30, 0.22), transparent 60%),
+    repeating-linear-gradient(135deg, rgba(241, 234, 216, 0.035) 0 1px, transparent 1px 18px),
+    #18181a;
+}
+.login-overlay::after {
+  content: "Loekemeyer Hnos · mayorista de artículos de cocina y bazar";
+  position: absolute; bottom: 22px; left: 0; right: 0; text-align: center;
+  color: rgba(241, 234, 216, 0.45); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.login-box {
+  background: #fffdf7; color: #212122; width: min(340px, calc(100vw - 32px)); padding: 2.2rem 2rem 2rem;
+  border-radius: 14px; border-top: 4px solid #661317;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.login-box h2 { font-size: 1.8rem; letter-spacing: -0.01em; color: #661317; }
+.login-box p { color: #5f5b53; }
+.login-box .google-btn { background: #fffdf7; color: #212122; border-color: #ddd4bf; }
+.login-box .google-btn:hover { background: #efe8d6; }
