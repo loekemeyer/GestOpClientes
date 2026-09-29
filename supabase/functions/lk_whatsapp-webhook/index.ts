@@ -1013,7 +1013,9 @@ async function handleMessage(
     business_name: customer.business_name,
     dto_vol: customer.dto_vol,
   } : null;
-  const faq = await handleFaq(text, faqCustomer);
+  // Pablo, 29/09: "Hola, quiero ser cliente" ganaba la respuesta fija del saludo y nunca arrancaba el alta (visto en el
+  // Simulador › Número nuevo). Para un no-cliente que pide darse de alta, primero el registro.
+  const faq = !customer && RE_ALTA_START.test(text) ? null : await handleFaq(text, faqCustomer);
   if (faq) {
     await saveMessage(phone, "user", text);
     // `faq.yaSaluda` = la respuesta ya arranca con "Hola…" (la FAQ del saludo inicial).

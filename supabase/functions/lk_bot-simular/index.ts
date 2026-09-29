@@ -67,7 +67,7 @@ async function simularNumeroNuevo(body: any): Promise<Response> {
       if (lead) {
         await handleAltaStep(TEL_NUEVO, text, lead, send); via = "alta (paso a paso)";
       } else {
-        const faq = await handleFaq(text, null);
+        const faq = RE_ALTA_START.test(text) ? null : await handleFaq(text, null);   // mismo orden que el webhook
         if (faq) { respuestas.push(faq.reply); via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`; }
         else {
           const cuit = extractCuit(text);
