@@ -32,7 +32,7 @@ const rellenar = (body: string, vals: string[]) => body.replace(/\{\{(\d+)\}\}/g
 //   · { action: "avisos" }  → la botonera: [{ name, cuando, texto }] con las plantillas definidas y su texto de ejemplo.
 //   · { historial: [{rol:"user"|"assistant", contenido}] } → charla previa que se carga SIN volver a correrla
 //     (el simulador no guarda estado: así cada mensaje nuevo cuesta un solo turno de IA, no toda la charla).
-//   · { aviso: "pedido_recibido" } sin params → usa los valores de ejemplo de la plantilla, con {{1}} = razón social del cliente.
+//   · { aviso: "pedido_recibido" } sin params → usa los valores de ejemplo de la plantilla (la razón social, si la plantilla la lleva, es la del cliente).
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
