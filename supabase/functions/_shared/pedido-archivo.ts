@@ -18,6 +18,8 @@ export interface LineaLeida { cod: string | null; descripcion: string; cantidad:
 export interface ArticuloPedido {
   original: string; cod: string | null; descripcion: string | null; product_id: string | null;
   cajas: number | null; uxb: number | null; estado: "ok" | "dudoso" | "no_encontrado"; nota?: string;
+  /** Cuando la IA duda entre artículos: hasta 3, el más probable primero. El bot le pregunta al cliente cuál. */
+  opciones?: Array<{ cod: string; descripcion: string }>;
 }
 
 export function esArchivoDePedido(mime: string, nombre?: string | null): boolean {
@@ -97,14 +99,14 @@ async function candidatos(desc: string): Promise<Prod[]> {
 
 /** La IA elige, para cada línea sin código, el artículo de sus candidatos (o ninguno). Una sola llamada para todas. */
 async function elegirConIA(items: Array<{ i: number; desc: string; cands: Prod[] }>, apiKey: string, phone: string | null):
-  Promise<Record<number, { cod: string | null; seguro: boolean }>> {
+  Promise<Record<number, { cod: string | null; seguro: boolean; opciones: string[] }>> {
   if (!items.length || !apiKey) return {};
   const prompt = items.map((x) => `Línea ${x.i}: "${x.desc}"\nCandidatos: ${x.cands.map((c) => `${c.cod} = ${c.description.trim()}`).join(" | ") || "(ninguno)"}`).join("\n\n");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({ model: MODELO, max_tokens: 1500, temperature: 0,
-      system: "Para cada línea de pedido de un bazar mayorista, elegí el código del candidato que corresponde al artículo pedido, o null si ninguno corresponde. seguro=true sólo si no hay duda (ej. \"colador de fideos\" = \"Colador de Pasta\"; \"sacacorchos mariposa\" = \"Sacacorcho Doble Aleta\"). Respondé SOLO JSON {\"elecciones\":[{\"linea\":0,\"cod\":\"441\"|null,\"seguro\":true}]}",
+      system: "Para cada línea de pedido de un bazar mayorista, elegí el código del candidato que corresponde al artículo pedido, o null si ninguno corresponde. seguro=true sólo si hay UN solo candidato que corresponde (ej. \"sacacorchos mariposa\" = \"Sacacorcho Doble Aleta\"). Si dos o más podrían ser (distintos tamaños, materiales o modelos, o un dato del pedido como \"grande\" que no alcanza para decidir), seguro=false y en opciones poné los códigos que podrían ser, 2 o 3, el más probable primero. Respondé SOLO JSON {\"elecciones\":[{\"linea\":0,\"cod\":\"441\"|null,\"seguro\":false,\"opciones\":[\"441\",\"438E\"]}]}",
       messages: [{ role: "user", content: prompt }] }),
     signal: AbortSignal.timeout(30_000),
   });
@@ -114,9 +116,10 @@ async function elegirConIA(items: Array<{ i: number; desc: string; cands: Prod[]
   supabase.from("bot_token_usage").insert({ model: MODELO, input_tokens: it, output_tokens: ot, function_name: "lk_whatsapp-webhook", phone,
     motivo: "pedido_archivo", estimated_cost_usd: (it * TARIFA.input + ot * TARIFA.output) / 1_000_000 }).then(() => {}, () => {});
   const j = String(r?.content?.[0]?.text ?? "").match(/\{[\s\S]*\}/);
-  const out: Record<number, { cod: string | null; seguro: boolean }> = {};
+  const out: Record<number, { cod: string | null; seguro: boolean; opciones: string[] }> = {};
   // deno-lint-ignore no-explicit-any
-  try { for (const e of (JSON.parse(j?.[0] ?? "{}").elecciones ?? []) as any[]) out[Number(e.linea)] = { cod: e.cod ? String(e.cod) : null, seguro: e.seguro === true }; } catch { /* sin elección */ }
+  try { for (const e of (JSON.parse(j?.[0] ?? "{}").elecciones ?? []) as any[]) out[Number(e.linea)] = { cod: e.cod ? String(e.cod) : null, seguro: e.seguro === true,
+    opciones: Array.isArray(e.opciones) ? e.opciones.map(String) : [] }; } catch { /* sin elección */ }
   return out;
 }
 
@@ -125,6 +128,7 @@ async function elegirConIA(items: Array<{ i: number; desc: string; cands: Prod[]
 export async function resolverArticulos(lineas: LineaLeida[], apiKey = "", phone: string | null = null): Promise<ArticuloPedido[]> {
   const prods: Array<Prod | null> = [];
   const dudas: boolean[] = [];
+  const opciones: Array<Prod[]> = [];
   const porElegir: Array<{ i: number; desc: string; cands: Prod[] }> = [];
   for (const [i, l] of lineas.entries()) {
     let p: Prod | null = null;
@@ -133,7 +137,7 @@ export async function resolverArticulos(lineas: LineaLeida[], apiKey = "", phone
       const { data } = await supabase.from("products").select("id, cod, description, uxb").in("cod", [l.cod, canon]).eq("active", true).limit(1);
       p = (data?.[0] as Prod) ?? null;
     }
-    prods.push(p); dudas.push(false);
+    prods.push(p); dudas.push(false); opciones.push([]);
     if (!p && l.descripcion) porElegir.push({ i, desc: l.descripcion, cands: await candidatos(l.descripcion) });
   }
   const elecciones = await elegirConIA(porElegir.filter((x) => x.cands.length), apiKey, phone);
@@ -141,6 +145,11 @@ export async function resolverArticulos(lineas: LineaLeida[], apiKey = "", phone
     const e = elecciones[x.i];
     const c = e?.cod ? x.cands.find((c) => c.cod === e.cod) : null;
     if (c) { prods[x.i] = c; dudas[x.i] = !e.seguro; }
+    if (e && !e.seguro) {
+      const ops = [e.cod, ...e.opciones].filter((v, k, a): v is string => !!v && a.indexOf(v) === k)
+        .map((cod) => x.cands.find((c) => c.cod === cod)).filter((c): c is Prod => !!c).slice(0, 3);
+      if (ops.length >= 2) { opciones[x.i] = ops; prods[x.i] = ops[0]; dudas[x.i] = true; }
+    }
   }
   return lineas.map((l, i) => {
     const original = `${l.cod ? l.cod + " " : ""}${l.descripcion} × ${l.cantidad}${l.unidad ? " " + l.unidad : ""}`.replace(/\s+/g, " ").trim();
@@ -154,7 +163,8 @@ export async function resolverArticulos(lineas: LineaLeida[], apiKey = "", phone
     } else if (l.unidad === null && uxb > 1 && l.cantidad >= uxb && l.cantidad % uxb === 0) {
       dudoso = true; nota = `¿${l.cantidad} cajas o ${l.cantidad} unidades (${l.cantidad / uxb} cajas)?`;
     }
-    return { original, cod: p.cod, descripcion: p.description.trim(), product_id: p.id, cajas, uxb, estado: dudoso ? "dudoso" as const : "ok" as const, ...(nota ? { nota } : {}) };
+    return { original, cod: p.cod, descripcion: p.description.trim(), product_id: p.id, cajas, uxb, estado: dudoso ? "dudoso" as const : "ok" as const, ...(nota ? { nota } : {}),
+      ...(opciones[i].length ? { opciones: opciones[i].map((o) => ({ cod: o.cod, descripcion: o.description.trim() })) } : {}) };
   });
 }
 
@@ -164,10 +174,16 @@ const cj = (n: number | null) => `${n} ${n === 1 ? "caja" : "cajas"}`;
 export function textoConfirmacion(arts: ArticuloPedido[]): string {
   const ok = arts.filter((a) => a.estado !== "no_encontrado");
   const no = arts.filter((a) => a.estado === "no_encontrado");
-  const lineas = ok.slice(0, 40).map((a) => `• ${cj(a.cajas)} de ${a.descripcion} (cód. ${a.cod})${a.estado === "dudoso" ? " ❓" : ""}`);
+  const lineas = ok.slice(0, 40).map((a) => a.opciones?.length
+    ? `• ${cj(a.cajas)} de "${a.original.replace(/ × .*$/, "")}" ❓ ¿cuál? ${a.opciones.map((o) => `${o.descripcion} (cód. ${o.cod})`).join(" o ")}`
+    : `• ${cj(a.cajas)} de ${a.descripcion} (cód. ${a.cod})${a.estado === "dudoso" ? " ❓" : ""}`);
   let t = `Recibimos tu pedido. Leímos esto:\n${lineas.join("\n")}`;
   if (ok.length > 40) t += `\n… y ${ok.length - 40} artículos más.`;
   if (no.length) t += `\n\nNo encontramos: ${no.slice(0, 10).map((a) => `"${a.original}"`).join(", ")}.`;
+  if (arts.some((a) => a.opciones?.length)) {
+    if (arts.some((a) => a.estado === "dudoso" && !a.opciones?.length)) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
+    return t + `\n\nDecinos cuál querés en las líneas con ❓ (con el código alcanza) y cualquier otro cambio. Una persona lo carga.`;
+  }
   if (arts.some((a) => a.estado === "dudoso")) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
   return t + `\n\n¿Está bien? Respondé *sí* y una persona lo carga, o decinos qué cambiar.`;
 }

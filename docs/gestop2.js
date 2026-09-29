@@ -765,7 +765,7 @@ function tkPintarDetalle() {
       : '<div class="aviso">El cliente todavía no confirmó la lista.</div>';
     cuerpo = `<h4>Pedido leído del archivo · ${a.articulos.length} líneas</h4>
       <div class="tk-tels" style="max-width:none">${a.articulos.map((x) => `<div class="it"><span>${x.estado === "no_encontrado" ? gesc(x.original) :
-        `<b>${gesc(x.cajas)} ${Number(x.cajas) === 1 ? "caja" : "cajas"}</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})`}${x.nota ? `<br><small style="color:var(--g-muted)">${gesc(x.nota)}</small>` : ""}${x.estado !== "no_encontrado" && x.estado === "dudoso" ? `<br><small style="color:var(--g-muted)">Decía: ${gesc(x.original)}</small>` : ""}</span><span>${est[x.estado] || ""}</span></div>`).join("")}</div>
+        `<b>${gesc(x.cajas)} ${Number(x.cajas) === 1 ? "caja" : "cajas"}</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})`}${x.nota ? `<br><small style="color:var(--g-muted)">${gesc(x.nota)}</small>` : ""}${x.estado === "dudoso" ? `<br><small style="color:var(--g-muted)">Decía: ${gesc(x.original)}</small>` : ""}${x.opciones?.length ? `<br><small style="color:var(--g-muted)">Se le preguntó al cliente: ${x.opciones.map((o) => `${gesc(o.descripcion)} (${gesc(o.cod)})`).join(" o ")}</small>` : ""}</span><span>${est[x.estado] || ""}</span></div>`).join("")}</div>
       ${resp}<div class="aviso">Cargalo en la web a nombre del cliente y marcá la tarea resuelta.</div>
       ${a.comprobante?.id ? `<div class="cm-acciones"><button class="g-btn" onclick="tkAdjunto('${gesc(a.comprobante.id)}')">Ver archivo original</button></div>` : ""}`;
   } else if (a.mail_nuevo) {
