@@ -519,11 +519,15 @@
 
         <div class="control-panel">
           <h4>🧪 Simulador</h4>
-          <div class="toggle-desc" style="margin-bottom:0.6rem;">El bot contesta con su lógica real (preguntas frecuentes, IA, herramientas). No manda WhatsApp, no crea pedidos ni alertas. La IA gasta tokens como siempre.</div>
+          <div class="toggle-desc" style="margin-bottom:0.6rem;">El bot contesta con su lógica real (preguntas frecuentes, IA, herramientas). No manda WhatsApp ni crea pedidos; alertas sólo si tildás "Crear tareas de prueba". La IA gasta tokens como siempre.</div>
           <div style="display:flex;gap:0.4rem;">
             <input type="number" id="simCod" value="4210" placeholder="N° de cliente" style="flex:1;min-width:0;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
             <button class="config-btn small" onclick="simReset(document.getElementById('simCod').value)">Usar</button>
           </div>
+          <label class="toggle-desc" style="display:flex;gap:0.4rem;align-items:flex-start;margin-top:0.6rem;cursor:pointer;">
+            <input type="checkbox" id="simTareas" style="margin-top:0.15rem;">
+            <span><b>Crear tareas de prueba</b>: lo que el bot derivaría aparece de verdad en Tareas y en Planify, marcado 🧪. Aplicarlas (sumar al pedido, generar clave) sólo anda con el cliente de prueba <b>99862</b>; el aviso le llega al número de prueba.</span>
+          </label>
           <h4 style="margin-top:0.9rem;">📨 Avisos</h4>
           <div class="toggle-desc" style="margin-bottom:0.5rem;">Tocá uno y le llega al cliente en el chat. Después contestale como cliente para ver cómo responde el bot.</div>
           <div id="simAvisos" class="sim-avisos"><div class="toggle-desc">Cargando…</div></div>
@@ -1627,7 +1631,8 @@ function simReset(cod) {
 }
 
 async function simLlamar(pasos) {
-  const { data, error } = await authedInvoke("lk_bot-simular", { cod_cliente: _sim.cod, historial: _sim.historial, pasos });
+  const { data, error } = await authedInvoke("lk_bot-simular", { cod_cliente: _sim.cod, historial: _sim.historial, pasos,
+    crear_tareas: !!document.getElementById("simTareas")?.checked });
   if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
   if (data.cliente) document.getElementById("simTitle").textContent = data.cliente;
   return data.charla[0];
@@ -1655,7 +1660,7 @@ async function simSend() {
   try {
     const r = await simLlamar([{ cliente: txt }]);
     document.querySelector("#simMessages .typing-sim")?.remove();
-    const meta = [`vía ${r.via}`, (r.herramientas || []).length ? "herramientas: " + r.herramientas.map((h) => h.nombre).join(", ") : "", (r.alertas || []).length ? `alertas que crearía: ${r.alertas.length}` : ""].filter(Boolean).join(" · ");
+    const meta = [`vía ${r.via}`, (r.herramientas || []).length ? "herramientas: " + r.herramientas.map((h) => h.nombre).join(", ") : "", (r.tareas || []).length ? `🧪 tareas creadas: ${r.tareas.length} (ver Tareas)` : (r.alertas || []).length ? `alertas que crearía: ${r.alertas.length}` : ""].filter(Boolean).join(" · ");
     simAgregar("in", `<div style="white-space:pre-wrap;">${esc(r.bot || "(sin respuesta)")}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(meta)}</div><span class="time">${simHora()}</span>`);
     _sim.historial.push({ rol: "user", contenido: txt }, { rol: "assistant", contenido: r.bot || "" });
   } catch (e) {
@@ -3916,7 +3921,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.5</div>
-<script src="gestop2.js?v=0.25.5"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.6</div>
+<script src="gestop2.js?v=0.25.6"></script>
 </body>
 </html>

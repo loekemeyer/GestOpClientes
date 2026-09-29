@@ -71,7 +71,8 @@ async function crear(alertaId: number) {
   const { data: llaveRow } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
   const produccion = llaveRow?.value === "1";
   // Lo urgente va siempre a Planify.
-  const dest = destino(der, cat, esUrg, produccion);
+  // Tareas del Simulador (🧪): siempre como en modo prueba, a quien desarrolla, aunque la llave esté en producción.
+  const dest = destino(der, cat, esUrg, produccion && a.contexto?.simulador !== true);
   if (!dest) return { ok: true, creada: false, motivo: `categoría ${cat} sólo va a Tareas (o sin destinatario)` };
   const ctx = a.contexto ?? {};
   if (ctx.planify_task_id) return { ok: true, creada: false, motivo: "ya tenía tarea" };
@@ -87,7 +88,7 @@ async function crear(alertaId: number) {
     if (o?.created_at) pedido = `pedido del ${fmt(new Date(o.created_at), { day: "2-digit", month: "2-digit" }).split("-").reverse().join("/")}`;
   }
   const texto = String(ctx.texto_recibido ?? ctx.texto ?? "").trim();
-  const nombre = `${SEMAFORO[niv]} ${CORTO[cat] ?? cat} — ${cliente || a.phone || "sin identificar"}`.slice(0, 60);
+  const nombre = `${ctx.simulador === true ? "🧪 " : ""}${SEMAFORO[niv]} ${CORTO[cat] ?? cat} — ${cliente || a.phone || "sin identificar"}`.slice(0, 60);
   // Nota en el formato que lee el cartel de Planify (src/alarm-broadcast.html): "Clave: valor" por línea,
   // "Aviso:" = encabezado, "Charla:" = link del botón "💬 Abrir la charla" (no se muestra como dato) y el
   // marcador [vbot:<alerta>|<nivel>|<tel>] al final → Planify lo pinta con el color del semáforo.

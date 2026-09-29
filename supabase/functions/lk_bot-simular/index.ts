@@ -139,8 +139,12 @@ serve(async (req) => {
         const faq = await handleFaq(text, { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
         if (faq) {
           reply = faq.reply; via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`;
-          if (faq.alerta) SIM.alertas.push({ tipo: "otro", motivo: faq.alerta.motivo, urgente: faq.alerta.urgente ?? null, pedidos: faq.alerta.pedidos ?? null });
-          else if (faq.automation_level === "needs_human") SIM.alertas.push({ tipo: "escalation", faq_id: faq.faq_id ?? null });
+          // Mismo contexto que arma el webhook, así la tarea de prueba es igual a la real.
+          if (faq.alerta) SIM.alertas.push({ tipo: "otro", motivo: faq.alerta.motivo,
+            ...(faq.alerta.urgente !== undefined ? { urgente: faq.alerta.urgente } : {}),
+            ...(faq.alerta.pedidos?.length ? { pedido: faq.alerta.pedidos[0], pedidos: faq.alerta.pedidos } : {}),
+            detalle: faq.alerta.detalle ?? null });
+          else if (faq.automation_level === "needs_human") SIM.alertas.push({ tipo: "escalation", faq_id: faq.faq_id ?? null, tema: faq.topic ?? null });
         }
       }
       // 6. agente IA
@@ -151,7 +155,22 @@ serve(async (req) => {
         reply = r.reply;
       }
       SIM.historial.push({ rol: "assistant", contenido: reply ?? "", creado_en: ahora() });
-      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [...SIM.herramientas] });
+      // Pablo, 29/09: "crear tareas de prueba" → cada alerta que habría creado el bot se crea DE VERDAD en Tareas, marcada
+      // 🧪 (contexto.simulador). El número es el de prueba (Thomy), así el aviso que sale al aplicarla le llega a él y
+      // nunca al cliente. Aplicarla sólo se puede con el cliente de prueba (lk_alertas, cliente-prueba.ts).
+      const tareas: number[] = [];
+      if (body.crear_tareas === true && SIM.alertas.length) {
+        const { data: tp } = await supabase.from("wa_envio_contactos").select("phone").order("created_at").limit(1).maybeSingle();
+        for (const al of SIM.alertas) {
+          const { tipo, ...ctx } = al as Record<string, unknown>;
+          const { data: ins } = await supabase.from("wa_alertas_humano").insert({
+            tipo: String(tipo ?? "otro"), phone: tp?.phone ?? null, customer_id: c.id,
+            contexto: { ...ctx, texto_recibido: text.slice(0, 300), razon_social: c.business_name, simulador: true },
+          }).select("id").maybeSingle();
+          if (ins?.id) tareas.push(ins.id);
+        }
+      }
+      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [...SIM.herramientas], tareas });
     }
     SIM.activo = false;
     return json({ ok: true, cliente: `${c.business_name} (${c.cod_cliente})`, charla: salida });

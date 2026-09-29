@@ -335,6 +335,10 @@ el killswitch, sin ningún consumidor de esa cola.
   una clave" + tarea `reseteo_clave`. En Tareas, "Generar clave temporal y mandarla" → `lk_alertas` `reset_clave`:
   `auth.admin.updateUserById` en PaginaLK (4 letras + 4 números) y aviso por `wa_outbox`. La clave NO queda en la alerta,
   pero sí en el cuerpo del mensaje (wa_outbox / conversación, sólo service_role y el dashboard).
+- **Simulador › "Crear tareas de prueba"** (29/09): con el tilde, cada alerta que crearía el bot se inserta de verdad
+  en `wa_alertas_humano` con `contexto.simulador=true`, número = el de `wa_envio_contactos` (Thomy) y 🧪 en Tareas y en
+  Planify (Planify siempre a quien desarrolla). `lk_alertas` bloquea Aplicar / Generar clave salvo cliente 99862
+  (`_shared/cliente-prueba.ts`).
 
 - Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). **Stateless**: cada mensaje cae por
   las mismas compuertas. Mapa visual: `docs/mapa-flujo-bot.html`.

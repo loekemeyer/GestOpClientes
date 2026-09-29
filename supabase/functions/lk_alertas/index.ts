@@ -4,6 +4,16 @@ import { supabase } from "../_shared/supabase.ts";
 import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
 import { derivaciones, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
+import { COD_CLIENTE_PRUEBA } from "../_shared/cliente-prueba.ts";
+
+// Tarea creada desde el Simulador con un cliente real: se ve, pero no se aplica (no toca pedidos ni claves reales).
+// deno-lint-ignore no-explicit-any
+async function bloqueoPrueba(a: any): Promise<string | null> {
+  if (a?.contexto?.simulador !== true) return null;
+  const { data: c } = await supabase.from("customers").select("cod_cliente").eq("id", a.customer_id ?? "").maybeSingle();
+  return Number(c?.cod_cliente) === COD_CLIENTE_PRUEBA ? null
+    : `Es una tarea de prueba del Simulador con un cliente real: no se aplica. Probá con el cliente de prueba ${COD_CLIENTE_PRUEBA}.`;
+}
 
 // lk_alertas — bandeja de alertas para humanos (wa_alertas_humano) con vencimiento.
 // La usa el dashboard (menú 🔔 Alertas). Sólo admins (requireAdmin).
@@ -212,7 +222,8 @@ serve(async (req) => {
         const venceAt = new Date(new Date(a.created_at).getTime() + v[cat] * 60_000);
         const ctx = a.contexto ?? {};
         return {
-          id: a.id, tipo: a.tipo, categoria: cat, label: CATEGORIAS[cat].label,
+          id: a.id, tipo: a.tipo, categoria: cat, label: (ctx.simulador ? "🧪 Prueba · " : "") + CATEGORIAS[cat].label,
+          prueba: ctx.simulador === true,
           phone: a.phone, cliente: a.customer_id ? (nombres[a.customer_id] ?? null) : (ctx.razon_social ?? null),
           texto: ctx.texto_recibido ?? ctx.texto ?? null, pedido: ctx.pedido ?? null,
           pedido_fecha: fechaPed[Number(ctx.pedido)] ?? null,
@@ -297,6 +308,9 @@ serve(async (req) => {
     if (body.action === "aplicar_agregado") {
       const id = Number(body.id);
       if (!id) return json({ ok: false, error: "falta id" }, 400);
+      const { data: aa } = await supabase.from("wa_alertas_humano").select("customer_id, contexto").eq("id", id).maybeSingle();
+      const bloq = await bloqueoPrueba(aa);
+      if (bloq) return json({ ok: false, error: bloq }, 200);
       const { data: r, error } = await supabase.rpc("bot_aplicar_agregado", { p_alerta_id: id, p_aprobado_por: gate.email });
       if (error) return json({ ok: false, error: error.message }, 200);
       const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(r.creado));
@@ -320,6 +334,8 @@ serve(async (req) => {
       if (!a || a.contexto?.motivo !== "reseteo_clave") return json({ ok: false, error: "La tarea no es un pedido de clave." }, 200);
       if (!["pendiente", "notificado"].includes(a.estado)) return json({ ok: false, error: "La tarea ya estaba resuelta." }, 200);
       if (!a.customer_id || !a.phone) return json({ ok: false, error: "La tarea no tiene cliente identificado." }, 200);
+      const bloqC = await bloqueoPrueba(a);
+      if (bloqC) return json({ ok: false, error: bloqC }, 200);
       const { data: c } = await supabase.from("customers").select("auth_user_id, cuit, business_name").eq("id", a.customer_id).maybeSingle();
       if (!c?.auth_user_id) return json({ ok: false, error: "El cliente no tiene usuario en la web: hay que darle acceso primero." }, 200);
       const { data: u, error: eU } = await supabase.auth.admin.getUserById(c.auth_user_id);
