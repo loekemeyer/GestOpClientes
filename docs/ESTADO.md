@@ -339,6 +339,14 @@ el killswitch, sin ningún consumidor de esa cola.
   en `wa_alertas_humano` con `contexto.simulador=true`, número = el de `wa_envio_contactos` (Thomy) y 🧪 en Tareas y en
   Planify (Planify siempre a quien desarrolla). `lk_alertas` bloquea Aplicar / Generar clave salvo cliente 99862
   (`_shared/cliente-prueba.ts`).
+- **Alta mixta de cliente** (29/09, sql/100): el alta por WhatsApp pide los 10 datos acordados (CUIT con dígito
+  verificador si no lo tenía, razón social, condición de IVA, contacto, teléfono o "este", mail, calle y número,
+  localidad, provincia, CP, expreso o "no", tipo de comercio o "saltar"); si el CUIT ya es cliente, cancela el alta y
+  pasa a vinculación. En Tareas "Crear cliente y mandar acceso" (`lk_alertas` `alta_crear`): código + vendedor
+  (`Wpp_Vendedores`) + dto_vol → `crear_cliente_web` (usuario = CUIT, clave temporal), dirección de entrega
+  `pending_isis=true` y bienvenida con el acceso por `wa_outbox`. **No** vincula el número al cliente (regla de Luis):
+  cuando escriba, el bot le pide el CUIT y la vinculación la aprueba una persona. Se sacaron del alta: tamaño del local,
+  venta web, si ya vende LK, a quién le compra, de dónde nos conoce. `lk_chat-test` todavía tiene la copia vieja del alta.
 
 - Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). **Stateless**: cada mensaje cae por
   las mismas compuertas. Mapa visual: `docs/mapa-flujo-bot.html`.

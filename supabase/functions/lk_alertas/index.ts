@@ -196,7 +196,7 @@ serve(async (req) => {
       const leads: Record<number, Record<string, unknown>> = {};
       if (leadIds.length) {
         const { data: ls } = await supabase.from("wa_prospect_leads")
-          .select("id, razon_social, nombre_contacto, telefono, cuit, mail, direccion, localidad, expreso_nombre, tipo_comercio, ya_vende_lk, a_quien_compra, status")
+          .select("id, razon_social, nombre_contacto, telefono, cuit, mail, direccion, localidad, provincia, codigo_postal, condicion_iva, expreso_nombre, tipo_comercio, ya_vende_lk, a_quien_compra, status")
           .in("id", leadIds);
         for (const l of ls ?? []) leads[l.id] = l;
       }
@@ -271,6 +271,70 @@ serve(async (req) => {
       if (!data?.length) return json({ ok: false, error: "La alerta ya estaba resuelta." }, 200);
       await llamarPlanify({ action: "cerrar", alerta_id: id });   // si tenía tarea en Planify, se cierra
       return json({ ok: true });
+    }
+
+    // Pablo, 29/09 (alta mixta): quien aprueba completa código, vendedor y descuento; se crea el cliente en la web con
+    // acceso (usuario = CUIT, clave temporal, crear_cliente_web), su dirección de entrega (pendiente de cargar en ISIS)
+    // y se le manda la bienvenida con el acceso por la cola (sale según la llave). El número NO se vincula solo al
+    // cliente (regla: los teléfonos de clientes en tablas de envío los decide Luis): cuando escriba, el bot le pide el
+    // CUIT y la vinculación la aprueba una persona, como con cualquier número nuevo.
+    if (body.action === "alta_crear") {
+      const id = Number(body.id);
+      const cod = Number(String(body.cod_cliente ?? "").replace(/\D/g, ""));
+      const vend = String(body.vend ?? "").replace(/\D/g, "");
+      const dto = Number(body.dto_vol ?? 0);
+      if (!id || !cod || !vend || !(dto >= 0 && dto <= 0.5)) return json({ ok: false, error: "Faltan el código de cliente, el vendedor o el descuento (entre 0 y 50 %)." }, 200);
+      const { data: a } = await supabase.from("wa_alertas_humano").select("id, phone, contexto, estado").eq("id", id).maybeSingle();
+      const leadId = Number(a?.contexto?.lead_id);
+      if (!a || !leadId) return json({ ok: false, error: "La alerta no es una solicitud de alta." }, 200);
+      if (!["pendiente", "notificado"].includes(a.estado)) return json({ ok: false, error: "La alerta ya estaba resuelta." }, 200);
+      const { data: l } = await supabase.from("wa_prospect_leads").select("*").eq("id", leadId).maybeSingle();
+      if (!l) return json({ ok: false, error: "No encontré la solicitud de alta." }, 200);
+      if (l.status === "approved" || l.customer_id) return json({ ok: false, error: "La solicitud ya estaba aprobada." }, 200);
+      if (!l.cuit || !l.razon_social) return json({ ok: false, error: "A la solicitud le falta el CUIT o la razón social." }, 200);
+      const { data: codUsado } = await supabase.from("customers").select("business_name").eq("cod_cliente", cod).limit(1);
+      if (codUsado?.length) return json({ ok: false, error: `El código ${cod} ya es de ${codUsado[0].business_name}.` }, 200);
+
+      const rnd = crypto.getRandomValues(new Uint32Array(8));
+      const LET = "abcdefghjkmnpqrstuvwxyz";
+      const pin = Array.from(rnd.slice(0, 4), (n) => LET[n % LET.length]).join("") + Array.from(rnd.slice(4), (n) => String(n % 10)).join("");
+      const { data: cw, error: eC } = await supabase.rpc("crear_cliente_web", {
+        p_cuit: l.cuit, p_pin: pin, p_business_name: l.razon_social, p_mail: l.mail ?? null, p_escala_activa: false,
+      });
+      if (eC) return json({ ok: false, error: "No se pudo crear el acceso: " + eC.message }, 200);
+      const customerId = cw.customer_id;
+      const pasos: string[] = [];
+      const { error: eU } = await supabase.from("customers").update({
+        cod_cliente: cod, vend, dto_vol: dto, localidad: l.localidad ?? null,
+      }).eq("id", customerId);
+      if (eU) pasos.push("datos del cliente: " + eU.message);
+      if (l.direccion) {
+        const { error: eD } = await supabase.from("customer_delivery_addresses").insert({
+          customer_id: customerId, slot: 1, label: `${l.direccion}${l.localidad ? " - " + l.localidad : ""}`.slice(0, 120),
+          direccion_entrega: l.direccion, localidad: l.localidad ?? null, provincia: l.provincia ?? null, cp: l.codigo_postal ?? null,
+          nombre_expreso: l.expreso_nombre ?? null, pending_isis: true,
+        });
+        if (eD) pasos.push("dirección de entrega: " + eD.message);
+      }
+      await supabase.from("wa_prospect_leads").update({ status: "approved", customer_id: customerId, updated_at: new Date().toISOString() }).eq("id", leadId);
+      const texto = `¡Bienvenido a Loekemeyer! 🎉 Ya sos cliente (código ${cod}).\n` +
+        `Hacé tus pedidos en loekemeyer.com → "Pedidos Mayorista":\nUsuario: ${cw.username}\nClave: ${pin}\nNo la compartas con nadie.`;
+      const { error: eO } = await supabase.from("wa_outbox").insert({ phone: l.phone ?? a.phone, body: texto, context: "alta_aprobada", ref_id: String(leadId) });
+      await supabase.from("wa_alertas_humano").update({
+        estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
+        contexto: { ...a.contexto, decision_alta: "approve", cod_cliente_asignado: cod, vend, dto_vol: dto, customer_id: customerId },
+      }).eq("id", id);
+      await llamarPlanify({ action: "cerrar", alerta_id: id });
+      console.log(`lk_alertas: alta creada ${l.razon_social} (${cod}) por ${gate.email}`);
+      return json({ ok: true, usuario: cw.username, cod_cliente: cod, pendientes: pasos, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
+    }
+
+    // Vendedores para el alta (Wpp_Vendedores: "V.13 Luis Moñin" → 13).
+    if (body.action === "vendedores") {
+      const { data } = await supabase.from("Wpp_Vendedores").select("contacto_wsp");
+      const lista = (data ?? []).map((v) => { const m = String(v.contacto_wsp).match(/^V\.?\s*(\d+)\s+(.*)$/); return m ? { vend: m[1], nombre: m[2].trim() } : null; })
+        .filter(Boolean).sort((x, y) => Number(x!.vend) - Number(y!.vend));
+      return json({ ok: true, vendedores: lista });
     }
 
     if (body.action === "alta_decidir") {

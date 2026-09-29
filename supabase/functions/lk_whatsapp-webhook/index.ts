@@ -223,28 +223,46 @@ function extractCuit(text: string): string | null {
 const ALTA_INTRO =
   `¡Genial! Te tomo los datos para registrarte. 📋\n\n` +
   `Te voy a ir preguntando de a uno. Si querés cortar, escribí *cancelar*.\n\n` +
-  `¿Cuál es tu *razón social*?`;
+  `🔢 ¿Cuál es tu *CUIT*? (11 números, con o sin guiones)`;
 
-// Orden de campos. Si en el disparo ya teníamos el CUIT (cuit_not_found), no se
-// vuelve a pedir; si el alta arranca sin CUIT, se pide primero.
-const ALTA_STEPS: { field: string; prompt: string }[] = [
-  { field: "razon_social",      prompt: "📋 ¿Cuál es tu *razón social*?" },
-  { field: "nombre_contacto",   prompt: "👤 ¿*Nombre de contacto*? (nombre y apellido)" },
-  { field: "telefono",          prompt: "📱 ¿*Teléfono* de contacto? (con característica, ej: 11 2345-6789)" },
-  { field: "mail",              prompt: "📧 ¿*Mail*? (ej: nombre@dominio.com)" },
-  { field: "direccion",         prompt: "📍 ¿*Dirección*? (calle y número)" },
-  { field: "localidad",         prompt: "📍 ¿*Localidad*?" },
-  { field: "expreso_nombre",    prompt: "🚚 ¿Con qué *expreso / transporte* trabajan? (nombre)" },
-  { field: "expreso_direccion", prompt: "🚚 ¿*Dirección del expreso*?" },
-  { field: "expreso_telefono",  prompt: "🚚 ¿*Teléfono del expreso*? (con característica)" },
-  { field: "tipo_comercio",     prompt: "🏪 ¿*Tipo de comercio*? (ej: bazar, mayorista, distribuidor)" },
-  { field: "dimension_comercio", prompt: "🏪 ¿*Dimensión del local*? (ej: 4x8 = 32 m²)" },
-  { field: "tiene_venta_web",   prompt: "🌐 ¿Tenés *venta web / página*? Si sí, pasame el link; si no, poné *no*." },
-  { field: "ya_vende_lk",       prompt: "📦 ¿Ya vendés *mercadería Loekemeyer*? (sí / no)" },
+// Pablo, 29/09 (alta mixta): los 10 datos acordados, en este orden. El CUIT se pide sólo si el alta arrancó sin él
+// (con "registrarme"); si vino de cuit_not_found ya está validado. El vendedor, el código y el descuento los completa
+// quien aprueba desde Tareas (lk_alertas alta_crear), que además crea el acceso a la web.
+// deno-lint-ignore no-explicit-any
+type AltaLead = any;
+type AltaParse = { value: unknown } | { error: string };
+const ALTA_STEPS: { field: string; prompt: string; skip?: (l: AltaLead) => boolean; parse?: (t: string, phone: string) => AltaParse }[] = [
+  { field: "cuit", prompt: "🔢 ¿Cuál es tu *CUIT*? (11 números, con o sin guiones)", skip: (l) => !!l.cuit,
+    parse: (t) => { const c = extractCuit(t); return c ? { value: c } : { error: "Ese CUIT no parece válido 🤔 Revisá que tenga los 11 números bien copiados y pasámelo de nuevo." }; } },
+  { field: "razon_social", prompt: "📋 ¿Cuál es tu *razón social*?" },
+  { field: "condicion_iva", prompt: "🧾 ¿Condición frente al IVA? (*Responsable inscripto*, *Monotributo* o *Exento*)",
+    parse: (t) => /inscrip|\bri\b|responsable/i.test(t) ? { value: "Responsable inscripto" }
+      : /monot/i.test(t) ? { value: "Monotributo" } : /exent/i.test(t) ? { value: "Exento" }
+      : { error: "No te entendí 🤔 Escribí *Responsable inscripto*, *Monotributo* o *Exento*." } },
+  { field: "nombre_contacto", prompt: "👤 ¿*Nombre de contacto*? (nombre y apellido)" },
+  { field: "telefono", prompt: "📱 ¿*Teléfono* de contacto? Si es este mismo número, escribí *este*.",
+    parse: (t, phone) => /^(este|el mismo|mismo|este mismo|es este)\b/i.test(t.trim()) ? { value: phone }
+      : t.replace(/\D/g, "").length < 8 ? { error: "Ese teléfono parece corto 🤔 Pasámelo con característica (ej: *11 2345-6789*) o escribí *este*." }
+      : { value: t.trim() } },
+  { field: "mail", prompt: "📧 ¿*Mail*? (ej: nombre@dominio.com)",
+    parse: (t) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t.trim()) ? { value: t.trim() }
+      : { error: "Ese mail no parece válido 🤔 Debería ser algo tipo *nombre@dominio.com*. ¿Me lo pasás de nuevo?" } },
+  { field: "direccion", prompt: "📍 Dirección de *entrega*: ¿calle y número?" },
+  { field: "localidad", prompt: "📍 ¿*Localidad*?" },
+  { field: "provincia", prompt: "📍 ¿*Provincia*?" },
+  { field: "codigo_postal", prompt: "📍 ¿*Código postal*?",
+    parse: (t) => { const m = t.toUpperCase().match(/\b([A-Z]?\d{4}[A-Z]{0,3})\b/); return m ? { value: m[1] } : { error: "No encontré el código postal 🤔 Son 4 números (ej: *1417*)." }; } },
+  { field: "expreso_nombre", prompt: "🚚 ¿Te lo mandamos por *expreso* (interior)? Decime cuál. Si recibís en CABA o GBA, escribí *no*.",
+    parse: (t) => /^(no|ninguno|no\s+uso|reparto|caba|gba)\b/i.test(t.trim()) ? { value: null } : { value: t.trim() } },
+  { field: "tipo_comercio", prompt: "🏪 Por último, ¿qué *tipo de comercio* tenés? (ej: bazar, mayorista, distribuidor). Si preferís no decirlo, escribí *saltar*.",
+    parse: (t) => /^(saltar|no|-|paso)\b/i.test(t.trim()) ? { value: null } : { value: t.trim() } },
 ];
-
-const STEP_A_QUIEN = "📦 ¿A quién le comprás Loekemeyer actualmente?";
-const STEP_COMO_CONOCE = "📢 ¿De dónde nos conocés? (ej: recomendación, redes, feria)";
+// Salta los pasos que no corresponden (ej. CUIT ya cargado) desde `desde`.
+function altaProximoPaso(desde: number, lead: AltaLead): number {
+  let i = desde;
+  while (i < ALTA_STEPS.length && ALTA_STEPS[i].skip?.(lead)) i++;
+  return i;
+}
 
 const MSG_ALTA_COMPLETA =
   `✅ ¡Listo! Ya tengo todos tus datos.\n\n` +
@@ -267,23 +285,6 @@ const RE_ALTA_START =
   /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo))\b/i;
 // Cortar el alta en curso.
 const RE_ALTA_CANCEL = /\b(cancelar|cancelá|salir|dejar|olvidalo|no quiero|parar|basta)\b/i;
-
-/** Valida el dato del campo actual. Devuelve mensaje de error o null si OK. */
-function validarAltaCampo(field: string, text: string): string | null {
-  const t = text.trim();
-  if (!t) return "Se me quedó vacío 🤔 ¿Me lo repetís?";
-  if (field === "mail") {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) {
-      return "Ese mail no parece válido 🤔 Debería ser algo tipo *nombre@dominio.com*. ¿Me lo pasás de nuevo?";
-    }
-  }
-  if (field === "telefono" || field === "expreso_telefono") {
-    if (t.replace(/\D/g, "").length < 8) {
-      return "Ese teléfono parece corto 🤔 Pasámelo con característica (ej: *11 2345-6789*).";
-    }
-  }
-  return null;
-}
 
 /**
  * v14.13 — punto 11c de la auditoría del 07/09. Antes esto usaba `.maybeSingle()`, que con DOS
@@ -310,7 +311,7 @@ const ALTA_TTL_HORAS = 48;
 async function getPendingLead(phone: string) {
   const { data, error } = await supabase
     .from("wa_prospect_leads")
-    .select("id, cuit, razon_social, nombre_contacto, telefono, mail, direccion, localidad, expreso_nombre, expreso_direccion, expreso_telefono, tipo_comercio, dimension_comercio, tiene_venta_web, ya_vende_lk, a_quien_compra, como_conoce_marca, alta_step, raw_messages, updated_at")
+    .select("id, cuit, razon_social, condicion_iva, nombre_contacto, telefono, mail, direccion, localidad, provincia, codigo_postal, expreso_nombre, tipo_comercio, alta_step, raw_messages, updated_at")
     .eq("phone", phone)
     .eq("status", "pending")
     .order("updated_at", { ascending: false })
@@ -374,64 +375,47 @@ async function handleAltaStep(
     return;
   }
 
-  const step: number = lead.alta_step ?? 0;
+  const step = altaProximoPaso(lead.alta_step ?? 0, lead);
   const messages = Array.isArray(lead.raw_messages) ? [...lead.raw_messages] : [];
   messages.push({ role: "user", content: text, ts: new Date().toISOString() });
 
-  // ── Pasos base ────────────────────────────────────────────────────
-  if (step < ALTA_STEPS.length) {
-    const currentField = ALTA_STEPS[step].field;
-
-    const err = validarAltaCampo(currentField, text);
-    if (err) {
-      // Dato mal formado → re-preguntar el MISMO campo, no avanzar.
-      await send(err);
-      return;
-    }
-
-    let value: unknown = text.trim();
-    if (currentField === "ya_vende_lk") {
-      value = /^(si|sí|s|yes|y|1|true|dale)\b/i.test(text.trim());
-    }
-
-    const nextStep = step + 1;
-    await supabase.from("wa_prospect_leads")
-      .update({
-        [currentField]: value,
-        alta_step: nextStep,
-        raw_messages: messages,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", lead.id);
-
-    if (nextStep >= ALTA_STEPS.length) {
-      const yaVende = currentField === "ya_vende_lk" ? value : lead.ya_vende_lk;
-      await send(yaVende === true ? STEP_A_QUIEN : STEP_COMO_CONOCE);
-      return;
-    }
-    await send(ALTA_STEPS[nextStep].prompt);
+  if (step >= ALTA_STEPS.length) {
+    // Ya estaba completo (mensaje tardío) — no re-notificar.
+    await send("Tu solicitud ya está registrada y en revisión ✅ Te avisamos por acá cuando se apruebe.");
     return;
   }
+  const paso = ALTA_STEPS[step];
+  if (!text.trim()) { await send("Se me quedó vacío 🤔 ¿Me lo repetís?"); return; }
+  const r: AltaParse = paso.parse ? paso.parse(text, phone) : { value: text.trim() };
+  if ("error" in r) { await send(r.error); return; }   // dato mal → se repregunta el MISMO campo
 
-  // ── Paso extra según ya_vende_lk ─────────────────────────────────────
-  const needsExtra = lead.ya_vende_lk === true ? "a_quien_compra" : "como_conoce_marca";
-  if (!lead[needsExtra]) {
-    await supabase.from("wa_prospect_leads")
-      .update({
-        [needsExtra]: text.trim(),
-        status: "complete",
-        raw_messages: messages,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", lead.id);
-
-    await notificarAltaVendedor(phone, { ...lead, [needsExtra]: text.trim() });
-    await send(MSG_ALTA_COMPLETA);
-    return;
+  // CUIT que ya es cliente: no es un alta, es vincular el número (lo aprueba una persona, sql/072).
+  if (paso.field === "cuit") {
+    const { data: ya } = await supabase.from("customers").select("id").eq("cuit", String(r.value)).limit(1);
+    if (ya?.length) {
+      await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", lead.id);
+      await tryRegister(phone, String(r.value));
+      await send("Ese CUIT ya es cliente nuestro 👍 Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por acá.");
+      return;
+    }
   }
 
-  // Ya estaba completo (mensaje tardío) — no re-notificar.
-  await send("Tu solicitud ya está registrada y en revisión ✅ Te avisamos cuando se apruebe.");
+  const actualizado = { ...lead, [paso.field]: r.value };
+  const siguiente = altaProximoPaso(step + 1, actualizado);
+  const completo = siguiente >= ALTA_STEPS.length;
+  await supabase.from("wa_prospect_leads")
+    .update({
+      [paso.field]: r.value,
+      alta_step: siguiente,
+      raw_messages: messages,
+      ...(completo ? { status: "complete" } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", lead.id);
+
+  if (!completo) { await send(ALTA_STEPS[siguiente].prompt); return; }
+  await notificarAltaVendedor(phone, actualizado);
+  await send(MSG_ALTA_COMPLETA);
 }
 
 /** Crea el lead (status='pending', alta_step=0). No envía nada: el caller

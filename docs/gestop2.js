@@ -751,10 +751,11 @@ function tkPintarDetalle() {
   } else if (t.tipo === "alta") {
     const l = a.alta || {};
     cuerpo = `<h4>Datos que cargó el bot</h4>${kv([["Razón social", l.razon_social ? `<b>${gesc(l.razon_social)}</b>` : null], ["Contacto", gesc(l.nombre_contacto || "")],
-      ["CUIT", gesc(l.cuit || "")], ["Domicilio", gesc([l.direccion, l.localidad].filter(Boolean).join(" · "))], ["Teléfono", gesc(l.telefono || "")],
+      ["CUIT", gesc(l.cuit || "")], ["Condición de IVA", gesc(l.condicion_iva || "")],
+      ["Entrega", gesc([l.direccion, l.localidad, l.provincia, l.codigo_postal ? "CP " + l.codigo_postal : ""].filter(Boolean).join(" · "))], ["Teléfono", gesc(l.telefono || "")],
       ["Mail", gesc(l.mail || "")], ["Expreso", gesc(l.expreso_nombre || "")], ["Tipo de comercio", gesc(l.tipo_comercio || "")],
       ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
-      <div class="aviso">El alta se carga en el ERP a mano. Después aprobala acá: se le avisa al cliente por WhatsApp (sale según la llave).</div>
+      <div class="aviso">Cargá el cliente en el ERP y aprobalo acá con su código, vendedor y descuento: se crea en la web con acceso (usuario = CUIT, clave temporal) y le llega la bienvenida por WhatsApp (sale según la llave).</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
   } else if (a.motivo === "reseteo_clave") {
     cuerpo = `<h4>Pide clave nueva para la web</h4>${a.texto ? `<div class="cita">${gesc(a.texto)}</div>` : ""}
@@ -939,11 +940,20 @@ function tkModalAlta(decision) {
   const a = t.a, l = a.alta || {}, av = a.avisos_alta || {}, aprobar = decision === "approve";
   modal(`<h3>${aprobar ? "Aprobar alta de cliente" : "Rechazar alta de cliente"}</h3>
     <div class="kv"><span>Comercio</span><span><b>${gesc(l.razon_social || a.cliente || "—")}</b></span><span>CUIT</span><span>${gesc(l.cuit || "—")}</span><span>Teléfono</span><span>+${gesc(a.phone || "")}</span></div>
-    ${aprobar ? `<label style="font-size:12px;color:var(--g-muted)">Código de cliente en el ERP (opcional, va en el mensaje)</label>
-      <input id="tkCod" inputmode="numeric" oninput="tkPrevAlta()" style="padding:8px;border:1px solid var(--line);background:var(--g-bg);color:var(--ink);border-radius:2px" placeholder="ej. 4312">` : ""}
+    ${aprobar ? `<label style="font-size:12px;color:var(--g-muted)">Código de cliente en el ERP</label>
+      <input id="tkCod" inputmode="numeric" style="padding:8px;border:1px solid var(--line);background:var(--g-bg);color:var(--ink);border-radius:2px" placeholder="ej. 4312">
+      <label style="font-size:12px;color:var(--g-muted)">Vendedor</label>
+      <select id="tkVend" style="padding:8px;border:1px solid var(--line);background:var(--g-bg);color:var(--ink);border-radius:2px"><option value="">Cargando…</option></select>
+      <label style="font-size:12px;color:var(--g-muted)">Descuento por volumen (%)</label>
+      <input id="tkDto" inputmode="decimal" value="0" style="padding:8px;border:1px solid var(--line);background:var(--g-bg);color:var(--ink);border-radius:2px" placeholder="ej. 8">
+      <div style="font-size:12px;color:var(--g-muted)">Se crea el cliente en la web con usuario = CUIT y una clave temporal, y se le manda la bienvenida con el acceso.</div>` : `
     <div style="font-size:12px;color:var(--g-muted)">Mensaje que se le manda:</div>
-    <div class="texto" id="tkAvisoTxt">${gesc(aprobar ? av.aprobar : av.rechazar)}</div>${tkVentanaNota(a)}${notaLlaveCola()}
-    <div class="botones"><button class="g-btn" onclick="cerrarModal()">Cancelar</button><button class="g-btn prim" id="tkDecidirOk" onclick="tkDecidirAlta('${decision}')">${aprobar ? "Aprobar" : "Rechazar"}</button></div>`);
+    <div class="texto" id="tkAvisoTxt">${gesc(av.rechazar)}</div>`}${tkVentanaNota(a)}${notaLlaveCola()}
+    <div class="botones"><button class="g-btn" onclick="cerrarModal()">Cancelar</button><button class="g-btn prim" id="tkDecidirOk" onclick="tkDecidirAlta('${decision}')">${aprobar ? "Crear cliente y mandar acceso" : "Rechazar"}</button></div>`);
+  if (aprobar) tkInvoke("lk_alertas", { action: "vendedores" }).then((r) => {
+    const sel = document.getElementById("tkVend"); if (!sel) return;
+    sel.innerHTML = `<option value="">Elegí…</option>` + (r.vendedores || []).map((v) => `<option value="${gesc(v.vend)}">${gesc(v.vend)} · ${gesc(v.nombre)}</option>`).join("");
+  }).catch(() => { const sel = document.getElementById("tkVend"); if (sel) sel.outerHTML = `<input id="tkVend" inputmode="numeric" style="padding:8px;border:1px solid var(--line);background:var(--g-bg);color:var(--ink);border-radius:2px" placeholder="N° de vendedor">`; });
 }
 function tkPrevAlta() {
   const t = tkActual(), av = t.a.avisos_alta || {};
@@ -954,11 +964,17 @@ async function tkDecidirAlta(decision) {
   const t = tkActual(); if (!t) return;
   const b = document.getElementById("tkDecidirOk");
   const cod = (document.getElementById("tkCod")?.value || "").replace(/\D/g, "");
+  const vend = (document.getElementById("tkVend")?.value || "").replace(/\D/g, "");
+  const dto = Number(String(document.getElementById("tkDto")?.value || "0").replace(",", ".")) / 100;
+  if (decision === "approve" && (!cod || !vend || !(dto >= 0 && dto <= 0.5))) { toast("Completá código, vendedor y descuento (0 a 50)."); return; }
   b.disabled = true; b.textContent = "Guardando…";
   try {
-    const r = await tkInvoke("lk_alertas", { action: "alta_decidir", id: t.a.id, decision, cod_cliente: cod || undefined });
+    const r = decision === "approve"
+      ? await tkInvoke("lk_alertas", { action: "alta_crear", id: t.a.id, cod_cliente: cod, vend, dto_vol: dto })
+      : await tkInvoke("lk_alertas", { action: "alta_decidir", id: t.a.id, decision });
     cerrarModal();
-    toast((decision === "approve" ? "Alta aprobada. " : "Alta rechazada. ") + (r.aviso_encolado ? "El aviso quedó en la cola." : "No se pudo encolar el aviso: " + (r.error_aviso || "")));
+    toast((decision === "approve" ? `Cliente creado (usuario ${r.usuario}). ` + ((r.pendientes || []).length ? "Revisar: " + r.pendientes.join("; ") + ". " : "") : "Alta rechazada. ") +
+      (r.aviso_encolado ? "El aviso quedó en la cola." : "No se pudo encolar el aviso: " + (r.error_aviso || "")));
     G.tareaSel = null; tkVolver();
     await tkCargar();
   } catch (e) { b.disabled = false; b.textContent = "Reintentar"; toast("No se pudo: " + e.message); }

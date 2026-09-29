@@ -124,8 +124,8 @@
       "consultas": 64,
       "estado": "hecho",
       "previene": [],
-      "bot": "Toma los datos paso a paso y crea la solicitud; mínimo de compra con la respuesta fija.",
-      "deriva": "Alerta de alta en Tareas: la persona aprueba o rechaza y el aviso al interesado sale por la cola.",
+      "bot": "Toma los 10 datos paso a paso (CUIT verificado, condición de IVA, dirección de entrega completa, expreso si es del interior) y crea la solicitud; mínimo de compra con la respuesta fija.",
+      "deriva": "Tarea de alta: Ventas carga código, vendedor y descuento y, al guardar, se crea el cliente en la web con acceso (usuario = CUIT, clave temporal) y le llega la bienvenida por WhatsApp.",
       "falta": "Validar con Ventas el texto de bienvenida.",
       "ejemplo": "«Distribuidora de Villa María, queremos abrir cuenta»",
       "resumen": "El bot toma los datos y una persona aprueba."
