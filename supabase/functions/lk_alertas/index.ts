@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
 import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
-import { derivaciones, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
+import { derivaciones, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
 
 // lk_alertas — bandeja de alertas para humanos (wa_alertas_humano) con vencimiento.
@@ -15,7 +15,7 @@ import { getGestionClient } from "../_shared/supabase.ts";
 //        llave) y cierra la alerta y su tarea de Planify.
 //   {action:"adjunto", comprobante_id} → link firmado (10 min) al archivo del comprobante (bucket privado)
 //   {action:"config_get"} / {action:"config_save", vencimientos:{categoria: minutos}}
-//   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{planify, employee_id, department_id}}}
+//   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{destino, employee_id, department_id}}, extra:[…]}
 //        → Configuración › Derivaciones: a dónde va cada motivo (app_settings.wa_derivaciones, _shared/derivaciones.ts)
 //
 // Vencimiento: minutos por CATEGORÍA (contexto.motivo si lo hay, si no el tipo), guardados en
@@ -75,6 +75,7 @@ serve(async (req) => {
     }
 
     if (body.action === "config_save") {
+      await vencimientos(); // registra los motivos agregados en Derivaciones
       const nuevos = body.vencimientos ?? {};
       const limpio: Record<string, number> = {};
       for (const [k, v] of Object.entries(nuevos)) {
@@ -105,28 +106,49 @@ serve(async (req) => {
       } catch (e) { console.error("lk_alertas derivaciones: Planify no respondió", e); }
       const { data: llave } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
       const niv = (cat: string) => nivel({ tipo: cat, contexto: { motivo: cat } });
+      const extras = new Map(der.extra.map((e) => [e.clave, e]));
       return json({
         ok: true, llave: llave?.value ?? "0", prueba_employee_id: der.prueba_employee_id, defecto: der.defecto,
         empleados, sectores,
         motivos: Object.entries(CATEGORIAS).filter(([k]) => k !== "whitelist_gate").map(([k, c]) => ({
-          categoria: k, label: c.label, origen: ORIGEN[k] ?? "", nivel: niv(k), minutos: v[k], ...der.motivos[k],
+          categoria: k, label: c.label, nivel: niv(k), minutos: v[k],
+          origen: extras.has(k) ? "La IA deriva: " + (extras.get(k)!.cuando || c.label) : ORIGEN[k] ?? "",
+          de_ia: MOTIVOS_IA.includes(k) || extras.has(k), extra: extras.get(k) ?? null, ...der.motivos[k],
         })),
       });
     }
 
     if (body.action === "derivaciones_save") {
+      await vencimientos(); // registra los extras ya guardados
       const id = (x: unknown) => (x === null || x === "" || x === undefined ? null : Number(x) > 0 ? Math.round(Number(x)) : NaN);
       const prueba = id(body.prueba_employee_id);
       if (Number.isNaN(prueba)) return json({ ok: false, error: "Persona de prueba inválida." }, 400);
+      // Motivos nuevos (los deriva la IA): clave en snake_case, nombre, cuándo derivar y vencimiento.
+      const extra: Array<Record<string, unknown>> = [];
+      for (const e of (Array.isArray(body.extra) ? body.extra : []) as Array<Record<string, unknown>>) {
+        const clave = String(e.clave ?? "").trim();
+        if (!/^[a-z][a-z0-9_]{2,40}$/.test(clave)) return json({ ok: false, error: `Clave inválida: "${clave}" (minúsculas, números y _)` }, 400);
+        if (CATEGORIAS[clave] && !CATEGORIAS[clave].extra) return json({ ok: false, error: `"${clave}" ya existe como motivo del sistema.` }, 400);
+        const nombre = String(e.nombre ?? "").trim(), cuando = String(e.cuando ?? "").trim();
+        if (!nombre || !cuando) return json({ ok: false, error: `El motivo ${clave} necesita nombre y cuándo derivarlo.` }, 400);
+        const min = Math.round(Number(e.min));
+        if (!(min >= 1 && min <= 60 * 24 * 30)) return json({ ok: false, error: `Vencimiento inválido en ${clave}.` }, 400);
+        extra.push({ clave, nombre: nombre.slice(0, 80), cuando: cuando.slice(0, 300), min });
+      }
+      const claves = new Set([...Object.keys(CATEGORIAS), ...extra.map((e) => String(e.clave))]);
+      const esIA = new Set([...MOTIVOS_IA, ...extra.map((e) => String(e.clave))]);
       const motivos: Record<string, unknown> = {};
       for (const [k, r] of Object.entries((body.motivos ?? {}) as Record<string, Record<string, unknown>>)) {
-        if (!(k in CATEGORIAS) || k === "whitelist_gate") return json({ ok: false, error: `Motivo desconocido: ${k}` }, 400);
+        if (!claves.has(k) || k === "whitelist_gate") continue; // un extra borrado se descarta
         const e = id(r.employee_id), d = id(r.department_id);
         if (Number.isNaN(e) || Number.isNaN(d)) return json({ ok: false, error: `Destino inválido en ${k}` }, 400);
-        motivos[k] = { planify: !!r.planify, employee_id: e, department_id: d };
+        const dest = String(r.destino ?? "");
+        if (!["planify", "tareas", "bot"].includes(dest)) return json({ ok: false, error: `Destino inválido en ${k}` }, 400);
+        if (dest === "bot" && !esIA.has(k)) return json({ ok: false, error: `${k} no lo deriva la IA: no puede quedar en "lo responde el bot".` }, 400);
+        motivos[k] = { destino: dest, employee_id: e, department_id: d };
       }
       const { error } = await supabase.from("app_settings")
-        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos }) }, { onConflict: "key" });
+        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra }) }, { onConflict: "key" });
       if (error) return json({ ok: false, error: error.message }, 200);
       console.log(`lk_alertas: derivaciones actualizadas por ${gate.email}`);
       return json({ ok: true });

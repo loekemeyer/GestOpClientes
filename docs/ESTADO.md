@@ -521,6 +521,16 @@ Un commit que sólo toca docs NO dispara deploy.
   producción sector > persona > defecto. Lo 🔴 urgente va a Planify siempre. Motivo nuevo de la IA: `entrega`
   (pedido sin fecha que el cliente necesita, no llegó, fecha distinta) — muchos pedidos no tienen fecha y eso es normal.
   "No me llegó / tenía que llegar" (`RE_NO_LLEGO` en faq.ts) saltea las FAQ y va a la IA, que deriva.
+- **Derivaciones v2 (Pablo, 29/09, v0.24.0):** el destino es un desplegable por motivo: "Planify + Tareas" / "Sólo
+  Tareas" / "Lo responde el bot" (sólo motivos que deriva la IA: la herramienta deja de ofrecer ese motivo y, si
+  igual lo intenta, se le rechaza salvo urgencia). "+ Agregar motivo" suma motivos nuevos de la IA
+  (`wa_derivaciones.extra`: clave, nombre, cuándo derivar, vencimiento): se registran en `CATEGORIAS` en memoria
+  (`registrarExtras`, lo llaman `vencimientos()` y `derivaciones()`) y el enum de `derivar_a_persona` se arma por
+  turno (`herramientasDelTurno`). Agendar un número habilita los avisos automáticos (Pablo, 29/09: "es así").
+- **Pagos (Pablo, 29/09):** herramienta `consultar_mis_facturas` → `GV_Cobranza_Deuda_Viva` (Gestión, empresa lk,
+  pendiente > 0): por factura importe, condición, estado ("a pagar hasta dd/mm" / "vencida el dd/mm") y, si no
+  venció y no tiene pagos parciales, el importe con el dto de su condición (`pendiente × (1 − dto_cond)` hasta
+  `vence`) + saldo total. Pesos enteros. Al usarla avisa a Cobranzas (alerta motivo `pago`, una abierta por número).
 - **Agendar con un click (Pablo, 29/09, v0.23.0):** en la ficha de Conversaciones, si el número lo reconoce sólo el
   teléfono del ERP ("Sin agendar") → botón "Agendar a <cliente>"; si no se reconoce → buscador por código o razón
   social. Inserta en `bot_customer_whatsapps` (principal si el cliente no tiene otro), no manda nada. Es lo que

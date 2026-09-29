@@ -340,7 +340,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.23.0">
+  <link rel="stylesheet" href="gestop2.css?v=0.24.0">
 </head>
 <body>
 
@@ -879,7 +879,7 @@
             <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">
               Todo caso aparece siempre en <b>Centro de mensajes › Tareas</b>. Acá se decide si además abre una tarea en
               <b>Planify</b> y para quién. Con <b>sector</b>, le aparece a todo el sector y la toma el primero que aprieta
-              "Me encargo yo"; si no, a la persona. Lo 🔴 urgente va a Planify aunque diga "No".
+              "Me encargo yo"; si no, a la persona. Lo 🔴 urgente va a Planify aunque diga otra cosa. "Lo responde el bot" (sólo motivos que deriva la IA) = la IA no lo deriva y lo contesta ella.
             </p>
             <div id="derivPrueba" class="config-row" style="margin-bottom:0.6rem;"></div>
             <div id="derivList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
@@ -2976,37 +2976,94 @@ function showConfigTab(tab) {
 }
 
 // --- Derivaciones: a dónde va cada motivo que necesita a una persona (lk_alertas, _shared/derivaciones.ts) ---
+// Destino por motivo en un desplegable: Planify / sólo Tareas / lo responde el bot (sólo los que deriva la IA).
+// "+ Agregar motivo" suma un motivo nuevo que la IA puede derivar (clave, nombre, cuándo, vencimiento).
 const NIVEL_TXT = { rojo: "🔴 urgente", amarillo: "🟡 pronto", verde: "🟢 puede esperar" };
+let DERIV = null;
 async function loadDerivaciones() {
-  const box = document.getElementById("derivList"), top = document.getElementById("derivPrueba");
+  const box = document.getElementById("derivList");
   const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_get" });
   if (error || !data?.ok) { box.innerHTML = '<div class="bl-empty">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+  DERIV = data;
+  pintarDerivaciones();
+}
+function pintarDerivaciones() {
+  const data = DERIV, box = document.getElementById("derivList"), top = document.getElementById("derivPrueba");
   const opt = (lista, sel, vacio) => `<option value="">${vacio}</option>` + lista.map((x) =>
     `<option value="${x.id}"${Number(sel) === x.id ? " selected" : ""}>${esc(x.nombre)}</option>`).join("");
   const nombre = (lista, id) => lista.find((x) => x.id === Number(id))?.nombre || (id ? "#" + id : "");
   const def = data.defecto?.department_id ? "sector " + nombre(data.sectores, data.defecto.department_id)
     : data.defecto?.employee_id ? nombre(data.empleados, data.defecto.employee_id) : "nadie";
   const enPrueba = data.llave !== "1";
-  top.innerHTML = `<label>Mientras la llave esté en prueba, todo va a:</label>
+  top.innerHTML = `<label>Mientras la llave esté en prueba, todo lo de Planify va a:</label>
     <select id="derivPruebaEmp">${opt(data.empleados, data.prueba_employee_id, "— nadie —")}</select>
-    <span class="hint">${enPrueba ? "La llave está en <b>prueba</b>: esto es lo que rige hoy. Lo de abajo rige en producción." : "La llave está en <b>producción</b>: rige lo de abajo."}</span>`;
-  box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo</th><th>Vence</th><th>Planify</th><th>Persona</th><th>Sector</th></tr>` +
-    data.motivos.map((m) => `<tr data-cat="${esc(m.categoria)}"><td><b>${esc(m.label)}</b></td><td class="hint" style="max-width:260px;">${esc(m.origen)}</td>
-      <td style="white-space:nowrap;">${NIVEL_TXT[m.nivel] || ""}</td><td style="white-space:nowrap;">${durTexto(m.minutos * 60000)}</td>
-      <td><select data-f="planify"><option value="1"${m.planify ? " selected" : ""}>Sí</option><option value="0"${m.planify ? "" : " selected"}>No, sólo Tareas</option></select></td>
-      <td><select data-f="employee_id">${opt(data.empleados, m.employee_id, "— por defecto —")}</select></td>
-      <td><select data-f="department_id">${opt(data.sectores, m.department_id, "— ninguno —")}</select></td></tr>`).join("") +
-    `</table><div class="hint" style="margin-top:0.4rem;">"Por defecto" = ${esc(def)}. Si elegís sector, gana el sector.</div>`;
+    <span class="hint">${enPrueba ? "La llave está en <b>prueba</b>: esto es lo que rige hoy. Persona y sector rigen en producción." : "La llave está en <b>producción</b>: rigen persona y sector."}</span>`;
+  const destOpt = (m) => [["planify", "Planify + Tareas"], ["tareas", "Sólo Tareas"], ...(m.de_ia ? [["bot", "Lo responde el bot"]] : [])]
+    .map(([v, t]) => `<option value="${v}"${m.destino === v ? " selected" : ""}>${t}</option>`).join("");
+  const fila = (m) => {
+    const ex = m.extra;
+    const nombreCel = ex
+      ? `<input data-f="nombre" value="${esc(ex.nombre)}" placeholder="Nombre" style="width:150px"><div class="hint">clave <code>${esc(m.categoria)}</code></div>`
+      : `<b>${esc(m.label)}</b>`;
+    const origenCel = ex
+      ? `<textarea data-f="cuando" rows="2" style="width:240px" placeholder="Cuándo tiene que derivarlo la IA">${esc(ex.cuando)}</textarea>`
+      : esc(m.origen);
+    const venceCel = ex ? `<input data-f="min" type="number" min="1" value="${ex.min}" style="width:70px"> min` : durTexto(m.minutos * 60000);
+    return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
+      <td style="white-space:nowrap;">${NIVEL_TXT[m.nivel] || ""}</td><td style="white-space:nowrap;">${venceCel}</td>
+      <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select></td>
+      <td><select data-f="employee_id"${m.destino === "planify" ? "" : " disabled"}>${opt(data.empleados, m.employee_id, "— por defecto —")}</select></td>
+      <td><select data-f="department_id"${m.destino === "planify" ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></td>
+      <td>${ex ? `<button class="config-btn small" title="Quitar motivo" onclick="derivQuitar('${esc(m.categoria)}')">✕</button>` : ""}</td></tr>`;
+  };
+  box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo</th><th>Vence</th><th>A dónde va</th><th>Persona</th><th>Sector</th><th></th></tr>` +
+    data.motivos.map(fila).join("") +
+    `</table><div class="hint" style="margin-top:0.4rem;">"Por defecto" = ${esc(def)}. Si elegís sector, gana el sector. "Lo responde el bot" = la IA no lo deriva (salvo urgencia).</div>
+    <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
+    <span class="hint">Un motivo nuevo que la IA puede derivar. Rige al guardar.</span></div>`;
+}
+function derivCambioDestino(sel) {
+  const tr = sel.closest("tr"), p = sel.value === "planify";
+  tr.querySelectorAll('[data-f="employee_id"],[data-f="department_id"]').forEach((x) => { x.disabled = !p; });
+}
+function derivLeerForm() {
+  // Vuelca lo editado en DERIV (para no perderlo al agregar o quitar filas).
+  document.querySelectorAll("#derivList tr[data-cat]").forEach((tr) => {
+    const m = DERIV.motivos.find((x) => x.categoria === tr.dataset.cat);
+    if (!m) return;
+    const v = (f) => tr.querySelector(`[data-f="${f}"]`)?.value;
+    m.destino = v("destino"); m.employee_id = v("employee_id") || null; m.department_id = v("department_id") || null;
+    if (m.extra) { m.extra.nombre = v("nombre") || ""; m.extra.cuando = v("cuando") || ""; m.extra.min = Number(v("min")) || 120; m.label = m.extra.nombre; }
+  });
+  DERIV.prueba_employee_id = document.getElementById("derivPruebaEmp")?.value || null;
+}
+function derivAgregar() {
+  const nombre = (prompt("Nombre del motivo (ej. Garantía al consumidor):") || "").trim();
+  if (!nombre) return;
+  const clave = nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+  if (!/^[a-z][a-z0-9_]{2,40}$/.test(clave)) { alert("El nombre tiene que empezar con una letra y tener al menos 3 caracteres."); return; }
+  derivLeerForm();
+  if (DERIV.motivos.some((m) => m.categoria === clave)) { alert("Ya existe un motivo con ese nombre."); return; }
+  DERIV.motivos.push({ categoria: clave, label: nombre, origen: "", nivel: "amarillo", minutos: 120, de_ia: true,
+    destino: "planify", employee_id: null, department_id: null, extra: { clave, nombre, cuando: "", min: 120 } });
+  pintarDerivaciones();
+}
+function derivQuitar(clave) {
+  if (!confirm("¿Quitar este motivo? La IA deja de derivarlo cuando guardes.")) return;
+  derivLeerForm();
+  DERIV.motivos = DERIV.motivos.filter((m) => m.categoria !== clave);
+  pintarDerivaciones();
 }
 async function saveDerivaciones() {
   const st = document.getElementById("derivStatus");
-  const motivos = {};
-  document.querySelectorAll("#derivList tr[data-cat]").forEach((tr) => {
-    const v = (f) => tr.querySelector(`[data-f="${f}"]`).value;
-    motivos[tr.dataset.cat] = { planify: v("planify") === "1", employee_id: v("employee_id") || null, department_id: v("department_id") || null };
-  });
+  derivLeerForm();
+  const motivos = {}, extra = [];
+  for (const m of DERIV.motivos) {
+    motivos[m.categoria] = { destino: m.destino, employee_id: m.employee_id, department_id: m.department_id };
+    if (m.extra) extra.push({ clave: m.categoria, nombre: m.extra.nombre, cuando: m.extra.cuando, min: m.extra.min });
+  }
   st.textContent = "Guardando…"; st.className = "config-status";
-  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: document.getElementById("derivPruebaEmp").value || null, motivos });
+  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: DERIV.prueba_employee_id, motivos, extra });
   if (error || !data?.ok) { st.textContent = "✗ " + (data?.error || error?.message || "Error"); st.className = "config-status err"; return; }
   st.textContent = "✓ Guardado"; st.className = "config-status ok";
   loadDerivaciones();
@@ -3748,7 +3805,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.23.0</div>
-<script src="gestop2.js?v=0.23.0"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.24.0</div>
+<script src="gestop2.js?v=0.24.0"></script>
 </body>
 </html>

@@ -59,6 +59,9 @@ const CORTO: Record<string, string> = {
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);
 
 async function crear(alertaId: number) {
+  // A dónde va: Configuración › Derivaciones (_shared/derivaciones.ts). Se lee antes de categoria() porque
+  // registra los motivos agregados desde el panel.
+  const der = await derivaciones();
   const { data: a } = await supabase.from("wa_alertas_humano")
     .select("id, tipo, phone, customer_id, contexto, estado, created_at").eq("id", alertaId).maybeSingle();
   if (!a) return { ok: false, error: "alerta no encontrada" };
@@ -67,8 +70,7 @@ async function crear(alertaId: number) {
   const niv = nivel(a);
   const { data: llaveRow } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
   const produccion = llaveRow?.value === "1";
-  // A dónde va: Configuración › Derivaciones (_shared/derivaciones.ts). Lo urgente va siempre a Planify.
-  const der = await derivaciones();
+  // Lo urgente va siempre a Planify.
   const dest = destino(der, cat, esUrg, produccion);
   if (!dest) return { ok: true, creada: false, motivo: `categoría ${cat} sólo va a Tareas (o sin destinatario)` };
   const ctx = a.contexto ?? {};

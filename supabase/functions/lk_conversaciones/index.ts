@@ -65,6 +65,8 @@ function motivoAlerta(a: any): string {
   const m = String(a?.contexto?.motivo ?? "");
   if (MOTIVO[m]) return MOTIVO[m];
   if (a?.contexto?.lead_id) return MOTIVO.alta_cliente;
+  // Motivo agregado desde Configuración › Derivaciones: la clave legible ("garantia_consumidor" → "Garantia consumidor").
+  if (m && a?.contexto?.origen === "agente_ia") return m.charAt(0).toUpperCase() + m.slice(1).replace(/_/g, " ");
   return MOTIVO[a?.tipo] ?? "Otro";
 }
 

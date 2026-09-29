@@ -8,7 +8,7 @@ import { esUrgente } from "./humor-reglas.ts";
 export const SETTING_VENCIMIENTO = "wa_alertas_vencimiento";
 
 // Nombre visible y vencimiento por defecto (minutos) de cada categoría.
-export const CATEGORIAS: Record<string, { label: string; min: number }> = {
+export const CATEGORIAS: Record<string, { label: string; min: number; extra?: boolean }> = {
   cliente_molesto:        { label: "Cliente molesto", min: 30 },
   respuesta_aviso_cambio: { label: "Cambio o cancelación de pedido (respuesta a un aviso)", min: 60 },
   escalation:             { label: "Pidió hablar con una persona", min: 120 },
@@ -38,9 +38,28 @@ export function categoria(a: any): string {
   return CATEGORIAS[a?.tipo] ? a.tipo : "otro";
 }
 
+// Motivos agregados desde Configuración › Derivaciones (app_settings.wa_derivaciones.extra): se suman a
+// CATEGORIAS en memoria para que categoria(), el vencimiento y los nombres los reconozcan.
+export type MotivoExtra = { clave: string; nombre: string; cuando: string; min: number };
+export function registrarExtras(extra: unknown): MotivoExtra[] {
+  const out: MotivoExtra[] = [];
+  for (const e of Array.isArray(extra) ? extra : []) {
+    const clave = String(e?.clave ?? "").trim();
+    if (!/^[a-z][a-z0-9_]{2,40}$/.test(clave)) continue;
+    const m: MotivoExtra = { clave, nombre: String(e?.nombre ?? clave).slice(0, 80), cuando: String(e?.cuando ?? "").slice(0, 300), min: Number(e?.min) > 0 ? Math.round(Number(e.min)) : 120 };
+    if (!CATEGORIAS[clave] || CATEGORIAS[clave].extra) {
+      CATEGORIAS[clave] = { label: m.nombre, min: m.min, extra: true };
+    }
+    out.push(m);
+  }
+  return out;
+}
+
 export async function vencimientos(): Promise<Record<string, number>> {
+  const { data: filas } = await supabase.from("app_settings").select("key, value").in("key", [SETTING_VENCIMIENTO, "wa_derivaciones"]);
+  try { registrarExtras(JSON.parse(filas?.find((r) => r.key === "wa_derivaciones")?.value ?? "{}")?.extra); } catch { /* sin extras */ }
   const base = Object.fromEntries(Object.entries(CATEGORIAS).map(([k, v]) => [k, v.min]));
-  const { data } = await supabase.from("app_settings").select("value").eq("key", SETTING_VENCIMIENTO).maybeSingle();
+  const data = filas?.find((r) => r.key === SETTING_VENCIMIENTO);
   try {
     const guardado = data?.value ? JSON.parse(data.value) : {};
     for (const [k, v] of Object.entries(guardado)) if (k in base && Number(v) > 0) base[k] = Number(v);
@@ -70,5 +89,6 @@ const CATEGORIAS_AMARILLAS = new Set(["escalation", "consulta_stock", "faq_no_ma
 // deno-lint-ignore no-explicit-any
 export function nivel(a: any): Nivel {
   if (urgente(a)) return "rojo";
-  return CATEGORIAS_AMARILLAS.has(categoria(a)) ? "amarillo" : "verde";
+  const cat = categoria(a);
+  return CATEGORIAS_AMARILLAS.has(cat) || CATEGORIAS[cat]?.extra ? "amarillo" : "verde";
 }

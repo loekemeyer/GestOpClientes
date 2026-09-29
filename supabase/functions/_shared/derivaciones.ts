@@ -1,22 +1,32 @@
 // A dónde va cada caso que necesita a una persona (Pablo, 29/09: "un panel que nos muestre a dónde se deriva
-// cada caso … dentro de configuración"). Lo leen lk_alerta-planify (crea la tarea) y lk_alertas (el panel).
+// cada caso … dentro de configuración"). Lo leen lk_alerta-planify (crea la tarea), lk_alertas (el panel) y el
+// agente IA (qué motivos puede derivar).
 //
-// Toda alerta aparece siempre en Centro de mensajes › Tareas. Lo que se configura acá es si ADEMÁS abre una
-// tarea en Planify y para quién:
 //   app_settings.wa_derivaciones = {
-//     prueba_employee_id: 64,                         // con la llave en prueba TODO va a esta persona
-//     motivos: { reclamo: { planify: true, employee_id: 38, department_id: null }, … }
+//     prueba_employee_id: 64,                  // con la llave en prueba TODO lo que va a Planify va a esta persona
+//     motivos: { reclamo: { destino: "planify", employee_id: 38, department_id: null }, … },
+//     extra: [ { clave: "garantia", nombre: "Garantía", cuando: "…", min: 120 } ]   // motivos nuevos de la IA
 //   }
+// destino: "planify" = Tareas + tarea en Planify · "tareas" = sólo Centro de mensajes › Tareas ·
+//          "bot" = lo responde el bot: la IA NO deriva ese motivo (sólo los motivos que deriva la IA).
 // En producción (llave '1'): sector (department_id) si lo tiene → le aparece a todo el sector y gana el primero
-// que toca "Me encargo yo"; si no, la persona (employee_id). Lo urgente (🔴) va a Planify aunque el motivo diga
-// que no. Sin fila, rige la config vieja app_settings.wa_alertas_planify (employee_id, categorias, department_id).
+// que toca "Me encargo yo"; si no, la persona (employee_id). Lo urgente (🔴) va a Planify aunque diga otra cosa.
+// Sin fila, rige la config vieja app_settings.wa_alertas_planify (employee_id, categorias, department_id).
 import { supabase } from "./supabase.ts";
-import { CATEGORIAS } from "./alertas-vencimiento.ts";
+import { CATEGORIAS, type MotivoExtra, registrarExtras } from "./alertas-vencimiento.ts";
 
 export const SETTING_DERIVACIONES = "wa_derivaciones";
 
-// Motivos que la IA deriva (derivar_a_persona): van siempre a Planify salvo que se cambie en el panel.
-const SIEMPRE_DEF = new Set(["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado", "entrega"]);
+// Motivos que deriva la IA (derivar_a_persona). Son los únicos que pueden quedar en "lo responde el bot".
+export const MOTIVOS_IA = ["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado", "entrega"];
+// Cuándo usar cada uno (va a la descripción de la herramienta de la IA).
+export const CUANDO_IA: Record<string, string> = {
+  reclamo: "NC, faltante, rotura, factura mal o duplicada, descuento que no se aplicó",
+  pago: "importes, pagos, comprobantes, e-cheq",
+  cambio_pedido: "agregar, sacar o anular artículos de un pedido",
+  pedido_no_encontrado: "dice que pidió y el pedido no está",
+  entrega: "necesita fecha y el pedido no la tiene, no le llegó, o la fecha no coincide con la que le dijeron",
+};
 
 // Quién dispara cada motivo (texto del panel).
 export const ORIGEN: Record<string, string> = {
@@ -31,26 +41,27 @@ export const ORIGEN: Record<string, string> = {
   blacklist: "Escribió un número bloqueado",
   faq_no_match: "Pregunta que el bot no supo responder",
   consulta_stock: "Artículo sin stock",
-  reclamo: "La IA deriva: NC, faltante, rotura o error de factura",
-  pago: "La IA deriva: importe, pago no acreditado, e-cheq",
-  cambio_pedido: "La IA deriva: agregar, quitar o anular artículos",
-  pedido_no_encontrado: "La IA deriva: el cliente dice que cargó un pedido y no aparece",
-  entrega: "La IA deriva: pedido sin fecha que el cliente necesita, no llegó, o fecha distinta a la acordada",
   otro: "Cualquier otra alerta",
-  whitelist_gate: "Número fuera de la lista de prueba (no llega a Planify)",
+  ...Object.fromEntries(MOTIVOS_IA.map((k) => [k, "La IA deriva: " + CUANDO_IA[k]])),
 };
 
-export type Regla = { planify: boolean; employee_id: number | null; department_id: number | null };
+export type Destino = "planify" | "tareas" | "bot";
+export type Regla = { destino: Destino; planify: boolean; employee_id: number | null; department_id: number | null };
 export type Derivaciones = {
   prueba_employee_id: number | null;
   broadcast: boolean;
   defecto: { employee_id: number | null; department_id: number | null };
   motivos: Record<string, Regla>;
+  extra: MotivoExtra[];
 };
 
 const num = (v: unknown) => (Number(v) > 0 ? Number(v) : null);
+const SIEMPRE_DEF = new Set(MOTIVOS_IA);
 
-export async function derivaciones(): Promise<Derivaciones> {
+let cache: { hasta: number; d: Derivaciones } | null = null;
+
+export async function derivaciones(usarCache = false): Promise<Derivaciones> {
+  if (usarCache && cache && cache.hasta > Date.now()) return cache.d;
   const { data } = await supabase.from("app_settings").select("key, value")
     .in("key", ["wa_alertas_planify", SETTING_DERIVACIONES]);
   const leer = (k: string) => {
@@ -58,23 +69,37 @@ export async function derivaciones(): Promise<Derivaciones> {
   };
   const viejo = leer("wa_alertas_planify");
   const nuevo = leer(SETTING_DERIVACIONES);
+  const extra = registrarExtras(nuevo.extra);
+  const esIA = new Set([...MOTIVOS_IA, ...extra.map((e) => e.clave)]);
   const catsViejas: string[] = Array.isArray(viejo.categorias) ? viejo.categorias : [];
   const motivos: Record<string, Regla> = {};
   for (const cat of Object.keys(CATEGORIAS)) {
     const g = nuevo.motivos?.[cat];
-    motivos[cat] = {
-      planify: cat === "whitelist_gate" ? false
-        : typeof g?.planify === "boolean" ? g.planify : catsViejas.includes(cat) || SIEMPRE_DEF.has(cat),
-      employee_id: num(g?.employee_id),
-      department_id: num(g?.department_id),
-    };
+    let destino: Destino = typeof g?.destino === "string" && ["planify", "tareas", "bot"].includes(g.destino) ? g.destino
+      : typeof g?.planify === "boolean" ? (g.planify ? "planify" : "tareas")
+      : catsViejas.includes(cat) || SIEMPRE_DEF.has(cat) || esIA.has(cat) ? "planify" : "tareas";
+    if (destino === "bot" && !esIA.has(cat)) destino = "tareas";
+    if (cat === "whitelist_gate") destino = "tareas";
+    motivos[cat] = { destino, planify: destino === "planify", employee_id: num(g?.employee_id), department_id: num(g?.department_id) };
   }
-  return {
+  const d: Derivaciones = {
     prueba_employee_id: num(nuevo.prueba_employee_id) ?? num(viejo.employee_id),
     broadcast: viejo.broadcast ?? true,
     defecto: { employee_id: num(viejo.employee_id), department_id: num(viejo.department_id) },
-    motivos,
+    motivos, extra,
   };
+  cache = { hasta: Date.now() + 60_000, d };
+  return d;
+}
+
+/** Motivos que la IA puede derivar hoy (los que no están en "lo responde el bot"), con cuándo usarlos. */
+export async function motivosIA(): Promise<Array<{ clave: string; cuando: string }>> {
+  const d = await derivaciones(true);
+  const todos = [
+    ...MOTIVOS_IA.map((k) => ({ clave: k, cuando: CUANDO_IA[k] })),
+    ...d.extra.map((e) => ({ clave: e.clave, cuando: e.cuando || e.nombre })),
+  ];
+  return todos.filter((m) => d.motivos[m.clave]?.destino !== "bot");
 }
 
 /** Destino en Planify de una alerta, o null si sólo va a Tareas. */

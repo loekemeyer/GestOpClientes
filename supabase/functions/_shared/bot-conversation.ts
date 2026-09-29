@@ -1,7 +1,8 @@
 // Claude API — Tool-use conversacional para bot WhatsApp Loekemeyer
 // Usa RPCs bot_* existentes como herramientas de Claude
 
-import { supabase } from "./supabase.ts";
+import { getGestionClient, supabase } from "./supabase.ts";
+import { derivaciones, motivosIA } from "./derivaciones.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
@@ -86,6 +87,14 @@ const BOT_TOOLS: ToolDef[] = [
       type: "object",
       properties: {},
     },
+  },
+  {
+    // Pablo, 29/09 (incidencia "pagos", 101 consultas): el bot da el importe y el estado de cada factura
+    // impaga y avisa a Cobranzas. Fuente: GV_Cobranza_Deuda_Viva (Gestión, la recalcula Cobranzas).
+    name: "consultar_mis_facturas",
+    description:
+      "Facturas impagas del cliente con importe, condición de pago, estado (a pagar hasta tal fecha / vencida) y, si corresponde, el importe con el descuento de su condición pagando hasta la fecha. También da el saldo total. Usala cuando pregunte cuánto debe, el importe a pagar, el importe con el descuento de contado, o el estado de sus facturas. Al usarla se avisa solo a Cobranzas: decile al cliente que Cobranzas quedó al tanto.",
+    input_schema: { type: "object", properties: {} },
   },
   {
     name: "consultar_mis_descuentos",
@@ -274,6 +283,26 @@ interface ToolExecResult {
 
 const HERRAMIENTAS = BOT_TOOLS.filter((t) => PEDIDOS_POR_WHATSAPP || t.name !== "enviar_pedido");
 
+// Los motivos de derivar_a_persona salen de Configuración › Derivaciones: se sacan los que "responde el bot" y
+// se suman los agregados desde el panel. Si la config no se puede leer, quedan los de siempre.
+async function herramientasDelTurno(): Promise<ToolDef[]> {
+  try {
+    const mot = await motivosIA();
+    return HERRAMIENTAS.map((t) => {
+      if (t.name !== "derivar_a_persona") return t;
+      const enumM = [...mot.map((m) => m.clave), "alta_cliente", "escalation"];
+      const desc = [...mot.map((m) => `${m.clave} = ${m.cuando}`), "alta_cliente = quiere ser cliente",
+        "escalation = cualquier otra cosa o pidió una persona"].join("; ") + ".";
+      // deno-lint-ignore no-explicit-any
+      const sch = t.input_schema as any;
+      return { ...t, input_schema: { ...sch, properties: { ...sch.properties, motivo: { type: "string", enum: enumM, description: desc } } } };
+    });
+  } catch (e) {
+    console.error("herramientasDelTurno: sin config de derivaciones", e);
+    return HERRAMIENTAS;
+  }
+}
+
 async function executeTool(
   name: string,
   // deno-lint-ignore no-explicit-any
@@ -287,8 +316,13 @@ async function executeTool(
   }
   switch (name) {
     case "derivar_a_persona": {
-      const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
       const motivo = String(input.motivo ?? "escalation");
+      // Configuración › Derivaciones: un motivo en "lo responde el bot" no se deriva (salvo urgencia).
+      const regla = (await derivaciones(true)).motivos[motivo];
+      if (regla?.destino === "bot" && input.urgente !== true) {
+        return { data: { error: "Este tema lo responde el bot: no lo derives. Resolvelo con las herramientas de consulta y la información que tenés." } };
+      }
+      const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
       await notificarHumano({
         tipo: motivo === "alta_cliente" ? "alta_cliente_nuevo" : "escalation", phone,
         customerId: cli?.[0]?.customer_id ?? null,
@@ -373,6 +407,59 @@ async function executeTool(
       const entregas = await sinAnulados((data ?? []) as Record<string, unknown>[], "np_number");
       if (!entregas.length) return { data: { mensaje: "No hay entregas recientes ni programadas." } };
       return { data: entregas.map(({ np_number: _np, ...resto }) => resto) };
+    }
+
+    case "consultar_mis_facturas": {
+      const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
+      const c = cli?.[0];
+      if (!c?.cod_cliente) return { data: { mensaje: "No encontré la cuenta de este número." } };
+      const pesos = (n: number) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR", { maximumFractionDigits: 0 });
+      const ddmm = (f: string | null) => (f ? `${f.slice(8, 10)}/${f.slice(5, 7)}` : "");
+      const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+      let rows: Array<Record<string, unknown>> = [];
+      try {
+        const g = await getGestionClient("public");
+        const r = await Promise.race([
+          g.from("GV_Cobranza_Deuda_Viva").select("comprobante, fecha, vence, condicion, dto_cond, lista, pendiente")
+            .eq("empresa", "lk").eq("cod_cliente", String(c.cod_cliente)).gt("pendiente", 0).order("fecha", { ascending: true }).limit(30),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
+        ]);
+        if (r.error) throw new Error(r.error.message);
+        rows = r.data ?? [];
+      } catch (e) {
+        console.error("consultar_mis_facturas: Gestión no respondió", e);
+        return { data: { error: "No pude consultar las facturas ahora. Derivá a Cobranzas con derivar_a_persona (motivo pago)." } };
+      }
+      // Descuento de la condición (dto_cond) pagando hasta `vence`, sólo si la factura no tiene pagos parciales
+      // (pendiente = lista). Vencida o con pagos: el importe pendiente, y el final lo confirma Cobranzas.
+      const facturas = rows.map((r) => {
+        const pend = Number(r.pendiente || 0), lista = Number(r.lista || 0), dto = Number(r.dto_cond || 0);
+        const vence = String(r.vence ?? "") || null;
+        const vencida = !!vence && vence < hoy;
+        const sinPagos = Math.abs(pend - lista) < 1;
+        return {
+          factura: r.comprobante, fecha: ddmm(String(r.fecha ?? "")), condicion: r.condicion, importe: pesos(pend),
+          estado: vencida ? `vencida el ${ddmm(vence)}` : vence ? `a pagar hasta el ${ddmm(vence)}` : "impaga",
+          ...(!vencida && sinPagos && dto > 0 && vence
+            ? { con_descuento: `${pesos(pend * (1 - dto))} (${Math.round(dto * 100)}% dto pagando hasta el ${ddmm(vence)})` } : {}),
+          ...(sinPagos ? {} : { pago_parcial: true }),
+        };
+      });
+      const saldo = rows.reduce((a, r) => a + Number(r.pendiente || 0), 0);
+      // Aviso a Cobranzas (una alerta abierta por número alcanza).
+      const { data: abierta } = SIM.activo ? { data: [] } : await supabase.from("wa_alertas_humano").select("id")
+        .eq("phone", phone).in("estado", ["pendiente", "notificado"]).eq("contexto->>motivo", "pago").limit(1);
+      if (!abierta?.length) {
+        await notificarHumano({
+          tipo: "escalation", phone, customerId: c.customer_id ?? null,
+          contexto: {
+            motivo: "pago", origen: "agente_ia", razon_social: c.business_name ?? null, urgente: false,
+            texto: rows.length ? `Consultó su saldo por WhatsApp: ${rows.length} factura(s) impaga(s), ${pesos(saldo)}.` : "Consultó su saldo por WhatsApp: no tiene facturas impagas.",
+          },
+        });
+      }
+      if (!rows.length) return { data: { mensaje: "No tiene facturas impagas. Cobranzas quedó avisada de la consulta." } };
+      return { data: { saldo_total: pesos(saldo), facturas, nota: "Importes con IVA, redondeados a pesos. Cobranzas quedó avisada de la consulta." } };
     }
 
     case "consultar_mis_descuentos": {
@@ -554,7 +641,7 @@ const AUDITABLE_TOOLS = new Set([
   "consultar_kb", "kb_agregar", "kb_eliminar", "kb_listar",
   "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
   "consultar_mi_historial", "consultar_mis_pedidos", "consultar_detalle_pedido",
-  "consultar_mis_descuentos", "consultar_novedades", "consultar_stock",
+  "consultar_mis_descuentos", "consultar_mis_facturas", "consultar_novedades", "consultar_stock",
 ]);
 
 async function auditTool(
@@ -662,6 +749,8 @@ export async function runConversation(
     history.push({ role: "user", text: userText });
   }
 
+  const herramientas = await herramientasDelTurno();
+
   // Cadena de modelos (prioridad ASC) + fallback duro al env ANTHROPIC_API_KEY con
   // Sonnet, para que el bot siga contestando aunque la cadena esté vacía o toda caída.
   const candidates: ResolvedModel[] = await resolveChain();
@@ -686,7 +775,7 @@ export async function runConversation(
     for (const cand of candidates) {
       if (downThisTurn.has(cand.id)) continue;
       try {
-        res = await callModel(cand, systemPrompt, HERRAMIENTAS, history, 30_000);
+        res = await callModel(cand, systemPrompt, herramientas, history, 30_000);
         used = cand;
         break;
       } catch (e) {
