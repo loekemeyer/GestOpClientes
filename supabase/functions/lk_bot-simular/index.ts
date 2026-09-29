@@ -11,7 +11,9 @@ import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 
 // Botonera del Simulador: avisos de seguimiento + las 6 de factura (con el PDF de la factura en el mensaje).
-const AVISOS = [...PLANTILLAS.map((p) => ({ name: p.name, disparo: p.disparo, body: p.body, ejemplos: p.ejemplos, factura: false })),
+const AVISOS = [...PLANTILLAS.map((p) => ({ name: p.name, disparo: p.disparo, body: p.body, ejemplos: p.ejemplos, factura: false,
+    // la variable que lleva la razón social (si la plantilla la tiene): ahí va el nombre del cliente simulado.
+    varCliente: p.variables.findIndex((v) => /raz[oó]n social/i.test(v)) })),
   ...PLANTILLAS_FACTURA.map((p) => ({ ...p, factura: true }))];
 const rellenar = (body: string, vals: string[]) => body.replace(/\{\{(\d+)\}\}/g, (m, n) => vals[Number(n) - 1] ?? m);
 
@@ -95,9 +97,9 @@ serve(async (req) => {
       if (paso.aviso) {
         const nombre = String(paso.aviso);
         const def = AVISOS.find((x) => x.name === nombre);
-        // Sin params: los valores de ejemplo; en los de seguimiento {{1}} es la razón social del cliente.
+        // Sin params: los valores de ejemplo; en la variable de razón social (si la plantilla la tiene), el nombre del cliente.
         const vals = paso.params ? Object.values(paso.params as Record<string, unknown>).map(String)
-          : def ? def.ejemplos.map((v, i) => (i === 0 && !def.factura ? c.business_name : v)) : [];
+          : def ? def.ejemplos.map((v, i) => (i === (def as { varCliente?: number }).varCliente ? c.business_name : v)) : [];
         const texto = def ? rellenar(def.body, vals) : (renderPlantilla(nombre, null) ?? "");
         SIM.historial.push({ rol: "assistant", creado_en: ahora(),
           contenido: `[Aviso automático ${nombre}${paso.pedido ? ` · pedido ${paso.pedido}` : ""}]\n${texto}` });
