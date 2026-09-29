@@ -59,9 +59,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_programado",
     language: ES, category: UT,
     disparo: "La NP entra a una tanda con fecha de salida en la Programación. Camión propio.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} ya tiene fecha: lo entregamos el {{3}}.\nTe avisamos cuando salga en el camión.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "miércoles 30/09"],
+    // Sin el saludo "Hola X, te escribimos de Loekemeyer" (Pablo, 29/09): ya se presentó en pedido_recibido. sql/088.
+    variables: ["fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)"],
+    body: "Tu pedido del {{1}} ya tiene fecha: lo entregamos el {{2}}.\nTe avisamos cuando salga en el camión.",
+    ejemplos: ["22/09", "miércoles 30/09"],
   },
   {
     name: "pedido_programado_expreso",

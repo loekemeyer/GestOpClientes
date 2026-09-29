@@ -391,7 +391,7 @@ async function handleTemplatesPreview(body: Record<string, unknown>) {
        P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
        { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
        P("Facturado · listo", "pedido_listo_retirar", [rs, fp])]
-    : [P("Programado", "pedido_programado", [rs, fp, sal]),
+    : [P("Programado", "pedido_programado", [fp, sal]),
        P("Cambio de fecha", "pedido_reprogramado", [rs, fp, nueva], true),
        P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
        { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
