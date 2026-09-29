@@ -521,6 +521,13 @@ Un commit que sólo toca docs NO dispara deploy.
   producción sector > persona > defecto. Lo 🔴 urgente va a Planify siempre. Motivo nuevo de la IA: `entrega`
   (pedido sin fecha que el cliente necesita, no llegó, fecha distinta) — muchos pedidos no tienen fecha y eso es normal.
   "No me llegó / tenía que llegar" (`RE_NO_LLEGO` en faq.ts) saltea las FAQ y va a la IA, que deriva.
+- **Pedido recibido con fecha estimada (Pablo, 29/09, sql/082):** `pedido_recibido` suma `{{5}}` "Entrega: …".
+  `wa_fecha_estimada_calc(order_id)` (53 ms): si retira y eligió día en la web (`sheets_payload.retiro_fecha/_franja`)
+  → "lo retirás el jueves 01/10, de 9:00 a 12:00"; si no, p90 de la demora real pedido→salida de los últimos 90 días
+  del MISMO modo (al 29/09: reparto 22 días, expreso 21) → próximo hábil. Cada estimación queda en
+  `wa_fecha_estimada` (RLS, sólo service_role) para medir cumplimiento contra `order_tracking` (consulta al pie de
+  sql/082). El trigger ahora dispara cuando `sheets_sent` pasa a true (antes: en cada INSERT, incluidos los intentos
+  fallidos de la web) y una sola vez por pedido.
 - **Derivaciones v2 (Pablo, 29/09, v0.24.0):** el destino es un desplegable por motivo: "Planify + Tareas" / "Sólo
   Tareas" / "Lo responde el bot" (sólo motivos que deriva la IA: la herramienta deja de ofrecer ese motivo y, si
   igual lo intenta, se le rechaza salvo urgencia). "+ Agregar motivo" suma motivos nuevos de la IA

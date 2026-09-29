@@ -44,10 +44,12 @@ export const PLANTILLAS: PlantillaMeta[] = [
   {
     name: "pedido_recibido",
     language: ES, category: UT,
-    disparo: "Se crea el pedido (AFTER INSERT en orders). El total de orders es sin IVA.",
-    variables: ["razón social", "fecha del pedido (dd/mm)", "total sin IVA ($ con punto de miles)", "método de pago (texto limpio, sin el descuento)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nRecibimos tu pedido del {{2}} por {{3}} + IVA.\nMétodo de pago: {{4}}.\nTe avisamos cuando tenga fecha de entrega.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "28/09", "$9.446", "contado"],
+    disparo: "El pedido queda enviado (orders.sheets_sent pasa a true, sql/082). El total de orders es sin IVA.",
+    // {{5}} (Pablo, 29/09): fecha estimada por la demora real del modo (p90 de 90 días) o, si retira y eligió día
+    // en la web, ese día y franja. Lo arma wa_fecha_estimada_calc y queda en wa_fecha_estimada para medir cumplimiento.
+    variables: ["razón social", "fecha del pedido (dd/mm)", "total sin IVA ($ con punto de miles)", "método de pago (texto limpio, sin el descuento)", "entrega estimada (texto)"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer.\nRecibimos tu pedido del {{2}} por {{3}} + IVA.\nMétodo de pago: {{4}}.\nEntrega: {{5}}.\nTe avisamos por acá cuando se confirme.",
+    ejemplos: ["Comercial Ejemplo S.R.L", "28/09", "$9.446", "contado", "sale antes del martes 20/10"],
   },
 
   // ── 1 · Pedido programado ────────────────────────────────────────────────

@@ -8,7 +8,7 @@
     { "id": "otros", "titulo": "Otros sistemas que usan el mismo número", "bajada": "No son del bot de clientes: las mandan Planify y Gestión Productiva a personal interno." }
   ],
   "plantillas": {
-    "pedido_recibido":           { "grupo": "pedido", "orden": 1,  "estado": "conectada", "para": "Todos", "sale": "Cuando el cliente carga el pedido en la web." },
+    "pedido_recibido":           { "grupo": "pedido", "orden": 1,  "estado": "conectada", "para": "Todos", "sale": "Cuando el pedido queda enviado desde la web. Incluye la entrega estimada (demora real del modo) o el día de retiro que eligió el cliente." },
     "pedido_programado":         { "grupo": "pedido", "orden": 2,  "estado": "conectada", "para": "Reparto propio", "sale": "Cuando el pedido recibe fecha de salida en la Programación." },
     "pedido_programado_expreso": { "grupo": "pedido", "orden": 3,  "estado": "conectada", "para": "Por expreso", "sale": "Cuando el pedido recibe fecha de salida en la Programación." },
     "pedido_programado_retira":  { "grupo": "pedido", "orden": 4,  "estado": "conectada", "para": "Retira en depósito", "sale": "Cuando el pedido recibe fecha en la Programación." },
