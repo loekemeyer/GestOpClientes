@@ -531,6 +531,8 @@ Un commit que sólo toca docs NO dispara deploy.
   pendiente > 0): por factura importe, condición, estado ("a pagar hasta dd/mm" / "vencida el dd/mm") y, si no
   venció y no tiene pagos parciales, el importe con el dto de su condición (`pendiente × (1 − dto_cond)` hasta
   `vence`) + saldo total. Pesos enteros. Al usarla avisa a Cobranzas (alerta motivo `pago`, una abierta por número).
+  "Ya pagué / ya transferí / me sigue figurando" (`RE_YA_PAGUE`, faq.ts) saltea las FAQ (antes #42 daba alias/CBU) y
+  la IA deriva motivo `pago`. El saludo fijo (#41) sólo contesta si TODO el mensaje es saludo (`esSoloSaludo`).
 - **Agendar con un click (Pablo, 29/09, v0.23.0):** en la ficha de Conversaciones, si el número lo reconoce sólo el
   teléfono del ERP ("Sin agendar") → botón "Agendar a <cliente>"; si no se reconoce → buscador por código o razón
   social. Inserta en `bot_customer_whatsapps` (principal si el cliente no tiene otro), no manda nada. Es lo que
