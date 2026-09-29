@@ -1,0 +1,176 @@
+<title>Recorrido de un pedido web</title>
+<style>
+/* Layout: línea de tiempo vertical (el orden es real: cada paso pasa después del anterior). Botones arriba eligen cómo se entrega; los pasos cambian el mensaje. Mismo estilo que el Dashboard FAQs. */
+:root { color-scheme: light; --azul:#0066cc; --verde:#4caf50; --naranja:#ff9800; --rojo:#f44336; --gris:#9e9e9e; --ink:#333; --muted:#666; --line:#ddd;
+  --v-bg:#c8e6c9; --v-ink:#2e7d32; --n-bg:#fff3cd; --n-ink:#856404; --r-bg:#f8bbd0; --r-ink:#c2185b; --a-bg:#e3f2fd; --a-ink:#1565c0;
+  --wall:#e7e1d6; --bubble:#fff; --bubble-ink:#111b21; --bubble-meta:#667781; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#e4e9f1; background:linear-gradient(135deg,#f5f7fa 0%,#c3cfe2 100%) fixed; color:var(--ink); padding:30px 16px; font-size:18px; line-height:1.4; min-height:100vh; }
+.container { max-width:860px; margin:0 auto; display:flex; flex-direction:column; gap:22px; }
+button { font:inherit; }
+:focus-visible { outline:3px solid var(--azul); outline-offset:2px; }
+.header { text-align:center; }
+.header h1 { font-size:32px; color:var(--azul); margin-bottom:8px; text-wrap:balance; }
+.header p { font-size:19px; color:var(--muted); }
+.caja { background:#fff; border-radius:12px; padding:18px 20px; box-shadow:0 4px 15px rgba(0,0,0,.1); }
+.llave { display:flex; gap:14px; align-items:center; border-left:6px solid var(--c,var(--gris)); font-size:19px; font-weight:700; }
+.llave small { display:block; font-size:16px; font-weight:400; color:var(--muted); }
+.llave .luz { width:22px; height:22px; border-radius:50%; background:var(--c); flex:none; }
+.ll-0 { --c:var(--rojo); } .ll-prueba { --c:var(--naranja); } .ll-1 { --c:var(--verde); }
+.filter-label { display:block; font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+.filtros { display:flex; gap:10px; flex-wrap:wrap; }
+.filter-btn { padding:10px 20px; border:2px solid var(--line); background:#fff; color:var(--ink); border-radius:24px; cursor:pointer; font-size:17px; font-weight:700; }
+.filter-btn:hover { border-color:var(--azul); }
+.filter-btn[aria-pressed="true"] { background:var(--azul); border-color:var(--azul); color:#fff; }
+
+/* Paso 0: el punto de partida */
+.inicio { display:flex; align-items:center; gap:14px; }
+.inicio .cara { width:48px; height:48px; border-radius:50%; background:var(--azul); color:#fff; display:grid; place-items:center; font-size:24px; flex:none; }
+.inicio b { font-size:21px; }
+
+/* Línea de tiempo */
+.linea { display:flex; flex-direction:column; }
+.paso { display:grid; grid-template-columns:52px minmax(0,1fr); gap:0 14px; }
+.riel { display:flex; flex-direction:column; align-items:center; }
+.riel .n { width:44px; height:44px; border-radius:50%; background:var(--azul); color:#fff; font-weight:800; font-size:20px; display:grid; place-items:center; flex:none; box-shadow:0 0 0 5px #e4ecf7; }
+.riel .tramo { flex:1; width:4px; background:var(--azul); opacity:.35; margin:4px 0; min-height:26px; }
+.paso:last-child .tramo { display:none; }
+.tarjeta { background:#fff; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,.1); border-left:6px solid var(--c,var(--azul)); padding:16px 18px; display:flex; flex-direction:column; gap:12px; margin-bottom:20px; min-width:0; }
+.tarjeta h2 { font-size:23px; line-height:1.2; }
+.dispara { display:flex; gap:8px; flex-wrap:wrap; }
+.tag { font-size:14px; font-weight:700; border-radius:14px; padding:4px 12px; }
+.t-trigger { background:var(--a-bg); color:var(--a-ink); } .t-cron { background:var(--n-bg); color:var(--n-ink); } .t-web { background:#ede7f6; color:#5e35b1; } .t-tiempo { background:#eee; color:#555; }
+.que { font-size:19px; }
+.msj { border-radius:8px; padding:10px 12px; border-left:3px solid var(--verde); background:var(--v-bg); color:var(--v-ink); display:flex; flex-direction:column; gap:8px; }
+.msj b { font-size:14px; text-transform:uppercase; }
+.msj.nada { background:#eee; color:#555; border-left-color:var(--gris); }
+.btn-msj { text-align:left; font-size:18px; font-weight:700; color:var(--azul); background:#fff; border:2px solid var(--azul); border-radius:10px; padding:10px 14px; cursor:pointer; display:flex; justify-content:space-between; gap:10px; align-items:center; }
+.btn-msj:hover { background:var(--a-bg); }
+.btn-msj small { font-weight:400; color:var(--muted); font-size:15px; }
+.si-no { font-size:15px; color:var(--muted); border-top:1px solid #eee; padding-top:8px; }
+
+/* Controles antes de enviar */
+.ctrl { display:flex; flex-direction:column; gap:12px; }
+.ctrl h2 { font-size:22px; color:var(--azul); }
+.ctrl-fila { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+.ctrl-i { background:#f9f9f9; border-radius:10px; padding:12px 14px; border-top:4px solid var(--naranja); }
+.ctrl-i b { display:block; font-size:18px; }
+.ctrl-i span { font-size:16px; color:var(--muted); }
+
+/* Burbuja */
+.chat { background:var(--wall); padding:14px 16px 14px 14px; display:flex; }
+.burbuja { background:var(--bubble); color:var(--bubble-ink); border-radius:0 12px 12px 12px; padding:10px 12px 6px; max-width:100%; box-shadow:0 1px .5px rgba(11,20,26,.13); position:relative; font-size:17px; line-height:1.4; min-width:0; }
+.burbuja::before { content:""; position:absolute; left:-7px; top:0; border-right:8px solid var(--bubble); border-bottom:10px solid transparent; }
+.burbuja .doc { display:flex; gap:8px; align-items:center; background:#eef0f1; border-radius:6px; padding:8px; margin-bottom:6px; font-size:15px; }
+.burbuja .doc i { font-style:normal; font-weight:700; font-size:11px; color:#fff; background:#d9534f; border-radius:3px; padding:2px 4px; }
+.burbuja .txt { white-space:pre-wrap; overflow-wrap:anywhere; }
+.burbuja .var { background:#d6ebe3; border-radius:3px; padding:0 2px; }
+.burbuja .pie { color:var(--bubble-meta); font-size:14px; margin-top:4px; }
+.burbuja .hora { color:var(--bubble-meta); font-size:12px; text-align:right; margin-top:2px; }
+.botones { margin-top:6px; border-top:1px solid #e3e6e8; } .botones span { display:block; text-align:center; color:#1a8fd6; font-size:16px; padding:6px 0 2px; }
+
+/* Popup */
+.modal-fondo { position:fixed; inset:0; z-index:30; background:rgba(20,30,50,.6); display:flex; padding:14px; overflow-y:auto; }
+.modal { background:#f5f7fa; border-radius:14px; width:100%; max-width:560px; margin:auto; padding:16px; display:flex; flex-direction:column; gap:12px; box-shadow:0 24px 60px rgba(0,0,0,.4); }
+.modal-cab { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.modal-cab h3 { font-size:21px; color:var(--azul); }
+.modal-cerrar { font-size:17px; font-weight:700; background:var(--azul); color:#fff; border:0; border-radius:22px; padding:9px 20px; cursor:pointer; }
+.modal .chat { border-radius:10px; }
+@media (max-width:560px) { .header h1 { font-size:27px; } .paso { grid-template-columns:40px minmax(0,1fr); gap:0 10px; } .riel .n { width:38px; height:38px; font-size:17px; } .tarjeta h2 { font-size:21px; } }
+</style>
+
+<div class="container">
+  <div class="header">
+    <h1>🛒 Qué pasa cuando se hace un pedido web</h1>
+    <p>Paso a paso, desde que el cliente confirma hasta que lo recibe</p>
+  </div>
+  <div class="caja llave" id="llave"></div>
+  <div class="caja">
+    <span class="filter-label">El cliente recibe el pedido por:</span>
+    <div class="filtros" id="modos"></div>
+  </div>
+  <div class="caja inicio"><div class="cara">👤</div><div><b>Pablo confirma el pedido en la web</b><br><span style="color:var(--muted)">loekemeyer.com · el pedido queda guardado y se envía al sistema de gestión</span></div></div>
+  <div class="linea" id="linea"></div>
+  <div class="caja ctrl">
+    <h2>🛡️ Antes de cada envío, siempre 3 controles</h2>
+    <div class="ctrl-fila">
+      <div class="ctrl-i"><b>1. ¿Tiene teléfono agendado?</b><span>Si no, no sale nada y no queda registro.</span></div>
+      <div class="ctrl-i"><b>2. ¿Ya se mandó antes?</b><span>Cada aviso se manda una sola vez por pedido.</span></div>
+      <div class="ctrl-i"><b>3. ¿Está abierta la llave de envíos?</b><span>Si está cerrada, el mensaje espera en cola.</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATOS = /*__DATOS__*/null;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let modo = "reparto";
+
+const MODOS = { reparto: "🚚 Reparto propio", expreso: "📦 Expreso", retira: "🏭 Retira en depósito" };
+// Cada paso: qué lo dispara, qué pasa, cuándo, qué mensaje sale según el modo. Fuente: triggers y crons de PaginaLK (leídos el 29/09).
+const PASOS = [
+  { t: "El pedido llega al sistema", c: "var(--azul)", dispara: [["t-trigger", "⚙️ Automático al guardarse"], ["t-tiempo", "⏱️ En segundos"]],
+    que: "Se calcula la fecha estimada de entrega con la demora real de ese tipo de entrega, o el día de retiro que eligió el cliente.",
+    msj: { reparto: ["pedido_recibido", "Pedido recibido"], expreso: ["pedido_recibido", "Pedido recibido"], retira: ["pedido_recibido", "Pedido recibido"] } },
+  { t: "Depósito le pone fecha de salida", c: "var(--azul)", dispara: [["t-trigger", "⚙️ Automático al cambiar el estado"], ["t-tiempo", "⏱️ Cuando Depósito programa"]],
+    que: "El pedido pasa a “programado” con su fecha. Si la fecha cambia después, se avisa de nuevo.",
+    msj: { reparto: ["pedido_programado", "Programado"], expreso: ["pedido_programado_expreso", "Programado, con el nombre del expreso"], retira: ["pedido_programado_retira", "Programado para retirar"] },
+    extra: ["pedido_reprogramado", "Si cambia la fecha: aviso de reprogramación"] },
+  { t: "Se arma el pedido", c: "var(--naranja)", dispara: [["t-cron", "🔁 Revisa cada 10 minutos"], ["t-tiempo", "⏱️ Hasta 10 min después"]],
+    que: "Cuando el pedido entra en armado en el depósito, se le confirma al cliente el día de salida.",
+    msj: { reparto: ["pedido_preparando", "Estamos armando tu pedido"], expreso: ["pedido_preparando", "Estamos armando tu pedido"], retira: ["pedido_preparando", "Estamos armando tu pedido"] } },
+  { t: "Se factura", c: "var(--verde)", dispara: [["t-trigger", "⚙️ Automático al facturar"], ["t-cron", "🔁 Retiro: revisa cada 10 min"]],
+    que: "Le llega la factura en PDF con el importe, el descuento y los datos de pago. Si retira, además se avisa que ya puede pasar.",
+    msj: { reparto: ["pedido_contado_s", "Factura (6 versiones según forma de pago)"], expreso: ["pedido_contado_s", "Factura (6 versiones según forma de pago)"], retira: ["pedido_contado_s", "Factura (6 versiones según forma de pago)"] },
+    extraModo: { retira: ["pedido_listo_retirar", "Listo para retirar en Virgilio 2788"] } },
+  { t: "El cliente lo recibe", c: "var(--verde)", dispara: [["t-trigger", "⚙️ Automático al marcar entregado"], ["t-tiempo", "⏱️ Al marcarlo Depósito"]],
+    que: "Se avisa que el pedido salió o llegó, según cómo se entrega. Si falta algo, el cliente puede avisar por el mismo chat.",
+    msj: { reparto: ["pedido_entregado", "Pedido entregado"], expreso: ["pedido_en_viaje_expreso", "Entregado al expreso"], retira: null },
+    nada: { retira: "No hay aviso: el cliente ya lo retiró en el depósito." } },
+];
+
+function cuerpo(body, ej) {
+  return esc(body).replace(/\{\{(\d+)\}\}/g, (m, n) => `<span class="var">${esc((ej || [])[n - 1] ?? m)}</span>`).replace(/\*([^*\n]+)\*/g, "<b>$1</b>");
+}
+function burbuja(p) {
+  const doc = p.header === "DOCUMENT" ? `<div class="doc"><i>PDF</i> Factura.pdf</div>` : "";
+  const pie = p.footer ? `<div class="pie">${esc(p.footer)}</div>` : "";
+  const bots = (p.buttons || []).length ? `<div class="botones">${p.buttons.map((b) => `<span>${esc(b)}</span>`).join("")}</div>` : "";
+  return `<div class="chat"><div class="burbuja">${doc}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
+}
+const boton = ([tpl, etiqueta]) => `<button class="btn-msj" type="button" data-tpl="${esc(tpl)}"><span>${esc(etiqueta)}</span><small>Ver el mensaje ›</small></button>`;
+
+function pintar() {
+  document.getElementById("modos").innerHTML = Object.entries(MODOS).map(([k, t]) => `<button class="filter-btn" type="button" data-m="${k}" aria-pressed="${k === modo}">${t}</button>`).join("");
+  document.querySelectorAll("#modos button").forEach((b) => b.addEventListener("click", () => { modo = b.dataset.m; pintar(); }));
+  document.getElementById("linea").innerHTML = PASOS.map((p, i) => {
+    const m = p.msj[modo], ex = p.extraModo?.[modo], nada = p.nada?.[modo];
+    const cuerpoMsj = m ? `<div class="msj"><b>💬 Mensaje que recibe</b>${boton(m)}${ex ? boton(ex) : ""}${p.extra ? boton(p.extra) : ""}</div>`
+      : `<div class="msj nada"><b>Sin mensaje</b>${esc(nada || "")}</div>`;
+    return `<div class="paso"><div class="riel"><div class="n">${i + 1}</div><div class="tramo"></div></div>
+      <div class="tarjeta" style="--c:${p.c}"><h2>${esc(p.t)}</h2>
+        <div class="dispara">${p.dispara.map(([c, t]) => `<span class="tag ${c}">${esc(t)}</span>`).join("")}</div>
+        <p class="que">${esc(p.que)}</p>${cuerpoMsj}</div></div>`;
+  }).join("");
+  document.querySelectorAll(".btn-msj").forEach((b) => b.addEventListener("click", () => abrir(b.dataset.tpl, b)));
+}
+
+function abrir(tpl, origen) {
+  const p = DATOS.plantillas.find((x) => x.name === tpl); if (!p) return;
+  document.querySelector(".modal-fondo")?.remove();
+  const f = document.createElement("div"); f.className = "modal-fondo";
+  f.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><div class="modal-cab"><h3>Así le llega al cliente</h3><button class="modal-cerrar" type="button">Cerrar</button></div>${burbuja(p)}</div>`;
+  const cerrar = () => { f.remove(); document.removeEventListener("keydown", tecla); document.body.style.overflow = ""; origen?.focus(); };
+  const tecla = (e) => { if (e.key === "Escape") cerrar(); };
+  f.addEventListener("click", (e) => { if (e.target === f) cerrar(); });
+  f.querySelector(".modal-cerrar").addEventListener("click", cerrar);
+  document.addEventListener("keydown", tecla); document.body.style.overflow = "hidden"; document.body.appendChild(f); f.querySelector(".modal-cerrar").focus();
+}
+
+function llave() {
+  const L = { "0": ["ll-0", "Envíos apagados", "No sale ningún mensaje."], prueba: ["ll-prueba", "Envíos en prueba", "Hoy solo le llegan al número de prueba, no a los clientes."], "1": ["ll-1", "Envíos activos", "Los mensajes les llegan a los clientes."] }[DATOS.llave] || ["ll-prueba", "Estado desconocido", ""];
+  const el = document.getElementById("llave"); el.classList.add(L[0]);
+  el.innerHTML = `<span class="luz"></span><div>${L[1]}<small>${L[2]}</small></div>`;
+}
+if (DATOS) { llave(); pintar(); }
+</script>
