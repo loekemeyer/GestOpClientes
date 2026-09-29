@@ -78,17 +78,19 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_programado_retira",
     language: ES, category: UT,
     disparo: "Idem pedido_programado, cuando el cliente retira en depósito.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día en que está listo (día de semana + dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nTu pedido del {{2}} va a estar listo para retirar el {{3}}.\nTe confirmamos por este medio cuando puedas pasar a buscarlo.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "miércoles 30/09"],
+    // Sin la doble presentación (Pablo, 29/09, sql/092).
+    variables: ["fecha en que hizo el pedido (dd/mm)", "día en que está listo (día de semana + dd/mm)"],
+    body: "Tu pedido del {{1}} va a estar listo para retirar el {{2}}.\nTe confirmamos por este medio cuando puedas pasar a buscarlo.",
+    ejemplos: ["22/09", "miércoles 30/09"],
   },
   {
     name: "pedido_reprogramado",
     language: ES, category: UT,
     disparo: "Cambia la fecha de salida de una NP ya avisada como programada.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "nueva fecha de salida (día de semana + dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nCambió la fecha de tu pedido del {{2}}: ahora sale el {{3}}.\nDisculpá las molestias.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "viernes 02/10"],
+    // Sin la doble presentación (Pablo, 29/09, sql/092).
+    variables: ["fecha en que hizo el pedido (dd/mm)", "nueva fecha de salida (día de semana + dd/mm)"],
+    body: "Cambió la fecha de tu pedido del {{1}}: ahora sale el {{2}}.\nDisculpá las molestias.",
+    ejemplos: ["22/09", "viernes 02/10"],
   },
 
   // (pedido_preparando se quitó el 29/09 a pedido de Pablo: "no tiene sentido". Sigue en Meta sin uso; sql/091.)
