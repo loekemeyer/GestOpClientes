@@ -361,7 +361,28 @@ html.dark .chat-messages { background-image: none; }
 .cm-acciones, .g-modal .botones, .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .al-tabla td .config-btn + .config-btn { margin-left: 4px; }
 .g-modal .botones .g-btn { min-height: 40px; padding: 0 18px; font-size: 13px; }
+/* Los "← Volver" / "Cerrar" que sólo existen en pantallas chicas: el display de arriba no los tiene que mostrar en
+   la computadora (misma lógica que sus reglas originales, con más prioridad). */
+.g-btn.cm-volver, .g-btn.tk-volver, .g-btn.cm-ficha-cerrar, .config-btn.conv-volver { display: none; }
+@media (max-width: 1319px) { .g-btn.cm-ficha-cerrar { display: inline-flex; } }
+@media (max-width: 760px) { .g-btn.cm-volver, .g-btn.tk-volver { display: inline-flex; } }
+@media (max-width: 640px) { .conv-layout.con-charla .config-btn.conv-volver { display: inline-flex; } }
 @media (max-width: 640px) {
   .config-btn, .g-btn { min-height: 38px; }
   .config-btn.small { min-height: 32px; }
+}
+
+/* ── Celular (Pablo, 29/09: "revisá cómo se ve en el celular") ───────────────────────────────────────────────
+   En el Dashboard las secciones medían 738px en un teléfono de 390px y se cortaban a la derecha: los flex no
+   podían achicarse (faltaba min-width:0) y el encabezado de cada sección no bajaba de renglón. */
+.page, .config-page { min-width: 0; }
+.dash-section > summary { flex-wrap: wrap; row-gap: 0.25rem; }
+@media (max-width: 640px) {
+  .config-page { padding: 1rem; }
+  .dash-sec-hint { flex: 1 1 100%; order: 3; }
+  .ia-stat { min-width: calc(50% - 0.25rem); }
+  /* Configuración › listas de números: el número ocupa todo el renglón; etiqueta/motivo y "+ Agregar" abajo
+     (antes los dos campos quedaban cortados: "Número (ej: 5", "Etiqueta (opc"). */
+  .bl-add-row { flex-wrap: wrap; }
+  .bl-add-row input:first-child { flex: 1 1 100%; }
 }
