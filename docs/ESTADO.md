@@ -368,6 +368,12 @@ el killswitch, sin ningún consumidor de esa cola.
   número falso 5490000000099; el estado vive en `wa_prospect_leads` de ese número y una charla nueva cancela la anterior.
   Un CUIT que ya es cliente no pide vinculación real. "Crear cliente y mandar acceso" sobre un alta 🧪 hace los controles
   y la bienvenida retenida pero NO crea el cliente ni el usuario de la web.
+- **Pedido por archivo** (29/09, `_shared/pedido-archivo.ts`): un Excel/CSV/foto/PDF de un cliente que no es reclamo ni
+  pago lo lee Haiku (Excel → CSV con SheetJS; foto/PDF con visión), se cruza con el catálogo (código exacto o
+  bot_buscar_productos; unidades → cajas con uxb; dudosos marcados ❓) y el bot le manda la lista para que confirme. La
+  tarea `pedido_archivo` sale en el momento con la lista y el archivo; "sí" o los cambios la actualizan
+  (`respuestaPedidoArchivo`). Adjuntos ahora también pasan por el candado de idempotencia (Meta reintenta si tarda).
+  Prueba sin WhatsApp: `lk_bot-simular` action `leer_archivo`.
 - **Tareas de prueba 🧪 nunca mandan mensajes** (29/09): `lk_alertas` encola sus avisos como `held_no_whitelist` con
   context `prueba_…` y la clave tapada. La llamada interna (x-lk-secret) sólo puede tocar tareas 🧪 (y bloqueoPrueba exige
   el cliente 99862): así Claude corre las pruebas sin login.

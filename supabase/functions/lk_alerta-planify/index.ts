@@ -55,6 +55,7 @@ const CORTO: Record<string, string> = {
   pedido_no_encontrado: "Pedido que no aparece",
   entrega: "Consulta de entrega",
   cambio_datos: "Dirección nueva",
+  pedido_archivo: "Pedido por archivo",
 };
 
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);

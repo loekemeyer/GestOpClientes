@@ -757,6 +757,17 @@ function tkPintarDetalle() {
       ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
       <div class="aviso">Cargalo en el ERP y aprobalo acá: se crea en la web y le llega el acceso por WhatsApp.</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
+  } else if (a.articulos?.length) {
+    // Pablo, 29/09: pedido que llegó como archivo; la IA armó la lista. Ventas lo carga en la web.
+    const est = { ok: "", dudoso: '<span style="color:var(--warn);font-weight:700">❓ revisar</span>', no_encontrado: '<span style="color:var(--g-danger);font-weight:700">No encontrado</span>' };
+    const resp = a.respuesta_cliente === "confirmado" ? '<div class="aviso" style="border-style:solid">✅ El cliente confirmó la lista.</div>'
+      : a.respuesta_cliente === "cambios" ? `<div class="alerta">El cliente pidió cambios:</div><div class="cita">${gesc(a.cambios || "")}</div>`
+      : '<div class="aviso">El cliente todavía no confirmó la lista.</div>';
+    cuerpo = `<h4>Pedido leído del archivo · ${a.articulos.length} líneas</h4>
+      <div class="tk-tels" style="max-width:none">${a.articulos.map((x) => `<div class="it"><span>${x.estado === "no_encontrado" ? gesc(x.original) :
+        `<b>${gesc(x.cajas)} ${Number(x.cajas) === 1 ? "caja" : "cajas"}</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})`}${x.nota ? `<br><small style="color:var(--g-muted)">${gesc(x.nota)}</small>` : ""}${x.estado !== "no_encontrado" && x.estado === "dudoso" ? `<br><small style="color:var(--g-muted)">Decía: ${gesc(x.original)}</small>` : ""}</span><span>${est[x.estado] || ""}</span></div>`).join("")}</div>
+      ${resp}<div class="aviso">Cargalo en la web a nombre del cliente y marcá la tarea resuelta.</div>
+      ${a.comprobante?.id ? `<div class="cm-acciones"><button class="g-btn" onclick="tkAdjunto('${gesc(a.comprobante.id)}')">Ver archivo original</button></div>` : ""}`;
   } else if (a.mail_nuevo) {
     cuerpo = `<h4>Cambio de mail</h4>${kv([["Mail nuevo", `<b>${gesc(a.mail_nuevo)}</b>`]])}
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkCambiarMail()">Cambiar mail</button></div>`;

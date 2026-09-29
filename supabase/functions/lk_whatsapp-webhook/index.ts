@@ -29,6 +29,7 @@ import { notificarHumano } from "../_shared/alertas.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
+import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START, tryRegister } from "../_shared/alta.ts";
 
 // ─── Config (app_settings → fallback Deno.env) ─────────────────────
@@ -601,10 +602,12 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
   const codCliente = customer?.cod_cliente ? String(customer.cod_cliente) : null;
   let comprobanteId: string | null = null;
   let falla: string | null = null;
+  let archivo: { bytes: Uint8Array; mime: string } | null = null;
   if (!msg.mediaId) falla = "sin_media_id";
   else {
     try {
       const download = await downloadMediaFromMeta(msg.mediaId, cfg.waToken);
+      archivo = { bytes: download.bytes, mime: download.mime };
       const ext = extFromMime(download.mime) || extFromFilename(msg.mediaFilename) || "bin";
       const storagePath = `${codCliente ?? phone}/${new Date().toISOString().slice(0, 7)}/${msg.msgId}.${ext}`;
       const up = await supabase.storage.from("wa-comprobantes").upload(storagePath, download.bytes,
@@ -629,9 +632,29 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
       console.error("[adjunto] trigger parser falló:", e instanceof Error ? e.message : e));
   }
 
-  await responder(respuesta);
+  // Pablo, 29/09: un Excel, CSV, foto o PDF de un cliente que no es reclamo ni pago se lee como PEDIDO: la IA arma la lista,
+  // se la mostramos para que confirme y la tarea sale con la lista para cargar (_shared/pedido-archivo.ts).
+  let respuestaFinal = respuesta;
+  let motivoFinal = motivo;
+  let lectura: Record<string, unknown> = {};
+  if (clase === "otro" && customer && archivo && esArchivoDePedido(archivo.mime, msg.mediaFilename)) {
+    try {
+      const r = await leerPedidoArchivo(archivo.bytes, archivo.mime, cfg.anthropicKey, phone, msg.mediaFilename);
+      if (r.lineas.length) {
+        const arts = await resolverArticulos(r.lineas);
+        respuestaFinal = textoConfirmacion(arts);
+        motivoFinal = "pedido_archivo";
+        lectura = { articulos: arts };
+      } else lectura = { lectura_error: r.error ?? "no se encontraron líneas de pedido" };
+    } catch (e) {
+      lectura = { lectura_error: e instanceof Error ? e.message : String(e) };
+      console.error("[adjunto] no se pudo leer el pedido:", lectura.lectura_error);
+    }
+  }
+
+  await responder(respuestaFinal);
   await alerta(tipoAlerta, {
-    ...(motivo ? { motivo } : {}),
+    ...(motivoFinal ? { motivo: motivoFinal } : {}), ...lectura,
     comprobante_id: comprobanteId, mime, archivo: msg.mediaFilename ?? null,
     ...(falla ? { error_archivo: falla } : {}),
   });
@@ -1015,6 +1038,16 @@ async function handleMessage(
   } : null;
   // Pablo, 29/09: "Hola, quiero ser cliente" ganaba la respuesta fija del saludo y nunca arrancaba el alta (visto en el
   // Simulador › Número nuevo). Para un no-cliente que pide darse de alta, primero el registro.
+  // Pablo, 29/09: el cliente contesta la lista de un pedido que mandó como archivo ("sí" o lo que quiere cambiar).
+  if (customer) {
+    const rpa = await respuestaPedidoArchivo(phone, text);
+    if (rpa) {
+      await saveMessage(phone, "user", text);
+      await enviarTexto(cfg, phone, rpa);
+      await saveMessage(phone, "assistant", rpa);
+      return;
+    }
+  }
   const faq = !customer && RE_ALTA_START.test(text) ? null : await handleFaq(text, faqCustomer);
   if (faq) {
     await saveMessage(phone, "user", text);
@@ -1205,6 +1238,12 @@ Deno.serve(async (req: Request) => {
       // persona (ver handleAdjunto).
       const TIPOS_ADJUNTO = ["image", "document", "audio", "video", "sticker"];
       if (TIPOS_ADJUNTO.includes(msg.type)) {
+        // Candado de idempotencia (sql/057) también para adjuntos: leer un pedido por archivo con la IA puede tardar y
+        // Meta reintenta; sin esto la tarea salía dos veces (29/09).
+        if (msg.msgId) {
+          const { error: dupA } = await supabase.from("wa_inbound_seen").insert({ wamid: msg.msgId, phone: msg.from });
+          if (dupA?.code === "23505") { console.log(`[idem] adjunto repetido, se ignora: ${msg.msgId}`); return new Response("OK", { status: 200 }); }
+        }
         await handleAdjunto(msg, cfg);
         return new Response("OK", { status: 200 });
       }

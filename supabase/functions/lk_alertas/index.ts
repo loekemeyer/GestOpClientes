@@ -283,6 +283,8 @@ serve(async (req) => {
           agregar: Array.isArray(ctx.agregar) ? ctx.agregar : null,
           sucursal: ctx.sucursal ?? null,
           mail_nuevo: ctx.mail_nuevo ?? null,
+          articulos: Array.isArray(ctx.articulos) ? ctx.articulos : null,
+          respuesta_cliente: ctx.respuesta_cliente ?? null, cambios: ctx.cambios ?? null, lectura_error: ctx.lectura_error ?? null,
           aplicable: ctx.aplicable === true,
         };
       }).sort((x, y) => {

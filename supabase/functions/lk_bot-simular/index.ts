@@ -6,6 +6,7 @@ import { SIM } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { handleFaq } from "../_shared/faq.ts";
+import { leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START } from "../_shared/alta.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
@@ -138,6 +139,16 @@ serve(async (req) => {
     // con un número falso. El estado del alta vive en wa_prospect_leads (filas de ese número falso); una charla nueva
     // cancela el alta anterior. La alerta de alta sólo se crea de verdad con "Crear tareas de prueba" (🧪).
     if (body.numero_nuevo === true) return await simularNumeroNuevo(body);
+    // Pablo, 29/09: probar la lectura de un pedido por archivo sin WhatsApp: {action:"leer_archivo", base64, mime, nombre}.
+    // Devuelve lo que leyó la IA, cómo lo cruzó con el catálogo y el mensaje que le mandaría al cliente. No crea nada.
+    if (body.action === "leer_archivo") {
+      const bin = atob(String(body.base64 ?? ""));
+      const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const key = Deno.env.get("ANTHROPIC_API_KEY") ?? (await getSetting("ANTHROPIC_API_KEY")) ?? "";
+      const r = await leerPedidoArchivo(bytes, String(body.mime ?? ""), key, null, body.nombre ?? null);
+      const arts = r.lineas.length ? await resolverArticulos(r.lineas) : [];
+      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, articulos: arts, mensaje: arts.length ? textoConfirmacion(arts) : null });
+    }
 
     const { data: c } = await supabase.from("customers")
       .select("id, cod_cliente, business_name, dto_vol").eq("cod_cliente", Number(body.cod_cliente)).maybeSingle();
