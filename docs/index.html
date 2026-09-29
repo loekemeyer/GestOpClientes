@@ -107,6 +107,8 @@
     .chat-messages .msg.in { background: var(--wa-in); float: left; border-top-left-radius: 0; }
     .chat-messages .msg.out { background: var(--wa-out); float: right; border-top-right-radius: 0; }
     .chat-messages .msg .time { font-size: 0.65rem; color: var(--muted); float: right; margin: 4px 0 -4px 8px; }
+    .sim-avisos { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .sim-aviso { text-transform: capitalize; }
     .chat-messages .msg.system { background: var(--amb-bg); float: none; max-width: 85%; margin: 0.5rem auto; text-align: center; font-size: 0.8rem; color: var(--warn); border-radius: 6px; }
     .chat-messages::after { content: ""; display: table; clear: both; }
     .chat-messages .typing { float: left; background: var(--wa-in); border-top-left-radius: 0; padding: 0.6rem 1rem; }
@@ -411,6 +413,7 @@
         <button class="tab active" data-tab="testChat" onclick="switchChatTab('testChat')">💬 Chat de prueba</button>
         <button class="tab" data-tab="realConv" onclick="switchChatTab('realConv')" hidden>👥 Conversaciones reales</button>
         <button class="tab" data-tab="tplChat" onclick="switchChatTab('tplChat')">📨 Prueba de plantillas</button>
+        <button class="tab" data-tab="simChat" onclick="switchChatTab('simChat')">🧪 Simulador</button>
       </div>
 
       <!-- Tab 1: Chat de prueba (sandbox contra el bot) -->
@@ -493,6 +496,37 @@
             <button class="config-btn primary" id="tplChatNext" onclick="tplChatNext()" disabled>▶ Siguiente etapa</button>
             <button class="config-btn" onclick="tplChatAll()">⏩ Todo</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Tab: Simulador (escribís como cliente + botonera de avisos; no envía ni escribe nada) -->
+      <div class="chat-tab-content" id="tabSimChat">
+        <div class="chat-container">
+          <div class="chat-header">
+            <div class="avatar">🧪</div>
+            <div class="info">
+              <h2 id="simTitle">Cliente de prueba</h2>
+              <span>Escribís como el cliente · no se envía nada</span>
+            </div>
+            <button class="clear-btn" onclick="simReset()">🔄 Reiniciar</button>
+          </div>
+          <div class="chat-messages" id="simMessages"></div>
+          <div class="chat-input">
+            <input type="text" id="simInput" placeholder="Escribí como si fueras el cliente..." autocomplete="off">
+            <button id="simSend" onclick="simSend()">➤</button>
+          </div>
+        </div>
+
+        <div class="control-panel">
+          <h4>🧪 Simulador</h4>
+          <div class="toggle-desc" style="margin-bottom:0.6rem;">El bot contesta con su lógica real (preguntas frecuentes, IA, herramientas). No manda WhatsApp, no crea pedidos ni alertas. La IA gasta tokens como siempre.</div>
+          <div style="display:flex;gap:0.4rem;">
+            <input type="number" id="simCod" value="4210" placeholder="N° de cliente" style="flex:1;min-width:0;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+            <button class="config-btn small" onclick="simReset(document.getElementById('simCod').value)">Usar</button>
+          </div>
+          <h4 style="margin-top:0.9rem;">📨 Avisos</h4>
+          <div class="toggle-desc" style="margin-bottom:0.5rem;">Tocá uno y le llega al cliente en el chat. Después contestale como cliente para ver cómo responde el bot.</div>
+          <div id="simAvisos" class="sim-avisos"><div class="toggle-desc">Cargando…</div></div>
         </div>
       </div>
 
@@ -1466,6 +1500,8 @@ function switchChatTab(tab) {
   document.getElementById("tabTestChat").classList.toggle("active", tab === "testChat");
   document.getElementById("tabRealConv").classList.toggle("active", tab === "realConv");
   document.getElementById("tabTplChat").classList.toggle("active", tab === "tplChat");
+  document.getElementById("tabSimChat").classList.toggle("active", tab === "simChat");
+  if (tab === "simChat") simInit();
   if (tab === "tplChat" && !_tplChatPedidos) tplChatList();
   if (tab === "realConv") {
     loadConversaciones();
@@ -1554,6 +1590,79 @@ function tplChatAll() {
   if (!_tplChat) return;
   while (_tplChatIdx < tplChatPasos().length) tplChatNext();
 }
+
+// --- Simulador: escribir como cliente + botonera de avisos (lk_bot-simular) ---
+var _sim = { cod: 4210, historial: [], avisos: null, ocupado: false };
+
+function simAgregar(cls, html) {
+  const box = document.getElementById("simMessages");
+  box.insertAdjacentHTML("beforeend", `<div class="msg ${cls}">${html}</div>`);
+  box.scrollTop = box.scrollHeight;
+}
+const simHora = () => new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+
+async function simInit() {
+  if (_sim.avisos) return;
+  const cont = document.getElementById("simAvisos");
+  try {
+    const { data, error } = await authedInvoke("lk_bot-simular", { action: "avisos" });
+    if (error || !data?.ok) { cont.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+    _sim.avisos = data.avisos;
+    cont.innerHTML = data.avisos.map((a) =>
+      `<button class="config-btn small sim-aviso" title="${esc(a.cuando || "")}" onclick="simAviso('${esc(a.name)}')">${esc(a.name.replace(/^pedido_/, "").replace(/_/g, " "))}</button>`).join("");
+    simReset();
+  } catch (e) {
+    cont.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(e.message) + "</div>";
+  }
+}
+
+function simReset(cod) {
+  if (cod) _sim.cod = Number(cod) || 4210;
+  _sim.historial = [];
+  document.getElementById("simMessages").innerHTML = "";
+  document.getElementById("simTitle").textContent = "Cliente " + _sim.cod;
+  simAgregar("system", "Charla nueva · escribí o tocá un aviso");
+}
+
+async function simLlamar(pasos) {
+  const { data, error } = await authedInvoke("lk_bot-simular", { cod_cliente: _sim.cod, historial: _sim.historial, pasos });
+  if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
+  if (data.cliente) document.getElementById("simTitle").textContent = data.cliente;
+  return data.charla[0];
+}
+
+async function simAviso(name) {
+  if (_sim.ocupado) return;
+  _sim.ocupado = true;
+  try {
+    const r = await simLlamar([{ aviso: name }]);
+    simAgregar("in", `<div style="white-space:pre-wrap;">${esc(r.texto)}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(name)}</div><span class="time">${simHora()}</span>`);
+    _sim.historial.push({ rol: "assistant", contenido: `[Aviso automático ${name}]\n${r.texto}` });
+  } catch (e) { simAgregar("system", "⚠️ " + esc(e.message)); }
+  _sim.ocupado = false;
+}
+
+async function simSend() {
+  const inp = document.getElementById("simInput");
+  const txt = inp.value.trim();
+  if (!txt || _sim.ocupado) return;
+  inp.value = "";
+  _sim.ocupado = true;
+  simAgregar("out", `<div style="white-space:pre-wrap;">${esc(txt)}</div><span class="time">${simHora()}</span>`);
+  simAgregar("system typing-sim", "El bot está escribiendo…");
+  try {
+    const r = await simLlamar([{ cliente: txt }]);
+    document.querySelector("#simMessages .typing-sim")?.remove();
+    const meta = [`vía ${r.via}`, (r.herramientas || []).length ? "herramientas: " + r.herramientas.map((h) => h.nombre).join(", ") : "", (r.alertas || []).length ? `alertas que crearía: ${r.alertas.length}` : ""].filter(Boolean).join(" · ");
+    simAgregar("in", `<div style="white-space:pre-wrap;">${esc(r.bot || "(sin respuesta)")}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(meta)}</div><span class="time">${simHora()}</span>`);
+    _sim.historial.push({ rol: "user", contenido: txt }, { rol: "assistant", contenido: r.bot || "" });
+  } catch (e) {
+    document.querySelector("#simMessages .typing-sim")?.remove();
+    simAgregar("system", "⚠️ " + esc(e.message));
+  }
+  _sim.ocupado = false;
+}
+document.getElementById("simInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") simSend(); });
 
 // --- Chat ---
 const chatMessages = document.getElementById("chatMessages");
@@ -3805,7 +3914,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.24.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.0</div>
 <script src="gestop2.js?v=0.24.2"></script>
 </body>
 </html>

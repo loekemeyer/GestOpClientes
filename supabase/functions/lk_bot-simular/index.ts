@@ -7,7 +7,7 @@ import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { handleFaq } from "../_shared/faq.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
-import { renderPlantilla } from "../_shared/plantillas-meta.ts";
+import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 
 // lk_bot-simular — simulador del bot: corre una charla completa con la MISMA lógica que el webhook
 // (3c respuesta a aviso → 4 preguntas frecuentes → 6 agente IA) como si escribiera un cliente, sin
@@ -19,6 +19,12 @@ import { renderPlantilla } from "../_shared/plantillas-meta.ts";
 //                  { cliente: "No puedo pasar el 30" }, … ] }
 // Devuelve, por paso: qué contestó el bot, por qué camino, qué alertas habría creado y qué
 // herramientas usó el agente. No replica el saludo de primer contacto ni el rate limit del webhook.
+//
+// Para el chat interactivo del dashboard (Comunicaciones › Simulador, pedido de Pablo 29/09):
+//   · { action: "avisos" }  → la botonera: [{ name, cuando, texto }] con las plantillas definidas y su texto de ejemplo.
+//   · { historial: [{rol:"user"|"assistant", contenido}] } → charla previa que se carga SIN volver a correrla
+//     (el simulador no guarda estado: así cada mensaje nuevo cuesta un solo turno de IA, no toda la charla).
+//   · { aviso: "pedido_recibido" } sin params → usa los valores de ejemplo de la plantilla, con {{1}} = razón social del cliente.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +56,10 @@ serve(async (req) => {
       if (!gate.ok) return json({ error: gate.error }, gate.status);
     }
 
+    if (body.action === "avisos") {
+      return json({ ok: true, avisos: PLANTILLAS.map((p) => ({ name: p.name, cuando: p.disparo, texto: renderPlantilla(p.name, Object.fromEntries(p.ejemplos.map((v, i) => [String(i + 1), v]))) })) });
+    }
+
     const { data: c } = await supabase.from("customers")
       .select("id, cod_cliente, business_name, dto_vol").eq("cod_cliente", Number(body.cod_cliente)).maybeSingle();
     if (!c) return json({ error: "cliente no encontrado" }, 400);
@@ -59,16 +69,28 @@ serve(async (req) => {
 
     // Opcional: teléfono real del cliente, para que las herramientas de consulta (pedidos, entregas) encuentren
     // sus datos. Sigue en modo SIM: no se guarda historial ni corren herramientas con efecto.
-    const telSim = String(body.telefono ?? "").replace(/\D/g, "") || TEL_SIMULADO;
+    let telSim = String(body.telefono ?? "").replace(/\D/g, "");
+    if (!telSim) {
+      // Sin teléfono en el pedido: el agendado del cliente (sólo lectura) para que las herramientas encuentren sus pedidos.
+      const { data: w } = await supabase.from("bot_customer_whatsapps").select("whatsapp")
+        .eq("customer_id", c.id).order("is_primary", { ascending: false }).limit(1).maybeSingle();
+      telSim = String(w?.whatsapp ?? "").replace(/\D/g, "") || TEL_SIMULADO;
+    }
     SIM.activo = true;
-    SIM.historial = [];
+    SIM.historial = Array.isArray(body.historial)
+      ? (body.historial as Array<{ rol?: string; contenido?: string }>).slice(-40)
+        .filter((h) => (h.rol === "user" || h.rol === "assistant") && typeof h.contenido === "string")
+        .map((h) => ({ rol: h.rol as "user" | "assistant", contenido: String(h.contenido).slice(0, 4000), creado_en: new Date().toISOString() }))
+      : [];
     const salida: Array<Record<string, unknown>> = [];
     const ahora = () => new Date().toISOString();
 
     for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
       if (paso.aviso) {
         const nombre = String(paso.aviso);
-        const texto = renderPlantilla(nombre, (paso.params ?? null) as Record<string, unknown> | null) ?? "";
+        const def = PLANTILLAS.find((x) => x.name === nombre);
+        const porDefecto = def ? Object.fromEntries(def.ejemplos.map((v, i) => [String(i + 1), i === 0 ? c.business_name : v])) : null;
+        const texto = renderPlantilla(nombre, (paso.params ?? porDefecto) as Record<string, unknown> | null) ?? "";
         SIM.historial.push({ rol: "assistant", creado_en: ahora(),
           contenido: `[Aviso automático ${nombre}${paso.pedido ? ` · pedido ${paso.pedido}` : ""}]\n${texto}` });
         salida.push({ aviso: nombre, texto });
