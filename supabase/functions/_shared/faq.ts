@@ -118,6 +118,14 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     return { reply: "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido (mismo importe cargado dos veces).\n" +
       "Si ves uno de más en la web, decinos de qué fecha es y lo revisamos.", intent: "pedido_duplicado", automation_level: "semi_auto" };
   }
+  // Pablo, 29/09: "me olvidé la clave" / "no puedo entrar a la web". Con el cliente identificado por su teléfono, una persona
+  // aprueba desde Tareas y el botón le genera una clave temporal que sale por WhatsApp (el login es <cuit>@cuit.loekemeyer,
+  // un mail que no existe: el "olvidé mi contraseña" por mail no le puede llegar).
+  if (customer && RE_CLAVE.test(text)) {
+    return { reply: "Tu usuario de la web es tu CUIT. Una persona del equipo te genera una clave nueva y te la mandamos por acá.",
+      intent: "reseteo_clave", automation_level: "needs_human", topic: "Reseteo de clave de la web",
+      alerta: { motivo: "reseteo_clave", detalle: "Pide clave nueva para la web" } };
+  }
   // Pablo, 29/09: "no me deja elegir la sucursal" es un problema de acceso a la web: lo revisa una persona.
   if (RE_SUCURSAL_WEB.test(text)) {
     return { reply: "Una persona revisa tu acceso a la web y las sucursales de entrega cargadas, y te escribe por acá.",
@@ -314,6 +322,7 @@ const RE_DIRECCION_ENTREGA = /(mi|la)\s+direcci[oó]n\s+de\s+(entrega|env[ií]o)
 
 // A dónde va cada pedido abierto del cliente: sucursal de entrega cargada en la web y, si sale por expreso, cuál.
 const RE_DUPLICADO = /((pedido|confirm|carg|compra)[^.?!]{0,40}(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez|tres veces)|(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez)[^.?!]{0,40}(pedido|confirm|carg))/i;
+const RE_CLAVE = /((olvid|recuper|resete|blanque|cambi|perd|nueva|bloque|no\s+(me\s+)?(acuerdo|recuerdo))[^.?!]{0,40}(contrase|\bclave|password|usuario)|(contrase|\bclave|password|usuario)[^.?!]{0,40}(olvid|no\s+(me\s+)?(anda|funciona|toma|deja|acuerdo|recuerdo|entra)|incorrect|inv[aá]lid|bloque)|no\s+(puedo|logro|me\s+deja)\s+(entrar|ingresar|loguear)[^.?!]{0,30}(web|p[aá]gina|sistema|cuenta)?|(necesito|pasame|pas[aá]s|mandame|dame|no\s+tengo)\s+(mi\s+|el\s+|un\s+|la\s+)?(usuario|\bclave|contrase))/i;
 const RE_SUCURSAL_WEB = /(no\s+(me\s+)?(deja|puedo|aparece|figura|sale)[^.?!]{0,30}sucursal|sucursal[^.?!]{0,30}no\s+(me\s+)?(deja|aparece|figura|sale|puedo))/i;
 
 async function pedidosDuplicados(customer: NonNullable<Customer>): Promise<{ cantidad: number; del: string; importe: string; minutos: string; ids: number[] } | null> {

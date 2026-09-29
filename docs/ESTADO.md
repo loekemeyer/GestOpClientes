@@ -331,6 +331,10 @@ el killswitch, sin ningún consumidor de esa cola.
   `cambio_pedido` con `contexto.agregar` y botón **Aplicar** en Tareas → `lk_alertas` `aplicar_agregado` →
   `bot_aplicar_agregado` (sql/099; no usa `edit_order_fast` porque exige `auth.uid()` de PaginaLK) + aviso por `wa_outbox`.
   Sacar/anular sigue derivando directo (`RE_EDITA_PEDIDO` sólo sacar/quitar).
+- **Reseteo de clave** (29/09): cliente identificado + `RE_CLAVE` (faq.ts) → "tu usuario es tu CUIT, una persona te genera
+  una clave" + tarea `reseteo_clave`. En Tareas, "Generar clave temporal y mandarla" → `lk_alertas` `reset_clave`:
+  `auth.admin.updateUserById` en PaginaLK (4 letras + 4 números) y aviso por `wa_outbox`. La clave NO queda en la alerta,
+  pero sí en el cuerpo del mensaje (wa_outbox / conversación, sólo service_role y el dashboard).
 
 - Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). **Stateless**: cada mensaje cae por
   las mismas compuertas. Mapa visual: `docs/mapa-flujo-bot.html`.

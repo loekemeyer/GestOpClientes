@@ -311,6 +311,38 @@ serve(async (req) => {
       return json({ ok: true, total_anterior: r.total_anterior, total_nuevo: r.total_nuevo, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
     }
 
+    // Pablo, 29/09: reseteo de clave con aprobación. Genera una clave temporal, la guarda en la cuenta de la web del
+    // cliente (auth de PaginaLK) y se la manda por la cola (sale según la llave). La clave no queda en la alerta.
+    if (body.action === "reset_clave") {
+      const id = Number(body.id);
+      if (!id) return json({ ok: false, error: "falta id" }, 400);
+      const { data: a } = await supabase.from("wa_alertas_humano").select("id, phone, customer_id, contexto, estado").eq("id", id).maybeSingle();
+      if (!a || a.contexto?.motivo !== "reseteo_clave") return json({ ok: false, error: "La tarea no es un pedido de clave." }, 200);
+      if (!["pendiente", "notificado"].includes(a.estado)) return json({ ok: false, error: "La tarea ya estaba resuelta." }, 200);
+      if (!a.customer_id || !a.phone) return json({ ok: false, error: "La tarea no tiene cliente identificado." }, 200);
+      const { data: c } = await supabase.from("customers").select("auth_user_id, cuit, business_name").eq("id", a.customer_id).maybeSingle();
+      if (!c?.auth_user_id) return json({ ok: false, error: "El cliente no tiene usuario en la web: hay que darle acceso primero." }, 200);
+      const { data: u, error: eU } = await supabase.auth.admin.getUserById(c.auth_user_id);
+      if (eU || !u?.user?.email) return json({ ok: false, error: "No encontré el usuario de la web." }, 200);
+      const usuario = String(u.user.email).split("@")[0];
+      // 4 letras + 4 números, sin letras que se confunden (l, o, i).
+      const rnd = crypto.getRandomValues(new Uint32Array(8));
+      const LET = "abcdefghjkmnpqrstuvwxyz";
+      const clave = Array.from(rnd.slice(0, 4), (n) => LET[n % LET.length]).join("") + Array.from(rnd.slice(4), (n) => String(n % 10)).join("");
+      const { error: eP } = await supabase.auth.admin.updateUserById(c.auth_user_id, { password: clave });
+      if (eP) return json({ ok: false, error: "No se pudo cambiar la clave: " + eP.message }, 200);
+      const texto = `Te generamos una clave nueva para la web (loekemeyer.com → "Pedidos Mayorista"):\n` +
+        `Usuario: ${usuario}\nClave: ${clave}\nNo la compartas con nadie.`;
+      const { error: eO } = await supabase.from("wa_outbox").insert({ phone: a.phone, body: texto, context: "clave_temporal", ref_id: String(id) });
+      await supabase.from("wa_alertas_humano").update({
+        estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
+        contexto: { ...a.contexto, clave_reseteada_at: new Date().toISOString() },
+      }).eq("id", id);
+      await llamarPlanify({ action: "cerrar", alerta_id: id });
+      console.log(`lk_alertas: clave reseteada para ${c.business_name} por ${gate.email}`);
+      return json({ ok: true, usuario, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
+    }
+
     if (body.action === "adjunto") {
       const id = String(body.comprobante_id ?? "");
       if (!id) return json({ ok: false, error: "falta comprobante_id" }, 400);

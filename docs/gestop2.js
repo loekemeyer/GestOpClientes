@@ -756,6 +756,10 @@ function tkPintarDetalle() {
       ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
       <div class="aviso">El alta se carga en el ERP a mano. Después aprobala acá: se le avisa al cliente por WhatsApp (sale según la llave).</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
+  } else if (a.motivo === "reseteo_clave") {
+    cuerpo = `<h4>Pide clave nueva para la web</h4>${a.texto ? `<div class="cita">${gesc(a.texto)}</div>` : ""}
+      <div class="aviso">El número ya está vinculado a este cliente. Al generarla, la clave vieja deja de andar y la nueva le llega por WhatsApp (sale según la llave).</div>
+      <div class="cm-acciones"><button class="g-btn prim" onclick="tkResetClave()">Generar clave temporal y mandarla</button></div>`;
   } else if (a.agregar?.length) {
     // Pablo, 29/09: agregado a un pedido pedido por WhatsApp. "Aplicar" lo suma al pedido y le avisa al cliente.
     cuerpo = `<h4>Agregar al pedido${a.pedido_fecha ? ` del ${gesc(a.pedido_fecha)}` : ""}</h4>
@@ -786,6 +790,17 @@ async function tkResolver(estado) {
   try {
     await tkInvoke("lk_alertas", { action: "resolver", id: t.a.id, estado });
     toast(estado === "atendido" ? "Tarea resuelta." : "Tarea descartada.");
+    G.tareaSel = null; tkVolver();
+    await tkCargar();
+    if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
+  } catch (e) { toast("No se pudo: " + e.message); }
+}
+async function tkResetClave() {
+  const t = tkActual(); if (!t || !t.a) return;
+  if (!confirm("¿Generar una clave nueva para este cliente y mandársela por WhatsApp? La clave vieja deja de andar.")) return;
+  try {
+    const r = await tkInvoke("lk_alertas", { action: "reset_clave", id: t.a.id });
+    toast(`Clave nueva generada (usuario ${r.usuario}).` + (r.aviso_encolado ? " El aviso quedó en la cola." : " No se pudo encolar el aviso."));
     G.tareaSel = null; tkVolver();
     await tkCargar();
     if (typeof loadAlertas === "function") loadAlertas().catch(() => {});

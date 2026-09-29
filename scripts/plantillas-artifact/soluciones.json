@@ -135,11 +135,11 @@
       "consultas": 37,
       "estado": "parcial",
       "previene": [],
-      "bot": "Contraseña: deriva con alerta.",
+      "bot": "Contraseña: le dice que su usuario es el CUIT y deja la tarea; una persona toca 'Generar clave temporal' y la clave le llega por WhatsApp.",
       "deriva": "Una persona le resuelve el acceso.",
-      "falta": "Reseteo de clave con aprobación (en construcción). 'No me deja elegir sucursal' ya se deriva como problema de acceso a la web.",
+      "falta": "Nada pendiente del bot: la clave se resetea con aprobación y 'no me deja elegir sucursal' se deriva como problema de acceso a la web.",
       "ejemplo": "«No recuerdo la contraseña para cargar el pedido»",
-      "resumen": "Lo pasa a una persona. Falta el reseteo automático."
+      "resumen": "Una persona aprueba y la clave nueva le llega por WhatsApp."
     },
     {
       "motivo": "Stock o consulta de artículo",
