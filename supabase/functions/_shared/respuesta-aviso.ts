@@ -27,6 +27,9 @@ const RE_CAMBIO = /(cancel|anul|cambi(ar|á|a|en|ame|arme|arlo|alo|emos)\b|modif
 // Fuerte = alcanza sola. "No puedo / no llego…" sólo cuenta si además habla de una fecha, un día o
 // del retiro/entrega (para no derivar "no puedo abrir el catálogo").
 const RE_CAMBIO_FUERTE = /(reprogram|posterg|cancel|anul|cambi\w*\s+(la\s+|el\s+)?(fecha|d[ií]a|entrega|retiro)|otro\s+d[ií]a|reci[eé]n\s+(el|la|para|a\s+partir))/i;
+// Pablo, 29/09: "Agregá 60 sacacorchos al pedido web" (agregar/sacar algo de un pedido ya hecho) va directo a un asesor,
+// sin preguntar antes qué modelo es: la persona lo confirma con el cliente. Chequeo humano primero.
+const RE_EDITA_PEDIDO = /\b(agreg|sum[aá]|a[ñn]ad|sac[aá]|quit)\w*[^?.!]{0,60}\b(al|del|en el|a mi|de mi)\s+pedido/i;
 const RE_NO_PUEDO = /\bno\s+(pue\w*|pod\w*|voy|vamos|llego|llegamos|estoy|estamos)\b/i;
 const RE_FECHA_O_RETIRO = /(\b\d{1,2}\s*\/\s*\d{1,2}\b|\bel\s+\d{1,2}\b|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|ma[nñ]ana|semana|fecha|\bd[ií]a\b|retir|pasar|buscar|entreg|recib)/i;
 const RE_CUANDO = /(cu[aá]ndo|a qu[eé] hora|horario|qu[eé] d[ií]a|lleg|entreg|sale|salida|d[oó]nde est|en qu[eé] (va|est))/i;
@@ -104,7 +107,7 @@ export async function pedidoDeCambio(
 ): Promise<string | null> {
   if (!customer) return null;
   const t = text.trim();
-  if (!(RE_CAMBIO_FUERTE.test(t) || (RE_NO_PUEDO.test(t) && RE_FECHA_O_RETIRO.test(t)))) return null;
+  if (!(RE_CAMBIO_FUERTE.test(t) || RE_EDITA_PEDIDO.test(t) || (RE_NO_PUEDO.test(t) && RE_FECHA_O_RETIRO.test(t)))) return null;
 
   // Pedido abierto más reciente del cliente (últimos 60 días, no entregado según Gestión).
   const { data: ords } = await supabase.from("orders").select("id, created_at")
