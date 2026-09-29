@@ -131,7 +131,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "buscar_productos",
     description:
-      "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, precio de lista, unidades por bulto (uxb) y si tiene imagen.",
+      "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, unidades por caja, precio de lista por UNIDAD y por CAJA (sin descuentos) y si tiene imagen. No confundas los dos precios.",
     input_schema: {
       type: "object",
       properties: {
@@ -567,7 +567,12 @@ async function executeTool(
       });
       if (error) return { data: { error: error.message } };
       if (!data?.length) return { data: { mensaje: `No encontré productos para "${input.query}".` } };
-      return { data };
+      // Pablo, 29/09: list_price es por UNIDAD. El bot decía "$5.520 por caja" y la caja de 6 sale $33.120.
+      // Se le pasan los dos precios con nombre explícito, de lista (sin descuentos).
+      // deno-lint-ignore no-explicit-any
+      return { data: (data as any[]).map(({ list_price, uxb, ...r }) => ({ ...r, unidades_por_caja: uxb,
+        precio_lista_por_unidad: Math.round(Number(list_price || 0)),
+        precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)) })) };
     }
 
     case "consultar_stock": {
