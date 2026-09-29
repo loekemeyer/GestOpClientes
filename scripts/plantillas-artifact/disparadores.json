@@ -1,0 +1,54 @@
+{
+  "_nota": "Qué dispara cada plantilla de Meta y en qué grupo va en el artifact 'Plantillas de WhatsApp'. Lo lee generar.mjs. Mantener a mano cuando cambie un trigger (sql/078, sql/079, lk_factura-check, asoc-timeout-cron). estado: conectada | prueba | sin_disparador | legado | otro_sistema.",
+  "grupos": [
+    { "id": "pedido", "titulo": "Seguimiento del pedido", "bajada": "Lo que recibe el cliente desde que carga el pedido en la web hasta que le llega." },
+    { "id": "factura", "titulo": "Factura y pago", "bajada": "Sale con la factura en PDF adjunta. El bot elige la plantilla según la condición de pago del cliente y cuántas facturas tiene el pedido." },
+    { "id": "numero", "titulo": "Número y cuenta", "bajada": "Vinculación de un teléfono con la cuenta del cliente, y la prueba técnica de Meta." },
+    { "id": "legado", "titulo": "Aprobadas que ya no se usan", "bajada": "Versiones anteriores. Siguen aprobadas en Meta, pero el sistema ya no las manda." },
+    { "id": "otros", "titulo": "Otros sistemas que usan el mismo número", "bajada": "No son del bot de clientes: las mandan Planify y Gestión Productiva a personal interno." }
+  ],
+  "plantillas": {
+    "pedido_recibido":           { "grupo": "pedido", "orden": 1,  "estado": "conectada", "para": "Todos", "sale": "Cuando el cliente carga el pedido en la web." },
+    "pedido_programado":         { "grupo": "pedido", "orden": 2,  "estado": "conectada", "para": "Reparto propio", "sale": "Cuando el pedido recibe fecha de salida en la Programación." },
+    "pedido_programado_expreso": { "grupo": "pedido", "orden": 3,  "estado": "conectada", "para": "Por expreso", "sale": "Cuando el pedido recibe fecha de salida en la Programación." },
+    "pedido_programado_retira":  { "grupo": "pedido", "orden": 4,  "estado": "conectada", "para": "Retira en depósito", "sale": "Cuando el pedido recibe fecha en la Programación." },
+    "pedido_reprogramado":       { "grupo": "pedido", "orden": 5,  "estado": "conectada", "para": "Todos", "sale": "Cuando cambia la fecha de salida de un pedido que ya tenía fecha avisada." },
+    "pedido_preparando":         { "grupo": "pedido", "orden": 6,  "estado": "sin_disparador", "para": "Todos", "sale": "Pensada para cuando empieza el armado en el depósito. Todavía no hay nada que la mande." },
+    "pedido_en_viaje":           { "grupo": "pedido", "orden": 7,  "estado": "conectada", "para": "Reparto propio", "sale": "Cuando Gestión despacha el pedido (sale en el camión)." },
+    "pedido_en_viaje_expreso":   { "grupo": "pedido", "orden": 8,  "estado": "conectada", "para": "Por expreso", "sale": "Cuando el pedido se entrega al expreso." },
+    "pedido_listo_retirar":      { "grupo": "pedido", "orden": 9,  "estado": "conectada", "para": "Retira en depósito", "sale": "Cuando Gestión despacha un pedido de retiro (queda listo en el depósito)." },
+    "pedido_entregado":          { "grupo": "pedido", "orden": 10, "estado": "sin_disparador", "para": "Reparto propio", "sale": "Pensada para cuando el camión entrega el pedido. Todavía no hay nada que la mande." },
+
+    "pedido_contado_s":  { "grupo": "factura", "orden": 1, "estado": "prueba", "para": "Contado · 1 factura", "sale": "Cuando se factura el pedido en Gestión." },
+    "pedido_contado_p":  { "grupo": "factura", "orden": 2, "estado": "prueba", "para": "Contado · varias facturas", "sale": "Cuando se factura el pedido en Gestión." },
+    "pedido_credito_s":  { "grupo": "factura", "orden": 3, "estado": "prueba", "para": "Crédito · 1 factura", "sale": "Cuando se factura el pedido en Gestión." },
+    "pedido_credito_p":  { "grupo": "factura", "orden": 4, "estado": "prueba", "para": "Crédito · varias facturas", "sale": "Cuando se factura el pedido en Gestión." },
+    "pedido_echeq_s":    { "grupo": "factura", "orden": 5, "estado": "prueba", "para": "E-cheq · 1 factura", "sale": "Cuando se factura el pedido en Gestión." },
+    "pedido_echeq_p":    { "grupo": "factura", "orden": 6, "estado": "prueba", "para": "E-cheq · varias facturas", "sale": "Cuando se factura el pedido en Gestión." },
+
+    "asociacion_timeout_v1": { "grupo": "numero", "orden": 1, "estado": "conectada", "para": "Quien pidió asociar un número", "sale": "Pasan 24 h sin que el titular de la cuenta confirme la asociación (revisión cada hora)." },
+    "hello_world":           { "grupo": "numero", "orden": 2, "estado": "conectada", "para": "Sólo el número de prueba", "sale": "Prueba técnica de que el número puede mandar mensajes." },
+
+    "confirmacion_pedido_v1":         { "grupo": "legado", "orden": 1, "estado": "legado", "para": "—", "sale": "Reemplazada por pedido_recibido." },
+    "aviso_programacion_cliente_v2":  { "grupo": "legado", "orden": 2, "estado": "legado", "para": "—", "sale": "Reemplazada por pedido_programado (y sus variantes por modo de entrega)." },
+    "aviso_programacion_cliente_v1":  { "grupo": "legado", "orden": 3, "estado": "legado", "para": "—", "sale": "Reemplazada por pedido_programado." },
+    "aviso_programacion_vendedor_v1": { "grupo": "legado", "orden": 4, "estado": "legado", "para": "Vendedores", "sale": "Resumen de salidas para el vendedor. El sistema actual no la manda." },
+    "pedido_armado_factura_unica":    { "grupo": "legado", "orden": 5, "estado": "legado", "para": "—", "sale": "Versión anterior del aviso de factura. Reemplazada por las 6 de Factura y pago." },
+    "confirmar_asociacion_v1":        { "grupo": "legado", "orden": 6, "estado": "legado", "para": "Titular de la cuenta", "sale": "Flujo viejo de asociación con botones. Hoy la vinculación la aprueba una persona desde el dashboard." },
+    "asociacion_aprobada_v1":         { "grupo": "legado", "orden": 7, "estado": "legado", "para": "—", "sale": "Flujo viejo de asociación. Hoy el aviso sale como mensaje de texto." },
+    "asociacion_rechazada_v1":        { "grupo": "legado", "orden": 8, "estado": "legado", "para": "—", "sale": "Flujo viejo de asociación. Hoy el aviso sale como mensaje de texto." },
+
+    "problema_en_matriz_completo":  { "grupo": "otros", "orden": 1,  "estado": "otro_sistema", "para": "Personal de planta", "sale": "Gestión Productiva: problema en una matriz." },
+    "problemas_en_matriz_reducido": { "grupo": "otros", "orden": 2,  "estado": "otro_sistema", "para": "Personal de planta", "sale": "Gestión Productiva: problema en una matriz (versión corta)." },
+    "reporte_matriz_completo":      { "grupo": "otros", "orden": 3,  "estado": "otro_sistema", "para": "Personal de planta", "sale": "Gestión Productiva: evento de matriz." },
+    "reporte_matriz_reducido":      { "grupo": "otros", "orden": 4,  "estado": "otro_sistema", "para": "Personal de planta", "sale": "Gestión Productiva: evento de matriz (versión corta)." },
+    "demora_envio_mensaje":         { "grupo": "otros", "orden": 5,  "estado": "otro_sistema", "para": "Personal de planta", "sale": "Gestión Productiva: demora de un operario." },
+    "informe_produccion_virgilio":  { "grupo": "otros", "orden": 6,  "estado": "otro_sistema", "para": "Personal de planta", "sale": "Gestión Productiva: reporte de producción en PDF." },
+    "reporte_diario_rend_x_matriz": { "grupo": "otros", "orden": 7,  "estado": "otro_sistema", "para": "Personal de planta", "sale": "Gestión Productiva: rendimiento diario por matriz en PDF." },
+    "ren_x_matriz_diario":          { "grupo": "otros", "orden": 8,  "estado": "otro_sistema", "para": "Personal de planta", "sale": "Gestión Productiva: rendimiento diario por matriz en PDF." },
+    "nueva_sucursal_isis_v1":       { "grupo": "otros", "orden": 9,  "estado": "otro_sistema", "para": "Administración", "sale": "Un cliente agrega una sucursal en la web y hay que cargarla en ISIS." },
+    "sugerencia_poli_aceptada":     { "grupo": "otros", "orden": 10, "estado": "otro_sistema", "para": "Personal", "sale": "Planify: se aceptó una sugerencia de recorrido." },
+    "aviso_cumple_operario":        { "grupo": "otros", "orden": 11, "estado": "otro_sistema", "para": "RR. HH.", "sale": "Planify: cumpleaños de un operario." },
+    "cumple_empleado":              { "grupo": "otros", "orden": 12, "estado": "otro_sistema", "para": "RR. HH.", "sale": "Planify: cumpleaños de un empleado." }
+  }
+}

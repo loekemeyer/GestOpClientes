@@ -1,0 +1,228 @@
+<title>Plantillas de WhatsApp Loekemeyer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: una columna de lectura; cada plantilla es una fila "ficha | burbuja" que se apila en el teléfono.
+   Orden = ciclo de vida del pedido, no alfabético. Lo interno y lo viejo queda plegado al final. */
+:root {
+  --bg: #eef1ee; --surface: #ffffff; --ink: #16201c; --muted: #56635c; --line: #d6ddd8;
+  --accent: #0d6b57; --accent-soft: #dcefe8;
+  --wall: #e7e1d6; --bubble: #ffffff; --bubble-ink: #111b21; --bubble-meta: #667781;
+  --ok: #17663f; --ok-bg: #dcf2e4; --warn: #8a5300; --warn-bg: #fbecd0;
+  --bad: #9d2530; --bad-bg: #f8dfe1; --grey: #5d6660; --grey-bg: #e6e9e7; --blue: #2d5a86; --blue-bg: #e0eaf4;
+  --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1412; --surface: #171e1b; --ink: #e6ece8; --muted: #9aa8a0; --line: #2a3531;
+  --accent: #5fc7a8; --accent-soft: #173229;
+  --wall: #0b141a; --bubble: #202c33; --bubble-ink: #e9edef; --bubble-meta: #8696a0;
+  --ok: #7fd6a2; --ok-bg: #173323; --warn: #f0bf62; --warn-bg: #3a2c12; --bad: #f2939b; --bad-bg: #3b1c20;
+  --grey: #aab3ad; --grey-bg: #252d2a; --blue: #9cc2ea; --blue-bg: #1b2a3a; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1412; --surface: #171e1b; --ink: #e6ece8; --muted: #9aa8a0; --line: #2a3531;
+  --accent: #5fc7a8; --accent-soft: #173229;
+  --wall: #0b141a; --bubble: #202c33; --bubble-ink: #e9edef; --bubble-meta: #8696a0;
+  --ok: #7fd6a2; --ok-bg: #173323; --warn: #f0bf62; --warn-bg: #3a2c12; --bad: #f2939b; --bad-bg: #3b1c20;
+  --grey: #aab3ad; --grey-bg: #252d2a; --blue: #9cc2ea; --blue-bg: #1b2a3a; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 28px; }
+h1 { font-size: 30px; line-height: 1.15; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 20px; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 68ch; }
+.meta-line { color: var(--muted); font-size: 13px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+
+.llave { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; }
+.llave b { display: block; }
+.llave .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 7px; flex: none; }
+
+.resumen { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 5px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.chip .n { font-weight: 700; font-variant-numeric: tabular-nums; }
+.chip:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.buscar { margin-left: auto; min-width: 0; }
+.buscar input { font: inherit; font-size: 14px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); width: 240px; max-width: 100%; }
+
+section.grupo { display: flex; flex-direction: column; gap: 14px; }
+.grupo-cab { display: flex; flex-direction: column; gap: 2px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
+.grupo-cab p { margin: 0; color: var(--muted); font-size: 14px; max-width: 72ch; }
+details.grupo > summary { list-style: none; cursor: pointer; }
+details.grupo > summary::-webkit-details-marker { display: none; }
+details.grupo > summary h2::after { content: " ▸"; color: var(--muted); font-size: 16px; }
+details.grupo[open] > summary h2::after { content: " ▾"; }
+details.grupo > .lista { margin-top: 14px; }
+.lista { display: flex; flex-direction: column; gap: 12px; }
+
+.tpl { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); overflow: hidden; }
+.ficha { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.nombre { font-family: var(--f-mono); font-size: 14px; font-weight: 500; word-break: break-all; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.e-conectada { color: var(--ok); background: var(--ok-bg); }
+.e-prueba { color: var(--warn); background: var(--warn-bg); }
+.e-sin_disparador { color: var(--bad); background: var(--bad-bg); }
+.e-legado, .e-sin_clasificar { color: var(--grey); background: var(--grey-bg); }
+.e-otro_sistema { color: var(--blue); background: var(--blue-bg); }
+.cat { color: var(--muted); background: transparent; border: 1px solid var(--line); font-weight: 500; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 14px; margin: 0; }
+.kv dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 2px; }
+.kv dd { margin: 0; min-width: 0; }
+.nota { font-size: 13px; border-radius: 8px; padding: 8px 10px; color: var(--bad); background: var(--bad-bg); }
+.nota pre { white-space: pre-wrap; font-family: var(--f-body); margin: 6px 0 0; color: var(--ink); }
+.vars { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.vars span b { font-family: var(--f-mono); font-weight: 500; color: var(--ink); }
+
+.chat { background: var(--wall); padding: 16px 18px 16px 14px; display: flex; align-items: flex-start; min-width: 0; }
+.burbuja { background: var(--bubble); color: var(--bubble-ink); border-radius: 0 10px 10px 10px; padding: 7px 9px 5px; max-width: 100%; box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13); position: relative; font-size: 14px; line-height: 1.4; min-width: 0; }
+.burbuja::before { content: ""; position: absolute; left: -7px; top: 0; border-top: 0 solid transparent; border-right: 8px solid var(--bubble); border-bottom: 10px solid transparent; }
+.burbuja .doc { display: flex; gap: 8px; align-items: center; background: color-mix(in srgb, var(--bubble-meta) 14%, transparent); border-radius: 6px; padding: 8px; margin-bottom: 6px; font-size: 13px; }
+.burbuja .doc i { font-style: normal; font-weight: 700; font-size: 10px; color: #fff; background: #d9534f; border-radius: 3px; padding: 2px 4px; }
+.burbuja .head { font-weight: 700; margin-bottom: 4px; }
+.burbuja .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
+.burbuja .var { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 3px; padding: 0 2px; }
+.burbuja .pie { color: var(--bubble-meta); font-size: 12.5px; margin-top: 4px; }
+.burbuja .hora { color: var(--bubble-meta); font-size: 11px; text-align: right; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.botones { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; border-top: 1px solid color-mix(in srgb, var(--bubble-meta) 25%, transparent); }
+.botones span { text-align: center; color: #1a8fd6; font-size: 14px; padding: 6px 0 2px; }
+
+.vacio { color: var(--muted); padding: 24px 0; }
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
+
+@media (max-width: 760px) {
+  .tpl { grid-template-columns: minmax(0, 1fr); }
+  .buscar { margin-left: 0; width: 100%; }
+  .buscar input { width: 100%; }
+  h1 { font-size: 25px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Plantillas de WhatsApp</h1>
+    <p class="sub">Los mensajes que Loekemeyer manda por WhatsApp sin que nadie los escriba: cuándo sale cada uno, a quién le llega y qué dice. Son las plantillas aprobadas en Meta; los valores entre resaltado son un ejemplo de lo que completa el sistema.</p>
+    <div class="meta-line" id="generado"></div>
+  </header>
+
+  <div class="llave" id="llave"></div>
+
+  <div class="resumen" id="resumen" role="group" aria-label="Filtrar por estado"></div>
+
+  <main id="grupos"></main>
+
+  <footer>
+    Se actualiza sola todos los días con lo que dice Meta. Precio por mensaje entregado en Argentina: Utility US$ 0,026 · Marketing US$ 0,0618.
+    "Salió" cuenta los avisos del bot de clientes de los últimos 30 días (no los de otros sistemas).
+  </footer>
+</div>
+
+<script>
+const DATOS = /*__DATOS__*/null;
+
+const ESTADOS = {
+  conectada: { txt: "Se manda", desc: "Hay un disparador activo." },
+  prueba: { txt: "En prueba", desc: "Conectada, pero hoy sólo sale al número de prueba." },
+  sin_disparador: { txt: "Sin disparador", desc: "Aprobada en Meta, pero nada la manda todavía." },
+  legado: { txt: "Ya no se usa", desc: "Versión anterior." },
+  otro_sistema: { txt: "Otro sistema", desc: "La manda Planify o Gestión Productiva." },
+  sin_clasificar: { txt: "Sin clasificar", desc: "Falta documentar qué la manda." },
+};
+const CAT = { UTILITY: "Utility · US$ 0,026", MARKETING: "Marketing · US$ 0,0618", AUTHENTICATION: "Autenticación" };
+const PLEGADOS = new Set(["legado", "otros"]);
+let filtro = null, texto = "";
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fecha = (iso) => {
+  try { return new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" }); }
+  catch { return iso || ""; }
+};
+const ddmm = (d) => (d ? `${String(d).slice(8, 10)}/${String(d).slice(5, 7)}` : "");
+
+// Negrita de WhatsApp (*así*) y variables con su ejemplo resaltado.
+function cuerpo(body, ej) {
+  let h = esc(body).replace(/\{\{(\d+)\}\}/g, (m, n) => `<span class="var" title="{{${n}}}">${esc((ej || [])[n - 1] ?? m)}</span>`);
+  return h.replace(/\*([^*\n]+)\*/g, "<b>$1</b>");
+}
+
+function burbuja(p) {
+  const doc = p.header === "DOCUMENT" ? `<div class="doc"><i>PDF</i> Factura.pdf</div>` : "";
+  const head = p.header === "TEXT" && p.header_text ? `<div class="head">${esc(p.header_text)}</div>` : "";
+  const pie = p.footer ? `<div class="pie">${esc(p.footer)}</div>` : "";
+  const bots = (p.buttons || []).length ? `<div class="botones">${p.buttons.map((b) => `<span>${esc(b)}</span>`).join("")}</div>` : "";
+  return `<div class="chat"><div class="burbuja">${doc}${head}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
+}
+
+function ficha(p) {
+  const e = ESTADOS[p.estado] || ESTADOS.sin_clasificar;
+  const pl = (n, s, pp) => `${n} ${n === 1 ? s : pp}`;
+  const uso = p.uso ? `${pl(p.uso.enviados, "enviado", "enviados")}${p.uso.retenidos ? ` · ${pl(p.uso.retenidos, "retenido", "retenidos")} por la llave` : ""}${p.uso.ultimo ? ` · último ${ddmm(p.uso.ultimo)}` : ""}` : "";
+  const nVars = (p.ejemplos || []).length;
+  const vars = nVars ? `<div class="vars">${p.ejemplos.map((v, i) => `<span><b>{{${i + 1}}}</b> ${esc(v)}</span>`).join("")}</div>` : "";
+  const dif = p.difiere ? `<div class="nota"><b>El texto en Meta no es el que tiene definido el sistema.</b> Lo que sale es lo de la burbuja. El sistema tiene:<pre>${esc(p.definido)}</pre></div>` : "";
+  const estadoMeta = p.status !== "APPROVED" ? `<span class="pill e-sin_disparador">Meta: ${esc(p.status)}</span>` : "";
+  return `<div class="ficha">
+    <div class="nombre">${esc(p.name)}</div>
+    <div class="pills"><span class="pill e-${esc(p.estado)}" title="${esc(e.desc)}">${esc(e.txt)}</span>${estadoMeta}<span class="pill cat">${esc(CAT[p.category] || p.category)}</span></div>
+    <dl class="kv"><dt>Cuándo sale</dt><dd>${esc(p.sale)}</dd>${p.para ? `<dt>Para</dt><dd>${esc(p.para)}</dd>` : ""}${uso ? `<dt>Salió (30 d)</dt><dd>${esc(uso)}</dd>` : ""}</dl>
+    ${dif}${vars}</div>`;
+}
+
+function coincide(p) {
+  if (filtro && p.estado !== filtro) return false;
+  if (!texto) return true;
+  const t = texto.toLowerCase();
+  return [p.name, p.body, p.sale, p.para].some((x) => String(x || "").toLowerCase().includes(t));
+}
+
+function pintar() {
+  const cont = document.getElementById("grupos");
+  const html = DATOS.grupos.map((g) => {
+    const items = DATOS.plantillas.filter((p) => p.grupo === g.id && coincide(p)).sort((a, b) => a.orden - b.orden);
+    if (!items.length) return "";
+    const cab = `<div class="grupo-cab"><h2>${esc(g.titulo)} <span style="color:var(--muted);font-weight:500">· ${items.length}</span></h2><p>${esc(g.bajada)}</p></div>`;
+    const lista = `<div class="lista">${items.map((p) => `<article class="tpl">${ficha(p)}${burbuja(p)}</article>`).join("")}</div>`;
+    const abierto = !PLEGADOS.has(g.id) || filtro || texto;
+    return PLEGADOS.has(g.id)
+      ? `<details class="grupo"${abierto ? " open" : ""}><summary>${cab}</summary>${lista}</details>`
+      : `<section class="grupo">${cab}${lista}</section>`;
+  }).join("");
+  cont.innerHTML = html || `<div class="vacio">Ninguna plantilla coincide con el filtro.</div>`;
+  cont.style.display = "flex"; cont.style.flexDirection = "column"; cont.style.gap = "36px";
+}
+
+function resumen() {
+  const cuenta = {};
+  for (const p of DATOS.plantillas) cuenta[p.estado] = (cuenta[p.estado] || 0) + 1;
+  const orden = ["conectada", "prueba", "sin_disparador", "legado", "otro_sistema", "sin_clasificar"].filter((k) => cuenta[k]);
+  document.getElementById("resumen").innerHTML =
+    `<button class="chip" type="button" data-e="" aria-pressed="${!filtro}">Todas <span class="n">${DATOS.plantillas.length}</span></button>` +
+    orden.map((k) => `<button class="chip" type="button" data-e="${k}" aria-pressed="${filtro === k}" title="${esc(ESTADOS[k].desc)}">${esc(ESTADOS[k].txt)} <span class="n">${cuenta[k]}</span></button>`).join("") +
+    `<label class="buscar"><input id="q" type="search" placeholder="Buscar por nombre o texto" value="${esc(texto)}" aria-label="Buscar plantilla"></label>`;
+  document.querySelectorAll("#resumen .chip").forEach((b) => b.addEventListener("click", () => {
+    filtro = b.dataset.e || null; resumen(); pintar();
+  }));
+  const q = document.getElementById("q");
+  q.addEventListener("input", () => { texto = q.value.trim(); pintar(); });
+}
+
+function llave() {
+  const L = {
+    "0": { c: "var(--bad)", t: "Envíos apagados", d: "Hoy no sale ningún mensaje automático: quedan en cola." },
+    prueba: { c: "var(--warn)", t: "Envíos en prueba", d: "Hoy los mensajes automáticos sólo le llegan al número de prueba. A los clientes todavía no les llega nada." },
+    "1": { c: "var(--ok)", t: "Envíos a clientes activos", d: "Los mensajes automáticos les llegan a los clientes con el número agendado." },
+  }[DATOS.llave] || { c: "var(--grey)", t: "Estado de envíos desconocido", d: "" };
+  document.getElementById("llave").innerHTML = `<span class="dot" style="background:${L.c}"></span><div><b>${L.t}</b>${esc(L.d)}</div>`;
+}
+
+if (DATOS) {
+  document.getElementById("generado").textContent = `Actualizado el ${fecha(DATOS.generado)} · ${DATOS.plantillas.length} plantillas en Meta`;
+  llave(); resumen(); pintar();
+} else {
+  document.getElementById("grupos").innerHTML = `<div class="vacio">Esta página se arma con generar.mjs: todavía no tiene datos.</div>`;
+}
+</script>
