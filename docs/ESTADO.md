@@ -521,6 +521,17 @@ Un commit que sólo toca docs NO dispara deploy.
   producción sector > persona > defecto. Lo 🔴 urgente va a Planify siempre. Motivo nuevo de la IA: `entrega`
   (pedido sin fecha que el cliente necesita, no llegó, fecha distinta) — muchos pedidos no tienen fecha y eso es normal.
   "No me llegó / tenía que llegar" (`RE_NO_LLEGO` en faq.ts) saltea las FAQ y va a la IA, que deriva.
+- **Aviso "listo para retirar" de pedidos web (Pablo, 29/09, sql/083):** cron `lk_aviso-retiro-web` (cada 10 min) →
+  `wa_avisos_retiro_web()`: pedidos web de retiro que en Gestión (`virgilio.gv_pedido_web_estado_pagina`, FDW en
+  vivo) llegaron a `facturado` y no se retiraron → `pedido_listo_retirar`, una vez por pedido (context
+  `retiro_listo`). Antes no salía nunca: `trg_notify_despacho` mira `ppp_programacion`, que es una FOTO diaria
+  (`sincronizar_ppp` 10:00, borra y recarga) de la Programación de ISIS donde los NP web no están. Ojo: por esa
+  recarga el aviso de despacho de NP ISIS sale recién a las 10:00 del día siguiente. `trg_notify_despacho` ahora
+  filtra `empresa='lk'` (auditoría 615). Pendiente: aviso de despacho/entregado para pedidos web de reparto (613).
+- **Prueba punta a punta con Garbarino (4210 → Thomy), 29/09:** pedido 1553 (retiro 30/09) recibió pedido_recibido
+  con "Entrega: lo retirás el miércoles 30/09, de 9:00 a 12:00", programado_retira, listo_retirar y la factura real
+  del 25/09 (FCA 36022 + 36032, pedido_contado_p con PDF combinado) por `lk_factura-check` modo grupo, con la
+  redirección apuntada a Thomy un minuto y restaurada (…8669, 2026-09-04).
 - **Pedido recibido con fecha estimada (Pablo, 29/09, sql/082):** `pedido_recibido` suma `{{5}}` "Entrega: …".
   `wa_fecha_estimada_calc(order_id)` (53 ms): si retira y eligió día en la web (`sheets_payload.retiro_fecha/_franja`)
   → "lo retirás el jueves 01/10, de 9:00 a 12:00"; si no, p90 de la demora real pedido→salida de los últimos 90 días
