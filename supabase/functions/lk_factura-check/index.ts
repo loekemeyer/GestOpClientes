@@ -178,6 +178,12 @@ async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null) {
     });
     const data = await res.json();
     if (!res.ok) return { error: data?.error?.message || `HTTP ${res.status}`, raw: data };
+    // Pablo, 29/09: el aviso de factura queda en el historial como los de la cola (lk_outbox-flush), así se ve en
+    // Conversaciones y, si el cliente contesta, el bot sabe a qué le responde (respuesta-aviso.ts).
+    try {
+      await paginalk.rpc("bot_guardar_mensaje", { p_telefono: String(to).replace(/\D/g, ""), p_rol: "assistant",
+        p_contenido: `[Aviso automático ${mensaje.template}]\n${mensaje.texto_legible ?? ""}`.trim() });
+    } catch (_e) { /* el envío ya salió; el historial es best-effort */ }
     return { ok: true, wamid: data?.messages?.[0]?.id ?? null };
   } catch (e) { return { error: String(e) }; }
 }
