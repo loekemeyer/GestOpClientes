@@ -641,7 +641,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
     try {
       const r = await leerPedidoArchivo(archivo.bytes, archivo.mime, cfg.anthropicKey, phone, msg.mediaFilename);
       if (r.lineas.length) {
-        const arts = await resolverArticulos(r.lineas);
+        const arts = await resolverArticulos(r.lineas, cfg.anthropicKey, phone);
         respuestaFinal = textoConfirmacion(arts);
         motivoFinal = "pedido_archivo";
         lectura = { articulos: arts };

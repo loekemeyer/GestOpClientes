@@ -146,7 +146,7 @@ serve(async (req) => {
       const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const key = Deno.env.get("ANTHROPIC_API_KEY") ?? (await getSetting("ANTHROPIC_API_KEY")) ?? "";
       const r = await leerPedidoArchivo(bytes, String(body.mime ?? ""), key, null, body.nombre ?? null);
-      const arts = r.lineas.length ? await resolverArticulos(r.lineas) : [];
+      const arts = r.lineas.length ? await resolverArticulos(r.lineas, key, null) : [];
       return json({ ok: true, lineas: r.lineas, error: r.error ?? null, articulos: arts, mensaje: arts.length ? textoConfirmacion(arts) : null });
     }
 

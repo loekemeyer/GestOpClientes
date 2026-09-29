@@ -75,38 +75,87 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
   } catch { return { lineas: [], error: "JSON inválido" }; }
 }
 
-/** Cruza cada línea con el catálogo: código exacto primero, si no la búsqueda del bot. Unidades → cajas con el uxb. */
-export async function resolverArticulos(lineas: LineaLeida[]): Promise<ArticuloPedido[]> {
-  const out: ArticuloPedido[] = [];
-  for (const l of lineas) {
-    const original = `${l.cod ? l.cod + " " : ""}${l.descripcion} × ${l.cantidad}${l.unidad ? " " + l.unidad : ""}`.trim();
+// deno-lint-ignore no-explicit-any
+type Prod = { id: string; cod: string; description: string; uxb: number };
+
+/** Candidatos del catálogo para una descripción libre: la frase entera y cada palabra de 4+ letras (así "colador de
+ *  fideos grande" encuentra "Colador de Pasta"). Hasta 12, sin repetir. */
+async function candidatos(desc: string): Promise<Prod[]> {
+  const consultas = [desc, ...desc.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, "")).filter((w) => w.length >= 4).map((w) => w.replace(/(es|s)$/, ""))];
+  const cods: string[] = [];
+  for (const q of consultas.slice(0, 5)) {
+    const { data } = await supabase.rpc("bot_buscar_productos", { p_query: q, p_limit: 6 });
     // deno-lint-ignore no-explicit-any
-    let p: any = null, dudoso = false;
+    for (const r of (data ?? []) as any[]) if (!cods.includes(r.cod)) cods.push(r.cod);
+    if (cods.length >= 12) break;
+  }
+  if (!cods.length) return [];
+  const { data: ps } = await supabase.from("products").select("id, cod, description, uxb").in("cod", cods.slice(0, 12)).eq("active", true);
+  return (ps ?? []) as Prod[];
+}
+
+/** La IA elige, para cada línea sin código, el artículo de sus candidatos (o ninguno). Una sola llamada para todas. */
+async function elegirConIA(items: Array<{ i: number; desc: string; cands: Prod[] }>, apiKey: string, phone: string | null):
+  Promise<Record<number, { cod: string | null; seguro: boolean }>> {
+  if (!items.length || !apiKey) return {};
+  const prompt = items.map((x) => `Línea ${x.i}: "${x.desc}"\nCandidatos: ${x.cands.map((c) => `${c.cod} = ${c.description.trim()}`).join(" | ") || "(ninguno)"}`).join("\n\n");
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: MODELO, max_tokens: 1500, temperature: 0,
+      system: "Para cada línea de pedido de un bazar mayorista, elegí el código del candidato que corresponde al artículo pedido, o null si ninguno corresponde. seguro=true sólo si no hay duda (ej. \"colador de fideos\" = \"Colador de Pasta\"; \"sacacorchos mariposa\" = \"Sacacorcho Doble Aleta\"). Respondé SOLO JSON {\"elecciones\":[{\"linea\":0,\"cod\":\"441\"|null,\"seguro\":true}]}",
+      messages: [{ role: "user", content: prompt }] }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) return {};
+  const r = await res.json();
+  const it = Number(r?.usage?.input_tokens ?? 0), ot = Number(r?.usage?.output_tokens ?? 0);
+  supabase.from("bot_token_usage").insert({ model: MODELO, input_tokens: it, output_tokens: ot, function_name: "lk_whatsapp-webhook", phone,
+    motivo: "pedido_archivo", estimated_cost_usd: (it * TARIFA.input + ot * TARIFA.output) / 1_000_000 }).then(() => {}, () => {});
+  const j = String(r?.content?.[0]?.text ?? "").match(/\{[\s\S]*\}/);
+  const out: Record<number, { cod: string | null; seguro: boolean }> = {};
+  // deno-lint-ignore no-explicit-any
+  try { for (const e of (JSON.parse(j?.[0] ?? "{}").elecciones ?? []) as any[]) out[Number(e.linea)] = { cod: e.cod ? String(e.cod) : null, seguro: e.seguro === true }; } catch { /* sin elección */ }
+  return out;
+}
+
+/** Cruza cada línea con el catálogo: código exacto primero; si no hay código, candidatos + elección de la IA.
+ *  Unidades → cajas con el uxb. */
+export async function resolverArticulos(lineas: LineaLeida[], apiKey = "", phone: string | null = null): Promise<ArticuloPedido[]> {
+  const prods: Array<Prod | null> = [];
+  const dudas: boolean[] = [];
+  const porElegir: Array<{ i: number; desc: string; cands: Prod[] }> = [];
+  for (const [i, l] of lineas.entries()) {
+    let p: Prod | null = null;
     if (l.cod) {
       const canon = /^\d+$/.test(l.cod) ? l.cod.replace(/^0+(?=.)/, "").padStart(3, "0") : l.cod;
       const { data } = await supabase.from("products").select("id, cod, description, uxb").in("cod", [l.cod, canon]).eq("active", true).limit(1);
-      p = data?.[0] ?? null;
+      p = (data?.[0] as Prod) ?? null;
     }
-    if (!p && l.descripcion) {
-      const { data } = await supabase.rpc("bot_buscar_productos", { p_query: l.descripcion, p_limit: 3 });
-      if (data?.length) {
-        const { data: pr } = await supabase.from("products").select("id, cod, description, uxb").eq("cod", data[0].cod).limit(1);
-        p = pr?.[0] ?? null; dudoso = data.length > 1;
-      }
-    }
-    if (!p) { out.push({ original, cod: l.cod, descripcion: null, product_id: null, cajas: null, uxb: null, estado: "no_encontrado" }); continue; }
+    prods.push(p); dudas.push(false);
+    if (!p && l.descripcion) porElegir.push({ i, desc: l.descripcion, cands: await candidatos(l.descripcion) });
+  }
+  const elecciones = await elegirConIA(porElegir.filter((x) => x.cands.length), apiKey, phone);
+  for (const x of porElegir) {
+    const e = elecciones[x.i];
+    const c = e?.cod ? x.cands.find((c) => c.cod === e.cod) : null;
+    if (c) { prods[x.i] = c; dudas[x.i] = !e.seguro; }
+  }
+  return lineas.map((l, i) => {
+    const original = `${l.cod ? l.cod + " " : ""}${l.descripcion} × ${l.cantidad}${l.unidad ? " " + l.unidad : ""}`.replace(/\s+/g, " ").trim();
+    const p = prods[i];
+    if (!p) return { original, cod: l.cod, descripcion: null, product_id: null, cajas: null, uxb: null, estado: "no_encontrado" as const };
     const uxb = Number(p.uxb) || 1;
-    let cajas = l.cantidad, nota: string | undefined;
+    let cajas = l.cantidad, nota: string | undefined, dudoso = dudas[i];
     if (l.unidad === "unidades") {
       cajas = Math.ceil(l.cantidad / uxb);
       if (l.cantidad % uxb) { dudoso = true; nota = `pidió ${l.cantidad} unidades; la caja trae ${uxb}`; }
-    } else if (l.unidad === null && l.cantidad >= uxb && l.cantidad % uxb === 0 && uxb > 1) {
-      // "24 abrelatas" con caja de 12: probablemente unidades → se deja en cajas pero se marca para mirar.
+    } else if (l.unidad === null && uxb > 1 && l.cantidad >= uxb && l.cantidad % uxb === 0) {
       dudoso = true; nota = `¿${l.cantidad} cajas o ${l.cantidad} unidades (${l.cantidad / uxb} cajas)?`;
     }
-    out.push({ original, cod: p.cod, descripcion: p.description, product_id: p.id, cajas, uxb, estado: dudoso ? "dudoso" : "ok", ...(nota ? { nota } : {}) });
-  }
-  return out;
+    return { original, cod: p.cod, descripcion: p.description.trim(), product_id: p.id, cajas, uxb, estado: dudoso ? "dudoso" as const : "ok" as const, ...(nota ? { nota } : {}) };
+  });
 }
 
 const cj = (n: number | null) => `${n} ${n === 1 ? "caja" : "cajas"}`;
