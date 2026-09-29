@@ -246,6 +246,7 @@ serve(async (req) => {
           error_detalle: a.tipo === "comprobante_error" ? (ctx.error ?? ctx.motivo ?? null) : null,
           error_archivo: ctx.error_archivo ?? null,
           agregar: Array.isArray(ctx.agregar) ? ctx.agregar : null,
+          sucursal: ctx.sucursal ?? null,
           aplicable: ctx.aplicable === true,
         };
       }).sort((x, y) => {
@@ -327,6 +328,37 @@ serve(async (req) => {
       await llamarPlanify({ action: "cerrar", alerta_id: id });
       console.log(`lk_alertas: alta creada ${l.razon_social} (${cod}) por ${gate.email}`);
       return json({ ok: true, usuario: cw.username, cod_cliente: cod, pendientes: pasos, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
+    }
+
+    // Pablo, 29/09: dirección de entrega nueva pedida por WhatsApp (solicitar_nueva_sucursal). Se AGREGA como sucursal
+    // (cada pedido web elige la suya), marcada pendiente de cargar en ISIS, y se le avisa al cliente por la cola.
+    if (body.action === "sucursal_agregar") {
+      const id = Number(body.id);
+      if (!id) return json({ ok: false, error: "falta id" }, 400);
+      const { data: a } = await supabase.from("wa_alertas_humano").select("id, phone, customer_id, contexto, estado").eq("id", id).maybeSingle();
+      const suc = a?.contexto?.sucursal;
+      if (!a || !suc?.calle_altura) return json({ ok: false, error: "La tarea no es una dirección nueva." }, 200);
+      if (!["pendiente", "notificado"].includes(a.estado)) return json({ ok: false, error: "La tarea ya estaba resuelta." }, 200);
+      if (!a.customer_id) return json({ ok: false, error: "La tarea no tiene cliente identificado." }, 200);
+      const bloq = await bloqueoPrueba(a);
+      if (bloq) return json({ ok: false, error: bloq }, 200);
+      const { data: slots } = await supabase.from("customer_delivery_addresses").select("slot").eq("customer_id", a.customer_id);
+      const slot = Math.max(0, ...(slots ?? []).map((x) => Number(x.slot) || 0)) + 1;
+      const label = `${suc.calle_altura} - ${suc.localidad}`.slice(0, 120);
+      const { error: eI } = await supabase.from("customer_delivery_addresses").insert({
+        customer_id: a.customer_id, slot, label, direccion_entrega: suc.calle_altura, localidad: suc.localidad,
+        provincia: suc.provincia ?? null, cp: suc.cp ?? null, nombre_expreso: suc.expreso ?? null,
+        observaciones: suc.observaciones ?? null, pending_isis: true,
+      });
+      if (eI) return json({ ok: false, error: "No se pudo agregar la dirección: " + eI.message }, 200);
+      const texto = `Listo: agregamos la dirección ${label} a tu cuenta. La vas a poder elegir en tu próximo pedido en loekemeyer.com.`;
+      const { error: eO } = await supabase.from("wa_outbox").insert({ phone: a.phone, body: texto, context: "sucursal_agregada", ref_id: String(id) });
+      await supabase.from("wa_alertas_humano").update({
+        estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
+        contexto: { ...a.contexto, sucursal_slot: slot },
+      }).eq("id", id);
+      await llamarPlanify({ action: "cerrar", alerta_id: id });
+      return json({ ok: true, slot, label, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
     }
 
     // Vendedores para el alta (Wpp_Vendedores: "V.13 Luis Moñin" → 13).

@@ -101,6 +101,9 @@ function yaSaluda(reply: string): boolean {
 export async function handleFaq(text: string, customer: Customer): Promise<FaqResult | null> {
   // Pablo, 29/09: "¿cuál es mi dirección de entrega?" / "¿a dónde me lo mandan?" / "¿a qué sucursal va?" pide A DÓNDE va SU
   // pedido (sucursal de entrega y expreso), no la dirección de nuestro depósito (FAQ #4, que es lo que contestaba).
+  // Pablo, 29/09: "cambié de dirección" / "me mudé" / "quiero agregar una sucursal" lo resuelve la IA (solicitar_nueva_sucursal);
+  // antes lo atrapaba la FAQ #4 (dirección del depósito).
+  if (customer && RE_NUEVA_DIRECCION.test(text)) return null;
   if (customer && RE_DIRECCION_ENTREGA.test(text)) {
     const r = await destinoPedidos(customer);
     if (r) return { reply: r, intent: "destino_entrega", automation_level: "semi_auto" };
@@ -318,6 +321,7 @@ const RE_YA_PAGUE = /\b(ya (les |te )?(pagu[eé]|transfer[ií]|deposit[eé]|abon
 const RE_RETIRO = /\b(retir(o|ar|arlo|arla|amos|a)|pas(ar|o|amos) a buscar|buscarlo|ir a buscar|lo busco|voy a buscar)\b/i;
 
 /** Pedido abierto más reciente del cliente que va por expreso (no anulado, no entregado). null si no hay. */
+const RE_NUEVA_DIRECCION = /(cambi\S*\s+(de\s+|la\s+|mi\s+)?(direcci[oó]n|domicilio|local|sucursal)|me\s+mud|nos\s+mudamos|nueva\s+(direcci[oó]n|sucursal)|(agregar|sumar|cargar)\s+(una\s+)?(direcci[oó]n|sucursal)|otra\s+(direcci[oó]n|sucursal))/i;
 const RE_DIRECCION_ENTREGA = /(mi|la)\s+direcci[oó]n\s+de\s+(entrega|env[ií]o)|a\s+d[oó]nde\s+(me\s+)?(lo|la|los|las)?\s*(mand|env[ií]|entreg|despach|llev)|a\s+qu[eé]\s+(sucursal|direcci[oó]n|expreso|transporte)|d[oó]nde\s+(me\s+)?(lo\s+)?entregan|por\s+qu[eé]\s+(expreso|transporte)|qu[eé]\s+(expreso|transporte)\s+(me\s+)?(lo\s+)?(lleva|mand|us)/i;
 
 // A dónde va cada pedido abierto del cliente: sucursal de entrega cargada en la web y, si sale por expreso, cuál.

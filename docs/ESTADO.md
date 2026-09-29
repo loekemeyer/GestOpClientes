@@ -355,6 +355,11 @@ el killswitch, sin ningún consumidor de esa cola.
   Desde sql/106 también "entregado al expreso" (`pedido_en_viaje_expreso`, context `tracking_entregado` para que
   trg_order_tracking_notify no lo repita al marcarse entregado al día siguiente).
 - **Pedido recibido con razón social** (29/09, sql/104): revierte sql/093; la plantilla aprobada en Meta es de 5 variables.
+- **Dirección de entrega nueva** (29/09): cada pedido web elige su sucursal, así que un cambio de dirección por WhatsApp
+  AGREGA una sucursal. La IA pide calle y número, localidad, provincia, CP y expreso, confirma y usa
+  `solicitar_nueva_sucursal` → tarea `cambio_datos`; en Tareas "Agregar dirección" (`lk_alertas` `sucursal_agregar`)
+  inserta en `customer_delivery_addresses` (slot siguiente, `pending_isis=true`) y avisa al cliente por la cola.
+  "Cambié de dirección" ya no cae en la FAQ #4 (`RE_NUEVA_DIRECCION` → IA).
 - **Gasto de IA por día y motivo** (29/09, sql/107): `bot_token_usage.motivo` se llena al final de cada turno de la IA con
   el motivo deducido de las herramientas (derivación → su motivo; facturas → pago; pedidos/entregas → entrega; stock…;
   sin herramientas → consulta_general). Dashboard › 💰 IA — gasto por día y motivo (`lk_ia-puntaje` action `gasto`):

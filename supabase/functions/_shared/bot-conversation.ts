@@ -74,6 +74,26 @@ const BOT_TOOLS: ToolDef[] = [
     },
   },
   {
+    // Pablo, 29/09: el cliente pide cambiar o agregar su dirección de entrega. Cada pedido web elige su sucursal, así que
+    // una dirección nueva se AGREGA como sucursal (no reemplaza ninguna) y la elige en su próximo pedido. Una persona
+    // aprueba desde Tareas (lk_alertas sucursal_agregar).
+    name: "solicitar_nueva_sucursal",
+    description:
+      "Pide agregar una dirección de entrega nueva (sucursal) a la cuenta del cliente, para que una persona la apruebe. Úsala cuando dice que cambió de dirección, que se mudó o que quiere recibir en otro lugar. ANTES: pedile calle y número, localidad, provincia y código postal, y si recibe por expreso, el nombre del expreso; después confirmale la dirección completa (\"¿Agrego San Martín 1234, Villa María, Córdoba (CP 5900), por expreso Cruz del Sur?\") y recién con su sí, llamala. No reemplaza ninguna dirección: la nueva la va a poder elegir en su próximo pedido en la web. Si lo que quiere es cambiar la dirección de un pedido ya hecho, usá derivar_a_persona (motivo cambio_pedido).",
+    input_schema: {
+      type: "object",
+      properties: {
+        calle_altura: { type: "string", description: "Calle y número" },
+        localidad: { type: "string" },
+        provincia: { type: "string" },
+        cp: { type: "string", description: "Código postal" },
+        expreso: { type: "string", description: "Nombre del expreso, si recibe por expreso (interior). Vacío si es reparto." },
+        observaciones: { type: "string", description: "Horario, entre calles u otra aclaración que dio el cliente." },
+      },
+      required: ["calle_altura", "localidad", "provincia"],
+    },
+  },
+  {
     name: "consultar_mis_pedidos",
     description:
       "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total, método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
@@ -363,6 +383,23 @@ async function executeTool(
         },
       });
       return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por acá." } };
+    }
+
+    case "solicitar_nueva_sucursal": {
+      const limpio = (v: unknown) => String(v ?? "").trim().slice(0, 120);
+      const suc = { calle_altura: limpio(input.calle_altura), localidad: limpio(input.localidad), provincia: limpio(input.provincia),
+        cp: limpio(input.cp) || null, expreso: limpio(input.expreso) || null, observaciones: limpio(input.observaciones) || null };
+      if (!suc.calle_altura || !suc.localidad || !suc.provincia) return { data: { error: "Faltan calle y número, localidad o provincia: pedíselos." } };
+      const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
+      if (!cli?.[0]?.customer_id) return { data: { error: "No identifiqué la cuenta de este número. Derivá con derivar_a_persona." } };
+      const texto = `${suc.calle_altura}, ${suc.localidad}, ${suc.provincia}${suc.cp ? ` (CP ${suc.cp})` : ""}${suc.expreso ? `, por expreso ${suc.expreso}` : ""}`;
+      await notificarHumano({
+        tipo: "escalation", phone, customerId: cli[0].customer_id,
+        contexto: { motivo: "cambio_datos", origen: "agente_ia", sucursal: suc, texto: `Agregar dirección de entrega: ${texto}`,
+          razon_social: cli[0].customer_name ?? null, urgente: false },
+      });
+      return { data: { ok: true, texto_para_el_cliente: `Listo, pedí que agreguen la dirección ${texto}. Una persona la revisa y te confirmamos por acá; después la vas a poder elegir en tu próximo pedido en la web.`,
+        regla: "Pasale este texto tal cual." } };
     }
 
     case "solicitar_agregado_pedido": {
@@ -752,7 +789,7 @@ const AUDITABLE_TOOLS = new Set([
   "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
   "consultar_mi_historial", "consultar_mis_pedidos", "consultar_detalle_pedido",
   "consultar_mis_descuentos", "consultar_mis_facturas", "consultar_novedades", "consultar_stock", "consultar_proximos_ingresos",
-  "solicitar_agregado_pedido",
+  "solicitar_agregado_pedido", "solicitar_nueva_sucursal",
 ]);
 
 async function auditTool(
@@ -834,7 +871,7 @@ export interface ConversationResult {
 const MOTIVO_HERRAMIENTA: Record<string, string> = {
   consultar_mis_facturas: "pago", consultar_mis_descuentos: "pago",
   consultar_mis_pedidos: "entrega", consultar_detalle_pedido: "entrega", consultar_mi_entrega: "entrega",
-  solicitar_agregado_pedido: "cambio_pedido",
+  solicitar_agregado_pedido: "cambio_pedido", solicitar_nueva_sucursal: "cambio_datos",
   consultar_stock: "stock", consultar_proximos_ingresos: "stock", buscar_productos: "productos",
   consultar_novedades: "productos", consultar_mis_top_productos: "productos", enviar_catalogo: "productos",
   enviar_fotos_producto: "productos", consultar_kb: "consulta_general",

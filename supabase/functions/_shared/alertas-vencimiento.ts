@@ -20,6 +20,7 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   blacklist:              { label: "Escribió un número bloqueado", min: 1440 },
   faq_no_match:           { label: "Pregunta sin respuesta", min: 240 },
   consulta_stock:         { label: "Consulta de stock sin disponibilidad", min: 120 },
+  cambio_datos:           { label: "Dirección de entrega nueva", min: 240 },
   reseteo_clave:          { label: "Pide clave nueva para la web", min: 60 },
   acceso_web:             { label: "Problema con la web (acceso o sucursal)", min: 120 },
   adjunto_recibido:       { label: "Mandó un archivo (Excel, foto, PDF o audio)", min: 120 },
