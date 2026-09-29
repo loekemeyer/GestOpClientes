@@ -355,6 +355,13 @@ el killswitch, sin ningún consumidor de esa cola.
   una vez por pedido (context `en_viaje_web`). Si el camión no sale y no se cambia la fecha, el aviso sale igual.
   Desde sql/106 también "entregado al expreso" (`pedido_en_viaje_expreso`, context `tracking_entregado` para que
   trg_order_tracking_notify no lo repita al marcarse entregado al día siguiente).
+- **Pedido recibido con total con IVA** (Pablo, 29/09, sql/108): texto nuevo "Recibimos tu pedido del 15/09 por
+  $896.668 ($741.048 + IVA)." con una línea en blanco tras el saludo, como `pedido_recibido_v2` (sistema de versiones).
+  El disparador arma `{{3}}` según la versión activa: con la vieja (que ya dice "+ IVA") sigue mandando sólo el neto.
+- **Factura contado: el total a pagar primero** (Pablo, 29/09): `pedido_contado_p` se edita A MANO en WhatsApp Manager
+  (tiene encabezado Documento; texto en `docs/plantillas_whatsapp.md`). `lk_factura-check` (`contadoPrimero`) lee el texto
+  aprobado y ordena las variables solo; mientras Meta la revisa no está APPROVED y queda `held_tpl_no_aprobada`.
+  Además la factura enviada queda en `bot_historial_chat` (se ve en Conversaciones y el bot sabe a qué le contestan).
 - **Pedido recibido con razón social** (29/09, sql/104): revierte sql/093; la plantilla aprobada en Meta es de 5 variables.
 - **Decisiones de Pablo (29/09, cierre del día):** (1) reparto que no sale: en standby, no se arma nada (el aviso "ya salió"
   depende de que Gestión tenga la fecha real); (2) teléfono del ERP para los avisos: frenado hasta que se salga a

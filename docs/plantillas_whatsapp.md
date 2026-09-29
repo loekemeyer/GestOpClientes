@@ -111,21 +111,25 @@ Ejemplos: `{{1}}`=`$1.587.098` · `{{2}}`=`90` · `{{3}}`=`$1.507.743` · `{{4}}
 respecto del single (por los campos `{{2}}` cantidad y `{{3}}` detalle).
 
 ### 4 · `pedido_contado_p`
+Pablo, 29/09: el total a pagar va **primero**. `lk_factura-check` lee el texto aprobado en Meta y ordena las
+variables solo (si "Total a pagar Contado" está arriba de "Total de tus facturas" usa este orden; si no, el viejo).
 ```
 ¡Hola! Tu pedido está listo y estará con vos a la brevedad.
 
-Total de tus facturas (con IVA): {{1}}, en {{2}} facturas.
+*Total a pagar Contado ({{1}}% Dto): {{2}}*
 
-Detalle por factura: {{3}}
+Total de tus facturas (con IVA): {{3}}, en {{4}} facturas.
 
-*Total a pagar Contado ({{4}}% Dto): {{5}}*
+Detalle por factura: {{5}}
 
 Datos para el pago:
 Alias: {{6}}
 CBU: {{7}}
+
+Saludos.
 ```
-`{{4}}` = % de descuento contado (ej. `25`) · `{{5}}` = monto a pagar al contado · `{{6}}` = alias · `{{7}}` = CBU.
-Ejemplos: `{{1}}`=`$500.000` · `{{2}}`=`3` · `{{3}}`=`$153.355 / $200.100 / $146.545` · `{{4}}`=`25` · `{{5}}`=`$375.000` · `{{6}}`=`loeke.srl` · `{{7}}`=`1910027855002702387450`
+`{{1}}` = % de descuento contado (ej. `25`) · `{{2}}` = monto a pagar al contado · `{{6}}` = alias · `{{7}}` = CBU.
+Ejemplos: `{{1}}`=`25` · `{{2}}`=`$375.000` · `{{3}}`=`$500.000` · `{{4}}`=`3` · `{{5}}`=`$153.355 / $200.100 / $146.545` · `{{6}}`=`loeke.srl` · `{{7}}`=`1910027855002702387450`
 
 ### 5 · `pedido_credito_p`
 ```

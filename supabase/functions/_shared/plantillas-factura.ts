@@ -17,13 +17,15 @@ export const PLANTILLAS_FACTURA: Array<{ name: string; disparo: string; body: st
   {
     "name": "pedido_contado_p",
     "disparo": "Se factura el pedido y el cliente paga contado (varias facturas). Sale con la factura en PDF (lk_factura-check).",
-    "body": "¡Hola! Tu pedido está listo y estará con vos a la brevedad.\n\nTotal de tus facturas (con IVA): {{1}}, en {{2}} facturas.\n\nDetalle por factura: {{3}}\n\n*Total a pagar Contado ({{4}}% Dto): {{5}}*\n\nDatos para el pago:\nAlias: {{6}}\nCBU: {{7}}\n\nSaludos.",
+    // Pablo, 29/09: el total a pagar va primero. Hay que editarla así en WhatsApp Manager; lk_factura-check ordena
+    // las variables según el texto que Meta tenga aprobado (contadoPrimero).
+    "body": "¡Hola! Tu pedido está listo y estará con vos a la brevedad.\n\n*Total a pagar Contado ({{1}}% Dto): {{2}}*\n\nTotal de tus facturas (con IVA): {{3}}, en {{4}} facturas.\n\nDetalle por factura: {{5}}\n\nDatos para el pago:\nAlias: {{6}}\nCBU: {{7}}\n\nSaludos.",
     "ejemplos": [
+      "25",
+      "$375.000",
       "$500.000",
       "3",
       "$153.355 / $200.100 / $146.545",
-      "25",
-      "$375.000",
       "loeke.srl",
       "1910027855002702387450"
     ]

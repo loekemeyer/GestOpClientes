@@ -77,6 +77,7 @@ async function metaWaba(): Promise<string> {
 // casi en tiempo real sin depender de reciclar la instancia warm.
 let _tplStatus: Record<string, string> | null = null;
 let _tplParams: Record<string, number> | null = null; // name → cantidad de {{n}} en el BODY
+let _tplBody: Record<string, string> = {};            // name → texto del BODY en Meta (para el orden de las variables)
 let _tplAt = 0;
 const TPL_TTL_MS = 30_000;
 // Trae de Meta el estado Y la cantidad de variables ({{n}}) del cuerpo de cada plantilla.
@@ -96,6 +97,7 @@ async function refreshTpls(): Promise<void> {
         // deno-lint-ignore no-explicit-any
         for (const c of (t.components ?? [])) {
           if (c.type === "BODY" && typeof c.text === "string") {
+            _tplBody[t.name] = c.text;
             const re = /\{\{(\d+)\}\}/g; let m: RegExpExecArray | null;
             while ((m = re.exec(c.text)) !== null) { const i = parseInt(m[1], 10); if (i > max) max = i; }
           }
@@ -113,6 +115,15 @@ async function tplStatus(name: string): Promise<string | null> {
 }
 async function tplParamCount(name: string): Promise<number | null> {
   await refreshTpls(); const v = _tplParams![name]; return (v === undefined) ? null : v;
+}
+// Pablo, 29/09: en las de contado el "Total a pagar Contado" va primero (arriba de "Total de tu(s) factura(s)"). Se
+// edita a mano en WhatsApp Manager; el orden de las variables sigue al texto que Meta tenga, así no hay que tocar
+// nada el día que la aprueba. Mientras la edición está en revisión, la plantilla no está APPROVED y no se manda.
+async function contadoPrimero(name: string): Promise<boolean> {
+  await refreshTpls();
+  const b = _tplBody[name] ?? "";
+  const a = b.indexOf("Total a pagar Contado"), t = b.indexOf("Total de tu");
+  return a >= 0 && t >= 0 && a < t;
 }
 // Cantidad de {{n}} esperada por formato/grupo, para autodetectar contra Meta.
 function countV1(grupo: string, esMultiple: boolean): number { return grupo === "contado" ? (esMultiple ? 4 : 2) : (esMultiple ? 8 : 6); }
@@ -279,7 +290,13 @@ function fechaLimiteContado(fechaISO: string, dias: number): string {
 }
 // Reconstrucción legible del mensaje (preview/auditoría). Debe respetar el ORDEN de params
 // según el formato: v2 intercala el %dto y agrega alias/CBU; v1 no.
-function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: string, cbu: string, v2: boolean): string {
+function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: string, cbu: string, v2: boolean, primero = false): string {
+  if (primero) { // contado v2 con el total a pagar arriba: {pct, contado, total[, n, detalle]}
+    const cuerpo = esMultiple
+      ? [SALUDO, "", `*Total a pagar Contado (${p[0]}% Dto): ${p[1]}*`, "", `Total de tus facturas (con IVA): ${p[2]}, en ${p[3]} facturas.`, "", `Detalle por factura: ${p[4]}`]
+      : [SALUDO, "", `*Total a pagar Contado (${p[0]}% Dto): ${p[1]}*`, "", `Total de tu factura (con IVA): ${p[2]}`];
+    return cuerpo.join("\n") + "\n" + pagoFooter(alias, cbu);
+  }
   const sav2 = (f: string, a: string, c: string) => ["", `*Pagando hasta el ${f} podes ahorrarte ${a}.*`, `*Total Contado: ${c}*`];
   const sav1 = (f: string, a: string, c: string) => ["", `*Pagando hasta el ${f} podes ahorrarte ${a}.`, `Total Contado: ${c}*`];
   let cuerpo: string[];
@@ -357,10 +374,13 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
       ? [...base, label, fmtARS(montoCliente), metodoPct, fechaLimite, fmtARS(ahorro), fmtARS(montoContado)]
       : [...base, label, fmtARS(montoCliente), fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
   }
+  // Contado con el total a pagar arriba (según el texto de Meta): {pct, contado} pasan adelante.
+  const primero = v2 && grupo === "contado" && await contadoPrimero(template);
+  if (primero) params = [params[params.length - 2], params[params.length - 1], ...params.slice(0, -2)];
   if (v2) params = [...params, cfg.alias, cfg.cbu]; // pie de pago (variables) sólo en v2
   return {
     template, language: "es_AR", metodo, grupo, n_facturas: n, multiple: esMultiple, formato: v2 ? "v2" : "v1",
-    params, lista_facturas: lista, texto_legible: textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu, v2),
+    params, lista_facturas: lista, texto_legible: textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu, v2, primero),
     total_sum, total_fmt: fmtARS(total_sum),
     desglose: {
       total_civa: fmtARS(total_sum), dto_cliente: `${Math.round(dto * 100)}%`, plazo_dias: label || null,

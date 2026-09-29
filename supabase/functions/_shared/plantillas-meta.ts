@@ -49,11 +49,14 @@ export const PLANTILLAS: PlantillaMeta[] = [
     // en la web, ese día y franja. Lo arma wa_fecha_estimada_calc y queda en wa_fecha_estimada para medir cumplimiento.
     // Con la razón social (Pablo, 29/09: "por ser el primer mensaje"); los demás avisos van sin nombre. sql/104
     // (revierte sql/093, que la había sacado).
-    variables: ["razón social", "fecha del pedido (dd/mm)", "total sin IVA ($ con punto de miles)", "método de pago (texto limpio, sin el descuento)", "entrega estimada (texto)"],
+    // {{3}} (Pablo, 29/09): total con IVA y, entre paréntesis, el neto "+ IVA" — "por $896.668 ($741.048 + IVA)" — y una
+    // línea en blanco después del saludo. Va como pedido_recibido_v2 (sistema de versiones): mientras la activa sea la
+    // vieja, el disparador (sql/108) sigue mandando sólo el neto, porque ese texto ya dice "+ IVA".
+    variables: ["razón social", "fecha del pedido (dd/mm)", "total con IVA y el neto: \"$896.668 ($741.048 + IVA)\"", "método de pago (texto limpio, sin el descuento)", "entrega estimada (texto)"],
     // Texto de Pablo (29/09): "Entrega estimada <día>" + "En breve te confirmamos el día exacto de programación".
     // {{5}} es sólo el día (y, si va por expreso o retira, la aclaración entre paréntesis): sql/087.
-    body: "¡Hola {{1}}! Te escribimos de Loekemeyer.\nRecibimos tu pedido del {{2}} por {{3}} + IVA.\nMétodo de pago: {{4}}.\nEntrega estimada: {{5}}.\nEn breve te confirmamos el día exacto de programación.",
-    ejemplos: ["Autoservicio Capo SA", "28/09", "$9.446", "contado", "martes 20/10"],
+    body: "¡Hola {{1}}! Te escribimos de Loekemeyer.\n\nRecibimos tu pedido del {{2}} por {{3}}.\nMétodo de pago: {{4}}.\nEntrega estimada: {{5}}.\nEn breve te confirmamos el día exacto de programación.",
+    ejemplos: ["Autoservicio Capo SA", "28/09", "$11.430 ($9.446 + IVA)", "contado", "martes 20/10"],
   },
 
   // ── 1 · Pedido programado ────────────────────────────────────────────────
