@@ -364,6 +364,10 @@ el killswitch, sin ningún consumidor de esa cola.
   inserta en `customer_delivery_addresses` (slot siguiente, `pending_isis=true`) y avisa al cliente por la cola.
   "Cambié de dirección" ya no cae en la FAQ #4 (`RE_NUEVA_DIRECCION` → IA).
 - **Cambio de mail** (29/09): `solicitar_cambio_mail` → tarea `cambio_datos` con `mail_nuevo` → "Cambiar mail" (`mail_cambiar`).
+- **Simulador › 📱 Número nuevo** (29/09): corre el alta real (`_shared/alta.ts`, movido del webhook sin cambios) con el
+  número falso 5490000000099; el estado vive en `wa_prospect_leads` de ese número y una charla nueva cancela la anterior.
+  Un CUIT que ya es cliente no pide vinculación real. "Crear cliente y mandar acceso" sobre un alta 🧪 hace los controles
+  y la bienvenida retenida pero NO crea el cliente ni el usuario de la web.
 - **Tareas de prueba 🧪 nunca mandan mensajes** (29/09): `lk_alertas` encola sus avisos como `held_no_whitelist` con
   context `prueba_…` y la clave tapada. La llamada interna (x-lk-secret) sólo puede tocar tareas 🧪 (y bloqueoPrueba exige
   el cliente 99862): así Claude corre las pruebas sin login.

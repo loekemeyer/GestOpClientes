@@ -342,7 +342,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.25.15">
+  <link rel="stylesheet" href="gestop2.css?v=0.25.16">
 </head>
 <body>
 
@@ -523,6 +523,7 @@
           <div style="display:flex;gap:0.4rem;">
             <input type="number" id="simCod" value="4210" placeholder="N° de cliente" style="flex:1;min-width:0;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
             <button class="config-btn small" onclick="simReset(document.getElementById('simCod').value)">Usar</button>
+            <button class="config-btn small" title="Alguien que todavía no es cliente: prueba el alta" onclick="simReset('nuevo')">📱 Número nuevo</button>
           </div>
           <label class="toggle-desc" style="display:flex;gap:0.4rem;align-items:flex-start;margin-top:0.6rem;cursor:pointer;">
             <input type="checkbox" id="simTareas" style="margin-top:0.15rem;">
@@ -1692,15 +1693,17 @@ async function simInit() {
 }
 
 function simReset(cod) {
-  if (cod) _sim.cod = Number(cod) || 4210;
+  // "nuevo" = alguien que todavía no es cliente (prueba el alta paso a paso, lk_bot-simular numero_nuevo).
+  if (cod === "nuevo") _sim.nuevo = true;
+  else if (cod) { _sim.nuevo = false; _sim.cod = Number(cod) || 4210; }
   _sim.historial = [];
   document.getElementById("simMessages").innerHTML = "";
-  document.getElementById("simTitle").textContent = "Cliente " + _sim.cod;
+  document.getElementById("simTitle").textContent = _sim.nuevo ? "Número nuevo (no cliente)" : "Cliente " + _sim.cod;
   simAgregar("system", "Charla nueva · escribí o tocá un aviso");
 }
 
 async function simLlamar(pasos) {
-  const { data, error } = await authedInvoke("lk_bot-simular", { cod_cliente: _sim.cod, historial: _sim.historial, pasos,
+  const { data, error } = await authedInvoke("lk_bot-simular", { cod_cliente: _sim.cod, numero_nuevo: !!_sim.nuevo, historial: _sim.historial, pasos,
     crear_tareas: !!document.getElementById("simTareas")?.checked });
   if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
   if (data.cliente) document.getElementById("simTitle").textContent = data.cliente;
@@ -1709,6 +1712,7 @@ async function simLlamar(pasos) {
 
 async function simAviso(name, factura) {
   if (_sim.ocupado) return;
+  if (_sim.nuevo) { simAgregar("system", "Los avisos son para clientes: elegí un número de cliente y tocá Usar."); return; }
   _sim.ocupado = true;
   try {
     const r = await simLlamar([{ aviso: name }]);
@@ -3991,7 +3995,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.15</div>
-<script src="gestop2.js?v=0.25.15"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.16</div>
+<script src="gestop2.js?v=0.25.16"></script>
 </body>
 </html>

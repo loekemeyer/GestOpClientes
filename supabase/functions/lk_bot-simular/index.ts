@@ -6,6 +6,7 @@ import { SIM } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { handleFaq } from "../_shared/faq.ts";
+import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START } from "../_shared/alta.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
@@ -43,6 +44,71 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const TEL_SIMULADO = "5490000000000";
+const TEL_NUEVO = "5490000000099";   // número falso del modo "número nuevo"
+
+// deno-lint-ignore no-explicit-any
+async function simularNumeroNuevo(body: any): Promise<Response> {
+  SIM.activo = true;
+  SIM.historial = [];
+  try {
+    if (!Array.isArray(body.historial) || !body.historial.length) {
+      await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("phone", TEL_NUEVO).eq("status", "pending");
+    }
+    const salida: Array<Record<string, unknown>> = [];
+    for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
+      const text = String(paso.cliente ?? "").trim();
+      if (!text) continue;
+      SIM.alertas = [];
+      const respuestas: string[] = [];
+      const send = async (r: string) => { respuestas.push(r); };
+      let via = "";
+      const lead = await getPendingLead(TEL_NUEVO);
+      if (lead) {
+        await handleAltaStep(TEL_NUEVO, text, lead, send); via = "alta (paso a paso)";
+      } else {
+        const faq = await handleFaq(text, null);
+        if (faq) { respuestas.push(faq.reply); via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`; }
+        else {
+          const cuit = extractCuit(text);
+          if (cuit) {
+            const { data: ya } = await supabase.from("customers").select("business_name").eq("cuit", cuit).limit(1);
+            if (ya?.length) {
+              respuestas.push(`Encontré la cuenta de *${ya[0].business_name}*. 👍\n\nPor seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. (Simulador: no se pide la vinculación.)`);
+              via = "registro por CUIT";
+            } else {
+              await crearLead(TEL_NUEVO, text, cuit);
+              respuestas.push("No te encontré como cliente con ese CUIT. 🤔\n\nSi querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. Te pregunto de a uno (para cortar, escribí *cancelar*):\n\n📋 ¿Cuál es tu *razón social*?");
+              via = "alta (arranca con CUIT)";
+            }
+          } else if (RE_ALTA_START.test(text)) {
+            await crearLead(TEL_NUEVO, text, null); respuestas.push(ALTA_INTRO); via = "alta (arranca)";
+          } else {
+            respuestas.push("Todavía no te tengo registrado como cliente. ¿Me pasás tu *CUIT* así te registro y podés ver precios y hacer pedidos? (con o sin guiones)\n\nSi todavía no sos cliente, decime *registrarme* y te tomo los datos.");
+            via = "no cliente";
+          }
+        }
+      }
+      const tareas: number[] = [];
+      if (body.crear_tareas === true && SIM.alertas.length) {
+        const { data: tp } = await supabase.from("wa_envio_contactos").select("phone").order("created_at").limit(1).maybeSingle();
+        for (const al of SIM.alertas) {
+          const { tipo, ...ctx } = al as Record<string, unknown>;
+          const { data: ins } = await supabase.from("wa_alertas_humano").insert({
+            tipo: String(tipo ?? "otro"), phone: tp?.phone ?? null, customer_id: null,
+            contexto: { ...ctx, texto_recibido: text.slice(0, 300), simulador: true },
+          }).select("id").maybeSingle();
+          if (ins?.id) tareas.push(ins.id);
+        }
+      }
+      salida.push({ cliente: text, bot: respuestas.join("\n\n"), via, alertas: [...SIM.alertas], herramientas: [], tareas });
+    }
+    return json({ ok: true, cliente: "Número nuevo (no cliente)", charla: salida });
+  } finally {
+    SIM.activo = false;
+  }
+}
+
 
 async function esLlamadaInterna(req: Request): Promise<boolean> {
   const recibido = req.headers.get("x-lk-secret") ?? "";
@@ -67,6 +133,11 @@ serve(async (req) => {
     if (body.action === "avisos") {
       return json({ ok: true, avisos: AVISOS.map((p) => ({ name: p.name, cuando: p.disparo, factura: p.factura, texto: rellenar(p.body, p.ejemplos) })) });
     }
+
+    // Pablo, 29/09: modo "número nuevo" (alguien que todavía no es cliente): corre el alta real paso a paso (_shared/alta.ts)
+    // con un número falso. El estado del alta vive en wa_prospect_leads (filas de ese número falso); una charla nueva
+    // cancela el alta anterior. La alerta de alta sólo se crea de verdad con "Crear tareas de prueba" (🧪).
+    if (body.numero_nuevo === true) return await simularNumeroNuevo(body);
 
     const { data: c } = await supabase.from("customers")
       .select("id, cod_cliente, business_name, dto_vol").eq("cod_cliente", Number(body.cod_cliente)).maybeSingle();

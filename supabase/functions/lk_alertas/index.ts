@@ -98,7 +98,7 @@ serve(async (req) => {
     // Pablo, 29/09: las pruebas del Simulador las puede correr Claude con la llamada interna (x-lk-secret), pero SÓLO sobre
     // tareas 🧪 (contexto.simulador) y sólo las acciones de los botones; bloqueoPrueba además exige el cliente 99862.
     const interna = await esInterna(req);
-    const ACCIONES_PRUEBA = ["aplicar_agregado", "reset_clave", "sucursal_agregar", "mail_cambiar", "list"];
+    const ACCIONES_PRUEBA = ["aplicar_agregado", "reset_clave", "sucursal_agregar", "mail_cambiar", "alta_crear", "list"];
     let gate: { ok: true; email: string } | { ok: false; error: string; status: number };
     if (interna && ACCIONES_PRUEBA.includes(String(body.action))) {
       gate = { ok: true, email: "prueba interna (simulador)" };
@@ -331,6 +331,27 @@ serve(async (req) => {
       if (!l.cuit || !l.razon_social) return json({ ok: false, error: "A la solicitud le falta el CUIT o la razón social." }, 200);
       const { data: codUsado } = await supabase.from("customers").select("business_name").eq("cod_cliente", cod).limit(1);
       if (codUsado?.length) return json({ ok: false, error: `El código ${cod} ya es de ${codUsado[0].business_name}.` }, 200);
+
+      // Alta 🧪 del Simulador (modo número nuevo): se hacen los mismos controles, pero NO se crea el cliente ni el usuario
+      // de la web (serían datos falsos en la web real). Queda la bienvenida retenida y la tarea resuelta.
+      if (a.contexto?.simulador === true) {
+        const cuit = String(l.cuit).replace(/\D/g, "");
+        const { data: yaUser } = await supabase.from("customers").select("business_name").eq("cuit", cuit).limit(1);
+        if (yaUser?.length) return json({ ok: false, error: `Ya hay un cliente con ese CUIT (${yaUser[0].business_name}).` }, 200);
+        const usuario = `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}`;
+        const texto = `¡Bienvenido a Loekemeyer! 🎉 Ya sos cliente (código ${cod}).\nHacé tus pedidos en loekemeyer.com → "Pedidos Mayorista":\nUsuario: ${usuario}\nClave: xxxx0000\nNo la compartas con nadie.`;
+        const { error: eO } = await encolar(a, { phone: l.phone ?? a.phone, body: texto, context: "alta_aprobada", ref_id: String(leadId) });
+        await supabase.from("wa_prospect_leads").update({ status: "approved", updated_at: new Date().toISOString() }).eq("id", leadId);
+        await supabase.from("wa_alertas_humano").update({
+          estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
+          contexto: { ...a.contexto, decision_alta: "approve", cod_cliente_asignado: cod, vend, dto_vol: dto, simulado: true },
+        }).eq("id", id);
+        await llamarPlanify({ action: "cerrar", alerta_id: id });
+        return json({ ok: true, simulado: true, usuario, cod_cliente: cod, pendientes: ["prueba: no se creó el cliente ni el usuario de la web"],
+          habria_creado: { razon_social: l.razon_social, cuit, cod_cliente: cod, vend, dto_vol: dto, direccion: l.direccion, localidad: l.localidad,
+            provincia: l.provincia, cp: l.codigo_postal, expreso: l.expreso_nombre, condicion_iva: l.condicion_iva },
+          aviso_encolado: !eO, error_aviso: eO?.message ?? null });
+      }
 
       const rnd = crypto.getRandomValues(new Uint32Array(8));
       const LET = "abcdefghjkmnpqrstuvwxyz";

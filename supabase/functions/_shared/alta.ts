@@ -1,0 +1,295 @@
+// Alta de cliente nuevo por WhatsApp (toma de datos paso a paso) y registro por CUIT. Movido desde lk_whatsapp-webhook
+// (29/09) para que el Simulador pueda correr el alta con un número nuevo (lk_bot-simular, modo "número nuevo").
+// El webhook y el simulador usan exactamente este mismo código.
+import { supabase } from "./supabase.ts";
+import { SIM } from "./simulacion.ts";
+
+export interface RegisterResult {
+  request_id: number;
+  status: string;
+  business_name: string | null;
+  cod_cliente: number | null;
+  primary_phone: string | null;
+}
+
+export async function tryRegister(phone: string, cuit: string): Promise<RegisterResult | null> {
+  const { data, error } = await supabase.rpc("bot_register_request_v2", {
+    p_telefono: phone,
+    p_cuit: cuit,
+  });
+
+  if (error) {
+    console.error("Error en bot_register_request_v2:", error.message);
+    return null;
+  }
+
+  if (!data?.length) return null;
+  return data[0];
+}
+
+/**
+ * Extrae un CUIT válido del texto, independiente del formato que use el
+ * cliente ("20-12345678-9", "20/12345678/9", "cuit20123456789", "cuit: 20
+ * 12345678 9", etc.). Se limpian TODOS los no-dígitos y se recorren ventanas
+ * de 11 dígitos exigiendo dígito verificador (módulo 11) correcto — evita
+ * falsos positivos con teléfonos de 10-11 dígitos o CUITs mal tipeados.
+ */
+export function validaCuit(cuit: string): boolean {
+  if (!/^\d{11}$/.test(cuit)) return false;
+  const mult = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(cuit[i]) * mult[i];
+  const mod = 11 - (sum % 11);
+  const dv = mod === 11 ? 0 : mod === 10 ? 9 : mod;
+  return dv === Number(cuit[10]);
+}
+
+export function extractCuit(text: string): string | null {
+  const digits = text.replace(/\D/g, "");
+  if (digits.length < 11) return null;
+  // Ventana móvil de 11 dígitos: el primer candidato que pase módulo 11 gana.
+  for (let i = 0; i + 11 <= digits.length; i++) {
+    const cand = digits.slice(i, i + 11);
+    if (validaCuit(cand)) return cand;
+  }
+  return null;
+}
+
+// ─── Alta de cliente nuevo (no-cliente sin CUIT en sistema) ────────
+// Toma de datos paso a paso, 0 tokens (determinístico, sin IA). Se dispara
+// cuando un no-cliente acepta registrarse (o su CUIT no está en el sistema).
+// El estado vive en `wa_prospect_leads` (status='pending' + alta_step). Al
+// terminar: se deja el "cable" para el vendedor (fila en wa_alertas_humano,
+// SIN enchufar a ninguna notificación push todavía) y se le avisa al cliente
+// que la solicitud va a revisión.
+
+export const ALTA_INTRO =
+  `¡Genial! Te tomo los datos para registrarte. 📋\n\n` +
+  `Te voy a ir preguntando de a uno. Si querés cortar, escribí *cancelar*.\n\n` +
+  `🔢 ¿Cuál es tu *CUIT*? (11 números, con o sin guiones)`;
+
+// Pablo, 29/09 (alta mixta): los 10 datos acordados, en este orden. El CUIT se pide sólo si el alta arrancó sin él
+// (con "registrarme"); si vino de cuit_not_found ya está validado. El vendedor, el código y el descuento los completa
+// quien aprueba desde Tareas (lk_alertas alta_crear), que además crea el acceso a la web.
+// deno-lint-ignore no-explicit-any
+type AltaLead = any;
+type AltaParse = { value: unknown } | { error: string };
+const ALTA_STEPS: { field: string; prompt: string; skip?: (l: AltaLead) => boolean; parse?: (t: string, phone: string) => AltaParse }[] = [
+  { field: "cuit", prompt: "🔢 ¿Cuál es tu *CUIT*? (11 números, con o sin guiones)", skip: (l) => !!l.cuit,
+    parse: (t) => { const c = extractCuit(t); return c ? { value: c } : { error: "Ese CUIT no parece válido 🤔 Revisá que tenga los 11 números bien copiados y pasámelo de nuevo." }; } },
+  { field: "razon_social", prompt: "📋 ¿Cuál es tu *razón social*?" },
+  { field: "condicion_iva", prompt: "🧾 ¿Condición frente al IVA? (*Responsable inscripto*, *Monotributo* o *Exento*)",
+    parse: (t) => /inscrip|\bri\b|responsable/i.test(t) ? { value: "Responsable inscripto" }
+      : /monot/i.test(t) ? { value: "Monotributo" } : /exent/i.test(t) ? { value: "Exento" }
+      : { error: "No te entendí 🤔 Escribí *Responsable inscripto*, *Monotributo* o *Exento*." } },
+  { field: "nombre_contacto", prompt: "👤 ¿*Nombre de contacto*? (nombre y apellido)" },
+  { field: "telefono", prompt: "📱 ¿*Teléfono* de contacto? Si es este mismo número, escribí *este*.",
+    parse: (t, phone) => /^(este|el mismo|mismo|este mismo|es este)\b/i.test(t.trim()) ? { value: phone }
+      : t.replace(/\D/g, "").length < 8 ? { error: "Ese teléfono parece corto 🤔 Pasámelo con característica (ej: *11 2345-6789*) o escribí *este*." }
+      : { value: t.trim() } },
+  { field: "mail", prompt: "📧 ¿*Mail*? (ej: nombre@dominio.com)",
+    parse: (t) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t.trim()) ? { value: t.trim() }
+      : { error: "Ese mail no parece válido 🤔 Debería ser algo tipo *nombre@dominio.com*. ¿Me lo pasás de nuevo?" } },
+  { field: "direccion", prompt: "📍 Dirección de *entrega*: ¿calle y número?" },
+  { field: "localidad", prompt: "📍 ¿*Localidad*?" },
+  { field: "provincia", prompt: "📍 ¿*Provincia*?" },
+  { field: "codigo_postal", prompt: "📍 ¿*Código postal*?",
+    parse: (t) => { const m = t.toUpperCase().match(/\b([A-Z]?\d{4}[A-Z]{0,3})\b/); return m ? { value: m[1] } : { error: "No encontré el código postal 🤔 Son 4 números (ej: *1417*)." }; } },
+  { field: "expreso_nombre", prompt: "🚚 ¿Te lo mandamos por *expreso* (interior)? Decime cuál. Si recibís en CABA o GBA, escribí *no*.",
+    parse: (t) => /^(no|ninguno|no\s+uso|reparto|caba|gba)\b/i.test(t.trim()) ? { value: null } : { value: t.trim() } },
+  { field: "tipo_comercio", prompt: "🏪 Por último, ¿qué *tipo de comercio* tenés? (ej: bazar, mayorista, distribuidor). Si preferís no decirlo, escribí *saltar*.",
+    parse: (t) => /^(saltar|no|-|paso)\b/i.test(t.trim()) ? { value: null } : { value: t.trim() } },
+];
+// Salta los pasos que no corresponden (ej. CUIT ya cargado) desde `desde`.
+function altaProximoPaso(desde: number, lead: AltaLead): number {
+  let i = desde;
+  while (i < ALTA_STEPS.length && ALTA_STEPS[i].skip?.(lead)) i++;
+  return i;
+}
+
+export const MSG_ALTA_COMPLETA =
+  `✅ ¡Listo! Ya tengo todos tus datos.\n\n` +
+  `La solicitud irá a revisión y nos pondremos en contacto con vos cuando sea aprobada. ¡Gracias! 🙌`;
+
+export const MSG_ALTA_CANCELADA =
+  `Listo, cancelé el registro. Si querés retomarlo más adelante, escribime *registrarme*. 👋`;
+
+// Dispara el alta (aceptar el registro / "soy nuevo").
+//
+// Punto 11 de la auditoría del 07/09: esto matcheaba `alta`, `registro` y —lo peor— `dale`
+// sueltos. Al pedido de CUIT alguien contesta "dale, ya te lo paso" y arrancaba el alta;
+// el CUIT del mensaje siguiente se guardaba como `razon_social`, y como `ALTA_STEPS` no
+// tiene paso de CUIT, ese lead quedaba SIN CUIT para siempre.
+//
+// Ahora son frases explícitas. `dale`/`sí` solos ya no alcanzan: tienen que venir pegados a
+// la intención ("dale, registrame"). Y si el mensaje trae un CUIT, `handleRegistration` ya
+// cortó antes de llegar acá.
+export const RE_ALTA_START =
+  /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo))\b/i;
+// Cortar el alta en curso.
+export const RE_ALTA_CANCEL = /\b(cancelar|cancelá|salir|dejar|olvidalo|no quiero|parar|basta)\b/i;
+
+/**
+ * v14.13 — punto 11c de la auditoría del 07/09. Antes esto usaba `.maybeSingle()`, que con DOS
+ * filas `pending` del mismo teléfono devuelve `null` y un error PGRST116 que nadie miraba. El
+ * resultado era el peor posible: el paso que intercepta el alta no se activaba nunca y el bot
+ * contestaba "pasame tu CUIT" **en loop para siempre**, sin forma de salir.
+ *
+ * Ahora se toma el más reciente (`order` + `limit(1)`), así dos filas no rompen nada, y el
+ * error se loguea en vez de tragarse. El índice único parcial de `sql/059` impide que se
+ * vuelvan a crear dos, pero esto tiene que aguantar las que ya existan.
+ */
+/**
+ * v14.13 — punto 11a: además, un alta abierta **vence**. Sin vencimiento, quien abandonaba
+ * en el campo 4 y volvía dos semanas después con un "hola, me pasás la lista?" tenía ese
+ * saludo guardado como mail o como dirección: el paso del alta se come cualquier mensaje.
+ * El único escape era `RE_ALTA_CANCEL`, que nadie sabe que existe.
+ *
+ * A las `ALTA_TTL_HORAS` sin tocar, el alta se marca `expired` y el flujo arranca de cero
+ * (el índice único parcial de sql/059 es sobre `status='pending'`, así que expirarla libera
+ * el teléfono para un alta nueva).
+ */
+const ALTA_TTL_HORAS = 48;
+
+export async function getPendingLead(phone: string) {
+  const { data, error } = await supabase
+    .from("wa_prospect_leads")
+    .select("id, cuit, razon_social, condicion_iva, nombre_contacto, telefono, mail, direccion, localidad, provincia, codigo_postal, expreso_nombre, tipo_comercio, alta_step, raw_messages, updated_at")
+    .eq("phone", phone)
+    .eq("status", "pending")
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) console.error(`[alta] getPendingLead(${phone}) falló:`, error.message);
+  const lead = (data && data[0]) || null;
+  if (!lead) return null;
+
+  const tocado = lead.updated_at ? Date.parse(String(lead.updated_at)) : NaN;
+  if (Number.isFinite(tocado) && Date.now() - tocado > ALTA_TTL_HORAS * 3600_000) {
+    const { error: e2 } = await supabase
+      .from("wa_prospect_leads")
+      .update({ status: "expired" })
+      .eq("id", lead.id)
+      .eq("status", "pending");
+    if (e2) {
+      // No se pudo expirar: mejor seguir con el alta vieja que perder los datos ya cargados.
+      console.error(`[alta] no pude expirar el lead ${lead.id}:`, e2.message);
+      return lead;
+    }
+    console.log(`[alta] lead ${lead.id} de ${phone} vencido (>${ALTA_TTL_HORAS} h sin actividad).`);
+    return null;
+  }
+  return lead;
+}
+
+/** Avisa al vendedor de un alta completa. CABLE SIN ENCHUFAR: solo deja la
+ *  fila en wa_alertas_humano; todavía no hay push/notificación conectada. */
+export async function notificarAltaVendedor(phone: string, lead: Record<string, unknown>): Promise<void> {
+  // Simulador (modo número nuevo): la alerta sólo se crea de verdad con "Crear tareas de prueba", marcada 🧪.
+  if (SIM.activo) {
+    SIM.alertas.push({ tipo: "alta_cliente_nuevo", lead_id: lead.id ?? null, cuit: lead.cuit ?? null, razon_social: lead.razon_social ?? null,
+      nombre_contacto: lead.nombre_contacto ?? null, localidad: lead.localidad ?? null, motivo: "solicitud_alta_completa" });
+    return;
+  }
+  try {
+    await supabase.from("wa_alertas_humano").insert({
+      tipo: "alta_cliente_nuevo",
+      phone,
+      contexto: {
+        lead_id: lead.id ?? null,
+        cuit: lead.cuit ?? null,
+        razon_social: lead.razon_social ?? null,
+        nombre_contacto: lead.nombre_contacto ?? null,
+        localidad: lead.localidad ?? null,
+        motivo: "solicitud_alta_completa",
+      },
+    });
+  } catch (e) {
+    console.error("notificarAltaVendedor falló:", e);
+  }
+}
+
+/** Enruta la respuesta del cliente al campo del alta que corresponda. */
+export async function handleAltaStep(
+  phone: string,
+  text: string,
+  // deno-lint-ignore no-explicit-any
+  lead: any,
+  send: (reply: string) => Promise<void>,
+): Promise<void> {
+  if (RE_ALTA_CANCEL.test(text)) {
+    await supabase.from("wa_prospect_leads")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("id", lead.id);
+    await send(MSG_ALTA_CANCELADA);
+    return;
+  }
+
+  const step = altaProximoPaso(lead.alta_step ?? 0, lead);
+  const messages = Array.isArray(lead.raw_messages) ? [...lead.raw_messages] : [];
+  messages.push({ role: "user", content: text, ts: new Date().toISOString() });
+
+  if (step >= ALTA_STEPS.length) {
+    // Ya estaba completo (mensaje tardío) — no re-notificar.
+    await send("Tu solicitud ya está registrada y en revisión ✅ Te avisamos por acá cuando se apruebe.");
+    return;
+  }
+  const paso = ALTA_STEPS[step];
+  if (!text.trim()) { await send("Se me quedó vacío 🤔 ¿Me lo repetís?"); return; }
+  const r: AltaParse = paso.parse ? paso.parse(text, phone) : { value: text.trim() };
+  if ("error" in r) { await send(r.error); return; }   // dato mal → se repregunta el MISMO campo
+
+  // CUIT que ya es cliente: no es un alta, es vincular el número (lo aprueba una persona, sql/072).
+  if (paso.field === "cuit") {
+    const { data: ya } = await supabase.from("customers").select("id").eq("cuit", String(r.value)).limit(1);
+    if (ya?.length) {
+      await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", lead.id);
+      if (!SIM.activo) await tryRegister(phone, String(r.value));   // el simulador no pide vinculaciones reales
+      await send("Ese CUIT ya es cliente nuestro 👍 Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por acá.");
+      return;
+    }
+  }
+
+  const actualizado = { ...lead, [paso.field]: r.value };
+  const siguiente = altaProximoPaso(step + 1, actualizado);
+  const completo = siguiente >= ALTA_STEPS.length;
+  await supabase.from("wa_prospect_leads")
+    .update({
+      [paso.field]: r.value,
+      alta_step: siguiente,
+      raw_messages: messages,
+      ...(completo ? { status: "complete" } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", lead.id);
+
+  if (!completo) { await send(ALTA_STEPS[siguiente].prompt); return; }
+  await notificarAltaVendedor(phone, actualizado);
+  await send(MSG_ALTA_COMPLETA);
+}
+
+/** Crea el lead (status='pending', alta_step=0). No envía nada: el caller
+ *  decide el copy de arranque. `cuit` opcional (viene de cuit_not_found). */
+/**
+ * v14.13 — idempotente. Antes insertaba sin mirar si el teléfono ya tenía un alta abierta, que
+ * es exactamente cómo se llegaba a las dos filas `pending` que dejaban el alta en loop.
+ */
+export async function crearLead(phone: string, text: string, cuit: string | null): Promise<void> {
+  const abierto = await getPendingLead(phone);
+  if (abierto) {
+    console.log(`[alta] ${phone} ya tenía un alta abierta (lead ${abierto.id}); no se crea otra.`);
+    return;
+  }
+  const { error } = await supabase.from("wa_prospect_leads").insert({
+    phone,
+    cuit,
+    alta_step: 0,
+    status: "pending",
+    raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
+  });
+  // 23505 = chocó con el índice único parcial de sql/059: otra entrega del mismo mensaje
+  // ganó la carrera. No es un error: el alta ya existe.
+  if (error && error.code !== "23505") {
+    console.error(`[alta] no se pudo crear el lead de ${phone}:`, error.message);
+  }
+}
+
