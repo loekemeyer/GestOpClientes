@@ -69,16 +69,21 @@ export function sinLineasSinDato(
   }).join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
+// Sólo palabras de saludo o cortesía ("hola", "buenas tardes", "hola qué tal"). Antes contaba ≤ 3 palabras y
+// "Hola, cuánto debo?" pasaba por saludo (29/09).
+const PALABRAS_SALUDO = new Set(["hola", "holis", "ola", "buenas", "buenos", "buen", "buena", "dia", "dias", "tardes",
+  "noches", "hey", "que", "tal", "como", "estas", "andas", "va", "todo", "bien", "gracias", "saludos", "hi"]);
+function esSoloSaludo(text: string): boolean {
+  const palabras = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+  return !/\d/.test(text) && palabras.length > 0 && palabras.length <= 6 && palabras.every((p) => PALABRAS_SALUDO.has(p));
+}
+
 /**
  * ¿La respuesta ya arranca saludando? El call-site le antepone "¡Hola {cliente}! 👋"
  * cuando es primer contacto, y la FAQ del saludo inicial ya saluda: sin este chequeo
  * el cliente recibe el saludo dos veces seguidas.
  */
-function esSoloSaludo(text: string): boolean {
-  const palabras = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
-  return !/\d/.test(text) && palabras.length <= 3;
-}
-
 function yaSaluda(reply: string): boolean {
   return /^\s*[¡!]?\s*(hola|buen[ao]s?\s+(d[ií]as|tardes|noches))\b/i.test(reply);
 }
@@ -106,7 +111,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // mensajes con contenido real: "necesito 2000 cajas del 506" recibía "Hola! ¿En qué te puedo ayudar?"
   // (simulación 28/09). Con cliente identificado sólo responde si el mensaje es casi sólo un saludo;
   // si no, pasa al agente.
-  if (customer && top.category === "greeting_fallback" && !esSoloSaludo(text)) return null;
+  // Lo mismo con el saludo (#41, category saludo): "Hola, cuánto debo?" recibía "¿En qué te puedo ayudar?" (29/09).
+  if (customer && (top.category === "greeting_fallback" || top.category === "saludo") && !esSoloSaludo(text)) return null;
 
   // Escalación humana: preestablecida en la FAQ (categoría HUMANO)
   if (top.automation_level === "needs_human") {
