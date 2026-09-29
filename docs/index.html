@@ -342,7 +342,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.25.2">
+  <link rel="stylesheet" href="gestop2.css?v=0.25.10">
 </head>
 <body>
 
@@ -541,8 +541,8 @@
             <div style="padding:0.6rem 0.7rem;background: #075e54;color: #fff;display:flex;align-items:center;justify-content:space-between;">
               <b>💬 Conversaciones</b>
               <span style="display:flex;gap:0.3rem;">
-                <button class="config-btn small" style="padding:0.2rem 0.4rem;" title="Mensaje entrante de prueba" onclick="convSeed()">＋demo</button>
-                <button class="config-btn small" style="padding:0.2rem 0.4rem;" onclick="convRefresh()">⟳</button>
+                <button class="config-btn small" title="Mensaje entrante de prueba" onclick="convSeed()">＋demo</button>
+                <button class="config-btn small icono" title="Actualizar" onclick="convRefresh()">⟳</button>
               </span>
             </div>
             <div id="convList" style="flex:1;overflow-y:auto;"></div>
@@ -587,7 +587,7 @@
           <summary>
             <span class="dash-sec-title">🧾 Pipeline de facturas</span>
             <span class="dash-sec-hint">Ventana ±3 días · excluye simulación</span>
-            <button class="config-btn small" style="margin-left:auto;" onclick="event.preventDefault(); loadDashboard();">⟳</button>
+            <button class="config-btn small icono" title="Actualizar" style="margin-left:auto;" onclick="event.preventDefault(); loadDashboard();">⟳</button>
           </summary>
           <div class="dash-sec-body">
             <div style="overflow-x:auto;">
@@ -612,7 +612,7 @@
           <summary>
             <span class="dash-sec-title">🤖 IA — gastos y uso</span>
             <span class="dash-sec-hint">Breakdown por modelo · más completo que el sidebar</span>
-            <button class="config-btn small" style="margin-left:auto;" onclick="event.preventDefault(); loadIaDash();">⟳</button>
+            <button class="config-btn small icono" title="Actualizar" style="margin-left:auto;" onclick="event.preventDefault(); loadIaDash();">⟳</button>
           </summary>
           <div class="dash-sec-body">
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.8rem;">
@@ -2146,7 +2146,7 @@ function renderExcepciones() {
     const chips = (excData[k] || []).map((it, idx) =>
       `<span style="display:inline-flex;align-items:center;gap:0.35rem;background: var(--surface2);border: 1px solid var(--line);border-radius:14px;padding:0.15rem 0.55rem;font-size:0.78rem;">` +
       `${it.tipo === "razon" ? "🏢" : "#"} ${esc(it.valor)}` +
-      (excLocked ? "" : `<button class="config-btn small" style="padding:0 0.3rem;line-height:1.2;" title="Quitar" onclick="removeExcepcion('${esc(k)}',${idx})">✕</button>`) +
+      (excLocked ? "" : `<button class="config-btn small icono" title="Quitar" onclick="removeExcepcion('${esc(k)}',${idx})">✕</button>`) +
       `</span>`
     ).join("");
     return `<div style="margin:0.3rem 0;"><div style="font-size:0.76rem;color: var(--muted);margin-bottom:0.25rem;">${esc(bandLabel(k))}</div>` +
@@ -2791,7 +2791,7 @@ function renderKeys() {
     keys.map(k => {
       const cred = k.key_source === "env" ? "🔐 Secrets" : "····" + escM(k.key_last4 || "????");
       const del = k.key_source === "env" ? "" :
-        '<button class="config-btn danger small" onclick="deleteKey(' + k.key_id + ')">🗑️</button>';
+        '<button class="config-btn danger small icono" onclick="deleteKey(' + k.key_id + ')">🗑️</button>';
       return '<div class="row" style="justify-content:space-between;border: 1px solid var(--border);border-radius:6px;padding:0.4rem 0.6rem;margin-bottom:0.4rem;">' +
         '<span style="font-size:0.82rem;">🏷️ ' + (PROV_LABEL[k.proveedor] || escM(k.proveedor)) + ' · ' + cred + ' · <b>' + k.n + '</b> modelos</span>' +
         '<span style="white-space:nowrap;">' +
@@ -2820,7 +2820,7 @@ function renderChain() {
           '<span style="color: var(--muted);cursor:grab;" title="Arrastrá para reordenar">⠿</span> ' +
           '<b>#' + (i + 1) + '</b> · ' + (PROV_LABEL[r.proveedor] || escM(r.proveedor)) + ' · <code>' + escM(r.model_id) + '</code> ' + estado +
         '</span>' +
-        '<button class="config-btn danger small" onclick="removeFromChain(' + r.id + ')">✖</button>' +
+        '<button class="config-btn danger small icono" onclick="removeFromChain(' + r.id + ')">✖</button>' +
       '</div>' +
     '</div>';
   }).join("");
@@ -2959,7 +2959,7 @@ async function loadBlacklist() {
         <td>${cust}</td>
         <td style="font-size:0.82rem;">${it.reason || "—"}</td>
         <td style="font-size:0.78rem;color: var(--muted);">${fecha}</td>
-        <td><button class="config-btn danger small" onclick="removeFromBlacklist(${it.id})">✕</button></td>
+        <td><button class="config-btn danger small icono" onclick="removeFromBlacklist(${it.id})">✕</button></td>
       </tr>`;
     }
     html += '</tbody></table>';
@@ -3050,7 +3050,7 @@ async function loadWhitelist() {
         <td style="font-family:monospace;font-size:0.82rem;">${esc(it.phone)}</td>
         <td>${label}</td>
         <td style="font-size:0.78rem;color: var(--muted);">${fecha}</td>
-        <td><button class="config-btn danger small" onclick="removeFromWhitelist('${esc(it.id)}')">✕</button></td>
+        <td><button class="config-btn danger small icono" onclick="removeFromWhitelist('${esc(it.id)}')">✕</button></td>
       </tr>`;
     }
     html += '</tbody></table>';
@@ -3788,7 +3788,7 @@ async function convOpen(phone) {
     document.getElementById("convInput").placeholder = cortado ? "Envíos cortados para este número" : "Escribí una respuesta…";
     // Canned
     document.getElementById("convCanned").innerHTML = CANNED.map((t) =>
-      `<button class="config-btn small" style="padding:0.2rem 0.45rem;font-size:0.7rem;" onclick="convCanned(${JSON.stringify(t).replace(/"/g, "&quot;")})">${esc(t.length > 24 ? t.slice(0, 24) + "…" : t)}</button>`).join("");
+      `<button class="config-btn small" onclick="convCanned(${JSON.stringify(t).replace(/"/g, "&quot;")})">${esc(t.length > 24 ? t.slice(0, 24) + "…" : t)}</button>`).join("");
     await convCall({ action: "mark_read", phone });
     convRefresh();
   } catch (e) { alert("No se pudo abrir: " + e.message); }
@@ -3980,7 +3980,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.9</div>
-<script src="gestop2.js?v=0.25.9"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.10</div>
+<script src="gestop2.js?v=0.25.10"></script>
 </body>
 </html>

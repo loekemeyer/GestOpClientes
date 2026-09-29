@@ -332,3 +332,36 @@ html.dark .chat-messages { background-image: none; }
 .login-box p { color: #5f5b53; }
 .login-box .google-btn { background: #fffdf7; color: #212122; border-color: #ddd4bf; }
 .login-box .google-btn:hover { background: #efe8d6; }
+
+/* ── Botones unificados (Pablo, 29/09: "botones desordenados") ─────────────────────────────────────────────
+   Había dos sistemas: .config-btn (páginas viejas: sin borde, gris del navegador, radio 6px) y .g-btn (rediseño:
+   borde, radio 2px, 12px). Ahora los dos comparten altura, radio, letra y 3 jerarquías:
+     principal  = .config-btn.primary / .g-btn.prim   (color de la marca, UNO por grupo)
+     secundario = .config-btn / .g-btn                (fondo claro con borde)
+     peligro    = .config-btn.danger                  (borde y texto rojo; relleno rojo sólo al pasar el mouse)
+   .small = compacto (tablas, listas) · .icono = sólo un ícono (⟳ ✕ 🗑️), cuadrado. */
+.config-btn, .g-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 34px; padding: 0 14px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.2;
+  cursor: pointer; white-space: nowrap; vertical-align: middle; text-decoration: none;
+  transition: background .15s, border-color .15s, color .15s, filter .15s;
+}
+.config-btn:hover, .g-btn:hover { background: var(--surface2); border-color: var(--g-muted); }
+.config-btn.primary, .g-btn.prim { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.config-btn.primary:hover, .g-btn.prim:hover { background: var(--accent); border-color: var(--accent); filter: brightness(1.15); }
+.config-btn.danger { background: transparent; border-color: var(--g-danger); color: var(--g-danger); }
+.config-btn.danger:hover { background: var(--g-danger); color: var(--surface); }
+.config-btn.small, .tk-resumen .g-btn { min-height: 28px; padding: 0 10px; font-size: 12px; border-radius: 5px; }
+.config-btn.icono, .g-btn.icono { min-width: 28px; padding: 0 6px; }
+.config-btn:disabled, .g-btn:disabled, .config-btn:disabled:hover, .g-btn:disabled:hover { opacity: .45; cursor: default; filter: none; }
+.config-btn:focus-visible, .g-btn:focus-visible { outline: 2px solid var(--accent-tx); outline-offset: 2px; }
+/* Grupos de acciones: siempre con el mismo aire entre botones, y que bajen de renglón en vez de apretarse. */
+.cm-acciones, .g-modal .botones, .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.al-tabla td .config-btn + .config-btn { margin-left: 4px; }
+.g-modal .botones .g-btn { min-height: 40px; padding: 0 18px; font-size: 13px; }
+@media (max-width: 640px) {
+  .config-btn, .g-btn { min-height: 38px; }
+  .config-btn.small { min-height: 32px; }
+}
