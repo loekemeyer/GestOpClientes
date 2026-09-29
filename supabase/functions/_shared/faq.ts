@@ -96,6 +96,12 @@ function yaSaluda(reply: string): boolean {
  *   - la respuesta compuesta queda vacía
  */
 export async function handleFaq(text: string, customer: Customer): Promise<FaqResult | null> {
+  // Pablo, 29/09: "¿cuál es mi dirección de entrega?" / "¿a dónde me lo mandan?" / "¿a qué sucursal va?" pide A DÓNDE va SU
+  // pedido (sucursal de entrega y expreso), no la dirección de nuestro depósito (FAQ #4, que es lo que contestaba).
+  if (customer && RE_DIRECCION_ENTREGA.test(text)) {
+    const r = await destinoPedidos(customer);
+    if (r) return { reply: r, intent: "destino_entrega", automation_level: "semi_auto" };
+  }
   const { data: matches, error } = await supabase.rpc("wa_faq_match", { p_text: text });
   if (error || !matches?.length) return null;
 
@@ -278,6 +284,42 @@ const RE_YA_PAGUE = /\b(ya (les |te )?(pagu[eé]|transfer[ií]|deposit[eé]|abon
 const RE_RETIRO = /\b(retir(o|ar|arlo|arla|amos|a)|pas(ar|o|amos) a buscar|buscarlo|ir a buscar|lo busco|voy a buscar)\b/i;
 
 /** Pedido abierto más reciente del cliente que va por expreso (no anulado, no entregado). null si no hay. */
+const RE_DIRECCION_ENTREGA = /(mi|la)\s+direcci[oó]n\s+de\s+(entrega|env[ií]o)|a\s+d[oó]nde\s+(me\s+)?(lo|la|los|las)?\s*(mand|env[ií]|entreg|despach|llev)|a\s+qu[eé]\s+(sucursal|direcci[oó]n|expreso|transporte)|d[oó]nde\s+(me\s+)?(lo\s+)?entregan|por\s+qu[eé]\s+(expreso|transporte)|qu[eé]\s+(expreso|transporte)\s+(me\s+)?(lo\s+)?(lleva|mand|us)/i;
+
+// A dónde va cada pedido abierto del cliente: sucursal de entrega cargada en la web y, si sale por expreso, cuál.
+async function destinoPedidos(customer: NonNullable<Customer>): Promise<string | null> {
+  const { data: crudos } = await supabase.from("orders").select("id, created_at, total").eq("customer_id", customer.id)
+    .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString()).order("created_at", { ascending: false }).limit(10);
+  const ords = await sinAnulados(crudos ?? []);
+  if (!ords.length) return null;
+  const ids = ords.map((o) => o.id);
+  const [{ data: est }, { data: modos }] = await Promise.all([
+    supabase.rpc("bot_estado_pedidos_gv", { p_ids: ids }),
+    supabase.from("v_pedidos_web").select("order_id, sucursal_entrega, zona_expreso, nombre_expreso, direccion_expreso").in("order_id", ids).eq("linea_rn", 1),
+  ]);
+  const f = (iso: string) => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso)); return `${p.slice(8, 10)}/${p.slice(5, 7)}`; };
+  const pesos = (n: unknown) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
+  const lineas: string[] = [];
+  for (const o of ords) {
+    // deno-lint-ignore no-explicit-any
+    const e: any = (est ?? []).find((x: any) => Number(x.order_id) === Number(o.id));
+    // deno-lint-ignore no-explicit-any
+    const m: any = (modos ?? []).find((x: any) => Number(x.order_id) === Number(o.id));
+    if (!m || e?.status === "entregado") continue;
+    const zona = String(m.zona_expreso ?? "");
+    const expreso = String(m.nombre_expreso ?? "").trim();
+    const suc = String(m.sucursal_entrega ?? "").trim();
+    let destino: string;
+    if (/^retira/i.test(zona)) destino = "lo retirás en nuestro depósito (Virgilio 2788)";
+    else if (expreso) destino = `lo despachamos por el expreso ${expreso}${m.direccion_expreso ? ` (${String(m.direccion_expreso).trim()})` : ""}${suc ? `, con destino ${suc}` : ""}`;
+    else destino = suc ? `se entrega en ${suc}` : "todavía no tiene dirección de entrega cargada";
+    lineas.push(`• Pedido del ${f(o.created_at)} por ${pesos(o.total)}: ${destino}.`);
+    if (lineas.length >= 8) break;
+  }
+  if (!lineas.length) return null;
+  return `${lineas.length > 1 ? "Así van tus pedidos" : "Así va tu pedido"}:\n\n${lineas.join("\n")}\n\nSi alguna dirección no es la correcta, avisanos por acá y lo corregimos.`;
+}
+
 async function pedidoExpresoAbierto(customer: NonNullable<Customer>): Promise<{ del: string; expreso: string; sale: string | null } | null> {
   const { data: crudos } = await supabase.from("orders").select("id, created_at").eq("customer_id", customer.id)
     .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString()).order("created_at", { ascending: false }).limit(10);
