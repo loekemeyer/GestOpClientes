@@ -16,6 +16,7 @@ de Loekemeyer: cuándo sale cada una, para quién, qué dice y cuántas salieron
 | `pagina.html` | La página; se arma sola desde los datos embebidos. |
 | `generar.mjs` | Junta datos + disparadores + texto definido en `_shared/plantillas-meta.ts` (marca si Meta difiere). |
 | `datos.sql` | Consulta que arma `datos.json` (sólo lectura). |
+| `simulacion.json` | Pestaña "Últimos 2 meses": retro-simulación de los avisos (alcance, costo, demora real vs promesa de 14 días). **Foto**: la Routine diaria NO la recalcula; se rehace a pedido con las consultas de la sesión del 29/09 (fuentes en su `_nota`). |
 
 ## Pasos para actualizar (lo que hace la Routine)
 

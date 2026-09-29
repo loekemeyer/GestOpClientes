@@ -6,7 +6,7 @@
 // Junta eso con disparadores.json (qué dispara cada una, a mano) y con el texto definido en el sistema
 // (supabase/functions/_shared/plantillas-meta.ts) para marcar diferencias, y lo mete en pagina.html.
 // Avisa por stderr lo que no cierra (plantilla de Meta sin disparador cargado, o al revés).
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,7 +53,11 @@ if (plantillas.some((p) => p.grupo === "sin_clasificar")) {
   grupos.push({ id: "sin_clasificar", titulo: "Sin clasificar", bajada: "Están en Meta pero todavía no se documentó qué las manda." });
 }
 
-const payload = { generado: datos.generado, llave: datos.llave, grupos, plantillas };
+// Retro-simulación de los últimos 2 meses (foto, se recalcula a pedido: ver simulacion.json y LEEME.md).
+const simPath = join(aca, "simulacion.json");
+const simulacion = existsSync(simPath) ? JSON.parse(readFileSync(simPath, "utf8")) : null;
+
+const payload = { generado: datos.generado, llave: datos.llave, grupos, plantillas, simulacion };
 const html = readFileSync(join(aca, "pagina.html"), "utf8")
   .replace("/*__DATOS__*/null", JSON.stringify(payload).replace(/</g, "\\u003c"));
 writeFileSync(salida, html);

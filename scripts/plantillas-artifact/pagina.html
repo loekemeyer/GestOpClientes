@@ -11,6 +11,7 @@
   --wall: #e7e1d6; --bubble: #ffffff; --bubble-ink: #111b21; --bubble-meta: #667781;
   --ok: #17663f; --ok-bg: #dcf2e4; --warn: #8a5300; --warn-bg: #fbecd0;
   --bad: #9d2530; --bad-bg: #f8dfe1; --grey: #5d6660; --grey-bg: #e6e9e7; --blue: #2d5a86; --blue-bg: #e0eaf4;
+  --s-hoy: #1baf7a; --s-erp: #2a78d6; --s-sin: #eb6834; --s-bar: #2a78d6;
   --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
@@ -19,13 +20,15 @@
   --accent: #5fc7a8; --accent-soft: #173229;
   --wall: #0b141a; --bubble: #202c33; --bubble-ink: #e9edef; --bubble-meta: #8696a0;
   --ok: #7fd6a2; --ok-bg: #173323; --warn: #f0bf62; --warn-bg: #3a2c12; --bad: #f2939b; --bad-bg: #3b1c20;
-  --grey: #aab3ad; --grey-bg: #252d2a; --blue: #9cc2ea; --blue-bg: #1b2a3a; color-scheme: dark; } }
+  --grey: #aab3ad; --grey-bg: #252d2a; --blue: #9cc2ea; --blue-bg: #1b2a3a;
+  --s-hoy: #199e70; --s-erp: #3987e5; --s-sin: #d95926; --s-bar: #3987e5; color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #0f1412; --surface: #171e1b; --ink: #e6ece8; --muted: #9aa8a0; --line: #2a3531;
   --accent: #5fc7a8; --accent-soft: #173229;
   --wall: #0b141a; --bubble: #202c33; --bubble-ink: #e9edef; --bubble-meta: #8696a0;
   --ok: #7fd6a2; --ok-bg: #173323; --warn: #f0bf62; --warn-bg: #3a2c12; --bad: #f2939b; --bad-bg: #3b1c20;
-  --grey: #aab3ad; --grey-bg: #252d2a; --blue: #9cc2ea; --blue-bg: #1b2a3a; color-scheme: dark; }
+  --grey: #aab3ad; --grey-bg: #252d2a; --blue: #9cc2ea; --blue-bg: #1b2a3a;
+  --s-hoy: #199e70; --s-erp: #3987e5; --s-sin: #d95926; --s-bar: #3987e5; color-scheme: dark; }
 
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
@@ -93,6 +96,57 @@ details.grupo > .lista { margin-top: 14px; }
 .vacio { color: var(--muted); padding: 24px 0; }
 footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
 
+
+/* Pestañas y sección "Últimos 2 meses" */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tab { font: inherit; font-weight: 600; font-size: 15px; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); padding: 8px 12px; cursor: pointer; margin-bottom: -1px; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.vista { display: flex; flex-direction: column; gap: 28px; }
+.vista[hidden], .tabla-wrap[hidden] { display: none; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.kpi .v { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.kpi .l { font-size: 13px; color: var(--muted); }
+.kpi .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel h3 { margin: 0; font-size: 17px; text-wrap: balance; }
+.panel .bajada { margin: -8px 0 0; color: var(--muted); font-size: 14px; max-width: 72ch; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.barras { display: flex; flex-direction: column; gap: 10px; }
+.barra { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr) 56px; gap: 12px; align-items: center; font-size: 14px; }
+.barra .nom { min-width: 0; }
+.barra .nom small { display: block; color: var(--muted); font-size: 12px; }
+.barra .tot { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.pista { display: flex; gap: 2px; height: 22px; }
+.seg { height: 100%; min-width: 3px; cursor: default; display: flex; align-items: center; justify-content: flex-start; padding-left: 6px; font-size: 11.5px; font-weight: 600; color: #fff; overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.seg:first-child { border-radius: 4px 0 0 4px; } .seg:last-child { border-radius: 0 4px 4px 0; } .seg:only-child { border-radius: 4px; }
+.seg:hover { filter: brightness(1.08); }
+.histo { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; }
+.histo .eje-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--muted); text-align: right; height: 180px; font-variant-numeric: tabular-nums; }
+.histo .area { position: relative; height: 180px; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--line);
+  background-image: linear-gradient(var(--line) 1px, transparent 1px); background-size: 100% 25%; }
+.histo .col { flex: 1; background: var(--s-bar); border-radius: 4px 4px 0 0; min-height: 2px; }
+.histo .col:hover { filter: brightness(1.1); }
+.histo .x { grid-column: 2; display: flex; gap: 2px; font-size: 11px; color: var(--muted); }
+.histo .x span { flex: 1; text-align: center; font-variant-numeric: tabular-nums; }
+.promesa { position: absolute; top: -4px; bottom: 0; border-left: 2px dashed var(--ink); pointer-events: none; }
+.promesa b { position: absolute; top: -2px; left: 6px; font-size: 12px; white-space: nowrap; background: var(--surface); padding: 0 4px; }
+table.datos { border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+table.datos th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 4px 14px 6px 0; border-bottom: 1px solid var(--line); vertical-align: bottom; }
+table.datos td { padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); }
+table.datos td.n, table.datos th.n { text-align: right; }
+table.datos tr.total td { font-weight: 700; border-bottom: 0; }
+.tabla-wrap { overflow-x: auto; }
+.ver-tabla { font: inherit; font-size: 13px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; align-self: flex-start; text-decoration: underline; }
+.hallazgos { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; max-width: 80ch; }
+.tip { position: fixed; z-index: 10; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12.5px; padding: 6px 9px; border-radius: 6px; max-width: 260px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .barra { grid-template-columns: minmax(0, 1fr) 48px; }
+  .barra .pista { grid-column: 1 / -1; grid-row: 2; }
+}
 @media (max-width: 760px) {
   .tpl { grid-template-columns: minmax(0, 1fr); }
   .buscar { margin-left: 0; width: 100%; }
@@ -111,9 +165,17 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
 
   <div class="llave" id="llave"></div>
 
-  <div class="resumen" id="resumen" role="group" aria-label="Filtrar por estado"></div>
+  <div class="tabs" role="tablist" id="tabs">
+    <button class="tab" role="tab" id="tab-plantillas" aria-selected="true" aria-controls="v-plantillas" type="button">Plantillas</button>
+    <button class="tab" role="tab" id="tab-simulacion" aria-selected="false" aria-controls="v-simulacion" type="button">Últimos 2 meses</button>
+  </div>
 
-  <main id="grupos"></main>
+  <div class="vista" id="v-plantillas" role="tabpanel" aria-labelledby="tab-plantillas">
+    <div class="resumen" id="resumen" role="group" aria-label="Filtrar por estado"></div>
+    <main id="grupos"></main>
+  </div>
+
+  <div class="vista" id="v-simulacion" role="tabpanel" aria-labelledby="tab-simulacion" hidden></div>
 
   <footer>
     Se actualiza sola todos los días con lo que dice Meta. Precio por mensaje entregado en Argentina: Utility US$ 0,026 · Marketing US$ 0,0618.
@@ -219,7 +281,110 @@ function llave() {
   document.getElementById("llave").innerHTML = `<span class="dot" style="background:${L.c}"></span><div><b>${L.t}</b>${esc(L.d)}</div>`;
 }
 
+
+// ── Últimos 2 meses: cómo se habría comportado el sistema de avisos con los datos reales ──
+const nf = (n, d = 0) => Number(n).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (a, b) => (b ? nf((100 * a) / b, 1) + " %" : "—");
+const fdm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+let tip;
+function tooltip(el, html) {
+  el.addEventListener("mouseenter", () => { tip = tip || Object.assign(document.createElement("div"), { className: "tip" }); document.body.appendChild(tip); tip.innerHTML = html; });
+  el.addEventListener("mousemove", (e) => { if (!tip) return; const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY + 16) + "px"; });
+  el.addEventListener("mouseleave", () => tip?.remove());
+}
+
+function simulacion() {
+  const S = DATOS.simulacion, v = document.getElementById("v-simulacion");
+  if (!S) { v.innerHTML = `<div class="vacio">Todavía no hay simulación cargada.</div>`; return; }
+  const av = S.avisos.map((a) => ({ ...a, total: a.agendado + a.erp + a.sin })).sort((a, b) => b.total - a.total);
+  const T = av.reduce((t, a) => ({ agendado: t.agendado + a.agendado, erp: t.erp + a.erp, sin: t.sin + a.sin, total: t.total + a.total }), { agendado: 0, erp: 0, sin: 0, total: 0 });
+  const alcanzables = T.agendado + T.erp, costo = alcanzables * S.tarifa_utility;
+  const SEG = [["agendado", "Le llega hoy", "var(--s-hoy)", "el número ya está agendado"], ["erp", "Llegaría al agendarlo", "var(--s-erp)", "el cliente tiene teléfono en el ERP"], ["sin", "Sin teléfono", "var(--s-sin)", "no hay ningún teléfono cargado"]];
+  const D = S.demora, maxH = Math.max(...D.hist.map((h) => h[1]));
+  const topeY = Math.ceil(maxH / 20) * 20;
+  const idxPromesa = D.hist.findIndex(([b]) => b > D.promesa - 3 && b <= D.promesa);
+
+  v.innerHTML = `
+    <div class="grupo-cab"><h2>Qué habría pasado en los últimos 2 meses</h2>
+      <p>Si los avisos hubieran estado prendidos del ${fdm(S.desde)} al ${fdm(S.hasta)}: cuántos habrían salido, a cuántos les habría llegado y cuánto habría costado. Calculado el ${fdm(S.calculado)} con los pedidos, despachos y facturas reales (sin pedidos anulados ni de prueba).</p></div>
+    <div class="kpis">
+      <div class="kpi"><span class="v">${nf(T.total)}</span><span class="l">avisos se habrían mandado (${nf(S.pedidos)} pedidos web)</span></div>
+      <div class="kpi"><span class="v">${pct(T.agendado, T.total)}</span><span class="l"><i class="sw" style="background:var(--s-hoy)"></i>le habrían llegado hoy: ${nf(T.agendado)}</span></div>
+      <div class="kpi"><span class="v">${pct(alcanzables, T.total)}</span><span class="l"><i class="sw" style="background:var(--s-erp)"></i>llegarían agendando los teléfonos del ERP: ${nf(alcanzables)}</span></div>
+      <div class="kpi"><span class="v">${pct(T.sin, T.total)}</span><span class="l"><i class="sw" style="background:var(--s-sin)"></i>no llegarían nunca, sin teléfono: ${nf(T.sin)}</span></div>
+      <div class="kpi"><span class="v">US$ ${nf(costo, 2)}</span><span class="l">costo de los ${nf(alcanzables)} que llegarían (≈ US$ ${nf(costo / 2, 2)} por mes)</span></div>
+    </div>
+
+    <section class="panel" aria-labelledby="h-alc">
+      <h3 id="h-alc">A cuántos les habría llegado cada aviso</h3>
+      <p class="bajada">Cada barra es el 100 % de los avisos de ese tipo en los 2 meses. Hoy hay ${nf(S.clientes.agendado)} clientes agendados; ${nf(S.clientes.erp)} tienen teléfono en el ERP y ${nf(S.clientes.sin)} no tienen ninguno.</p>
+      <div class="leyenda">${SEG.map(([, t, c]) => `<span><i style="background:${c}"></i>${t}</span>`).join("")}</div>
+      <div class="barras" id="barras"></div>
+      <button class="ver-tabla" type="button" data-t="t-alc">Ver como tabla</button>
+      <div class="tabla-wrap" id="t-alc" hidden><table class="datos"><thead><tr><th>Aviso</th><th class="n">Total</th><th class="n">Le llega hoy</th><th class="n">Al agendar</th><th class="n">Sin teléfono</th><th class="n">Llegarían</th></tr></thead><tbody>
+        ${av.map((a) => `<tr><td>${esc(a.que)}</td><td class="n">${nf(a.total)}</td><td class="n">${nf(a.agendado)}</td><td class="n">${nf(a.erp)}</td><td class="n">${nf(a.sin)}</td><td class="n">${pct(a.agendado + a.erp, a.total)}</td></tr>`).join("")}
+        <tr class="total"><td>Total</td><td class="n">${nf(T.total)}</td><td class="n">${nf(T.agendado)}</td><td class="n">${nf(T.erp)}</td><td class="n">${nf(T.sin)}</td><td class="n">${pct(alcanzables, T.total)}</td></tr></tbody></table></div>
+      <div style="font-size:13px;color:var(--muted)"><b style="color:var(--ink)">No entran en la cuenta:</b> ${S.no_cuentan.map((n) => `<code>${esc(n.tpl)}</code>: ${esc(n.por)}`).join(" · ")}</div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-dem">
+      <h3 id="h-dem">Cuánto tardan los pedidos en salir</h3>
+      <p class="bajada">${esc(D.que)} ${nf(D.por_modo.at(-1).n)} pedidos con fecha. La línea marca la promesa de ${D.promesa} días corridos ("tu pedido estará listo antes del …").</p>
+      <div class="histo">
+        <div class="eje-y"><span>${topeY}</span><span>${topeY * 3 / 4}</span><span>${topeY / 2}</span><span>${topeY / 4}</span><span>0</span></div>
+        <div class="area" id="histo">${D.hist.map(([b, n]) => `<div class="col" style="height:${(100 * n) / topeY}%" data-b="${b}" data-n="${n}"></div>`).join("")}
+          <div class="promesa" style="left:calc(${((idxPromesa + 1) / D.hist.length) * 100}% - 1px)"><b>promesa ${D.promesa} días</b></div></div>
+        <div class="x">${D.hist.map(([b], i) => `<span>${i === D.hist.length - 1 ? b + "+" : b + "–" + (b + 2)}</span>`).join("")}</div>
+      </div>
+      <div class="tabla-wrap"><table class="datos"><thead><tr><th>Modo de entrega</th><th class="n">Pedidos</th><th class="n">La mitad sale<br>antes de (días)</th><th class="n">9 de cada 10<br>salen antes de</th><th class="n">Dentro de<br>${D.promesa} días</th></tr></thead><tbody>
+        ${D.por_modo.map((m) => `<tr class="${m.modo === "Total" ? "total" : ""}"><td>${esc(m.modo)}</td><td class="n">${nf(m.n)}</td><td class="n">${nf(m.mediana)}</td><td class="n">${nf(m.p90, m.p90 % 1 ? 1 : 0)}</td><td class="n">${nf(m.pct14, 1)} %</td></tr>`).join("")}</tbody></table></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-hal">
+      <h3 id="h-hal">Lo que apareció al hacer la cuenta</h3>
+      <ul class="hallazgos">${S.hallazgos.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>
+    </section>`;
+
+  const barras = document.getElementById("barras");
+  for (const a of av) {
+    const fila = document.createElement("div");
+    fila.className = "barra";
+    fila.innerHTML = `<div class="nom">${esc(a.que)}${a.detalle ? `<small>${esc(a.detalle)}</small>` : ""}</div><div class="pista"></div><div class="tot">${nf(a.total)}</div>`;
+    const pista = fila.querySelector(".pista");
+    for (const [k, t, c, por] of SEG) {
+      if (!a[k]) continue;
+      const w = (100 * a[k]) / a.total;
+      const seg = Object.assign(document.createElement("div"), { className: "seg" });
+      seg.style.cssText = `width:${w}%;background:${c}`;
+      if (w >= 12) seg.textContent = nf(w, 0) + " %";
+      tooltip(seg, `<b>${esc(a.que)}</b><br>${t}: ${nf(a[k])} de ${nf(a.total)} (${pct(a[k], a.total)})<br>${por}`);
+      pista.appendChild(seg);
+    }
+    barras.appendChild(fila);
+  }
+  document.querySelectorAll("#histo .col").forEach((c) => {
+    const b = Number(c.dataset.b), n = Number(c.dataset.n);
+    tooltip(c, `${b >= 30 ? "30 días o más" : `${b} a ${b + 2} días`}<br><b>${nf(n)} pedidos</b> (${pct(n, D.por_modo.at(-1).n)})`);
+  });
+  document.querySelectorAll(".ver-tabla").forEach((b) => b.addEventListener("click", () => {
+    const t = document.getElementById(b.dataset.t); t.hidden = !t.hidden; b.textContent = t.hidden ? "Ver como tabla" : "Ocultar tabla";
+  }));
+}
+
+function pestanas() {
+  const tabs = [["plantillas", "v-plantillas"], ["simulacion", "v-simulacion"]];
+  const ir = (id) => {
+    for (const [k, v] of tabs) {
+      document.getElementById("tab-" + k).setAttribute("aria-selected", String(k === id));
+      document.getElementById(v).hidden = k !== id;
+    }
+  };
+  for (const [k] of tabs) document.getElementById("tab-" + k).addEventListener("click", () => { ir(k); try { history.replaceState(null, "", "#" + k); } catch {} });
+  if (location.hash === "#simulacion") ir("simulacion");
+}
+
 if (DATOS) {
+  simulacion(); pestanas();
   document.getElementById("generado").textContent = `Actualizado el ${fecha(DATOS.generado)} · ${DATOS.plantillas.length} plantillas en Meta`;
   llave(); resumen(); pintar();
 } else {

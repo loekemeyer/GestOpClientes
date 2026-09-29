@@ -1,0 +1,41 @@
+{
+  "_nota": "Retro-simulación de los avisos (29/09/2026, pedido de Pablo Olejavetzky). Foto: se recalcula a pedido, no a diario. Fuentes: orders + v_pedidos_web + order_tracking (pedidos web, sin anulados ni de prueba), ppp_facturacion + ppp_programacion empresa lk (despachos), Facturacion_NP de Gestión NP 9xxxx (envíos de factura = cliente + día). Alcance por cliente: agendado = bot_customer_whatsapps; erp = wa_clientes_telefono o customers.whatsapp; sin = ninguno.",
+  "calculado": "2026-09-29",
+  "desde": "2026-07-31",
+  "hasta": "2026-09-28",
+  "pedidos": 403,
+  "modos": { "reparto": 183, "expreso": 171, "retira": 49 },
+  "clientes": { "agendado": 2, "erp": 229, "sin": 33 },
+  "tarifa_utility": 0.026,
+  "avisos": [
+    { "tpl": "pedido_recibido",           "que": "Pedido recibido",                 "agendado": 12, "erp": 344, "sin": 47 },
+    { "tpl": "envio_factura",             "que": "Factura (las 6 de pago)",         "agendado": 7,  "erp": 268, "sin": 45, "detalle": "177 con 1 factura y 143 con varias" },
+    { "tpl": "pedido_programado",         "que": "Programado · reparto",            "agendado": 0,  "erp": 138, "sin": 22 },
+    { "tpl": "pedido_programado_expreso", "que": "Programado · expreso",            "agendado": 1,  "erp": 142, "sin": 17 },
+    { "tpl": "pedido_en_viaje_expreso",   "que": "Entregado al expreso",            "agendado": 0,  "erp": 119, "sin": 13 },
+    { "tpl": "pedido_en_viaje",           "que": "Salió en el camión",              "agendado": 0,  "erp": 100, "sin": 4, "detalle": "sólo los 104 despachos que tienen fila en la Programación" },
+    { "tpl": "pedido_programado_retira",  "que": "Programado · retira",             "agendado": 11, "erp": 33,  "sin": 1 }
+  ],
+  "no_cuentan": [
+    { "tpl": "pedido_listo_retirar", "por": "No habría salido nunca: en la Programación ninguna zona dice \"Retira\" (son Zona 1 a 7 y Super)." },
+    { "tpl": "pedido_reprogramado", "por": "No hay historial de cambios de fecha para contarlo (se registra desde el 28/09)." },
+    { "tpl": "pedido_preparando · pedido_entregado", "por": "Aprobadas, pero nada las dispara." }
+  ],
+  "demora": {
+    "que": "Días corridos desde que el cliente carga el pedido hasta la fecha de salida que figura en la Programación.",
+    "promesa": 14,
+    "hist": [ [0, 12], [3, 35], [6, 73], [9, 62], [12, 75], [15, 41], [18, 36], [21, 21], [24, 7], [27, 1], [30, 2] ],
+    "por_modo": [
+      { "modo": "Reparto propio", "n": 160, "mediana": 14, "p90": 21,   "pct14": 58.8 },
+      { "modo": "Expreso",        "n": 160, "mediana": 13, "p90": 19.1, "pct14": 74.4 },
+      { "modo": "Retira",         "n": 45,  "mediana": 5,  "p90": 7.6,  "pct14": 100 },
+      { "modo": "Total",          "n": 365, "mediana": 12, "p90": 20,   "pct14": 70.7 }
+    ]
+  },
+  "hallazgos": [
+    "641 de 759 despachos de los últimos 60 días no tienen fila en la Programación: a esos clientes no les habría salido el aviso de despacho.",
+    "Los pedidos de retiro que se despachan recibirían \"ya salió en el camión hacia …\", porque la Programación no los marca como retiro.",
+    "El aviso de despacho no filtra por empresa: un NP de Chef cuyo código de cliente coincida con uno de LK agendado le llegaría a ese cliente de LK.",
+    "1 pedido tiene el estado \"#VALUE!\" en el seguimiento (error de planilla que llegó a la base)."
+  ]
+}
