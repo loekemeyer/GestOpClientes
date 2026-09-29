@@ -348,6 +348,11 @@ el killswitch, sin ningún consumidor de esa cola.
   `pending_isis=true` y bienvenida con el acceso por `wa_outbox`. **No** vincula el número al cliente (regla de Luis):
   cuando escriba, el bot le pide el CUIT y la vinculación la aprueba una persona. Se sacaron del alta: tamaño del local,
   venta web, si ya vende LK, a quién le compra, de dónde nos conoce. `lk_chat-test` todavía tiene la copia vieja del alta.
+- **"Salió en el camión" para pedidos web de reparto** (29/09, sql/105): Gestión no tiene estado de salida (pasa de
+  facturado a entregado, y "entregado" en reparto se marca al día siguiente a las 8). Cron `lk_aviso-en-viaje-web`
+  (9 y 11 h AR, lun-sáb) → `wa_avisos_en_viaje_web()`: facturado + fecha_entrega = hoy + reparto → `pedido_en_viaje`
+  una vez por pedido (context `en_viaje_web`). Si el camión no sale y no se cambia la fecha, el aviso sale igual.
+- **Pedido recibido con razón social** (29/09, sql/104): revierte sql/093; la plantilla aprobada en Meta es de 5 variables.
 - **Puntaje de la IA** (29/09, sql/101): el webhook guarda cada respuesta del agente IA en `wa_ia_puntajes` (pregunta,
   respuesta, herramientas con su resultado recortado, modelo). Cron `lk_ia-puntaje` cada 10 min → Haiku puntúa 1-5
   correcta / resolvió / derivó bien / reglas / tono (máx. 15 por corrida, 3 intentos). Dashboard › 🎯 IA — puntaje de

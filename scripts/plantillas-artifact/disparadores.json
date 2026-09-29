@@ -75,7 +75,7 @@
       "orden": 7,
       "estado": "conectada",
       "para": "Reparto propio",
-      "sale": "Cuando Gestión despacha un NP de ISIS (se entera en la sincronización de las 10:00). Los pedidos web de reparto reciben la factura al facturar y \"entregado\" al recibir."
+      "sale": "Pedidos web: el día de la entrega (9 y 11 h) si ya están facturados. Pedidos de ISIS: cuando Gestión los despacha (sincronización de las 10:00)."
     },
     "pedido_en_viaje_expreso": {
       "grupo": "pedido",
