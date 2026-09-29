@@ -352,6 +352,8 @@ el killswitch, sin ningún consumidor de esa cola.
   facturado a entregado, y "entregado" en reparto se marca al día siguiente a las 8). Cron `lk_aviso-en-viaje-web`
   (9 y 11 h AR, lun-sáb) → `wa_avisos_en_viaje_web()`: facturado + fecha_entrega = hoy + reparto → `pedido_en_viaje`
   una vez por pedido (context `en_viaje_web`). Si el camión no sale y no se cambia la fecha, el aviso sale igual.
+  Desde sql/106 también "entregado al expreso" (`pedido_en_viaje_expreso`, context `tracking_entregado` para que
+  trg_order_tracking_notify no lo repita al marcarse entregado al día siguiente).
 - **Pedido recibido con razón social** (29/09, sql/104): revierte sql/093; la plantilla aprobada en Meta es de 5 variables.
 - **Puntaje de la IA** (29/09, sql/101): el webhook guarda cada respuesta del agente IA en `wa_ia_puntajes` (pregunta,
   respuesta, herramientas con su resultado recortado, modelo). Cron `lk_ia-puntaje` cada 10 min → Haiku puntúa 1-5

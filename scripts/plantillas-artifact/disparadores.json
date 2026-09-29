@@ -82,7 +82,7 @@
       "orden": 8,
       "estado": "conectada",
       "para": "Por expreso",
-      "sale": "Cuando el pedido se entrega al expreso."
+      "sale": "Pedidos web: el día de la entrega (9 y 11 h) si ya están facturados; si no, cuando Gestión lo marca entregado."
     },
     "pedido_listo_retirar": {
       "grupo": "pedido",
