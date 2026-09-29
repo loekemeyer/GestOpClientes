@@ -1391,6 +1391,15 @@ async function handleMessage(
 
   // 9. Guardar respuesta en historial
   await saveMessage(phone, "assistant", reply);
+
+  // 10. Puntaje de la IA (Pablo, 29/09): la respuesta queda para que Haiku la evalúe en segundo plano (cron
+  // lk_ia-puntaje, sql/101). No frena al cliente; si el insert falla, sólo se pierde el puntaje.
+  try {
+    await supabase.from("wa_ia_puntajes").insert({
+      phone, customer_id: customer.customer_id, pregunta: text.slice(0, 2000), respuesta: reply.slice(0, 4000),
+      herramientas: result.herramientas ?? [], modelo_respuesta: result.modelo ?? null,
+    });
+  } catch (e) { console.error("[puntaje] no se pudo encolar:", e); }
 }
 
 // ─── Edge Function entry point ──────────────────────────────────────

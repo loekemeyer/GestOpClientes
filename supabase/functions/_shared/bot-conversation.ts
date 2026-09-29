@@ -823,6 +823,10 @@ export interface ConversationResult {
   timeout?: boolean;
   /** true = falla del LLM que no es timeout (HTTP 4xx/5xx). Misma política que timeout. */
   llmError?: boolean;
+  /** Herramientas que usó en el turno, con su resultado recortado. Lo usa el puntaje de la IA (sql/101). */
+  herramientas?: Array<{ nombre: string; input: unknown; resultado: string }>;
+  /** Modelo que contestó. */
+  modelo?: string;
 }
 
 export async function runConversation(
@@ -874,6 +878,7 @@ export async function runConversation(
   }
 
   const allMedia: MediaAction[] = [];
+  const usadas: Array<{ nombre: string; input: unknown; resultado: string }> = [];
   const downThisTurn = new Set<number>(); // modelos que ya fallaron en este turno
 
   for (let iter = 0; iter < 5; iter++) {
@@ -928,7 +933,7 @@ export async function runConversation(
     logUsage(res, used.isFreeTier, phone, fuente);
 
     if (!res.toolCalls.length) {
-      return { reply: res.text || "¿En qué más te puedo ayudar?", media: allMedia };
+      return { reply: res.text || "¿En qué más te puedo ayudar?", media: allMedia, herramientas: usadas, modelo: used.model };
     }
 
     // El modelo pidió herramientas: las ejecutamos y devolvemos los resultados.
@@ -940,6 +945,7 @@ export async function runConversation(
       if (result.media) allMedia.push(...result.media);
       auditTool(phone, tc.name, tc.input ?? {}, JSON.stringify(result.data).slice(0, 500)).catch(() => {});
       results.push({ id: tc.id, name: tc.name, content: JSON.stringify(result.data) });
+      usadas.push({ nombre: tc.name, input: tc.input ?? {}, resultado: JSON.stringify(result.data).slice(0, 1500) });
     }
     history.push({ role: "tool", results });
   }
@@ -947,5 +953,6 @@ export async function runConversation(
   return {
     reply: "Disculpá, no pude completar tu consulta. ¿Podés reformular tu pregunta?",
     media: allMedia,
+    herramientas: usadas,
   };
 }

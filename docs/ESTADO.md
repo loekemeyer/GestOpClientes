@@ -347,6 +347,11 @@ el killswitch, sin ningún consumidor de esa cola.
   `pending_isis=true` y bienvenida con el acceso por `wa_outbox`. **No** vincula el número al cliente (regla de Luis):
   cuando escriba, el bot le pide el CUIT y la vinculación la aprueba una persona. Se sacaron del alta: tamaño del local,
   venta web, si ya vende LK, a quién le compra, de dónde nos conoce. `lk_chat-test` todavía tiene la copia vieja del alta.
+- **Puntaje de la IA** (29/09, sql/101): el webhook guarda cada respuesta del agente IA en `wa_ia_puntajes` (pregunta,
+  respuesta, herramientas con su resultado recortado, modelo). Cron `lk_ia-puntaje` cada 10 min → Haiku puntúa 1-5
+  correcta / resolvió / derivó bien / reglas / tono (máx. 15 por corrida, 3 intentos). Dashboard › 🎯 IA — puntaje de
+  respuestas: promedios de 7 días, gasto de Haiku (`bot_token_usage.function_name='lk_ia-puntaje'`) y lista de las
+  que tienen algún criterio ≤ 2 con "Sí, estuvo mal" / "No, estuvo bien". El simulador no se puntúa.
 
 - Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). **Stateless**: cada mensaje cae por
   las mismas compuertas. Mapa visual: `docs/mapa-flujo-bot.html`.

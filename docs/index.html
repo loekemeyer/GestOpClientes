@@ -662,6 +662,19 @@
             </div>
           </div>
         </details>
+
+        <!-- ── IA — puntaje de respuestas (lk_ia-puntaje, sql/101 · Pablo 29/09) ── -->
+        <details class="dash-section" ontoggle="if (this.open) loadIaPuntaje()">
+          <summary>
+            <span class="dash-sec-title">🎯 IA — puntaje de respuestas</span>
+            <span class="dash-sec-hint">Haiku puntúa cada respuesta de la IA de 1 a 5 · las de 2 o menos, a revisar</span>
+            <button class="config-btn small" style="margin-left:auto;" onclick="event.preventDefault(); iaPuntajeEvaluar();">Evaluar pendientes</button>
+          </summary>
+          <div class="dash-sec-body">
+            <div id="ipResumen" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.9rem;"><div class="toggle-desc">Cargando…</div></div>
+            <div id="ipLista"></div>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -1344,6 +1357,51 @@ checkSession();
 sbAuth.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_IN" && !appInitialized) checkSession();
 });
+
+// --- IA: puntaje de respuestas (lk_ia-puntaje) ---
+const IP_CRIT = [["correcta", "Correcta"], ["resolvio", "Resolvió"], ["derivo", "Derivó bien"], ["reglas", "Reglas"], ["tono", "Tono"]];
+async function loadIaPuntaje() {
+  const res = document.getElementById("ipResumen"), lista = document.getElementById("ipLista");
+  try {
+    const { data, error } = await authedInvoke("lk_ia-puntaje", { action: "list", dias: 7 });
+    if (error || !data?.ok) { res.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+    const stat = (l, v) => `<div class="ia-stat"><div class="ia-stat-lbl">${l}</div><div class="ia-stat-val">${v}</div></div>`;
+    const nf1 = (n) => n == null ? "—" : Number(n).toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    res.innerHTML = stat("Evaluadas (7 días)", data.evaluadas.toLocaleString("es-AR")) + stat("A revisar", data.revisar.length) +
+      IP_CRIT.map(([k, l]) => stat(l, nf1(data.promedios[k]))).join("") + stat("Pendientes", data.pendientes) +
+      stat("Gasto Haiku (7 días)", "US$ " + Number(data.gasto_usd || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    if (!data.revisar.length) { lista.innerHTML = '<div class="toggle-desc">No hay respuestas con 2 o menos para revisar. 🎉</div>'; return; }
+    lista.innerHTML = data.revisar.map((r) => {
+      const notas = IP_CRIT.map(([k, l]) => `<span style="padding:1px 6px;border-radius:4px;margin-right:4px;font-size:0.75rem;${r[k] <= 2 ? "background:#f8bbd0;color:#c2185b;font-weight:700" : "background: var(--bg)"}">${l} ${r[k]}</span>`).join("");
+      const herr = (r.herramientas || []).map((h) => h.nombre).join(", ");
+      const cuando = new Date(r.created_at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+      return `<div style="border: 1px solid var(--border);border-radius:8px;padding:0.6rem 0.8rem;margin-bottom:0.6rem;">
+        <div style="font-size:0.78rem;color: var(--muted);margin-bottom:0.3rem;">${cuando} · ${r.cliente ? esc(r.cliente) : "…" + esc(String(r.phone || "").slice(-4))}${herr ? " · herramientas: " + esc(herr) : ""}</div>
+        <div style="font-size:0.85rem;"><b>Cliente:</b> ${esc(r.pregunta)}</div>
+        <div style="font-size:0.85rem;white-space:pre-wrap;margin-top:0.2rem;"><b>Bot:</b> ${esc(r.respuesta)}</div>
+        <div style="margin-top:0.4rem;">${notas}</div>
+        <div style="font-size:0.8rem;margin-top:0.3rem;color: var(--muted);">🤖 ${esc(r.comentario || "")}</div>
+        <div style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;">
+          <button class="config-btn small primary" onclick="iaPuntajeMarcar(${r.id},'bien_marcada')">Sí, estuvo mal</button>
+          <button class="config-btn small" onclick="iaPuntajeMarcar(${r.id},'falsa_alarma')">No, estuvo bien</button>
+          ${r.phone ? `<button class="config-btn small" onclick="abrirCharla('${esc(String(r.phone))}', event)">💬 Charla</button>` : ""}
+        </div></div>`;
+    }).join("");
+  } catch (e) { res.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(e.message) + "</div>"; }
+}
+async function iaPuntajeMarcar(id, revision) {
+  const nota = revision === "bien_marcada" ? (prompt("¿Qué tendría que haber contestado? (opcional, sirve para corregir al bot)") || "") : "";
+  const { data, error } = await authedInvoke("lk_ia-puntaje", { action: "marcar", id, revision, nota });
+  if (error || !data?.ok) { alert("No se pudo: " + (data?.error || error?.message || "")); return; }
+  loadIaPuntaje();
+}
+async function iaPuntajeEvaluar() {
+  const res = document.getElementById("ipResumen");
+  res.innerHTML = '<div class="toggle-desc">Evaluando…</div>';
+  const { data, error } = await authedInvoke("lk_ia-puntaje", { action: "evaluar" });
+  if (error || !data?.ok) { res.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
+  loadIaPuntaje();
+}
 
 // --- Alertas (lk_alertas): wa_alertas_humano con vencimiento editable ---
 function durTexto(ms) {
@@ -3921,7 +3979,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.7</div>
-<script src="gestop2.js?v=0.25.7"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.8</div>
+<script src="gestop2.js?v=0.25.8"></script>
 </body>
 </html>
