@@ -270,6 +270,13 @@ function sinResponder(c) {
   if (c.last_dir === "in") return minDesde(c.last_at);
   return 0;
 }
+// Para ORDENAR la bandeja sólo cuenta la espera reciente (ventana de 24 h de WhatsApp, con margen: 48 h). Un mensaje
+// sin contestar de hace meses (ej. el "Sí, descargar" del 04/05, botón de una plantilla vieja) quedaba primero de todo
+// por tener la espera más larga (Pablo, 29/09). El filtro "Sin responder" sigue usando sinResponder().
+function esperaParaOrden(c) {
+  const m = sinResponder(c);
+  return c.estado_ui === "esperando" || m <= 48 * 60 ? m : 0;
+}
 function nombreConv(c) { return c.business_name || null; }
 const humanizar = (s) => { const t = String(s || "").replace(/_/g, " "); return t.charAt(0).toUpperCase() + t.slice(1); };
 function textoUltimo(c) {
@@ -299,7 +306,7 @@ function cmFiltradas() {
     if (G.filtroEspera && sinResponder(c) < G.filtroEspera) return false;
     if (q && !`${c.business_name || ""} ${c.cod_cliente || ""} ${c.phone}`.toLowerCase().includes(q)) return false;
     return true;
-  }).sort((a, b) => (RANGO[a.estado_ui] - RANGO[b.estado_ui]) || (sinResponder(b) - sinResponder(a)) || String(b.last_at).localeCompare(String(a.last_at)));
+  }).sort((a, b) => (RANGO[a.estado_ui] - RANGO[b.estado_ui]) || (esperaParaOrden(b) - esperaParaOrden(a)) || String(b.last_at).localeCompare(String(a.last_at)));
 }
 function cmPintarBandeja() {
   const esp = G.convs.filter((c) => c.estado_ui === "esperando");
