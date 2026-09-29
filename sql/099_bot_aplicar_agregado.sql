@@ -58,7 +58,7 @@ begin
       values (v_order.id, v_prod.id, (v_item->>'cajas')::int, v_prod.uxb, false, 'whatsapp');
     end if;
     v_agregado := v_agregado + (v_item->>'cajas')::int * v_prod.uxb * coalesce(v_prod.list_price, 0);
-    v_lineas := v_lineas || format('%s cajas de %s (cód. %s)', v_item->>'cajas', v_prod.description, v_prod.cod);
+    v_lineas := v_lineas || format('%s %s de %s (cód. %s)', v_item->>'cajas', case when (v_item->>'cajas')::int = 1 then 'caja' else 'cajas' end, v_prod.description, v_prod.cod);
   end loop;
 
   v_subtotal := coalesce(v_order.subtotal, 0) + v_agregado * (1 - v_dto);

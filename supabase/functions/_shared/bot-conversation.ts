@@ -467,7 +467,8 @@ async function executeTool(
           "\n¿Lo querés agregar igual? Si es así, una persona lo revisa y lo carga cuando haya stock.",
           regla: "Pasale este texto y esperá su respuesta. Todavía NO quedó pedido nada." } };
       }
-      const detalle = agregar.map((a) => `${a.cajas} cajas de ${a.descripcion} (cód. ${a.cod})${a.sin_stock ? " — sin stock" : ""}`).join("; ");
+      const cj = (n: unknown) => `${n} ${Number(n) === 1 ? "caja" : "cajas"}`;
+      const detalle = agregar.map((a) => `${cj(a.cajas)} de ${a.descripcion} (cód. ${a.cod})${a.sin_stock ? " — sin stock" : ""}`).join("; ");
       const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
       await notificarHumano({
         tipo: "escalation", phone, customerId: cli?.[0]?.customer_id ?? ord.customer_id ?? null,
@@ -476,7 +477,7 @@ async function executeTool(
           razon_social: cli?.[0]?.customer_name ?? null, urgente: true },
       });
       return { data: { ok: true, texto_para_el_cliente: `Listo, dejé pedido el agregado a tu pedido del ${del}:\n` +
-        agregar.map((a) => `• ${a.cajas} cajas de ${a.descripcion} (cód. ${a.cod})`).join("\n") +
+        agregar.map((a) => `• ${cj(a.cajas)} de ${a.descripcion} (cód. ${a.cod})`).join("\n") +
         `\nUna persona lo aprueba y te confirmamos por acá con el total nuevo.`, regla: "Pasale este texto tal cual." } };
     }
 

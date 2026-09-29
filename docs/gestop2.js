@@ -774,7 +774,7 @@ function tkPintarDetalle() {
   } else if (a.agregar?.length) {
     // Pablo, 29/09: agregado a un pedido pedido por WhatsApp. "Aplicar" lo suma al pedido y le avisa al cliente.
     cuerpo = `<h4>Agregar al pedido${a.pedido_fecha ? ` del ${gesc(a.pedido_fecha)}` : ""}</h4>
-      <div class="tk-tels">${a.agregar.map((x) => `<div class="it"><span><b>${gesc(x.cajas)} cajas</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})</span>
+      <div class="tk-tels">${a.agregar.map((x) => `<div class="it"><span><b>${gesc(x.cajas)} ${Number(x.cajas) === 1 ? "caja" : "cajas"}</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})</span>
         <span>${x.sin_stock ? `<span style="color:var(--g-danger);font-weight:700">Sin stock${x.ingreso_estimado ? ` · ingresa ~${gesc(String(x.ingreso_estimado).split("-").reverse().slice(0, 2).join("/"))}` : ""}</span>` : "Con stock"}</span></div>`).join("")}</div>
       ${a.aplicable
         ? `<div class="aviso">Se suma al pedido con sus descuentos y se le avisa el total nuevo por WhatsApp.</div>
