@@ -164,9 +164,14 @@ export async function pedidoDeCambio(
     const e = (est ?? []).find((x: { order_id: number }) => Number(x.order_id) === Number(ped.id)) as
       { fecha_entrega?: string | null } | undefined;
     const pedida = fechaPedida(t);
-    const { data: v } = await supabase.from("v_pedidos_web").select("zona_expreso")
+    const { data: v } = await supabase.from("v_pedidos_web").select("zona_expreso, nombre_expreso")
       .eq("order_id", ped.id).eq("linea_rn", 1).limit(1).maybeSingle();
     const esRetiro = /^retira/i.test(String(v?.zona_expreso ?? ""));
+    const expreso = String(v?.nombre_expreso ?? "").trim();
+    // Pedido por expreso: no se le ofrece retiro (Pablo, 28/09), se le dice por qué expreso sale.
+    if (!esRetiro && expreso) {
+      return `Tu pedido del ${fechaCorta(ped.created_at)} sale por el expreso ${expreso}, así que no se retira en nuestro depósito. Los tiempos de viaje los maneja el expreso: para saber cuándo te llega, consultalo con ellos.`;
+    }
     const lista = e?.fecha_entrega ? String(e.fecha_entrega).slice(0, 10) : null;
     if (esRetiro && pedida && lista && pedida >= lista) {
       return `Sí, podés retirar tu pedido del ${fechaCorta(ped.created_at)} el ${conDia(pedida)}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅`;
