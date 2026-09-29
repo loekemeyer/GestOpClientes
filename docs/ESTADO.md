@@ -351,7 +351,8 @@ el killswitch, sin ningún consumidor de esa cola.
   respuesta, herramientas con su resultado recortado, modelo). Cron `lk_ia-puntaje` cada 10 min → Haiku puntúa 1-5
   correcta / resolvió / derivó bien / reglas / tono (máx. 15 por corrida, 3 intentos). Dashboard › 🎯 IA — puntaje de
   respuestas: promedios de 7 días, gasto de Haiku (`bot_token_usage.function_name='lk_ia-puntaje'`) y lista de las
-  que tienen algún criterio ≤ 2 con "Sí, estuvo mal" / "No, estuvo bien". El simulador no se puntúa.
+  que tienen algún criterio ≤ 2 con "Sí, estuvo mal" / "No, estuvo bien". Con "Crear tareas de prueba", el Simulador
+  también guarda las respuestas de la IA (`prueba=true`, sql/102): salen 🧪 en la lista pero no cuentan en los promedios.
 
 - Edge `lk_whatsapp-webhook` (v16, `verify_jwt=false`). **Stateless**: cada mensaje cae por
   las mismas compuertas. Mapa visual: `docs/mapa-flujo-bot.html`.

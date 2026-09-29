@@ -118,6 +118,7 @@ serve(async (req) => {
       if (!text) continue;
       SIM.alertas = [];
       SIM.herramientas = [];
+      let puntuar = false;
 
       let reply: string | null = null;
       let via = "";
@@ -153,6 +154,14 @@ serve(async (req) => {
         const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular");
         via = r.timeout ? "agente (timeout: en producción no se contesta nada)" : r.llmError ? "agente (error: en producción no se contesta nada)" : "agente IA";
         reply = r.reply;
+        // Con "Crear tareas de prueba", la respuesta de la IA también queda para puntuar (🧪, fuera de los promedios).
+        if (body.crear_tareas === true && !r.timeout && !r.llmError) {
+          const { error: eP } = await supabase.from("wa_ia_puntajes").insert({
+            phone: telSim, customer_id: c.id, pregunta: text.slice(0, 2000), respuesta: String(r.reply ?? "").slice(0, 4000),
+            herramientas: r.herramientas ?? [], modelo_respuesta: r.modelo ?? null, prueba: true,
+          });
+          if (!eP) puntuar = true;
+        }
       }
       SIM.historial.push({ rol: "assistant", contenido: reply ?? "", creado_en: ahora() });
       // Pablo, 29/09: "crear tareas de prueba" → cada alerta que habría creado el bot se crea DE VERDAD en Tareas, marcada
@@ -170,7 +179,7 @@ serve(async (req) => {
           if (ins?.id) tareas.push(ins.id);
         }
       }
-      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [...SIM.herramientas], tareas });
+      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [...SIM.herramientas], tareas, puntuar });
     }
     SIM.activo = false;
     return json({ ok: true, cliente: `${c.business_name} (${c.cod_cliente})`, charla: salida });

@@ -125,11 +125,12 @@ serve(async (req) => {
     if (body.action === "list") {
       const dias = Math.min(90, Math.max(1, Number(body.dias ?? 7)));
       const desde = new Date(Date.now() - dias * 86400_000).toISOString();
+      // Las del Simulador (prueba) aparecen en la lista con 🧪 pero no cuentan en los promedios.
       const [{ data: rev }, { data: todas }, { data: gasto }, { count: pendientes }] = await Promise.all([
-        supabase.from("wa_ia_puntajes").select("id, created_at, phone, customer_id, pregunta, respuesta, herramientas, correcta, resolvio, derivo, reglas, tono, minimo, comentario")
+        supabase.from("wa_ia_puntajes").select("id, created_at, phone, customer_id, pregunta, respuesta, herramientas, correcta, resolvio, derivo, reglas, tono, minimo, comentario, prueba")
           .lte("minimo", 2).is("revision", null).order("created_at", { ascending: false }).limit(50),
         supabase.from("wa_ia_puntajes").select("correcta, resolvio, derivo, reglas, tono, minimo, revision")
-          .gte("created_at", desde).not("evaluado_at", "is", null).limit(5000),
+          .gte("created_at", desde).not("evaluado_at", "is", null).eq("prueba", false).limit(5000),
         supabase.from("bot_token_usage").select("estimated_cost_usd").eq("function_name", "lk_ia-puntaje").gte("created_at", desde).limit(10000),
         supabase.from("wa_ia_puntajes").select("id", { count: "exact", head: true }).is("evaluado_at", null).lt("intentos", 3),
       ]);
