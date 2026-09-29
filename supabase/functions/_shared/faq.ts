@@ -155,6 +155,9 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // Igual con "ya pagué / ya transferí y me sigue figurando": es un pago a verificar, no un pedido de alias/CBU
   // (#42 lo enganchaba por "transferí"). La IA deriva a Cobranzas (motivo "pago").
   if (customer && RE_YA_PAGUE.test(text)) return null;
+  // Pablo, 29/09: un reclamo ("llegó una caja rota", "me cobraron de más", "no me aplicaron el descuento") no se contesta con
+  // una respuesta informativa (#10 facturación, #8 descuentos, #12 precio…): va a la IA, que lo deriva como reclamo.
+  if (customer && RE_RECLAMO.test(text)) return null;
   // Pablo, 29/09: "¿cuándo ingresan los artículos nuevos?" / "¿cuándo entra el 404E?" no es "pasame el catálogo" (#19):
   // la IA lo contesta con consultar_proximos_ingresos / consultar_stock (fecha estimada de ingreso de importados).
   if (customer && RE_INGRESO.test(text)) return null;
@@ -280,6 +283,7 @@ async function lookupPaymentData(faq: any, customer: Customer): Promise<string |
 const RE_NO_LLEGO = /\b(no (me )?(lleg[oó]|vino|entregaron|trajeron)|nunca lleg|todav[ií]a no (lleg|vino|me)|ten[ií]a que (llegar|venir|haber llegado)|deb[ií]a (llegar|venir)|sigo esperando|no lleg[oó] nada)/i;
 const RE_DETALLE_PEDIDO = /(qu[eé]\s+(incluye|tiene|trae|lleva|contiene|ped[ií]|hab[ií]a|va)\b[^?]{0,40}pedido|pedido[^?]{0,30}\b(incluye|contiene|trae|tiene)\b|detalle\s+(de(l)?\s+)?(mi\s+|el\s+)?pedido|(art[ií]culos|productos|[ií]tems|cosas)\s+(de(l)?|en)\s+(mi\s+|el\s+)?pedido)/i;
 const RE_INGRESO = /\bcu[aá]ndo\s+(ingres|entra|vuelve|repon|hay\b|habr|llega(n)?\s+(el|la|los|las|un|una)\s+(art|prod|import|nuev|novedad))/i;
+const RE_RECLAMO = /(\brot[oa]s?\b|\bromp|fallad|defectuos|mal estado|da[ñn]ad|cobr\S*\s+(de\s+m[aá]s|mal|distinto|otro)|precio\s+(viejo|distinto|equivocado|mal)|no\s+(me\s+)?(aplic|respet|hicieron\s+el\s+descuento)|est[aá]\s+mal\b|vino\s+mal|lleg\w*\s+(mal|\d+\s+de\s+\d+)|llegaron\s+\d+|\bme\s+falt|\bfalt(a|an|aron)\s+\d|incorrect|equivocad|reclam)/i;
 const RE_YA_PAGUE = /\b(ya (les |te )?(pagu[eé]|transfer[ií]|deposit[eé]|abon[eé]|cancel[eé])|(les |te )?(transfer[ií]|pagu[eé]|deposit[eé]) (ayer|hoy|el)|sigue figurando|me sigue (apareciendo|saliendo)|no (se )?(me )?(acredit|impact|figura (el|mi) pago))/i;
 const RE_RETIRO = /\b(retir(o|ar|arlo|arla|amos|a)|pas(ar|o|amos) a buscar|buscarlo|ir a buscar|lo busco|voy a buscar)\b/i;
 
