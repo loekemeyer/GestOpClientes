@@ -64,11 +64,11 @@
       "sale": "Cuando cambia la fecha de salida de un pedido que ya tenía fecha avisada."
     },
     "pedido_preparando": {
-      "grupo": "pedido",
+      "grupo": "legado",
       "orden": 6,
-      "estado": "conectada",
+      "estado": "legado",
       "para": "Todos",
-      "sale": "Cuando el pedido web entra en armado en Gestión (revisa cada 10 minutos)."
+      "sale": "Ya no se manda (se quitó el 29/09)."
     },
     "pedido_en_viaje": {
       "grupo": "pedido",

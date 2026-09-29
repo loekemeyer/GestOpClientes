@@ -8,7 +8,7 @@ const aca = dirname(fileURLToPath(import.meta.url));
 const [, , entrada, salida] = process.argv;
 const d = JSON.parse(readFileSync(entrada, "utf8"));
 const usa = ["pedido_recibido", "pedido_programado", "pedido_programado_expreso", "pedido_programado_retira", "pedido_reprogramado",
-  "pedido_preparando", "pedido_contado_s", "pedido_listo_retirar", "pedido_entregado", "pedido_en_viaje_expreso"];
+  "pedido_contado_s", "pedido_listo_retirar", "pedido_entregado", "pedido_en_viaje_expreso"];
 const plantillas = d.plantillas.filter((p) => usa.includes(p.name))
   .map((p) => ({ name: p.name, body: p.body, header: p.header, header_text: p.header_text, footer: p.footer, buttons: p.buttons, ejemplos: p.ejemplos }));
 for (const n of usa) if (!plantillas.some((p) => p.name === n)) console.error("aviso: falta la plantilla " + n);

@@ -382,18 +382,15 @@ async function handleTemplatesPreview(body: Record<string, unknown>) {
   const pasos = modo === "expreso"
     ? [P("Programado", "pedido_programado_expreso", [fp, sal, expreso.replace(/^expreso\s+/i, "")]),
        P("Cambio de fecha", "pedido_reprogramado", [rs, fp, nueva], true),
-       P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
        { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
        P("Carga camión", "pedido_en_viaje_expreso", [rs, fp, expreso])]
     : modo === "retira"
     ? [P("Programado", "pedido_programado_retira", [rs, fp, sal]),
        P("Cambio de fecha", "pedido_reprogramado", [rs, fp, nueva], true),
-       P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
        { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
        P("Facturado · listo", "pedido_listo_retirar", [rs, fp])]
     : [P("Programado", "pedido_programado", [fp, sal, direccion || "tu dirección de entrega"]),
        P("Cambio de fecha", "pedido_reprogramado", [rs, fp, nueva], true),
-       P("Inicio de picking", "pedido_preparando", [rs, fp, sal]),
        { etapa: "Facturado", template: "pedido_{contado|credito|echeq}_{s|p}", params: [], texto: "", opcional: false, nota: "Factura con datos de pago + PDF (plantillas existentes; se prueban en el simulador de facturas)." },
        P("Carga camión", "pedido_en_viaje", [rs, fp, direccion])];
 

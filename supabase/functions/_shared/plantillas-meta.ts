@@ -91,16 +91,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "viernes 02/10"],
   },
 
-  // ── 2 · Estamos preparando tu pedido ────────────────────────────────────
-  {
-    name: "pedido_preparando",
-    language: ES, category: UT,
-    // Texto = el aprobado en Meta (29/09). Conectada por Pablo 29/09: "conectala en armado" (sql/085).
-    disparo: "El pedido web entra en armado en Gestión (cron lk_aviso-retiro-web, cada 10 min). Todos los modos.",
-    variables: ["razón social", "fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer.\nEstamos preparando tu pedido del {{2}} en el depósito.\nSale el {{3}} de nuestro depósito.",
-    ejemplos: ["Comercial Ejemplo S.R.L", "22/09", "miércoles 30/09"],
-  },
+  // (pedido_preparando se quitó el 29/09 a pedido de Pablo: "no tiene sentido". Sigue en Meta sin uso; sql/091.)
 
   // ── 4 · Tu pedido está en viaje ─────────────────────────────────────────
   {

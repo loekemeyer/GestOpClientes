@@ -20,10 +20,6 @@
         {
           "tpl": "pedido_programado",
           "como": "Si el cliente responde a este aviso pidiendo un cambio, el sistema crea la alerta 'Cambio de pedido' urgente. El texto del aviso no dice que el pedido se pueda modificar."
-        },
-        {
-          "tpl": "pedido_preparando",
-          "como": "Se supone que desde que entra en armado el pedido ya no se modifica (a confirmar con Depósito). El aviso no lo dice."
         }
       ],
       "resumen": "Todavía no tiene mensaje. Lo atiende el bot y una persona."
@@ -40,10 +36,6 @@
         {
           "tpl": "pedido_programado",
           "como": "Cuando tiene fecha, le avisa el día; hay una versión para expreso y otra para retiro."
-        },
-        {
-          "tpl": "pedido_preparando",
-          "como": "Cuando entra en armado, le confirma que está en el depósito y el día de salida."
         },
         {
           "tpl": "pedido_reprogramado",
