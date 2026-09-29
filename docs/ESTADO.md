@@ -355,6 +355,9 @@ el killswitch, sin ningún consumidor de esa cola.
   Desde sql/106 también "entregado al expreso" (`pedido_en_viaje_expreso`, context `tracking_entregado` para que
   trg_order_tracking_notify no lo repita al marcarse entregado al día siguiente).
 - **Pedido recibido con razón social** (29/09, sql/104): revierte sql/093; la plantilla aprobada en Meta es de 5 variables.
+- **Decisiones de Pablo (29/09, cierre del día):** (1) reparto que no sale: en standby, no se arma nada (el aviso "ya salió"
+  depende de que Gestión tenga la fecha real); (2) teléfono del ERP para los avisos: frenado hasta que se salga a
+  producción; (3) el 99862 (Luiggy y Luiggy (PRUEBA)) es el cliente de prueba: puede quedar con los cambios de las pruebas.
 - **Dirección de entrega nueva** (29/09): cada pedido web elige su sucursal, así que un cambio de dirección por WhatsApp
   AGREGA una sucursal. La IA pide calle y número, localidad, provincia, CP y expreso, confirma y usa
   `solicitar_nueva_sucursal` → tarea `cambio_datos`; en Tareas "Agregar dirección" (`lk_alertas` `sucursal_agregar`)
