@@ -17,6 +17,7 @@
 // Sólo llamada interna (x-lk-secret = LK_FN_CRON_SECRET).
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, supabase } from "../_shared/supabase.ts";
+import { leerVersiones, nombreActivo } from "../_shared/plantillas-version.ts";
 
 const TPL = "pedido_recordatorio_descuento";
 const CONTEXTO = "recordatorio_dto";
@@ -121,15 +122,20 @@ serve(async (req) => {
     .in("ref_id", avisos.map((a) => a.ref));
   const enviados = new Set((ya ?? []).map((x: { ref_id: string }) => x.ref_id));
 
+  // v1 y v2 de la plantilla tienen 8 variables; desde la v3 (Pablo, 30/09) va "pasás a pagar $X más" antes de alias/CBU.
+  const activa = nombreActivo(await leerVersiones(supabase), TPL);
+  const conDiferencia = ![TPL, `${TPL}_v2`].includes(activa);
   const plan = [];
   let encolados = 0;
   for (const a of avisos) {
     const phone = telDe.get(a.cod);
-    const params = {
+    const base = {
       "1": ddmm(a.fecha), "2": conDia(a.hasta), "3": String(Math.round(a.dto * 100)),
       "4": pesos(a.saldo * (1 - a.dto)), "5": pesos(a.saldo), "6": String(Math.round(a.dtoDespues * 100)),
-      "7": alias, "8": cbu,
     };
+    const params: Record<string, string> = conDiferencia
+      ? { ...base, "7": pesos(a.saldo * (a.dto - a.dtoDespues)), "8": alias, "9": cbu }
+      : { ...base, "7": alias, "8": cbu };
     const estado = enviados.has(a.ref) ? "ya_encolado" : !phone ? "sin_whatsapp" : aplicar ? "encolado" : "encolaría";
     if (estado === "encolado") {
       const { error: e } = await supabase.from("wa_outbox").insert({
