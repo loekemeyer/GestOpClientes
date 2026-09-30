@@ -47,20 +47,27 @@ Notas para que Meta apruebe sin rechazo:
 ## A) Una sola factura
 
 ### 1 · `pedido_contado_s`  (contado + clientes que no definieron)
+Pablo, 30/09: el total a pagar va **primero**, igual que `pedido_contado_p`.
 ```
 ¡Hola! Tu pedido está listo y estará con vos a la brevedad.
 
-Total de tu factura (con IVA): {{1}}
+Total a pagar *Contado ({{1}}% Dto)*: *{{2}}*
 
-*Total a pagar Contado ({{2}}% Dto): {{3}}*
+Total de tu factura (con IVA): {{3}}
 
 Datos para el pago:
 Alias: {{4}}
 CBU: {{5}}
+
+Saludos.
 ```
-`{{2}}` = % de descuento contado (de la tabla, ej. `25`) · `{{3}}` = monto a pagar al contado ·
+`{{1}}` = % de descuento contado (de la tabla, ej. `25`) · `{{2}}` = monto a pagar al contado ·
 `{{4}}` = alias · `{{5}}` = CBU (datos de pago, editables en el Panel).
-Ejemplos: `{{1}}`=`$470.499` · `{{2}}`=`25` · `{{3}}`=`$352.874` · `{{4}}`=`loeke.srl` · `{{5}}`=`1910027855002702387450`
+Ejemplos: `{{1}}`=`25` · `{{2}}`=`$352.874` · `{{3}}`=`$470.499` · `{{4}}`=`loeke.srl` · `{{5}}`=`1910027855002702387450`
+
+> **Desde el 30/09 no hace falta cargarlas a mano:** `lk_templates` action `factura_sync` (simulacro por defecto,
+> `aplicar: true` edita) sube a Meta el texto de `supabase/functions/_shared/plantillas-factura.ts`, con un PDF de
+> muestra generado para el encabezado Documento.
 
 ### 2 · `pedido_credito_s`  (plazos de crédito)
 ```

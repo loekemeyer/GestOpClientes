@@ -5,11 +5,13 @@ export const PLANTILLAS_FACTURA: Array<{ name: string; disparo: string; body: st
   {
     "name": "pedido_contado_s",
     "disparo": "Se factura el pedido y el cliente paga contado (una factura). Sale con la factura en PDF (lk_factura-check).",
-    "body": "¡Hola! Tu pedido está listo y estará con vos a la brevedad.\n\nTotal de tu factura (con IVA): {{1}}\n\n*Total a pagar Contado ({{2}}% Dto): {{3}}*\n\nDatos para el pago:\nAlias: {{4}}\nCBU: {{5}}\n\nSaludos.",
+    // Pablo, 30/09: el total a pagar va primero, igual que pedido_contado_p (lk_factura-check ordena las variables
+    // según el texto aprobado en Meta: ordenContado).
+    "body": "¡Hola! Tu pedido está listo y estará con vos a la brevedad.\n\nTotal a pagar *Contado ({{1}}% Dto)*: *{{2}}*\n\nTotal de tu factura (con IVA): {{3}}\n\nDatos para el pago:\nAlias: {{4}}\nCBU: {{5}}\n\nSaludos.",
     "ejemplos": [
-      "$470.499",
       "25",
       "$352.874",
+      "$470.499",
       "loeke.srl",
       "1910027855002702387450"
     ]

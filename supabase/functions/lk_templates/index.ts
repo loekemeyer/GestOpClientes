@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { PLANTILLAS, componentesMeta, validar } from "../_shared/plantillas-meta.ts";
 import { leerVersiones, nombreActivo, siguienteNombre, type Versiones } from "../_shared/plantillas-version.ts";
+import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
+import { PDFDocument, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 // Función dedicada a plantillas WhatsApp: listar (Meta) + enviar prueba.
 // Sólo depende de _shared/admin-gate.ts (verificación de admin); no toca
@@ -118,7 +120,8 @@ serve(async (req) => {
     // mismo patrón que notify-tracking-status): sólo puede LISTAR y SINCRONIZAR plantillas, nunca
     // mandar mensajes. Todo lo demás exige sesión de admin del dashboard.
     const interno = await esLlamadaInterna(req);
-    if (interno && (body.action === "templates_sync" || body.action === "templates_list" || body.action === "templates_defs" || body.action === "templates_promover")) {
+    if (interno && (body.action === "templates_sync" || body.action === "templates_list" || body.action === "templates_defs" || body.action === "templates_promover" || body.action === "factura_sync")) {
+      if (body.action === "factura_sync") return await handleFacturaSync(body, "interno:LK_FN_CRON_SECRET");
       if (body.action === "templates_sync") return await handleTemplatesSync(body, "interno:LK_FN_CRON_SECRET");
       if (body.action === "templates_promover") return await handleTemplatesPromover(body, "interno:LK_FN_CRON_SECRET");
       if (body.action === "templates_list") return await handleTemplatesList(body.status);
@@ -132,6 +135,7 @@ serve(async (req) => {
     if (body.action === "template_send") return await handleTemplateSend(body);
     if (body.action === "templates_sync") return await handleTemplatesSync(body, gate.email);
     if (body.action === "templates_promover") return await handleTemplatesPromover(body, gate.email);
+    if (body.action === "factura_sync") return await handleFacturaSync(body, gate.email);
     // Definiciones del repo (plantillas-meta.ts), sin consultar a Meta: el panel las muestra
     // aunque el token esté caído.
     if (body.action === "templates_preview") return await handleTemplatesPreview(body);
@@ -421,6 +425,89 @@ async function handleTemplatesPromover(body: Record<string, unknown>, quien: str
   }
   if (promovidas.length) await guardarVersiones(versiones);
   return json({ ok: true, promovidas, pendientes: siguen });
+}
+
+// ── factura_sync: edita en Meta las 6 plantillas de factura con el texto de _shared/plantillas-factura.ts ──
+// (Pablo, 30/09: "¿no podés cambiarlo vos en WhatsApp Manager?"). Tienen encabezado Documento y Meta pide un PDF de
+// muestra al editar: se genera uno de ejemplo, se sube con la API de subidas (app del token) y se manda su handle.
+// Simulacro por defecto; `aplicar: true` edita. `solo: [...]` limita. Edita EN EL LUGAR (no versión nueva): mientras
+// Meta la revisa, lk_factura-check la retiene (held_tpl_no_aprobada). Hoy la factura sólo va a los números de prueba.
+async function handleFacturaSync(body: Record<string, unknown>, quien: string) {
+  const aplicar = body.aplicar === true;
+  const solo = Array.isArray(body.solo) ? (body.solo as unknown[]).map(String) : null;
+  const token = await metaToken();
+  if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
+  const { wabaId } = await resolveWaba(token);
+  if (!wabaId) return json({ ok: false, error: "No se pudo determinar el WABA." }, 200);
+  const res = await fetch(`${META_API}/${wabaId}/message_templates?limit=250&fields=id,name,status,language,components`,
+    { headers: { Authorization: `Bearer ${token}` } });
+  const data = await res.json();
+  if (data.error) return json({ ok: false, error: `Meta: ${data.error.message ?? ""}` }, 200);
+  // deno-lint-ignore no-explicit-any
+  const enMeta = new Map<string, any>((data.data ?? []).map((t: any) => [t.name, t]));
+  let handle: string | null = null;
+  const plan = [];
+  for (const p of PLANTILLAS_FACTURA) {
+    if (solo && !solo.includes(p.name)) continue;
+    const t = enMeta.get(p.name);
+    // deno-lint-ignore no-explicit-any
+    const comp = (tipo: string) => (t?.components ?? []).find((c: any) => c.type === tipo);
+    const actual = comp("BODY")?.text ?? null;
+    const accion = !t ? "no_existe" : actual === p.body ? "igual" : "editar";
+    // deno-lint-ignore no-explicit-any
+    const fila: Record<string, any> = { name: p.name, accion, estado_meta: t?.status ?? "NO_EXISTE",
+      ...(accion === "editar" ? { texto_meta: actual, texto_nuevo: p.body } : {}) };
+    if (aplicar && accion === "editar") {
+      try {
+        handle ??= await subirPdfMuestra(token);
+        const pie = comp("FOOTER");
+        const components = [
+          { type: "HEADER", format: "DOCUMENT", example: { header_handle: [handle] } },
+          { type: "BODY", text: p.body, example: { body_text: [p.ejemplos] } },
+          ...(pie?.text ? [{ type: "FOOTER", text: pie.text }] : []),
+        ];
+        const r = await fetch(`${META_API}/${t.id}`, {
+          method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ components }),
+        });
+        const out = await r.json();
+        fila.resultado = out.error
+          ? { ok: false, error: `Meta (#${out.error.code ?? "?"}${out.error.error_subcode ? "/" + out.error.error_subcode : ""}): ${out.error.error_user_msg ?? out.error.message ?? ""}` }
+          : { ok: true, status: "PENDING" };
+      } catch (e) { fila.resultado = { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+      console.log(`factura_sync editar ${p.name} por ${quien}:`, JSON.stringify(fila.resultado));
+      if (fila.resultado.ok) await anotarTiempo(p.name, "editada");
+    }
+    plan.push(fila);
+  }
+  return json({ ok: true, aplicado: aplicar, plan });
+}
+
+// PDF de muestra para el encabezado Documento (Meta lo pide al crear/editar): se genera acá y se sube con la API de
+// subidas reanudables de la app dueña del token. Devuelve el handle ("h").
+async function subirPdfMuestra(token: string): Promise<string> {
+  let appId = "";
+  const a = await (await fetch(`${META_API}/app?access_token=${encodeURIComponent(token)}`)).json();
+  appId = a?.id ?? "";
+  if (!appId) {
+    const d = await (await fetch(`${META_API}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(token)}`)).json();
+    appId = d?.data?.app_id ?? "";
+  }
+  if (!appId) throw new Error("no se pudo saber la app del token (para subir el PDF de muestra)");
+  const doc = await PDFDocument.create();
+  const pag = doc.addPage([420, 300]);
+  const f = await doc.embedFont(StandardFonts.Helvetica);
+  pag.drawText("Loekemeyer - Factura de ejemplo", { x: 40, y: 240, size: 18, font: f });
+  pag.drawText("Documento de muestra para la plantilla de WhatsApp.", { x: 40, y: 200, size: 11, font: f });
+  const bytes = await doc.save();
+  const ses = await (await fetch(`${META_API}/${appId}/uploads?file_name=factura_ejemplo.pdf&file_length=${bytes.length}&file_type=application/pdf&access_token=${encodeURIComponent(token)}`,
+    { method: "POST" })).json();
+  if (!ses?.id) throw new Error(`Meta uploads: ${ses?.error?.message ?? JSON.stringify(ses).slice(0, 200)}`);
+  const up = await (await fetch(`${META_API}/${ses.id}`, {
+    method: "POST", headers: { Authorization: `OAuth ${token}`, file_offset: "0" }, body: bytes,
+  })).json();
+  if (!up?.h) throw new Error(`Meta upload: ${up?.error?.message ?? JSON.stringify(up).slice(0, 200)}`);
+  return up.h;
 }
 
 // ── templates_preview: chat de prueba de plantillas (dashboard) ──
