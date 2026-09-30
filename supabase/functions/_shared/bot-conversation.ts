@@ -904,6 +904,40 @@ function motivoDelTurno(usadas: Array<{ nombre: string; input: unknown }>): stri
   return "consulta_general";
 }
 
+// Pablo, 30/09: la IA recibía el historial sin fechas y, si el cliente escribía un mes después, seguía el tema viejo
+// como si fuera la misma charla. Le decimos qué día es, cuánto pasó desde el mensaje anterior y que no asuma el tema.
+const HORAS_CHARLA_NUEVA = 12;
+function fechaHoraAR(d: Date): string {
+  return d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit",
+    month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function hace(ms: number): string {
+  const h = ms / 3600_000;
+  if (h < 1) return `${Math.max(1, Math.round(ms / 60_000))} minutos`;
+  if (h < 48) return `${Math.round(h)} horas`;
+  return `${Math.round(h / 24)} días`;
+}
+export function notaDeTiempo(rawHistory: Array<{ rol: string; contenido: string; creado_en: string }>, userText: string): string {
+  const ahora = new Date();
+  // rawHistory viene del más nuevo al más viejo; el primero puede ser el mensaje actual (el webhook lo guarda antes).
+  const anterior = rawHistory.find((h, i) => !(i === 0 && h.rol === "user" && h.contenido === userText));
+  const lineas = [`## Momento de la charla`, `Hoy es ${fechaHoraAR(ahora)} (hora de Argentina).`];
+  const t = anterior?.creado_en ? new Date(anterior.creado_en) : null;
+  if (!t || isNaN(t.getTime())) {
+    lineas.push("Es el primer mensaje de esta charla.");
+  } else {
+    const ms = ahora.getTime() - t.getTime();
+    lineas.push(`El mensaje anterior de la charla es del ${fechaHoraAR(t)} (hace ${hace(ms)}).`);
+    if (ms > HORAS_CHARLA_NUEVA * 3600_000) {
+      lineas.push(`Pasaron más de ${HORAS_CHARLA_NUEVA} horas: es una charla NUEVA. Lo anterior es sólo referencia; no ` +
+        `asumas que el cliente sigue con ese tema ni lo retomes por tu cuenta.`);
+    }
+  }
+  lineas.push("Si el tema del mensaje no queda claro (por ejemplo, sólo saluda o dice algo muy corto), preguntale en qué " +
+    "lo podés ayudar antes de usar herramientas o de hablar de un pedido.");
+  return lineas.join("\n");
+}
+
 export async function runConversation(
   userText: string,
   phone: string,
@@ -913,9 +947,8 @@ export async function runConversation(
   apiKey: string,
   fuente = "lk_whatsapp-webhook",
 ): Promise<ConversationResult> {
-  const systemPrompt = await buildSystemPrompt(customerName, codCliente, dtoVol);
-
   const rawHistory = await loadHistory(phone, 16);
+  const systemPrompt = (await buildSystemPrompt(customerName, codCliente, dtoVol)) + "\n\n" + notaDeTiempo(rawHistory, userText);
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
   // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor
   // en cualquier iteración sin romper el formato.

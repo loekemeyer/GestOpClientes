@@ -358,6 +358,11 @@ el killswitch, sin ningún consumidor de esa cola.
 - **Pedido recibido con total con IVA** (Pablo, 29/09, sql/108): texto nuevo "Recibimos tu pedido del 15/09 por
   $896.668 ($741.048 + IVA)." con una línea en blanco tras el saludo, como `pedido_recibido_v2` (sistema de versiones).
   El disparador arma `{{3}}` según la versión activa: con la vieja (que ya dice "+ IVA") sigue mandando sólo el neto.
+- **El bot y el tiempo entre mensajes (Pablo, 30/09):** (1) saludo solo → espera 5 s por si sigue escribiendo; si no,
+  FAQ #41 "¡Hola …! ¿En qué te puedo ayudar?" (ya no pasa por respuesta-aviso, que lo tomaba como "gracias"); (2) la IA
+  recibe en el prompt la fecha de hoy y hace cuánto fue el mensaje anterior (`notaDeTiempo` en bot-conversation.ts); con
+  más de 12 h es "charla nueva": lo anterior es referencia y no retoma el tema; si el tema no queda claro, pregunta.
+  Antes el historial (16 mensajes) iba sin fechas y un mensaje de un mes después seguía el tema viejo.
 - **Botones de respuesta rápida (Pablo, 30/09, auditoría):** `pedido_programado` (+ `_expreso`, `_retira`) con
   "Necesito cambiar la fecha" y `pedido_listo_retirar` con "No puedo ese día" (`botones` en `plantillas-meta.ts`, van
   como versión nueva). El webhook los recibe como texto (`_shared/wa-api.ts` `extractMessage`, campo `boton`) y los
