@@ -365,8 +365,9 @@ el killswitch, sin ningún consumidor de esa cola.
   `app_settings.wa_plantillas_tiempos` (pedida_at por templates_sync, aprobada_at por templates_promover cada 30 min);
   la Routine diaria "Plantillas WhatsApp diario (artifact + estados)" los informa junto con los estados. `pedido_recibido_v2`:
   creada 29/09 ~17:27 AR, ya aprobada y activa el 30/09 08:21 (hora exacta no medida).
-- **Factura contado: el total a pagar primero** (Pablo, 29/09): `pedido_contado_p` se edita A MANO en WhatsApp Manager
-  (tiene encabezado Documento; texto en `docs/plantillas_whatsapp.md`: total a pagar arriba, detalle antes del total).
+- **Factura contado: el total a pagar primero** (Pablo, 29-30/09): `pedido_contado_p` y `pedido_contado_s` editadas en
+  Meta el 30/09 08:51 AR con `lk_templates` action `factura_sync` (texto de `_shared/plantillas-factura.ts`; genera y sube
+  un PDF de muestra para el encabezado Documento, así ya no hace falta WhatsApp Manager). Texto en `docs/plantillas_whatsapp.md`.
   `lk_factura-check` (`ordenContado`) lee el texto aprobado, ordena las variables por la posición de cada bloque y guarda
   en el historial ese mismo cuerpo con los valores; mientras Meta la revisa no está APPROVED y queda `held_tpl_no_aprobada`.
   Además la factura enviada queda en `bot_historial_chat` (se ve en Conversaciones y el bot sabe a qué le contestan).
