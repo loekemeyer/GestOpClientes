@@ -127,7 +127,9 @@ export const MSG_ALTA_CANCELADA =
 export const RE_ALTA_START =
   // Pablo, 30/09: "queremos abrir cuenta" / "ser distribuidor" (visto en las consultas reales) pedían el CUIT antes de
   // arrancar el alta. Sólo se mira para números que todavía no son clientes, así que "cuenta corriente" de un cliente no cae acá.
-  /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo)|abrir (una )?cuenta|ser (distribuidor|distribuidora|revendedor|revendedora)(es|s)?)\b/i;
+  // Pablo, 30/09 (10.2 y 10.3): "tengo un comercio y quiero comprar por mayor" y "somos distribuidora, nos interesa
+  // incorporar su línea" arrancan el alta igual que "quiero ser cliente".
+  /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo)|abrir (una )?cuenta|ser (distribuidor|distribuidora|revendedor|revendedora)(es|s)?|comprar (por|al) mayor|(tengo|tenemos) un (comercio|local|negocio|bazar)|somos (una |un )?(distribuidora|distribuidor|mayorista|comercio|bazar)|incorporar (su|sus|la|tu|tus) (l[ií]nea|productos|marca)|trabajar con (ustedes|su marca|tu marca))\b/i;
 // Cortar el alta en curso.
 export const RE_ALTA_CANCEL = /\b(cancelar|cancelá|salir|dejar|olvidalo|no quiero|parar|basta)\b/i;
 
