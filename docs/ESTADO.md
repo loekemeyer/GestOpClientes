@@ -336,7 +336,9 @@ el killswitch, sin ningún consumidor de esa cola.
   fecha estimada de ingreso y, si insiste, la tarea sale "cargar a mano" (`aplicable=false`). Si no, alerta
   `cambio_pedido` con `contexto.agregar` y botón **Aplicar** en Tareas → `lk_alertas` `aplicar_agregado` →
   `bot_aplicar_agregado` (sql/099; no usa `edit_order_fast` porque exige `auth.uid()` de PaginaLK) + aviso por `wa_outbox`.
-  Sacar/anular sigue derivando directo (`RE_EDITA_PEDIDO` sólo sacar/quitar).
+  Sacar/anular sigue derivando directo (`RE_EDITA_PEDIDO` sólo sacar/quitar). Desde el 30/09 se mira el **verbo**
+  conjugado (`SACAR` en respuesta-aviso.ts), no la raíz: antes "Agregá 60 sacacorchos al pedido" (o sacapuntas,
+  quitamanchas) se derivaba como si pidiera sacar y nunca llegaba a la IA.
 - **Reseteo de clave** (29/09): cliente identificado + `RE_CLAVE` (faq.ts) → "tu usuario es tu CUIT, una persona te genera
   una clave" + tarea `reseteo_clave`. En Tareas, "Generar clave temporal y mandarla" → `lk_alertas` `reset_clave`:
   `auth.admin.updateUserById` en PaginaLK (4 letras + 4 números) y aviso por `wa_outbox`. La clave NO queda en la alerta,
