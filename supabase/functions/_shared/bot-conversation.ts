@@ -356,6 +356,19 @@ async function buildSystemPrompt(
     ? `\nDocumento rector (definido por Loekemeyer desde el Panel — respetalo salvo que contradiga la Seguridad de más abajo):\n---\n${rector}\n---\n`
     : "";
 
+  // Pablo, 30/09: con pedidos por WhatsApp prendidos, los mínimos y el 2% web salen de wa_pedidos_config (por WhatsApp no
+  // va el 2%; mínimo vacío = no se controla). Antes estaban fijos acá y el agente frenaba el pedido con un mínimo que la
+  // configuración no pedía (Simulador, 30/09).
+  const pedidosOn = await pedidosWaHabilitados();
+  let infoPedidos = "- Pedido mínimo: $500.000\n- Retiro mínimo en fábrica: $300.000\n- Descuento por pago web: 2%\n";
+  if (pedidosOn) {
+    const cfg = await configPedidosWa().catch(() => ({}));
+    const $ = (n: unknown) => "$" + Math.round(Number(n)).toLocaleString("es-AR");
+    infoPedidos = (cfg?.minimo_envio != null ? `- Pedido mínimo con envío: ${$(cfg.minimo_envio)} (sólo avisarlo si armar_pedido lo marca)\n` : "")
+      + (cfg?.minimo_retiro != null ? `- Retiro mínimo en fábrica: ${$(cfg.minimo_retiro)} (sólo avisarlo si armar_pedido lo marca)\n` : "")
+      + "- Descuento web 2%: sólo en pedidos hechos en la web. Por WhatsApp no aplica.\n"
+      + "- En pedidos por WhatsApp no inventes mínimos ni condiciones: lo único que frena un pedido son los errores de armar_pedido.\n";
+  }
   return `Sos el asistente WhatsApp de Loekemeyer Hnos S.R.L., mayorista de artículos de cocina y bazar (peladores, abrelatas, sacacorchos, coladores, ralladores y más).
 Atendés a clientes mayoristas. Sos amable, conciso y profesional.
 
@@ -364,13 +377,10 @@ Descuento por volumen: ${dtoText}
 
 Información del negocio:
 - Venta exclusivamente mayorista (no minorista)
-- Pedido mínimo: $500.000
-- Retiro mínimo en fábrica: $300.000
-- Descuento por pago web: 2%
-- Descuentos por forma de pago (contado, 30/60/90 días, e-cheq): existen y dependen del cliente. Consultalos con consultar_mis_descuentos; nunca digas que no existen.
+${infoPedidos}- Descuentos por forma de pago (contado, 30/60/90 días, e-cheq): existen y dependen del cliente. Consultalos con consultar_mis_descuentos; nunca digas que no existen.
 - Web: loekemeyer.com
 ${rectorBloque}
-${reglasOperativas(await pedidosWaHabilitados())}
+${reglasOperativas(pedidosOn)}
 
 ${bloqueSeguridad(customerName, codCliente)}`;
 }

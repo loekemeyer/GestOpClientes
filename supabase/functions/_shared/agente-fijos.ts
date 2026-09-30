@@ -40,7 +40,9 @@ export const REGLA_PEDIDOS_WA = `- PEDIDOS POR WHATSAPP: podés tomar pedidos, s
 /** Reglas operativas con la línea de pedidos según esté prendido o no. */
 export function reglasOperativas(pedidosWa: boolean): string {
   if (!pedidosWa) return REGLAS_OPERATIVAS;
-  return REGLAS_OPERATIVAS.split("\n").map((l) => l.startsWith("- PEDIDOS: por ahora NO") ? REGLA_PEDIDOS_WA : l).join("\n");
+  // El mínimo informativo fijo se saca: con pedidos prendidos lo dice la configuración (bot-conversation infoPedidos).
+  return REGLAS_OPERATIVAS.split("\n").filter((l) => !l.startsWith("- El pedido mínimo es de"))
+    .map((l) => l.startsWith("- PEDIDOS: por ahora NO") ? REGLA_PEDIDOS_WA : l).join("\n");
 }
 
 // Bloque de Seguridad (anti-jailbreak). Interpola el cliente que escribe (para el display se
