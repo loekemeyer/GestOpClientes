@@ -453,7 +453,7 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
     .order("created_at", { ascending: false })
     .limit(15);
   // Anulados o borrados en Gestión: para el bot no existen (pedidos-anulados.ts).
-  const orders = (await sinAnulados(crudos ?? [])).slice(0, 5);
+  const orders = await sinAnulados(crudos ?? []);
   if (!orders?.length) {
     // Pedidos por WhatsApp apagados (28/09): se lo manda a la web, no "decime".
     return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, entrá a loekemeyer.com → "Pedidos Mayorista".`;
@@ -485,13 +485,42 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
       : String(m.nombre_expreso ?? "").trim() ? { modo: "expreso", expreso: String(m.nombre_expreso).trim() }
       : { modo: "reparto", expreso: null },
   ]));
+  // Pablo, 30/09: sólo se listan los pedidos que faltan entregar; el resto se da por entregado y se le pide
+  // la fecha si pregunta por otro. Excepción: el entregado al expreso en los últimos 7 días sigue en la lista,
+  // porque "entregado" es el día que lo dejamos en el expreso y al cliente puede no haberle llegado.
+  // Un pedido sin entregar de hace más de 30 días también se da por entregado: medido el 30/09, 28 de los 411
+  // pedidos de 30 a 90 días seguían "recibido"/"programado" en order_tracking (estado trabado, no pendiente real).
+  const aFecha = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
+  const hoyAR = aFecha(new Date());
+  const diasDesde = (d: string) => Math.round((Date.parse(hoyAR) - Date.parse(String(d).slice(0, 10))) / 86400_000);
+  // deno-lint-ignore no-explicit-any
+  const estadoDe = (o: any) => { const t: any = estadoMap.get(String(o.id)); return { t, rawStatus: t?.status ?? o.status }; };
+  const modoOf = (o: { id: unknown }) => modoDe.get(String(o.id)) ?? { modo: "reparto", expreso: null };
+  const visibles = orders.filter((o) => {
+    const { t, rawStatus } = estadoDe(o);
+    if (rawStatus !== "entregado") return diasDesde(aFecha(new Date(o.created_at))) <= 30;
+    return modoOf(o).modo === "expreso" && !!t?.fecha_entrega && diasDesde(t.fecha_entrega) <= 7;
+  }).slice(0, 8);
+  const hayOcultos = orders.length > visibles.length;
+  const cierre = "Si tu consulta es por otro pedido, confirmame de qué fecha es y lo reviso.";
+  const notaExpresoTxt = "\n\n🚛 En los pedidos por expreso, la fecha en que te llega puede diferir según el expreso: una vez que se lo entregamos, los tiempos de viaje dependen de ellos.";
+
+  if (!visibles.length) {
+    // Todos entregados: se nombra el último para que el cliente lo reconozca.
+    const o = orders[0];
+    const { t } = estadoDe(o);
+    const m = modoOf(o);
+    const cuando = t?.fecha_entrega ? ` el ${conDia(t.fecha_entrega)}` : "";
+    const donde = m.modo === "expreso" ? ` en el expreso *${m.expreso}*` : "";
+    return `${customer.business_name}, todos tus pedidos están entregados. El último, del ${ddmm(o.created_at)}, se entregó${donde}${cuando}.${m.modo === "expreso" ? notaExpresoTxt : ""}\n\n${cierre}`;
+  }
+
   let hayExpreso = false;
-  const lines = orders.map((o, i) => {
-    // deno-lint-ignore no-explicit-any
-    const t: any = estadoMap.get(String(o.id));
-    const rawStatus = t?.status ?? o.status;
+  const lines = visibles.map((o, i) => {
+    const { t, rawStatus } = estadoDe(o);
     const statusText = STATUS_MAP[rawStatus] || rawStatus;
-    const m = modoDe.get(String(o.id)) ?? { modo: "reparto", expreso: null };
+    const m = modoOf(o);
+    if (m.modo === "expreso") hayExpreso = true;
     let line = `${i + 1}️⃣ Pedido del ${ddmm(o.created_at)} — ${statusText}`;
     const conFecha = t?.fecha_entrega && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado");
     if (conFecha) {
@@ -507,10 +536,14 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
     }
     return line;
   });
-  const notaExpreso = hayExpreso
-    ? "\n\n🚛 Desde que lo entregamos en el expreso, los tiempos de viaje los maneja el expreso: para saber cuándo te llega, consultalo directamente con ellos."
-    : "";
-  return `${customer.business_name}, acá está el estado de tus pedidos:\n\n${lines.join("\n")}${notaExpreso}\n\n¿Necesitás más detalle de alguno?`;
+  const notaExpreso = hayExpreso ? notaExpresoTxt : "";
+  const unoSolo = visibles.length === 1;
+  const enExpreso = visibles.some((o) => estadoDe(o).rawStatus === "entregado");   // entregado al expreso hace ≤ 7 días
+  const titulo = enExpreso
+    ? (unoSolo ? "este es tu pedido en curso" : "estos son tus pedidos en curso")
+    : (unoSolo ? "este es tu pedido que falta entregar" : "estos son tus pedidos que faltan entregar");
+  const resto = hayOcultos ? "Los demás pedidos ya están entregados. " : "";
+  return `${customer.business_name}, ${titulo}:\n\n${lines.join("\n")}${notaExpreso}\n\n${resto}${cierre}`;
 }
 
 // deno-lint-ignore no-explicit-any

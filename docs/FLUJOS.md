@@ -104,19 +104,23 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 > expreso X" + "los tiempos de viaje los maneja el expreso: consultalo con ellos" (a un cliente de expreso nunca se
 > le ofrece retirar); *retira* → "lo podés retirar desde…"; *reparto* → "sale el…". Sin fecha → "todavía sin fecha
 > de salida".
+>
+> **30/09 (Pablo):** sólo lista los pedidos que **faltan entregar** (de los últimos 30 días); los demás los da por
+> entregados y cierra con "Si tu consulta es por otro pedido, confirmame de qué fecha es y lo reviso" (la fecha que
+> contesta la busca el agente). El entregado al expreso sigue en la lista 7 días, porque al cliente puede no haberle
+> llegado, y todo pedido por expreso lleva "la fecha en que te llega puede diferir según el expreso". Si están todos
+> entregados, nombra el último con su fecha de entrega.
 
 ```
-CLIENTE: ¿Cómo va mi pedido?
-BOT: Tenés 2 pedidos recientes:
-     1️⃣ NP-4521 (15/08) — $850.000 — 📦 Programado para 28/08
-     2️⃣ NP-4490 (02/08) — $320.000 — ✅ Entregado 10/08
-     ¿Necesitás más detalle de alguno?
-CLIENTE: El primero
-BOT: Pedido NP-4521:
-     • 12 cajas Cuchillo Asado 22cm
-     • 6 cajas Espátula Nylon
-     • 24 cajas Cucharón Nylon
-     Programado para entrega el 28/08.
+CLIENTE: ¿Sabés cuándo me entregan el pedido?
+BOT: Garbarino Franco Tomas, estos son tus pedidos que faltan entregar:
+
+     1️⃣ Pedido del 30/09 — 🚚 programado: lo podés retirar desde el lunes 05/10
+     2️⃣ Pedido del 25/09 — 🧾 facturado, listo para salir: lo podés retirar desde el miércoles 30/09
+
+     Los demás pedidos ya están entregados. Si tu consulta es por otro pedido, confirmame de qué fecha es y lo reviso.
+CLIENTE: El del 14/09
+BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el viernes 18/09 …
 ```
 
 ## Flujo 3: Nuevo pedido (30/09: precarga por WhatsApp, `sql/112`)
