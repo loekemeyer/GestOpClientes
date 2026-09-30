@@ -245,7 +245,7 @@ function grupoDe(m: string): "contado" | "credito" | "echeq" {
   if ((m || "").startsWith("echeq")) return "echeq";
   return "contado";
 }
-const SALUDO = "¡Hola! Tu pedido está listo y estará con vos a la brevedad.";
+const SALUDO = "¡Hola! Te adjuntamos la factura de tu pedido.";   // Pablo, 30/09 (auditoría)
 // Pie de pago (alias/CBU): EDITABLE desde el Panel, se completa como variable en la plantilla.
 const PAGO_ALIAS_DEFAULT = "loeke.srl";
 const PAGO_CBU_DEFAULT = "1910027855002702387450";
