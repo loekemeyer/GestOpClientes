@@ -20,6 +20,15 @@ de Loekemeyer: cuándo sale cada una, para quién, qué dice y cuántas salieron
 
 ## Pasos para actualizar (lo que hace la Routine)
 
+**Camino corto, sin MCP (el que usa la Routine desde el 30/09; las Routines no tienen el MCP de Supabase):**
+```bash
+curl -sS -X POST https://kwkclwhmoygunqmlegrg.supabase.co/functions/v1/lk_tpl-check \
+  -H 'Content-Type: application/json' -d '{"modo":"artifact"}' > datos.json
+```
+Devuelve lo mismo que `datos.sql` (más `tiempos` y `rechazos_24h`). Seguir en el paso 3.
+
+**Camino con MCP de Supabase:**
+
 1. Pedir la lista a Meta (proyecto PaginaLK `kwkclwhmoygunqmlegrg`, sólo lectura, no manda mensajes):
    ```sql
    select net.http_post(url := 'https://kwkclwhmoygunqmlegrg.supabase.co/functions/v1/lk_templates',
