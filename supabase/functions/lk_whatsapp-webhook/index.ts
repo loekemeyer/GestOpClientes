@@ -21,6 +21,7 @@ import {
 } from "../_shared/wa-api.ts";
 import {
   pedidoEnCurso,
+  pedidosWaHabilitados,
   runConversation,
   saveMessage,
   type MediaAction,
@@ -643,9 +644,10 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
       const r = await leerPedidoArchivo(archivo.bytes, archivo.mime, cfg.anthropicKey, phone, msg.mediaFilename);
       if (r.lineas.length) {
         const arts = await resolverArticulos(r.lineas, cfg.anthropicKey, phone);
-        respuestaFinal = textoConfirmacion(arts);
+        const cotizador = r.cotizador === true || /cotiz/i.test(msg.caption ?? "");
+        respuestaFinal = textoConfirmacion(arts, { cotizador, seguir: await pedidosWaHabilitados() });
         motivoFinal = "pedido_archivo";
-        lectura = { articulos: arts };
+        lectura = { articulos: arts, cotizador };
       } else lectura = { lectura_error: r.error ?? "no se encontraron líneas de pedido" };
     } catch (e) {
       lectura = { lectura_error: e instanceof Error ? e.message : String(e) };
@@ -1083,7 +1085,7 @@ async function handleMessage(
   // Simulador › Número nuevo). Para un no-cliente que pide darse de alta, primero el registro.
   // Pablo, 29/09: el cliente contesta la lista de un pedido que mandó como archivo ("sí" o lo que quiere cambiar).
   if (customer) {
-    const rpa = await respuestaPedidoArchivo(phone, text);
+    const rpa = await respuestaPedidoArchivo(phone, text, await pedidosWaHabilitados());
     if (rpa) {
       await saveMessage(phone, "user", text);
       await enviarTexto(cfg, phone, rpa);

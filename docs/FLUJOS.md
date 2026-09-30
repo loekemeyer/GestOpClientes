@@ -133,6 +133,10 @@ solo. Pedido en varios mensajes seguidos: durante un pedido (o si el mensaje tra
 hace < 6 s) el webhook espera 5 s y, si llegó otro, guarda éste en el historial sin contestar y contesta el último.
 Al mostrar un artículo usa el precio del cliente (lista − dto por volumen). El ejemplo de abajo es el flujo viejo
 (bot_submit_order, sin uso).
+**Cotizador (sql/113):** un Excel cuyo nombre, hoja o contenido dice "cotizador" (o con caption "cotizador") se lee como
+pedido por archivo ("Recibimos tu cotizador. Leímos esto: …"); con pedidos prendidos, el "sí" sigue el mismo circuito y
+se precarga con origen **"Cotizador" y el 2% web** (como en la web). Cualquier otro archivo sigue con origen
+"WhatsApp". Al precargar se cierra la tarea "Pedido por archivo" para que nadie lo cargue dos veces.
 
 ### (viejo)
 

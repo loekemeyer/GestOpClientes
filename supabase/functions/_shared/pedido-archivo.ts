@@ -34,14 +34,17 @@ Respondé SOLO JSON: {"lineas":[{"cod":"501"|null,"descripcion":"...","cantidad"
 
 /** Lee el archivo con la IA. Devuelve las líneas o un error (el llamador sigue con la tarea igual). */
 export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey: string, phone: string | null,
-  nombre?: string | null): Promise<{ lineas: LineaLeida[]; error?: string }> {
+  nombre?: string | null): Promise<{ lineas: LineaLeida[]; error?: string; cotizador?: boolean }> {
   // deno-lint-ignore no-explicit-any
   let content: any[];
   const m = mime.toLowerCase();
+  // Pablo, 30/09: el cotizador de Loekemeyer (Excel) sigue el circuito de pedidos por WhatsApp con origen "Cotizador" (2% web).
+  let cotizador = /cotiz/i.test(nombre ?? "");
   if (/spreadsheet|ms-excel|csv/.test(m) || /\.(xlsx?|csv)$/i.test(nombre ?? "")) {
     const libro = XLSX.read(bytes, { type: "array" });
     const texto = libro.SheetNames.slice(0, 3).map((h) => `# Hoja ${h}\n` + XLSX.utils.sheet_to_csv(libro.Sheets[h], { FS: ";" }))
       .join("\n").split("\n").filter((l: string) => l.replace(/[;\s]/g, "")).slice(0, 400).join("\n").slice(0, 30000);
+    cotizador ||= /cotizador/i.test(texto) || libro.SheetNames.some((h: string) => /cotiz/i.test(h));
     content = [{ type: "text", text: `Planilla del cliente (CSV, separador ;):\n${texto}` }];
   } else {
     let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -73,8 +76,8 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
       cod: l?.cod ? String(l.cod).trim().toUpperCase() : null, descripcion: String(l?.descripcion ?? "").trim().slice(0, 120),
       cantidad: Number(l?.cantidad) || 0, unidad: l?.unidad === "cajas" || l?.unidad === "unidades" ? l.unidad : null,
     })).filter((l: LineaLeida) => l.cantidad > 0 && (l.cod || l.descripcion)).slice(0, MAX_LINEAS);
-    return { lineas };
-  } catch { return { lineas: [], error: "JSON inválido" }; }
+    return { lineas, cotizador };
+  } catch { return { lineas: [], error: "JSON inválido", cotizador }; }
 }
 
 // deno-lint-ignore no-explicit-any
@@ -171,28 +174,30 @@ export async function resolverArticulos(lineas: LineaLeida[], apiKey = "", phone
 const cj = (n: number | null) => `${n} ${n === 1 ? "caja" : "cajas"}`;
 
 /** Mensaje al cliente con lo que se leyó. */
-export function textoConfirmacion(arts: ArticuloPedido[]): string {
+/** `seguir` (pedidos por WhatsApp prendidos): con el "sí" el bot sigue con forma de pago y entrega en vez de derivar. */
+export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: boolean; seguir?: boolean } = {}): string {
   const ok = arts.filter((a) => a.estado !== "no_encontrado");
   const no = arts.filter((a) => a.estado === "no_encontrado");
   const lineas = ok.slice(0, 40).map((a) => a.opciones?.length
     ? `• ${cj(a.cajas)} de "${a.original.replace(/ × .*$/, "")}" ❓ ¿cuál? ${a.opciones.map((o) => `${o.descripcion} (cód. ${o.cod})`).join(" o ")}`
     : `• ${cj(a.cajas)} de ${a.descripcion} (cód. ${a.cod})${a.estado === "dudoso" ? " ❓" : ""}`);
-  let t = `Recibimos tu pedido. Leímos esto:\n${lineas.join("\n")}`;
+  let t = `${opts.cotizador ? "Recibimos tu cotizador" : "Recibimos tu pedido"}. Leímos esto:\n${lineas.join("\n")}`;
   if (ok.length > 40) t += `\n… y ${ok.length - 40} artículos más.`;
   if (no.length) t += `\n\nNo encontramos: ${no.slice(0, 10).map((a) => `"${a.original}"`).join(", ")}.`;
   if (arts.some((a) => a.opciones?.length)) {
     if (arts.some((a) => a.estado === "dudoso" && !a.opciones?.length)) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
-    return t + `\n\nDecinos cuál querés en las líneas con ❓ (con el código alcanza) y cualquier otro cambio. Una persona lo carga.`;
+    return t + `\n\nDecinos cuál querés en las líneas con ❓ (con el código alcanza) y cualquier otro cambio.${opts.seguir ? "" : " Una persona lo carga."}`;
   }
   if (arts.some((a) => a.estado === "dudoso")) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
-  return t + `\n\n¿Está bien? Respondé *sí* y una persona lo carga, o decinos qué cambiar.`;
+  return t + (opts.seguir ? `\n\n¿Está bien? Respondé *sí* y seguimos con la forma de pago y la entrega, o decinos qué cambiar.`
+    : `\n\n¿Está bien? Respondé *sí* y una persona lo carga, o decinos qué cambiar.`);
 }
 
 const RE_SI = /^\s*(s[ií]|si+|dale|ok|okey|correcto|est[aá] bien|perfecto|confirmo|as[ií] est[aá] bien|todo bien)\b[\s!.👍✅]*$/i;
 
 /** Si el cliente está contestando la lista de un pedido por archivo (últimas 24 h), actualiza la tarea y devuelve la
  *  respuesta. Si no, null (sigue el flujo normal). */
-export async function respuestaPedidoArchivo(phone: string, text: string): Promise<string | null> {
+export async function respuestaPedidoArchivo(phone: string, text: string, seguir = false): Promise<string | null> {
   const desde = new Date(Date.now() - 24 * 3600_000).toISOString();
   const { data: t } = await supabase.from("wa_alertas_humano").select("id, contexto, estado")
     .eq("phone", phone).eq("contexto->>motivo", "pedido_archivo").in("estado", ["pendiente", "notificado"])
@@ -203,6 +208,9 @@ export async function respuestaPedidoArchivo(phone: string, text: string): Promi
     contexto: { ...t.contexto, respuesta_cliente: si ? "confirmado" : "cambios", cambios: si ? null : text.slice(0, 1000),
       respondido_at: new Date().toISOString() },
   }).eq("id", t.id);
+  // Pedidos por WhatsApp prendidos: la respuesta la da el agente, que sigue con forma de pago y entrega (o los cambios)
+  // y precarga el pedido; al precargarlo cierra esta tarea (confirmar_pedido) para que nadie lo cargue dos veces.
+  if (seguir) return null;
   return si ? "¡Gracias! Una persona lo carga en la web y te confirmamos por acá. 🙌"
     : "Anotado. Una persona revisa el pedido con tus cambios y te escribe por acá. 🙌";
 }

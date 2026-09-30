@@ -790,9 +790,10 @@ function tkPintarDetalle() {
       ? `<div class="alerta">⚠️ Posible doble pedido: ${pc.parecidos.map((x) => `pedido ${x.tipo === "web" ? "por la web" : "por WhatsApp"} del ${gesc(x.fecha)} (${gesc(x.comunes)} de ${gesc(x.de)} artículos iguales)`).join("; ")}. El cliente dijo que es un pedido nuevo: revisalo igual.</div>` : "";
     const hecho = pc.confirmado ? `<div class="aviso" style="border-style:solid">✅ Ya está cargado${pc.order_id ? ` (pedido ${gesc(pc.order_id)})` : ""}.</div>`
       : pc.descartado ? `<div class="aviso" style="border-style:solid">Descartado.</div>` : "";
-    cuerpo = `<h4>Pedido por WhatsApp · ${(pc.items || []).length} artículos</h4>
+    cuerpo = `<h4>${pc.origen === "Cotizador" ? "Cotizador por WhatsApp" : "Pedido por WhatsApp"} · ${(pc.items || []).length} artículos</h4>
       <div class="tk-tels" style="max-width:none">${(pc.items || []).map((x) => `<div class="it"><span><b>${gesc(x.cajas)} ${Number(x.cajas) === 1 ? "caja" : "cajas"}</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})</span><span>${$(x.importe)}</span></div>`).join("")}</div>
-      ${kv([["Subtotal", $(pc.subtotal)], ["Forma de pago", gesc(pc.condicion || "")], ["Total", `<b>${$(pc.total)} + IVA</b>`],
+      ${kv([["Origen", gesc(pc.origen || "WhatsApp") + (Number(pc.dto_web) > 0 ? ` (con ${Math.round(pc.dto_web * 100)}% web)` : " (sin descuento web)")],
+        ["Subtotal", $(pc.subtotal)], ["Forma de pago", gesc(pc.condicion || "")], ["Total", `<b>${$(pc.total)} + IVA</b>`],
         ["Entrega", gesc(pc.entrega || "")], ["Aclaración del cliente", pc.observaciones ? gesc(pc.observaciones) : null]])}
       ${par}${hecho}
       ${pc.confirmado || pc.descartado ? "" : `<div class="aviso">El cliente vio este resumen y dijo que sí. Al confirmarlo pasa a Gestión igual que un pedido de la web (origen "WhatsApp") y le llega "pedido recibido".</div>

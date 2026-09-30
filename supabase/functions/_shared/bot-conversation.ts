@@ -48,11 +48,11 @@ export async function pedidoEnCurso(phone: string): Promise<boolean> {
       .order("creado_en", { ascending: false }).limit(1);
   const ult = data?.[0];
   if (!ult || Date.now() - new Date(ult.creado_en).getTime() > 60 * 60_000) return false;
-  return /(te tomo el pedido|qu[eé] art[ií]culos (necesit|quer)|algo m[aá]s\?|confirm[aá]s \d+ cajas|formas? de pago|resumen (de|del) (tu )?pedido|tu pedido:|confirm(á|as)\s+(el pedido|con un s[ií])|¿?con cu[aá]l (vas|pag)|direcci[oó]n de entrega|¿(a )?d[oó]nde (lo )?(enviamos|entregamos)|franja|d[ií]a de retiro)/i
+  return /(le[ií]mos esto|recibimos tu cotizador|te tomo el pedido|qu[eé] art[ií]culos (necesit|quer)|algo m[aá]s\?|confirm[aá]s \d+ cajas|formas? de pago|resumen (de|del) (tu )?pedido|tu pedido:|confirm(á|as)\s+(el pedido|con un s[ií])|¿?con cu[aá]l (vas|pag)|direcci[oó]n de entrega|¿(a )?d[oó]nde (lo )?(enviamos|entregamos)|franja|d[ií]a de retiro)/i
     .test(String(ult.contenido ?? ""));
 }
 
-async function pedidosWaHabilitados(): Promise<boolean> {
+export async function pedidosWaHabilitados(): Promise<boolean> {
   try {
     const cfg = await configPedidosWa();
     return cfg?.activo === true || (SIM.activo && cfg?.simulador !== false);
@@ -326,6 +326,7 @@ const BOT_TOOLS: ToolDef[] = [
         retiro_fecha: { type: "string", description: "Sólo si retira: día elegido, YYYY-MM-DD" },
         retiro_franja: { type: "string", enum: ["9:00 a 12:00", "13:00 a 16:30"], description: "Sólo si retira" },
         observaciones: { type: "string", description: "Aclaración del cliente para el pedido (opcional)" },
+        origen: { type: "string", enum: ["WhatsApp", "Cotizador"], description: "'Cotizador' si los artículos salen del cotizador que mandó el cliente (el bot le contestó 'Recibimos tu cotizador'): lleva el 2% web. Si no, 'WhatsApp' (sin 2%)." },
       },
       required: ["items", "condicion_code", "slot"],
     },
@@ -343,6 +344,7 @@ const BOT_TOOLS: ToolDef[] = [
         retiro_fecha: { type: "string" },
         retiro_franja: { type: "string", enum: ["9:00 a 12:00", "13:00 a 16:30"] },
         observaciones: { type: "string" },
+        origen: { type: "string", enum: ["WhatsApp", "Cotizador"] },
       },
       required: ["items", "condicion_code", "slot"],
     },
@@ -873,6 +875,7 @@ async function executeTool(
         p_telefono: phone, p_items: items, p_condicion_code: Number(input.condicion_code), p_slot: Number(input.slot),
         p_retiro_fecha: input.retiro_fecha || null, p_retiro_franja: input.retiro_franja || null,
         p_observaciones: input.observaciones || null, p_guardar: guardar,
+        p_origen: input.origen === "Cotizador" ? "Cotizador" : "WhatsApp",
       });
       if (error) { console.error("bot_pedido_armar:", error.message); return { data: { error: "No pude armar el pedido. Derivá con derivar_a_persona (motivo escalation)." } }; }
       const pesos = (n: number) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
@@ -898,7 +901,7 @@ async function executeTool(
         ...((r.items ?? []) as Array<{ cajas: number; descripcion: string; cod_art: string; line_total: number }>)
           .map((x) => `• ${x.cajas} ${x.cajas === 1 ? "caja" : "cajas"} ${x.descripcion} (${x.cod_art}) — ${pesos(x.line_total)}`),
         `Subtotal: ${pesos(r.subtotal)}`,
-        `Descuento web ${Math.round(r.dto_web * 100)}% y forma de pago ${r.condicion}`,
+        Number(r.dto_web) > 0 ? `Descuento web ${Math.round(r.dto_web * 100)}% y forma de pago ${r.condicion}` : `Forma de pago: ${r.condicion}`,
         `*Total: ${pesos(r.total)} + IVA*`,
         `Entrega: ${entrega}`,
       ].join("\n") : null;
@@ -922,12 +925,21 @@ async function executeTool(
         directo = c2 ?? null;
       }
       const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
+      // Si venía de un archivo (cotizador o Excel), la tarea "Pedido por archivo" se cierra: ya está en esta precarga y
+      // nadie tiene que cargarlo a mano (evita el doble pedido).
+      const { data: arch } = await supabase.from("wa_alertas_humano").select("id, contexto").eq("phone", phone)
+        .eq("contexto->>motivo", "pedido_archivo").in("estado", ["pendiente", "notificado"])
+        .gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
+      for (const a of arch ?? []) {
+        await supabase.from("wa_alertas_humano").update({ estado: "atendido", atendido_por: "bot (pasó a pedido por WhatsApp)",
+          atendido_at: new Date().toISOString(), contexto: { ...a.contexto, paso_a_precarga: r.precarga_id } }).eq("id", a.id);
+      }
       await notificarHumano({
         tipo: "otro", phone, customerId: cli?.[0]?.customer_id ?? null,
         contexto: {
           motivo: "pedido_whatsapp", origen: "agente_ia", urgente: false, razon_social: r.cliente ?? null,
           texto: `Pedido por WhatsApp: ${pesos(r.total)} + IVA · ${r.condicion} · ${entrega}`,
-          precarga: { id: r.precarga_id, total: r.total, subtotal: r.subtotal, condicion: r.condicion, entrega,
+          precarga: { id: r.precarga_id, origen: r.origen ?? "WhatsApp", dto_web: r.dto_web, total: r.total, subtotal: r.subtotal, condicion: r.condicion, entrega,
             items: (r.items ?? []).map((x: { cod_art: string; descripcion: string; cajas: number; line_total: number }) =>
               ({ cod: x.cod_art, descripcion: x.descripcion, cajas: x.cajas, importe: x.line_total })),
             parecidos, confirmado: directo?.ok === true, order_id: directo?.order_id ?? null, observaciones: input.observaciones || null },
