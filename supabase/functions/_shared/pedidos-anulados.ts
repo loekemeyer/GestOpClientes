@@ -48,3 +48,25 @@ export async function sinAnulados<T extends Record<string, unknown>>(filas: T[],
   ]);
   return filas.filter((f) => { const n = Number(f[campo]); return !anul.has(n) && !noEnviados.has(n); });
 }
+
+// Estado de pedidos web: la RPC bot_estado_pedidos_gv (sql/066) lee Gestión por FDW. 30/09: con Gestión caída
+// la RPC fallaba, `est` quedaba vacío y cada llamador caía al status de la web ("pendiente" → "recibido"):
+// el bot decía "recibido, sin fecha" de pedidos entregados. Respaldo: order_tracking, que Gestión alimenta
+// cada 10 min (sql/069). Misma forma { data } que la RPC para no tocar a los llamadores.
+export type EstadoPedido = { order_id: number; status: string; fecha_entrega: string | null; fuente: string };
+export async function estadoPedidos(ids: Array<number | string>): Promise<{ data: EstadoPedido[] }> {
+  const nums = ids.map(Number).filter((n) => n > 0);
+  if (!nums.length) return { data: [] };
+  const { data, error } = await supabase.rpc("bot_estado_pedidos_gv", { p_ids: nums });
+  if (!error) return { data: (data ?? []) as EstadoPedido[] };
+  console.error("bot_estado_pedidos_gv falló, uso order_tracking:", error.message);
+  const { data: ot } = await supabase.from("order_tracking").select("np_number, status, fecha_entrega")
+    .in("np_number", nums.map(String));
+  return {
+    data: (ot ?? []).map((r: { np_number: string; status: string | null; fecha_entrega: string | null }) => {
+      const st = String(r.status ?? "").toLowerCase();
+      const status = ["recibido", "programado", "entregado"].includes(st) ? st : "recibido";
+      return { order_id: Number(r.np_number), status, fecha_entrega: status === "recibido" ? null : r.fecha_entrega, fuente: "planilla" };
+    }),
+  };
+}

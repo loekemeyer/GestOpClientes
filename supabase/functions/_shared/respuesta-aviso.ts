@@ -15,7 +15,7 @@
 import { supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
-import { sinAnulados } from "./pedidos-anulados.ts";
+import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 
 const VENTANA_HORAS = 48;
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -137,7 +137,7 @@ const conDia = (ymd?: string | null) => {
 async function estadoPedido(pedido: number): Promise<string> {
   const [{ data: ord }, { data: est }] = await Promise.all([
     supabase.from("orders").select("created_at").eq("id", pedido).maybeSingle(),
-    supabase.rpc("bot_estado_pedidos_gv", { p_ids: [pedido] }),
+    estadoPedidos([pedido]),
   ]);
   const del = ord?.created_at ? ` del ${fechaCorta(ord.created_at)}` : "";
   const e = est?.[0];
@@ -177,7 +177,7 @@ export async function pedidoDeCambio(
     .order("created_at", { ascending: false }).limit(10);
   const ordsVivos = await sinAnulados(ords ?? []);   // anulados/borrados en Gestión no cuentan
   if (!ordsVivos.length) return null;
-  const { data: est } = await supabase.rpc("bot_estado_pedidos_gv", { p_ids: ordsVivos.map((o) => o.id) });
+  const { data: est } = await estadoPedidos(ordsVivos.map((o) => o.id));
   const abiertos = new Set((est ?? []).filter((e: { status: string }) => e.status !== "entregado")
     .map((e: { order_id: number }) => Number(e.order_id)));
   const ped = ordsVivos.find((o) => abiertos.has(Number(o.id)));

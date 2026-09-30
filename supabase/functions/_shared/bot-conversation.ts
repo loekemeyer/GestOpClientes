@@ -8,7 +8,7 @@ import { ingresoEstimado, proximosIngresos, stockArticulo, stockNecesitaHumano, 
 import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
-import { sinAnulados } from "./pedidos-anulados.ts";
+import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import {
   callModel,
   esCulpaDelRequest,
@@ -513,7 +513,7 @@ async function executeTool(
       const pedido = Number(elegido.order_id);
       const [{ data: ord }, { data: est }] = await Promise.all([
         supabase.from("orders").select("id, created_at, enviado_a_compras_at, customer_id").eq("id", pedido).maybeSingle(),
-        supabase.rpc("bot_estado_pedidos_gv", { p_ids: [pedido] }),
+        estadoPedidos([pedido]),
       ]);
       if (!ord) return { data: { error: "No encontré ese pedido." } };
       const del = (() => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(ord.created_at)); return `${p.slice(8, 10)}/${p.slice(5, 7)}`; })();
@@ -580,7 +580,7 @@ async function executeTool(
       // deno-lint-ignore no-explicit-any
       const filas = data as any[];
       const [{ data: est }, { data: modos }] = await Promise.all([
-        supabase.rpc("bot_estado_pedidos_gv", { p_ids: filas.map((r) => r.order_id) }),
+        estadoPedidos(filas.map((r) => r.order_id)),
         supabase.from("v_pedidos_web").select("order_id, zona_expreso, nombre_expreso")
           .in("order_id", filas.map((r) => r.order_id)).eq("linea_rn", 1),
       ]);

@@ -11,7 +11,7 @@
 import { getGestionClient, getIsisClient, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
-import { sinAnulados } from "./pedidos-anulados.ts";
+import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -388,7 +388,7 @@ async function destinoPedidos(customer: NonNullable<Customer>): Promise<string |
   if (!ords.length) return null;
   const ids = ords.map((o) => o.id);
   const [{ data: est }, { data: modos }] = await Promise.all([
-    supabase.rpc("bot_estado_pedidos_gv", { p_ids: ids }),
+    estadoPedidos(ids),
     supabase.from("v_pedidos_web").select("order_id, sucursal_entrega, zona_expreso, nombre_expreso, direccion_expreso").in("order_id", ids).eq("linea_rn", 1),
   ]);
   const f = (iso: string) => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso)); return `${p.slice(8, 10)}/${p.slice(5, 7)}`; };
@@ -421,7 +421,7 @@ async function pedidoExpresoAbierto(customer: NonNullable<Customer>): Promise<{ 
   if (!ords.length) return null;
   const ids = ords.map((o) => o.id);
   const [{ data: est }, { data: modos }] = await Promise.all([
-    supabase.rpc("bot_estado_pedidos_gv", { p_ids: ids }),
+    estadoPedidos(ids),
     supabase.from("v_pedidos_web").select("order_id, zona_expreso, nombre_expreso").in("order_id", ids).eq("linea_rn", 1),
   ]);
   for (const o of ords) {
@@ -461,20 +461,8 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
   // Estado real del pedido en Gestión Virgilio (RPC bot_estado_pedidos_gv, sql/066). Para
   // los pedidos anteriores a Gestión cae sola a order_tracking. Antes se leía order_tracking
   // directo, que llenaba la planilla de Producción y dejó de traer programados/entregados.
-  let { data: estados, error: estErr } = await supabase
-    .rpc("bot_estado_pedidos_gv", { p_ids: orders.map((o) => o.id) });
-  if (estErr) {
-    // 30/09: con Gestión caída la RPC falla y todos quedaban "recibido" (status de la web), o sea "faltan
-    // entregar". Respaldo: order_tracking, que Gestión alimenta cada 10 min (sql/069).
-    console.error("Error en bot_estado_pedidos_gv, uso order_tracking:", estErr.message);
-    const { data: ot } = await supabase.from("order_tracking").select("np_number, status, fecha_entrega")
-      .in("np_number", orders.map((o) => String(o.id)));
-    estados = (ot ?? []).map((r: { np_number: string; status: string | null; fecha_entrega: string | null }) => {
-      const st = String(r.status ?? "").toLowerCase();
-      const status = ["recibido", "programado", "entregado"].includes(st) ? st : "recibido";
-      return { order_id: Number(r.np_number), status, fecha_entrega: status === "recibido" ? null : r.fecha_entrega };
-    });
-  }
+  // Si Gestión no responde, estadoPedidos cae a order_tracking (pedidos-anulados.ts).
+  const { data: estados } = await estadoPedidos(orders.map((o) => o.id));
   // deno-lint-ignore no-explicit-any
   const estadoMap = new Map((estados ?? []).map((e: any) => [String(e.order_id), e]));
   const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
