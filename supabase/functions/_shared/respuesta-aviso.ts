@@ -223,8 +223,23 @@ export async function pedidoDeCambio(
     });
     return `¿Cuál de tus pedidos querés anular?\n\n${lista.join("\n")}\n\nConfirmame de qué fecha es y lo reviso.`;
   }
-  const ped = ordsVivos.find((o) => abiertos.has(Number(o.id)));
+  let ped = ordsVivos.find((o) => abiertos.has(Number(o.id)));
   if (!ped) return null;
+  // Pablo, 30/09 (3.1): "el jueves lo retiro" con dos pedidos abiertos tomaba el más nuevo (listo recién el 05/10) y lo
+  // derivaba, aunque el del 25/09 ya está listo. Se prefiere el pedido de retiro que ya esté listo para el día pedido.
+  if (retiroDia) {
+    const pedida0 = fechaPedida(t);
+    const abiertosIds = ordsVivos.filter((o) => abiertos.has(Number(o.id))).map((o) => o.id);
+    const { data: vs } = await supabase.from("v_pedidos_web").select("order_id, zona_expreso").in("order_id", abiertosIds).eq("linea_rn", 1);
+    const esRet = new Set((vs ?? []).filter((v: { zona_expreso: string | null }) => /^retira/i.test(String(v.zona_expreso ?? "")))
+      .map((v: { order_id: number }) => Number(v.order_id)));
+    const listo = ordsVivos.find((o) => {
+      if (!abiertos.has(Number(o.id)) || !esRet.has(Number(o.id))) return false;
+      const e = (est ?? []).find((x: { order_id: number }) => Number(x.order_id) === Number(o.id)) as { fecha_entrega?: string | null } | undefined;
+      return !!pedida0 && !!e?.fecha_entrega && String(e.fecha_entrega).slice(0, 10) <= pedida0;
+    });
+    if (listo) ped = listo;
+  }
 
   // Pablo, 29/09: si pide retirar un día hábil igual o posterior al día desde el que el pedido está listo para retirar,
   // se le confirma directo (no hace falta una persona). Si pide antes, o el pedido no es de retiro o no tiene fecha, deriva.
