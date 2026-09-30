@@ -358,6 +358,9 @@ el killswitch, sin ningún consumidor de esa cola.
 - **Pedido recibido con total con IVA** (Pablo, 29/09, sql/108): texto nuevo "Recibimos tu pedido del 15/09 por
   $896.668 ($741.048 + IVA)." con una línea en blanco tras el saludo, como `pedido_recibido_v2` (sistema de versiones).
   El disparador arma `{{3}}` según la versión activa: con la vieja (que ya dice "+ IVA") sigue mandando sólo el neto.
+- **Aviso de despacho de NP de ISIS APAGADO (Pablo, 30/09, sql/109):** desde el 21/09 no entran NP de ISIS; se borró el
+  disparador `ppp_facturacion_wa_notify` (mandaba `pedido_en_viaje` al FACTURAR, que puede ser días antes de la salida).
+  Los pedidos web siguen con sus crons. `pedido_en_viaje_v3` ("Tu pedido del X para Y sale hoy en el reparto.") en revisión.
 - **Plantillas trabadas en revisión → v2 y medición (Pablo, 30/09):** `pedido_programado_expreso`, `_retira` y
   `pedido_en_viaje` seguían PENDING 18,5 h después de editarlas (29/09 13:33–13:47 AR; las otras 3 editadas en ese
   momento ya estaban aprobadas). Se crearon `_v2` con el mismo texto (templates_sync con `version_nueva` ahora crea
