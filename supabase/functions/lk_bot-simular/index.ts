@@ -8,7 +8,7 @@ import { atenderMalHumor } from "../_shared/humor.ts";
 import { handleFaq } from "../_shared/faq.ts";
 import { leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START } from "../_shared/alta.ts";
-import { runConversation } from "../_shared/bot-conversation.ts";
+import { pedidoEnCurso, runConversation } from "../_shared/bot-conversation.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 
@@ -219,7 +219,8 @@ serve(async (req) => {
       }
       // 4. preguntas frecuentes
       if (!reply) {
-        const faq = await handleFaq(text, { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
+        const faq = await pedidoEnCurso(telSim) ? null
+          : await handleFaq(text, { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
         if (faq) {
           reply = faq.reply; via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`;
           // Reenvío de factura: en el simulador no se manda nada; se muestra qué PDF iría adjunto.

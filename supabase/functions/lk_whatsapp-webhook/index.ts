@@ -20,6 +20,7 @@ import {
   WaApiError,
 } from "../_shared/wa-api.ts";
 import {
+  pedidoEnCurso,
   runConversation,
   saveMessage,
   type MediaAction,
@@ -1064,7 +1065,10 @@ async function handleMessage(
       return;
     }
   }
-  const faq = !customer && RE_ALTA_START.test(text) ? null : await handleFaq(text, faqCustomer);
+  // Pedido por WhatsApp a medio armar: lo que conteste va al agente, no a una respuesta fija (pedidoEnCurso).
+  const faq = !customer && RE_ALTA_START.test(text) ? null
+    : customer && await pedidoEnCurso(phone) ? null
+    : await handleFaq(text, faqCustomer);
   if (faq) {
     await saveMessage(phone, "user", text);
     // `faq.yaSaluda` = la respuesta ya arranca con "Hola…" (la FAQ del saludo inicial).

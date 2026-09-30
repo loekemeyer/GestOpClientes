@@ -35,6 +35,23 @@ export async function configPedidosWa(): Promise<any> {
   const { data } = await supabase.rpc("wa_pedidos_cfg");
   return data ?? { activo: false, modo: "precarga" };
 }
+/**
+ * Pedido por WhatsApp a medio armar (Pablo, 30/09, Simulador): si lo último que dijo el bot en los últimos 60 min es parte
+ * de la toma de un pedido (formas de pago, entrega, resumen), lo que conteste el cliente ("contado", "sí", "a la de
+ * Venado Tuerto") va al agente y NO a las respuestas fijas: "Pago contado" caía en la FAQ de medios de pago.
+ */
+export async function pedidoEnCurso(phone: string): Promise<boolean> {
+  if (!(await pedidosWaHabilitados())) return false;
+  const { data } = SIM.activo
+    ? { data: SIM.historial.filter((h) => h.rol === "assistant").slice(-1).map((h) => ({ contenido: h.contenido, creado_en: h.creado_en })) }
+    : await supabase.from("bot_historial_chat").select("contenido, creado_en").eq("telefono", phone).eq("rol", "assistant")
+      .order("creado_en", { ascending: false }).limit(1);
+  const ult = data?.[0];
+  if (!ult || Date.now() - new Date(ult.creado_en).getTime() > 60 * 60_000) return false;
+  return /(formas? de pago|resumen (de|del) (tu )?pedido|tu pedido:|confirm(á|as)\s+(el pedido|con un s[ií])|¿?con cu[aá]l (vas|pag)|direcci[oó]n de entrega|¿(a )?d[oó]nde (lo )?(enviamos|entregamos)|franja|d[ií]a de retiro)/i
+    .test(String(ult.contenido ?? ""));
+}
+
 async function pedidosWaHabilitados(): Promise<boolean> {
   try {
     const cfg = await configPedidosWa();
