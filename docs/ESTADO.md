@@ -361,7 +361,8 @@ el killswitch, sin ningún consumidor de esa cola.
 - **El bot y el tiempo entre mensajes (Pablo, 30/09):** (1) saludo solo → espera 5 s por si sigue escribiendo; si no,
   FAQ #41 "¡Hola …! ¿En qué te puedo ayudar?" (ya no pasa por respuesta-aviso, que lo tomaba como "gracias"); (2) la IA
   recibe en el prompt la fecha de hoy y hace cuánto fue el mensaje anterior (`notaDeTiempo` en bot-conversation.ts); con
-  más de 12 h es "charla nueva": lo anterior es referencia y no retoma el tema; si el tema no queda claro, pregunta.
+  más de 12 h es "charla nueva": lo anterior es referencia y no retoma el tema; dentro de las 12 h, un problema sin decir
+  de qué pedido se toma por el último pedido del que se habló (lo nombra para confirmar); si sólo saluda, pregunta.
   Antes el historial (16 mensajes) iba sin fechas y un mensaje de un mes después seguía el tema viejo.
 - **Botones de respuesta rápida (Pablo, 30/09, auditoría):** `pedido_programado` (+ `_expreso`, `_retira`) con
   "Necesito cambiar la fecha" y `pedido_listo_retirar` con "No puedo ese día" (`botones` en `plantillas-meta.ts`, van

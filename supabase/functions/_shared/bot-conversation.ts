@@ -931,10 +931,15 @@ export function notaDeTiempo(rawHistory: Array<{ rol: string; contenido: string;
     if (ms > HORAS_CHARLA_NUEVA * 3600_000) {
       lineas.push(`Pasaron más de ${HORAS_CHARLA_NUEVA} horas: es una charla NUEVA. Lo anterior es sólo referencia; no ` +
         `asumas que el cliente sigue con ese tema ni lo retomes por tu cuenta.`);
+    } else {
+      // Pablo, 30/09: dentro de las 12 h, un problema o consulta sin decir de qué pedido es por el último del que se habló.
+      lineas.push(`Es la misma charla (menos de ${HORAS_CHARLA_NUEVA} horas). Si plantea un problema o una consulta sin ` +
+        `decir de qué pedido, asumí que es por el último pedido del que se habló en la charla (o su pedido más reciente) ` +
+        `y nombralo por su fecha para que lo confirme.`);
     }
   }
-  lineas.push("Si el tema del mensaje no queda claro (por ejemplo, sólo saluda o dice algo muy corto), preguntale en qué " +
-    "lo podés ayudar antes de usar herramientas o de hablar de un pedido.");
+  lineas.push("Si el tema del mensaje no queda claro (por ejemplo, sólo saluda), preguntale en qué lo podés ayudar " +
+    "antes de usar herramientas o de hablar de un pedido.");
   return lineas.join("\n");
 }
 
