@@ -1074,6 +1074,15 @@ async function handleMessage(
       : faq.reply;
     await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", reply);
+    // Pablo, 30/09: reenvío de factura. PDF suelto (el cliente acaba de escribir: dentro de las 24 h). Pasa por wa-guard.
+    for (const d of faq.documentos ?? []) {
+      try {
+        await sendDocument(cfg.waPhoneId, cfg.waToken, phone, d.url, d.filename);
+        await saveMessage(phone, "assistant", `[Documento] ${d.filename}`);
+      } catch (e) {
+        console.error(`[faq documento] Meta rechazó ${d.filename} a ${phone}:`, e instanceof Error ? e.message : e);
+      }
+    }
     // Punto 21 de la auditoría del 07/09: las FAQ `needs_human` le prometen al cliente
     // que "te va a contactar un asesor a la brevedad" y NADIE se enteraba — el aviso
     // estaba escrito como comentario y sin conectar. Era una promesa falsa en producción.

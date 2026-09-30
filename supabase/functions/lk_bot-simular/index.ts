@@ -222,6 +222,8 @@ serve(async (req) => {
         const faq = await handleFaq(text, { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
         if (faq) {
           reply = faq.reply; via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`;
+          // Reenvío de factura: en el simulador no se manda nada; se muestra qué PDF iría adjunto.
+          if (faq.documentos?.length) reply += "\n\n" + faq.documentos.map((d) => `📎 ${d.filename}`).join("\n");
           // Mismo contexto que arma el webhook, así la tarea de prueba es igual a la real.
           if (faq.alerta) SIM.alertas.push({ tipo: "otro", motivo: faq.alerta.motivo,
             ...(faq.alerta.urgente !== undefined ? { urgente: faq.alerta.urgente } : {}),

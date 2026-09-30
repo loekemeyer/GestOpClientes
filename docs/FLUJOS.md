@@ -74,6 +74,13 @@ no venció (factura + días del escalón, corridos, al hábil: misma cuenta que 
 e-cheq, le reclama el envío (fecha del cheque y monto). "NN FF" / "Sin Cotizador": sólo el saldo. Sin facturas
 abiertas responde "no tenés facturas con saldo pendiente" (si falla la lectura, la línea no sale). Código: `descuentosFacturasBlock` en `_shared/faq.ts`.
 
+**Reenvío de factura (30/09, Pablo):** la FAQ #10 ("no me llegó la factura", `factura_reenvio`) manda el PDF de las
+facturas del último día facturado (o de la fecha "28/09" o el mes "julio" que nombre), de `isis_lk.documentos` / bucket
+`isis-lk` de Gestión, como documento suelto (el cliente acaba de escribir: dentro de las 24 h; pasa por wa-guard). Si
+la factura sigue con saldo agrega "💰 Si la pagás hoy tenés X% de descuento: pagás $Y (vale hasta el …)" o el reclamo
+del e-cheq, y alias/CBU; sin saldo, "✅ Ya figura pagada". Sin facturas / sin PDF / error: deriva a una persona
+(alerta `factura_no_encontrada` / `factura_sin_pdf` / `factura_error`). Código: `lookupFacturaReenvio` en `_shared/faq.ts`.
+
 **FAQ (28/09):** el saludo de respaldo (`greeting_fallback`) ya no contesta a un cliente identificado
 si el mensaje trae contenido (números o más de 3 palabras): pasa al agente. Una línea de una FAQ con
 un `{{token}}` sin dato se saca entera (nunca "programado para: " vacío). La FAQ de stock toma el

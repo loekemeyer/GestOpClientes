@@ -8,7 +8,7 @@
 // El agente conversacional (`runConversation`) queda como último recurso:
 // solo se invoca si acá no hay match útil.
 
-import { getGestionClient, supabase } from "./supabase.ts";
+import { getGestionClient, getIsisClient, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { sinAnulados } from "./pedidos-anulados.ts";
@@ -29,6 +29,8 @@ export interface FaqResult {
   /** Pablo, 29/09: respuesta que además deja una tarea para una persona (pedido duplicado, acceso a la web).
    *  La crea el call-site (webhook), igual que el aviso de needs_human. */
   alerta?: { motivo: string; urgente?: boolean; pedidos?: number[]; detalle?: string };
+  /** Pablo, 30/09: PDFs a mandar después del texto (reenvío de factura). URL firmada, 1 h. */
+  documentos?: Array<{ url: string; filename: string }>;
 }
 
 // Pablo, 28/09: al cliente NUNCA se le muestra el número de pedido (se nombra por la fecha) y cada pedido
@@ -218,6 +220,9 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     if (top.db_lookup_type === "payment_data") {
       const r = await lookupPaymentData(top, customer);
       if (r) return { reply: r, intent: "payment_data", automation_level: "semi_auto", faq_id: top.faq_id, yaSaluda: yaSaluda(r) };
+    } else if (customer && top.db_lookup_type === "factura_reenvio") {
+      const r = await lookupFacturaReenvio(customer, text);
+      if (r) return { ...r, faq_id: top.faq_id, yaSaluda: yaSaluda(r.reply) };
     } else if (customer) {
       const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top);
       if (lookupReply) {
@@ -525,76 +530,96 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
 //   e-cheq → el descuento es fijo por el plazo del cheque: se le recuerda mandarlo, con la fecha y el monto.
 //   "NN FF" / "Sin Cotizador" → sin descuento por pago: sólo el saldo.
 //   contado / crédito / "Prefiero no decidir" / sin dato → los escalones que todavía no vencieron.
-// Se agrupa por fecha + condición (varias facturas del mismo día = un pedido) y se muestran los 3 grupos más nuevos.
+type GrupoDeuda = { fecha: string; condicion: string; saldo: number; n: number };
+
+// Helpers compartidos por la FAQ de descuentos y el reenvío de factura (misma cuenta de fechas y montos).
+async function contextoDescuentos() {
+  const { data: cfgRow } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
+  // deno-lint-ignore no-explicit-any
+  const cfg: any = JSON.parse(String(cfgRow?.value ?? "{}"));
+  const pesos = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
+  const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+  const conDia = (iso: string) => { const d = new Date(iso + "T12:00:00Z"); return `${DIAS[d.getUTCDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`; };
+  const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const cache = new Map<string, string>();
+  const habilDesde = async (fecha: string, dias: number) => {
+    const d = new Date(fecha + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + dias);
+    const iso = d.toISOString().slice(0, 10);
+    if (!cache.has(iso)) {
+      const { data } = await supabase.rpc("wa_proximo_habil", { p: iso });
+      cache.set(iso, typeof data === "string" ? data.slice(0, 10) : iso);
+    }
+    return cache.get(iso)!;
+  };
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  const ultimoNum = (s: unknown) => Math.max(0, ...(String(s ?? "").match(/\d+/g) ?? []).map(Number));
+  // Escalones por días desde la factura: contado + crédito (fin de cada tramo).
+  const escalones: Array<{ dias: number; dto: number }> = [];
+  if (cfg?.contado) escalones.push({ dias: Number(cfg.contado.dias_limite) || 14, dto: Number(cfg.contado.dto) || 0 });
+  for (const r of (cfg?.credito ?? [])) if (ultimoNum(r?.label)) escalones.push({ dias: ultimoNum(r.label), dto: Number(r.dto) || 0 });
+  escalones.sort((a, b) => a.dias - b.dias);
+
+  // Líneas de pago de un grupo. `soloHoy`: sólo el escalón vigente hoy ("si la pagás hoy tenés X%").
+  const lineasPago = async (gr: GrupoDeuda, soloHoy = false): Promise<string[]> => {
+    const lineas: string[] = [];
+    if (/e-?cheq/i.test(gr.condicion)) {
+      const dias = ultimoNum(gr.condicion) || 90;
+      // deno-lint-ignore no-explicit-any
+      const r = (cfg?.echeq ?? []).find((x: any) => ultimoNum(x?.label) === dias);
+      const dto = Number(r?.dto) || 0;
+      const fechaCheque = await habilDesde(gr.fecha, dias);
+      // Saldo abierto con e-cheq = no figura cobrado. Puede estar en camino: por eso "si todavía no lo mandaste".
+      lineas.push(`⚠️ Elegiste pagar con *e-cheq a ${dias} días* y no lo tenemos registrado.`);
+      lineas.push(`Si todavía no lo mandaste: e-cheq con fecha ${ddmm(fechaCheque)} por ${pesos(gr.saldo * (1 - dto))}${dto ? ` (${Math.round(dto * 100)}% dto)` : ""}.`);
+      return lineas;
+    }
+    if (/\bFF\b|sin cotizador/i.test(gr.condicion)) return [`Condición ${gr.condicion.trim()}: sin descuento por pago.`];
+    for (const e of escalones) {
+      const hasta = await habilDesde(gr.fecha, e.dias);
+      if (hasta < hoy) continue;
+      if (soloHoy) {
+        return [`💰 Si la pagás hoy tenés *${Math.round(e.dto * 100)}% de descuento*: pagás *${pesos(gr.saldo * (1 - e.dto))}* en vez de ${pesos(gr.saldo)} (vale hasta el ${conDia(hasta)}).`];
+      }
+      lineas.push(`• Pagando hasta el ${conDia(hasta)}: ${Math.round(e.dto * 100)}% → pagás ${pesos(gr.saldo * (1 - e.dto))}`);
+    }
+    if (!lineas.length) lineas.push(`Ya pasó el plazo de descuento por pago: el saldo es ${pesos(gr.saldo)}.`);
+    return lineas;
+  };
+  return { cfg, pesos, ddmm, lineasPago };
+}
+
+// Deuda Viva del cliente agrupada por fecha + condición (varias facturas del mismo día = un pedido), más nuevo primero.
+// null = no se pudo leer (no afirmar nada); [] = no tiene facturas con saldo.
+async function deudaAgrupada(cod: number | string): Promise<GrupoDeuda[] | null> {
+  const g = await getGestionClient("public");
+  const { data: filas, error } = await g.from("GV_Cobranza_Deuda_Viva")
+    .select("comprobante, fecha, condicion, pendiente")
+    .eq("empresa", "lk").eq("cod_cliente", String(cod))
+    .gt("pendiente", 0).like("comprobante", "FC%")
+    .order("fecha", { ascending: false });
+  if (error) { console.warn("deudaAgrupada:", error.message); return null; }
+  const grupos: GrupoDeuda[] = [];
+  for (const f of (filas ?? []) as Array<{ fecha: string; condicion: string | null; pendiente: number }>) {
+    const fecha = String(f.fecha).slice(0, 10), condicion = String(f.condicion ?? "");
+    const gr = grupos.find((x) => x.fecha === fecha && x.condicion === condicion);
+    if (gr) { gr.saldo += Number(f.pendiente); gr.n++; } else grupos.push({ fecha, condicion, saldo: Number(f.pendiente), n: 1 });
+  }
+  return grupos;
+}
+
+// Se muestran los 3 grupos más nuevos; el resto va resumido.
 async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise<string> {
   try {
-    const { data: cfgRow } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
-    // deno-lint-ignore no-explicit-any
-    const cfg: any = JSON.parse(String(cfgRow?.value ?? "{}"));
-    const g = await getGestionClient("public");
-    const { data: filas, error } = await g.from("GV_Cobranza_Deuda_Viva")
-      .select("comprobante, fecha, condicion, pendiente")
-      .eq("empresa", "lk").eq("cod_cliente", String(customer.cod_cliente))
-      .gt("pendiente", 0).like("comprobante", "FC%")
-      .order("fecha", { ascending: false });
+    const grupos = await deudaAgrupada(customer.cod_cliente);
     // Pablo, 30/09: sin facturas abiertas se lo dice (un error de lectura, en cambio, devuelve "" y la línea no sale).
-    if (error) { console.warn("descuentosFacturasBlock:", error.message); return ""; }
-    if (!filas?.length) return "*Tus facturas abiertas:* no tenés facturas con saldo pendiente. ✅";
-
-    const pesos = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
-    const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
-    const conDia = (iso: string) => { const d = new Date(iso + "T12:00:00Z"); return `${DIAS[d.getUTCDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`; };
-    const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
-    const cache = new Map<string, string>();
-    const habilDesde = async (fecha: string, dias: number) => {
-      const d = new Date(fecha + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + dias);
-      const iso = d.toISOString().slice(0, 10);
-      if (!cache.has(iso)) {
-        const { data } = await supabase.rpc("wa_proximo_habil", { p: iso });
-        cache.set(iso, typeof data === "string" ? data.slice(0, 10) : iso);
-      }
-      return cache.get(iso)!;
-    };
-    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
-    const ultimoNum = (s: unknown) => Math.max(0, ...(String(s ?? "").match(/\d+/g) ?? []).map(Number));
-    // Escalones por días desde la factura: contado + crédito (fin de cada tramo).
-    const escalones: Array<{ dias: number; dto: number }> = [];
-    if (cfg?.contado) escalones.push({ dias: Number(cfg.contado.dias_limite) || 14, dto: Number(cfg.contado.dto) || 0 });
-    for (const r of (cfg?.credito ?? [])) if (ultimoNum(r?.label)) escalones.push({ dias: ultimoNum(r.label), dto: Number(r.dto) || 0 });
-    escalones.sort((a, b) => a.dias - b.dias);
-
-    // Agrupar por fecha + condición.
-    const grupos: Array<{ fecha: string; condicion: string; saldo: number; n: number }> = [];
-    for (const f of filas as Array<{ fecha: string; condicion: string | null; pendiente: number }>) {
-      const fecha = String(f.fecha).slice(0, 10), condicion = String(f.condicion ?? "");
-      const gr = grupos.find((x) => x.fecha === fecha && x.condicion === condicion);
-      if (gr) { gr.saldo += Number(f.pendiente); gr.n++; } else grupos.push({ fecha, condicion, saldo: Number(f.pendiente), n: 1 });
-    }
+    if (grupos === null) return "";
+    if (!grupos.length) return "*Tus facturas abiertas:* no tenés facturas con saldo pendiente. ✅";
+    const { pesos, ddmm, lineasPago } = await contextoDescuentos();
     const MAX = 3;
     const bloques: string[] = [];
     for (const gr of grupos.slice(0, MAX)) {
       const cab = `🧾 *${gr.n > 1 ? `Facturas del ${ddmm(gr.fecha)} (${gr.n})` : `Factura del ${ddmm(gr.fecha)}`}* — saldo ${pesos(gr.saldo)}`;
-      const lineas: string[] = [];
-      if (/e-?cheq/i.test(gr.condicion)) {
-        const dias = ultimoNum(gr.condicion) || 90;
-        // deno-lint-ignore no-explicit-any
-        const r = (cfg?.echeq ?? []).find((x: any) => ultimoNum(x?.label) === dias);
-        const dto = Number(r?.dto) || 0;
-        const fechaCheque = await habilDesde(gr.fecha, dias);
-        // Saldo abierto con e-cheq = no figura cobrado. Puede estar en camino: por eso "si todavía no lo mandaste".
-        lineas.push(`  ⚠️ Elegiste pagar con *e-cheq a ${dias} días* y no lo tenemos registrado.`);
-        lineas.push(`  Si todavía no lo mandaste: e-cheq con fecha ${ddmm(fechaCheque)} por ${pesos(gr.saldo * (1 - dto))}${dto ? ` (${Math.round(dto * 100)}% dto)` : ""}.`);
-      } else if (/\bFF\b|sin cotizador/i.test(gr.condicion)) {
-        lineas.push(`  Condición ${gr.condicion.trim()}: sin descuento por pago.`);
-      } else {
-        for (const e of escalones) {
-          const hasta = await habilDesde(gr.fecha, e.dias);
-          if (hasta < hoy) continue;
-          lineas.push(`  • Pagando hasta el ${conDia(hasta)}: ${Math.round(e.dto * 100)}% → pagás ${pesos(gr.saldo * (1 - e.dto))}`);
-        }
-        if (!lineas.length) lineas.push(`  Ya pasó el plazo de descuento por pago: el saldo es ${pesos(gr.saldo)}.`);
-      }
-      bloques.push([cab, ...lineas].join("\n"));
+      bloques.push([cab, ...(await lineasPago(gr)).map((l) => "  " + l)].join("\n"));
     }
     const resto = grupos.slice(MAX);
     if (resto.length) {
@@ -605,6 +630,72 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
   } catch (e) {
     console.warn("descuentosFacturasBlock:", e instanceof Error ? e.message : e);
     return "";
+  }
+}
+
+// Reenvío de la factura (Pablo, 30/09: "enviale la factura si el cliente la vuelve a pedir y recordale los descuentos,
+// si la pagás hoy tenés tanto de descuento"). Busca las facturas del cliente en isis_lk.documentos (mismos PDF que
+// manda el aviso automático, bucket isis-lk de Gestión) y manda las del último día facturado, o las de la fecha o el mes
+// que nombre ("la del 28/09", "la de julio"). Va como documento suelto: el cliente acaba de escribir, así que está
+// dentro de las 24 h y no hace falta plantilla. El envío pasa por wa-guard como todo lo demás (llave de envíos).
+// Si la factura sigue con saldo, agrega el descuento vigente HOY (misma cuenta que la FAQ de descuentos) y los datos
+// para transferir; si no tiene saldo, "ya figura pagada".
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+async function lookupFacturaReenvio(customer: NonNullable<Customer>, message: string): Promise<FaqResult | null> {
+  const derivar = (motivo: string, texto: string): FaqResult => ({
+    reply: texto, intent: "factura_reenvio", automation_level: "semi_auto",
+    alerta: { motivo, urgente: false, detalle: `Pidió la factura: "${message.slice(0, 150)}"` },
+  });
+  try {
+    const isis = await getIsisClient();
+    const { data: docs, error } = await isis.from("documentos")
+      .select("numero, punto_venta, letra, fecha, total, storage_path")
+      .eq("contraparte_codigo", String(customer.cod_cliente)).like("tipo", "FC%")
+      .order("fecha", { ascending: false }).limit(60);
+    if (error) throw new Error(error.message);
+    const lista = (docs ?? []) as Array<{ numero: string; punto_venta: string; letra: string; fecha: string; total: number; storage_path: string | null }>;
+    if (!lista.length) {
+      return derivar("factura_no_encontrada", "No encuentro facturas a tu nombre. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏");
+    }
+    // Qué fecha: "28/09" → ese día; "julio" → la última de ese mes; si no, el último día facturado.
+    const t = message.toLowerCase();
+    const dm = t.match(/\b(\d{1,2})\/(\d{1,2})\b/);
+    const mes = MESES.findIndex((m) => t.includes(m));
+    let elegidas = lista.filter((d) => d.fecha.slice(0, 10) === lista[0].fecha.slice(0, 10));
+    if (dm) {
+      const mmdd = `-${dm[2].padStart(2, "0")}-${dm[1].padStart(2, "0")}`;
+      const x = lista.filter((d) => d.fecha.slice(4, 10) === mmdd);
+      if (x.length) elegidas = x;
+    } else if (mes >= 0) {
+      const delMes = lista.filter((d) => Number(d.fecha.slice(5, 7)) === mes + 1);
+      if (delMes.length) elegidas = delMes.filter((d) => d.fecha.slice(0, 10) === delMes[0].fecha.slice(0, 10));
+    }
+    const fecha = elegidas[0].fecha.slice(0, 10);
+    const conPdf = elegidas.filter((d) => d.storage_path).slice(0, 5);
+    const documentos: Array<{ url: string; filename: string }> = [];
+    for (const d of conPdf) {
+      const { data: s } = await isis.storage.from("isis-lk").createSignedUrl(d.storage_path!, 3600);
+      if (s?.signedUrl) documentos.push({ url: s.signedUrl, filename: `Factura ${d.letra ?? ""} ${d.punto_venta}-${d.numero}.pdf`.replace(/\s+/g, " ") });
+    }
+    const { pesos, ddmm, lineasPago, cfg } = await contextoDescuentos();
+    if (!documentos.length) {
+      return derivar("factura_sin_pdf", `Tu factura del ${ddmm(fecha)} todavía no tiene el PDF cargado. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏`);
+    }
+    const total = elegidas.reduce((s, d) => s + Number(d.total || 0), 0);
+    const lineas = [`Te mando ${documentos.length > 1 ? `las ${documentos.length} facturas` : "la factura"} del ${ddmm(fecha)} (total ${pesos(total)}). 📄`];
+    // Descuento vigente hoy, con el saldo real de ese día (Deuda Viva).
+    const grupos = await deudaAgrupada(customer.cod_cliente);
+    const delDia = (grupos ?? []).filter((g) => g.fecha === fecha);
+    if (grupos && !delDia.length) lineas.push("✅ Ya figura pagada.");
+    for (const gr of delDia) lineas.push("", ...(await lineasPago(gr, true)));
+    if (delDia.length) {
+      const alias = cfg?.pago?.alias ?? PAGO_ALIAS_FALLBACK, cbu = cfg?.pago?.cbu ?? PAGO_CBU_FALLBACK;
+      lineas.push("", `Datos para el pago:\nAlias: ${alias}\nCBU: ${cbu}`);
+    }
+    return { reply: lineas.join("\n"), intent: "factura_reenvio", automation_level: "semi_auto", documentos };
+  } catch (e) {
+    console.warn("lookupFacturaReenvio:", e instanceof Error ? e.message : e);
+    return derivar("factura_error", "No pude buscar tu factura en este momento. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏");
   }
 }
 
