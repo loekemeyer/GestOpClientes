@@ -24,7 +24,7 @@ import {
   saveMessage,
   type MediaAction,
 } from "../_shared/bot-conversation.ts";
-import { handleFaq } from "../_shared/faq.ts";
+import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
@@ -1010,12 +1010,28 @@ async function handleMessage(
     }
   }
 
+  // 3b''. Sólo un saludo ("Hola", "Buen día"), Pablo 30/09: no se asume que sigue un tema anterior (antes, tras un aviso,
+  //       respuesta-aviso lo tomaba como "gracias" y contestaba "¡Gracias a vos!"). Se esperan 5 s por si sigue
+  //       escribiendo: si llegó otro mensaje, ése contesta (con el saludo en el historial) y éste no dice nada. Si no,
+  //       va a la respuesta fija del saludo (FAQ #41 "¡Hola …! ¿En qué te puedo ayudar?", editable desde el dashboard).
+  const soloSaludo = esSoloSaludo(text);
+  if (soloSaludo && msgId) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const { data: yo } = await supabase.from("wa_inbound_seen").select("first_seen").eq("wamid", msgId).maybeSingle();
+    if (yo?.first_seen) {
+      const { count } = await supabase.from("wa_inbound_seen").select("wamid", { count: "exact", head: true })
+        .eq("phone", phone).gt("first_seen", yo.first_seen);
+      // No se guarda en el historial: quedaría DESPUÉS de la consulta (el otro mensaje ya se guardó) y no aporta.
+      if ((count ?? 0) > 0) return;
+    }
+  }
+
   // 3c. Respuesta a un aviso automático (pedido recibido, programado, en viaje…): si lo último
   //     que le mandamos fue un aviso de las últimas 48 h, lo que escribe es la respuesta.
   //     Ramas deterministas (0 tokens): cambiar/cancelar → asesor; cuándo llega → estado real;
   //     gracias/ok → respuesta breve. Si no cae en ninguna, sigue el flujo normal y el agente
   //     ve el aviso en el historial con el texto real. Ver _shared/respuesta-aviso.ts.
-  if (customer) {
+  if (customer && !soloSaludo) {
     // 3d. Pedido de cambio de fecha / cancelación en cualquier momento (no sólo tras un aviso):
     //     antes caía en la FAQ de dirección del depósito ("puedo pasar") con la fecha vacía.
     const replyAviso = await responderAviso(phone, text, customer) ?? await pedidoDeCambio(phone, text, customer);

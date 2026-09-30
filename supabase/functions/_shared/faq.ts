@@ -76,7 +76,7 @@ export function sinLineasSinDato(
 // "Hola, cuánto debo?" pasaba por saludo (29/09).
 const PALABRAS_SALUDO = new Set(["hola", "holis", "ola", "buenas", "buenos", "buen", "buena", "dia", "dias", "tardes",
   "noches", "hey", "que", "tal", "como", "estas", "andas", "va", "todo", "bien", "gracias", "saludos", "hi"]);
-function esSoloSaludo(text: string): boolean {
+export function esSoloSaludo(text: string): boolean {
   const palabras = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
   return !/\d/.test(text) && palabras.length > 0 && palabras.length <= 6 && palabras.every((p) => PALABRAS_SALUDO.has(p));
