@@ -358,6 +358,13 @@ el killswitch, sin ningún consumidor de esa cola.
 - **Pedido recibido con total con IVA** (Pablo, 29/09, sql/108): texto nuevo "Recibimos tu pedido del 15/09 por
   $896.668 ($741.048 + IVA)." con una línea en blanco tras el saludo, como `pedido_recibido_v2` (sistema de versiones).
   El disparador arma `{{3}}` según la versión activa: con la vieja (que ya dice "+ IVA") sigue mandando sólo el neto.
+- **Plantillas trabadas en revisión → v2 y medición (Pablo, 30/09):** `pedido_programado_expreso`, `_retira` y
+  `pedido_en_viaje` seguían PENDING 18,5 h después de editarlas (29/09 13:33–13:47 AR; las otras 3 editadas en ese
+  momento ya estaban aprobadas). Se crearon `_v2` con el mismo texto (templates_sync con `version_nueva` ahora crea
+  versión también si la activa no está APPROVED); la que Meta apruebe primero es la que se usa. Tiempos en
+  `app_settings.wa_plantillas_tiempos` (pedida_at por templates_sync, aprobada_at por templates_promover cada 30 min);
+  la Routine diaria "Plantillas WhatsApp diario (artifact + estados)" los informa junto con los estados. `pedido_recibido_v2`:
+  creada 29/09 ~17:27 AR, ya aprobada y activa el 30/09 08:21 (hora exacta no medida).
 - **Factura contado: el total a pagar primero** (Pablo, 29/09): `pedido_contado_p` se edita A MANO en WhatsApp Manager
   (tiene encabezado Documento; texto en `docs/plantillas_whatsapp.md`: total a pagar arriba, detalle antes del total).
   `lk_factura-check` (`ordenContado`) lee el texto aprobado, ordena las variables por la posición de cada bloque y guarda
