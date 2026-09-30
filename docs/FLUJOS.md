@@ -110,6 +110,9 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 > contesta la busca el agente). El entregado al expreso sigue en la lista 7 días, porque al cliente puede no haberle
 > llegado, y todo pedido por expreso lleva "la fecha en que te llega puede diferir según el expreso". Si están todos
 > entregados, nombra el último con su fecha de entrega.
+> "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" van a esta respuesta fija
+> (`RE_ESTADO_PEDIDO`) y no a la IA, que convertía "hace 10 días" en una fecha equivocada. Con fecha explícita ("el
+> pedido del 17/9") sigue la IA, que tiene prohibido convertir referencias relativas en fechas (`agente-fijos.ts`).
 
 ```
 CLIENTE: ¿Sabés cuándo me entregan el pedido?

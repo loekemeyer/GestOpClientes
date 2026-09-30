@@ -109,6 +109,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // Pablo, 30/09: agregar a un pedido, mandar un pedido, preguntar si llegó un pago, razón social equivocada o factura
   // duplicada van a la IA (ver las regex): antes una respuesta fija los atrapaba por una palabra suelta.
   if (customer && vaALaIA(text)) return null;
+  // Pablo, 30/09: "Hace 10 días hice un pedido, quería saber el estado" caía en la IA, que convertía "hace 10 días" en
+  // una fecha equivocada ("el del 20/09 (14 de septiembre)"). Sin fecha explícita, va a la respuesta fija con los
+  // pedidos que faltan entregar; con fecha ("el pedido del 17/9") sigue la IA, que lo busca.
+  if (customer && RE_ESTADO_PEDIDO.test(text) && !RE_FECHA_EXPLICITA.test(text)) {
+    return { reply: await lookupOrderStatus(customer), intent: "faq", automation_level: "semi_auto", faq_id: 1 };
+  }
   if (customer && RE_DIRECCION_ENTREGA.test(text)) {
     const r = await destinoPedidos(customer);
     if (r) return { reply: r, intent: "destino_entrega", automation_level: "semi_auto" };
@@ -353,6 +359,11 @@ const RE_RAZON_SOCIAL_MAL = /(otra\s+raz[oó]n\s+social|raz[oó]n\s+social\s+(eq
 const RE_FACTURA_DUPLICADA = /(factur\w*[^.?!]{0,40}(dos veces|\b2 veces|duplicad|repetid|de m[aá]s)|(duplicad|repetid)\w*[^.?!]{0,20}factura)/i;
 // "Cargué todo por unidad y después lo edité por caja" → #21 por "unidad": cuenta un error de carga, no pregunta si venden por unidad.
 const RE_ERROR_CARGA = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|me\s+equivoqu[eé]|nos\s+equivocamos|puse|pusimos)(?![a-zñáéíóú])[^.?!]{0,60}\b(unidad|caja|pedido)/i;
+// "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" / "¿novedades del pedido?".
+// No "me llegó el pedido en mal estado" (reclamo: lo ve la IA).
+const RE_ESTADO_PEDIDO = /\bpedido\b[^.?!]{0,60}\b((?<!mal\s)(?<!buen\s)estado|confirmad[oa]|novedad(es)?)\b|\b(estado|confirmad[oa]|novedad(es)?)\b[^.?!]{0,40}\bpedido\b/i;
+// "el pedido del 17/9", "del 31/08", "del 18 de marzo".
+const RE_FECHA_EXPLICITA = /\b\d{1,2}\s*[/-]\s*\d{1,2}\b|\b\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i;
 function vaALaIA(text: string): boolean {
   return RE_AGREGA_A_PEDIDO.test(text) || RE_PAGO_RECIBIDO.test(text) || RE_RAZON_SOCIAL_MAL.test(text) ||
     RE_FACTURA_DUPLICADA.test(text) ||
