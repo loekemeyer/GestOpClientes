@@ -138,6 +138,13 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       alerta: { motivo: "reclamo", detalle: `Faltante${fac ? ` (factura ${fac})` : ""}: ${text.slice(0, 200)}` },
     };
   }
+  // Pablo, 30/09 (11.1): "Los coladores vinieron todos rotos" → se le pide la foto. La foto que manda después la guarda el
+  // webhook (bucket wa-comprobantes) y la suma como reclamo, porque en los 30 min anteriores habló de rotura (RE_ADJ_RECLAMO).
+  if (customer && RE_ROTURA.test(text)) {
+    return { reply: "Disculpá el inconveniente. ¿Nos mandás por acá una foto de la mercadería rota? La guardamos con el reclamo y una persona del equipo te escribe para resolverlo. 🙏",
+      intent: "mercaderia_rota", automation_level: "needs_human", topic: "Mercadería rota o fallada",
+      alerta: { motivo: "reclamo", urgente: true, detalle: `Mercadería rota (se le pidió foto): ${text.slice(0, 200)}` } };
+  }
   // Pablo, 30/09 (1.9): "Figura programado para el 30/09 pero en el detalle dice 13/10, ¿cuál es?". La IA le contestaba
   // "¿puede ser que el 13/10 lo hayas visto en otro lado?": nunca se asume que el cliente se equivocó. Lo revisa una persona.
   if (customer && RE_FECHAS_NO_COINCIDEN.test(text)) {
@@ -412,6 +419,7 @@ const RE_LLEGANDO = /\b(estoy|estamos)\s+(llegando|yendo|en\s+camino|a\s+\d+\s+(
 const RE_PIDE_FACTURA = /\b(mand[aá]me|pas[aá]me|envi[aá]me|reenvi[aá]\w*|me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*)\b[^.?!]{0,30}\bfacturas?\b|\bfacturas?\b[^.?!]{0,40}\b(me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*|mand[aá]me|pas[aá]me|reenvi\w*)|\bno\s+(me\s+)?lleg[oó]\s+(la\s+|las\s+)?factura/i;
 // "Llegaron 59 aceiteras de 60, pido la NC" / "tengo un faltante en el remito" / "me faltó una caja".
 const RE_FALTANTE = /\bfalt(ante|aron|[oó]|an?)(?![a-záéíóúñ])[^?]{0,60}\b(cajas?|unidad\w*|art[ií]culos?|c[oó]d\w*|\d+)\b|\bfaltante\b|\blleg(aron|[oó])\s+\d+\s+de\s+\d+\b|\b(pido|necesito|quiero|hacen?|me\s+hacen)\s+(la\s+|una\s+)?(nc|nota\s+de\s+cr[eé]dito)\b/i;
+const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
 // "no coincide" + fecha.
