@@ -1691,7 +1691,7 @@ function tplChatAll() {
 // --- Simulador: escribir como cliente + botonera de avisos (lk_bot-simular) ---
 var _sim = { cod: 4210, historial: [], avisos: null, ocupado: false };
 // Nombres de botón que no salen bien del nombre de la plantilla (Pablo, 29/09).
-const SIM_ETIQUETA = { pedido_programado: "programado envío" };
+const SIM_ETIQUETA = { pedido_programado: "programado envío", pedido_recordatorio_descuento: "💰 recordatorio descuento" };
 
 function simAgregar(cls, html) {
   const box = document.getElementById("simMessages");
@@ -4031,7 +4031,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.21</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.22</div>
 <script src="gestop2.js?v=0.25.18"></script>
 </body>
 </html>

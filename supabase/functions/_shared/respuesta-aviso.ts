@@ -191,6 +191,83 @@ export async function pedidoDeCambio(
   return `Le paso tu pedido del ${fechaCorta(ped.created_at)} a un asesor para que coordine el cambio y te escriba por acá. 🙏`;
 }
 
+// ── Respuesta al recordatorio de descuento (pedido_recordatorio_descuento) — Pablo, 30/09 ──
+// Sin IA. Los datos salen del texto que leyó el cliente (guardado en el historial por lk_outbox-flush):
+// "…compra facturada el 28/09: si la pagás hasta el martes 13/10 tenés *25% de descuento* y abonás *$896.668* en vez de
+// $1.195.557…". Ramas, en este orden:
+//   1. Reclama ("hay un error", "no es así", "no debo")  → alerta a una persona con motivo reclamo_saldo.
+//   2. Ya pagó / manda el comprobante                     → gracias + "mandá el comprobante por acá" (sin tarea).
+//   3. Posterga ("no puedo", "pago el lunes", "el 20/10") → con qué descuento quedaría ese día (mismos escalones).
+//   4. Gracias / ok                                       → respuesta corta que habla de la factura, no del pedido.
+//   5. Otra cosa                                          → null: flujo normal.
+const RE_RECLAMO_SALDO = /(error|equivoc|no\s+es\s+as[ií]|no\s+corresponde|no\s+coincide|incorrect|no\s+(te\s+)?debo|no\s+deb[eo]mos|mal\s+(el|la|calculad)|reclam|ya\s+(la\s+|lo\s+)?hab[ií]a\s+pagad)/i;
+const RE_YA_PAGUE = /(\bya\s+(te\s+|les\s+)?(pagu|pagam|transfer|deposit|abon|mand|envi)\w*|\b(pagu[eé]|pagamos|transfer[ií]|transferimos|deposit[eé]|abon[eé])\b|comprobante|\bya\s+(est[aá]|qued[oó])\s+pag)/i;
+const RE_POSTERGA = /(\bno\s+(pue\w*|pod\w*|llego|llegamos|voy|vamos|tengo)\b|m[aá]s\s+adelante|despu[eé]s|semana\s+que\s+viene|pr[oó]xima\s+semana|fin\s+de\s+mes|\bpag(o|amos|ar[eé]|ar[ií]a)\b|\b(lunes|martes|mi[eé]rcoles|jueves|viernes)\b|\b\d{1,2}\s*\/\s*\d{1,2}\b)/i;
+const pesosAR = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
+
+async function responderRecordatorio(
+  phone: string, t: string, customer: { customer_id: string; business_name: string }, aviso: AvisoReciente,
+): Promise<string | null> {
+  const fac = /facturada el (\d{2})\/(\d{2})/.exec(aviso.texto);
+  const saldoTxt = /en vez de \$([\d.]+)/.exec(aviso.texto);
+  const saldo = saldoTxt ? Number(saldoTxt[1].replace(/\./g, "")) : 0;
+  const delFac = fac ? ` del ${fac[1]}/${fac[2]}` : "";
+
+  if (RE_RECLAMO_SALDO.test(t)) {
+    await notificarHumano({
+      tipo: "otro", phone, customerId: customer.customer_id,
+      contexto: { motivo: "reclamo_saldo", plantilla: aviso.plantilla, texto_recibido: t.slice(0, 300),
+        razon_social: customer.business_name, detalle: `Respondió al recordatorio de descuento de la factura${delFac}` },
+    });
+    return `Gracias por avisar. Le paso tu consulta sobre la factura${delFac} a una persona del equipo para que lo revise y te escriba por acá. 🙏`;
+  }
+
+  if (RE_YA_PAGUE.test(t)) {
+    return "¡Gracias! Si tenés el comprobante, mandalo por acá así lo registramos. 🙏";
+  }
+
+  if (RE_POSTERGA.test(t) && fac && saldo > 0) {
+    // Fecha de la factura (año: el actual, o el anterior si daría en el futuro).
+    const hoyAR = new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
+    let fechaFac = `${hoyAR.slice(0, 4)}-${fac[2]}-${fac[1]}`;
+    if (fechaFac > hoyAR) fechaFac = `${Number(hoyAR.slice(0, 4)) - 1}-${fac[2]}-${fac[1]}`;
+    // Escalones del Panel (wa_descuentos_config), igual que la factura y la FAQ de descuentos.
+    const { data: cfgRow } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
+    // deno-lint-ignore no-explicit-any
+    let cfg: any = {};
+    try { cfg = JSON.parse(String(cfgRow?.value ?? "{}")); } catch { /* sin config: sin escalones */ }
+    const ultimoNum = (s: unknown) => Math.max(0, ...(String(s ?? "").match(/\d+/g) ?? []).map(Number));
+    const esc: Array<{ dias: number; dto: number }> = [];
+    if (cfg?.contado) esc.push({ dias: Number(cfg.contado.dias_limite) || 14, dto: Number(cfg.contado.dto) || 0 });
+    for (const r of (cfg?.credito ?? [])) if (ultimoNum(r?.label)) esc.push({ dias: ultimoNum(r.label), dto: Number(r.dto) || 0 });
+    esc.sort((a, b) => a.dias - b.dias);
+    const tramos: Array<{ hasta: string; dto: number }> = [];
+    for (const e of esc) {
+      const d = new Date(fechaFac + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + e.dias);
+      const { data } = await supabase.rpc("wa_proximo_habil", { p: d.toISOString().slice(0, 10) });
+      tramos.push({ hasta: typeof data === "string" ? data.slice(0, 10) : d.toISOString().slice(0, 10), dto: e.dto });
+    }
+    const pedida = fechaPedida(t);
+    if (pedida && pedida >= hoyAR) {
+      const tramo = tramos.find((x) => x.hasta >= pedida);
+      if (!tramo || tramo.dto <= 0) {
+        return `Si pagás el ${conDia(pedida)} ya no tendría descuento por pago: el total es ${pesosAR(saldo)}.`;
+      }
+      return `Si pagás el ${conDia(pedida)} tenés *${Math.round(tramo.dto * 100)}% de descuento*: abonás *${pesosAR(saldo * (1 - tramo.dto))}* (vale hasta el ${conDia(tramo.hasta)}).`;
+    }
+    // Sin fecha: las fechas que le quedan.
+    const quedan = tramos.filter((x) => x.hasta >= hoyAR && x.dto > 0);
+    if (!quedan.length) return `El plazo de descuento de la factura${delFac} ya venció: el total es ${pesosAR(saldo)}.`;
+    return `Sin problema. Estas son las fechas que te quedan para la factura${delFac}:\n` +
+      quedan.map((x) => `• Pagando hasta el ${conDia(x.hasta)}: ${Math.round(x.dto * 100)}% → abonás ${pesosAR(saldo * (1 - x.dto))}`).join("\n");
+  }
+
+  if (t.length <= 60 && esAgradecimiento(t)) {
+    return `¡Gracias a vos! Cualquier consulta sobre tu factura${delFac}, escribinos por acá.`;
+  }
+  return null;
+}
+
 /**
  * Si `text` es una respuesta a un aviso reciente y cae en una rama determinista, devuelve el
  * texto a contestar (y ya dejó la alerta si corresponde). Si no, null → flujo normal.
@@ -204,6 +281,10 @@ export async function responderAviso(
   const aviso = await avisoReciente(phone);
   if (!aviso) return null;
   const t = text.trim();
+
+  // El recordatorio de descuento habla de un PAGO, no de un pedido: tiene sus propias ramas (y si ninguna aplica, sigue
+  // el flujo normal sin pasar por las de pedido: "no puedo" o "error" no son un cambio de pedido acá).
+  if (aviso.plantilla.startsWith("pedido_recordatorio_descuento")) return await responderRecordatorio(phone, t, customer, aviso);
 
   if (RE_CAMBIO.test(t) && !(RE_AGREGA.test(t) && !/\b(sac[aá]|quit|cancel|anul)/i.test(t))) {
     await notificarHumano({

@@ -42,6 +42,17 @@ fila de "Cambiar" de abajo.
 | Agradece / confirma (sólo eso) | "gracias", "ok", "buenísimo", 👍 | "¡Gracias a vos! Cualquier consulta sobre tu pedido del dd/mm, escribinos por acá." |
 | Otra cosa | "¿tengo el pelapapas A en ese pedido?" | flujo normal (FAQ / agente), que ve el aviso en el historial |
 
+**Respuesta al recordatorio de descuento (30/09, Pablo):** si lo último fue `pedido_recordatorio_descuento`, no se
+usan las ramas de pedido (un "no puedo" o "error" ahí es de un pago). `responderRecordatorio` en `_shared/respuesta-aviso.ts`:
+
+| El cliente dice | Ejemplo | Responde |
+|---|---|---|
+| Reclama el saldo | "hay un error en el monto", "ya lo había pagado" | "Le paso tu consulta sobre la factura del dd/mm a una persona…" + alerta `reclamo_saldo` |
+| Ya pagó / manda comprobante | "ya transferí", "te mando el comprobante" | "¡Gracias! Si tenés el comprobante, mandalo por acá así lo registramos." |
+| Posterga | "pago el lunes", "el 20/10", "más adelante" | con fecha: el descuento que tendría ese día y el monto; sin fecha: las fechas que le quedan |
+| Agradece | "gracias", "ok" | "¡Gracias a vos! Cualquier consulta sobre tu factura del dd/mm, escribinos por acá." |
+| Otra cosa | | flujo normal (FAQ / agente) |
+
 **Pedidos por WhatsApp apagados (28/09, Pablo):** el agente no toma ni ofrece pedidos; los deriva a la
 web loekemeyer.com → "Pedidos Mayorista". Sin la herramienta `enviar_pedido` (flag `PEDIDOS_POR_WHATSAPP`
 en `_shared/bot-conversation.ts`) y con la regla fija en `agente-fijos.ts`. Stock "hay" cierra con
