@@ -309,24 +309,32 @@ function metodoExcepcion(cfg: DtoCfg, cuit: string | null | undefined, razon: st
   if (r && cfg.excRazon[r]) return cfg.excRazon[r];
   return null;
 }
-// Fecha (DD/MM/YYYY) hasta la que se puede abonar al contado: fecha de factura + diasLimite.
-function fechaLimiteContado(fechaISO: string, dias: number): string {
+// Fechas de los descuentos (Pablo, 30/09): días CORRIDOS desde la fecha de la factura y, si caen sábado, domingo o
+// feriado, pasan al próximo día hábil (wa_proximo_habil: dias_habiles_cache con los feriados). Salen dd/mm, sin año.
+const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+function sumarDias(fechaISO: string, dias: number): string | null {
   const base = new Date((fechaISO || new Date().toISOString().slice(0, 10)) + "T00:00:00Z");
-  if (isNaN(base.getTime())) return "";
-  base.setUTCDate(base.getUTCDate() + (Number.isFinite(dias) ? dias : 14));
-  const dd = String(base.getUTCDate()).padStart(2, "0");
-  const mm = String(base.getUTCMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}`;   // sin año, como el resto de los avisos (Pablo, 30/09)
-}
-// Fecha del plazo: fecha de la factura + el ÚLTIMO número de la etiqueta del plazo ("120" → 120; "31 a 45" → 45, hasta
-// cuando vale ese descuento), o los dígitos de la clave (echeq_120). dd/mm. Pablo, 30/09.
-function fechaPlazo(fechaISO: string, label: string, metodo: string): string {
-  const nums = (String(label || "").match(/\d+/g) ?? String(metodo).match(/\d+/g) ?? []).map(Number);
-  const dias = nums.length ? Math.max(...nums) : NaN;
-  const base = new Date((fechaISO || new Date().toISOString().slice(0, 10)) + "T00:00:00Z");
-  if (!Number.isFinite(dias) || isNaN(base.getTime())) return "la fecha acordada";
+  if (!Number.isFinite(dias) || isNaN(base.getTime())) return null;
   base.setUTCDate(base.getUTCDate() + dias);
-  return `${String(base.getUTCDate()).padStart(2, "0")}/${String(base.getUTCMonth() + 1).padStart(2, "0")}`;
+  return base.toISOString().slice(0, 10);
+}
+async function habil(iso: string): Promise<string> {
+  try {
+    const { data } = await paginalk.rpc("wa_proximo_habil", { p: iso });
+    return typeof data === "string" ? data.slice(0, 10) : iso;
+  } catch { return iso; }
+}
+// Hasta cuándo vale el descuento de contado: factura + diasLimite (14), al hábil.
+async function fechaLimiteContado(fechaISO: string, dias: number): Promise<string> {
+  const f = sumarDias(fechaISO, Number.isFinite(dias) ? dias : 14);
+  return f ? ddmm(await habil(f)) : "";
+}
+// Fecha del plazo: factura + el ÚLTIMO número de la etiqueta ("120" → 120; "31 a 45" → 45, hasta cuando vale ese
+// descuento), o los dígitos de la clave (echeq_120), al hábil.
+async function fechaPlazo(fechaISO: string, label: string, metodo: string): Promise<string> {
+  const nums = (String(label || "").match(/\d+/g) ?? String(metodo).match(/\d+/g) ?? []).map(Number);
+  const f = nums.length ? sumarDias(fechaISO, Math.max(...nums)) : null;
+  return f ? ddmm(await habil(f)) : "la fecha acordada";
 }
 // Reconstrucción legible del mensaje (preview/auditoría). Debe respetar el ORDEN de params
 // según el formato: v2 intercala el %dto y agrega alias/CBU; v1 no.
@@ -373,7 +381,7 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
   const montoContado = total_sum * (1 - cfg.contadoDto);
   const montoCliente = total_sum * (1 - dto);
   const ahorro = montoCliente - montoContado;
-  const fechaLimite = fechaLimiteContado(fecha, cfg.diasLimite);
+  const fechaLimite = await fechaLimiteContado(fecha, cfg.diasLimite);
   const n = facturas.length;
   const esMultiple = n > 1;
   const lista = totales.map((t) => fmtARS(t)).join(" / ");
@@ -419,7 +427,7 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
   const porTexto = cuerpoMeta ? mapearPorTexto(cuerpoMeta, {
     total: fmtARS(total_sum), n: String(n), lista, plazo: label, pct: grupo === "contado" ? contadoPct : metodoPct,
     montoCliente: fmtARS(montoCliente), montoContado: fmtARS(montoContado), fecha: fechaLimite, ahorro: fmtARS(ahorro),
-    alias: cfg.alias, cbu: cfg.cbu, fechaPlazo: fechaPlazo(fecha, label, metodo),
+    alias: cfg.alias, cbu: cfg.cbu, fechaPlazo: await fechaPlazo(fecha, label, metodo),
   }, grupo) : null;
   if (porTexto) {
     params = porTexto;
