@@ -645,9 +645,9 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
       if (r.lineas.length) {
         const arts = await resolverArticulos(r.lineas, cfg.anthropicKey, phone);
         const cotizador = r.cotizador === true || /cotiz/i.test(msg.caption ?? "");
-        respuestaFinal = textoConfirmacion(arts, { cotizador, seguir: await pedidosWaHabilitados() });
+        respuestaFinal = textoConfirmacion(arts, { cotizador, seguir: await pedidosWaHabilitados(), condicion_code: r.condicion_code });
         motivoFinal = "pedido_archivo";
-        lectura = { articulos: arts, cotizador };
+        lectura = { articulos: arts, cotizador, ...(r.condicion_code ? { condicion_code: r.condicion_code } : {}) };
       } else lectura = { lectura_error: r.error ?? "no se encontraron líneas de pedido" };
     } catch (e) {
       lectura = { lectura_error: e instanceof Error ? e.message : String(e) };

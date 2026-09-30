@@ -34,7 +34,7 @@ Respondé SOLO JSON: {"lineas":[{"cod":"501"|null,"descripcion":"...","cantidad"
 
 /** Lee el archivo con la IA. Devuelve las líneas o un error (el llamador sigue con la tarea igual). */
 export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey: string, phone: string | null,
-  nombre?: string | null): Promise<{ lineas: LineaLeida[]; error?: string; cotizador?: boolean }> {
+  nombre?: string | null): Promise<{ lineas: LineaLeida[]; error?: string; cotizador?: boolean; condicion_code?: number | null }> {
   // deno-lint-ignore no-explicit-any
   let content: any[];
   const m = mime.toLowerCase();
@@ -42,6 +42,26 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
   let cotizador = /cotiz/i.test(nombre ?? "");
   if (/spreadsheet|ms-excel|csv/.test(m) || /\.(xlsx?|csv)$/i.test(nombre ?? "")) {
     const libro = XLSX.read(bytes, { type: "array" });
+    // Cotizador de Loekemeyer (Pablo, 30/09): la hoja "Conversor a ERP - NO MODIFICAR" ya trae el pedido limpio, una fila
+    // por artículo: [código, cajas, código de forma de pago (8 contado … 13 e-cheq 120, igual que la web)]. Se lee
+    // directo, sin IA (0 tokens, sin errores de lectura).
+    const hojaErp = libro.SheetNames.find((h: string) => /conversor\s+a\s+erp/i.test(h));
+    if (hojaErp) {
+      // deno-lint-ignore no-explicit-any
+      const filas: any[][] = XLSX.utils.sheet_to_json(libro.Sheets[hojaErp], { header: 1, defval: "" });
+      const lineas: LineaLeida[] = [];
+      const codigos = new Map<number, number>();
+      for (const f of filas) {
+        const cod = String(f[0] ?? "").trim().toUpperCase(), cajas = Number(f[1]);
+        if (!/^[0-9]{2,5}[A-Z]?$/.test(cod) || !(cajas > 0)) continue;
+        lineas.push({ cod, descripcion: "", cantidad: cajas, unidad: "cajas" });
+        const cc = Number(f[2]); if (cc > 0) codigos.set(cc, (codigos.get(cc) ?? 0) + 1);
+      }
+      if (lineas.length) {
+        const condicion_code = [...codigos.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+        return { lineas: lineas.slice(0, MAX_LINEAS), cotizador: true, condicion_code };
+      }
+    }
     const texto = libro.SheetNames.slice(0, 3).map((h) => `# Hoja ${h}\n` + XLSX.utils.sheet_to_csv(libro.Sheets[h], { FS: ";" }))
       .join("\n").split("\n").filter((l: string) => l.replace(/[;\s]/g, "")).slice(0, 400).join("\n").slice(0, 30000);
     cotizador ||= /cotizador/i.test(texto) || libro.SheetNames.some((h: string) => /cotiz/i.test(h));
@@ -175,7 +195,9 @@ const cj = (n: number | null) => `${n} ${n === 1 ? "caja" : "cajas"}`;
 
 /** Mensaje al cliente con lo que se leyó. */
 /** `seguir` (pedidos por WhatsApp prendidos): con el "sí" el bot sigue con forma de pago y entrega en vez de derivar. */
-export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: boolean; seguir?: boolean } = {}): string {
+const FORMA_COT: Record<number, string> = { 8: "Contado (25%)", 9: "15 a 30 días (20%)", 10: "31 a 45 días (15%)",
+  11: "46 a 60 días (10%)", 12: "E-cheq a 90 días (5%)", 13: "E-cheq a 120 días (sin descuento)", 18: "Prefiero no decidir ahora" };
+export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: boolean; seguir?: boolean; condicion_code?: number | null } = {}): string {
   const ok = arts.filter((a) => a.estado !== "no_encontrado");
   const no = arts.filter((a) => a.estado === "no_encontrado");
   const lineas = ok.slice(0, 40).map((a) => a.opciones?.length
@@ -184,6 +206,7 @@ export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: bo
   let t = `${opts.cotizador ? "Recibimos tu cotizador" : "Recibimos tu pedido"}. Leímos esto:\n${lineas.join("\n")}`;
   if (ok.length > 40) t += `\n… y ${ok.length - 40} artículos más.`;
   if (no.length) t += `\n\nNo encontramos: ${no.slice(0, 10).map((a) => `"${a.original}"`).join(", ")}.`;
+  if (opts.condicion_code && FORMA_COT[opts.condicion_code]) t += `\n\nForma de pago marcada en el cotizador: *${FORMA_COT[opts.condicion_code]}*.`;
   if (arts.some((a) => a.opciones?.length)) {
     if (arts.some((a) => a.estado === "dudoso" && !a.opciones?.length)) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
     return t + `\n\nDecinos cuál querés en las líneas con ❓ (con el código alcanza) y cualquier otro cambio.${opts.seguir ? "" : " Una persona lo carga."}`;
