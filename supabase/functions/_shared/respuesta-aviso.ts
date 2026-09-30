@@ -41,7 +41,15 @@ const RE_EDITA_PEDIDO = new RegExp(String.raw`${SACAR}[^?.!]{0,60}\b(al|del|en e
 // Pablo, 29/09: "¿Puedo retirarlo el sábado 3?" / "¿paso el jueves?" — pide un día de retiro. Los retiros son de lunes a
 // viernes; si pide fin de semana se le explica y se le ofrece reprogramar; si pide un día hábil se deriva a un asesor
 // para reprogramar el retiro (antes caía en la respuesta fija del depósito, #4, que no contestaba la pregunta).
-const RE_RETIRO_DIA = /\b(retir|pas(o|ar|amos|ás|as)\b|busc)\w*[^?.!]{0,40}\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s*\/\s*\d{1,2})/i;
+// Pablo, 30/09: también "hoy" / "mañana" y el día ANTES del verbo ("¿Mañana puedo pasar a retirar?", "El jueves paso
+// a buscarlo"); antes eso caía en la IA, que contestaba "depende de la logística interna". Para esos casos nuevos el
+// verbo tiene que ser de retiro de verdad (retirar, buscar, pasar a retirar/buscar, pasar por el depósito): "Mañana te
+// paso el comprobante" no es un retiro. "A la mañana" / "por la mañana" es la hora, no el día.
+const DIA_RETIRO = String.raw`(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s*\/\s*\d{1,2}|hoy|(?<!la\s)ma[nñ]ana)`;
+const VERBO_RETIRO_FUERTE = String.raw`(retir\w*|busc\w*|pas(o|ar|amos|ás|as)\s+(a\s+(retir|busc)\w*|por\s+(el\s+)?dep[oó]sito))`;
+const RE_RETIRO_DIA = new RegExp(
+  String.raw`\b(retir|pas(o|ar|amos|ás|as)\b|busc)\w*[^?.!]{0,40}\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s*\/\s*\d{1,2})` +
+  String.raw`|\b${VERBO_RETIRO_FUERTE}[^?.!]{0,40}\b${DIA_RETIRO}|\b${DIA_RETIRO}\b[^?.!]{0,40}\b${VERBO_RETIRO_FUERTE}`, "i");
 const HORARIO_RETIRO = "de lunes a viernes, de 9 a 12 y de 13 a 16:30 h";
 const DIAS_ASCII = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
 // Fecha (YYYY-MM-DD, hora AR) que pide el cliente: "el jueves" = el próximo jueves desde hoy; "el 3/10" = esa fecha.
@@ -56,12 +64,21 @@ function fechaPedida(t: string): string | null {
   }
   const txt = t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const i = DIAS_ASCII.findIndex((d) => new RegExp(`\\b${d}\\b`).test(txt));
-  if (i < 0) return null;
+  if (i < 0) {
+    // Sin día de semana ni fecha: "pasado mañana", "hoy", "mañana" (no "a la mañana", que es la hora). Pablo, 30/09.
+    const rel = /\bpasado\s+manana\b/.test(txt) ? 2 : /\bhoy\b/.test(txt) ? 0 : /(?<!la\s)\bmanana\b/.test(txt) ? 1 : -1;
+    return rel < 0 ? null : new Date(base + rel * 86400_000).toISOString().slice(0, 10);
+  }
   const dif = (i - new Date(base).getUTCDay() + 7) % 7;
   return new Date(base + dif * 86400_000).toISOString().slice(0, 10);
 }
 function pideFinDeSemana(t: string): boolean {
   if (/s[aá]bado|domingo/i.test(t)) return true;
+  // "hoy" / "mañana" un viernes o un sábado caen en fin de semana.
+  if (/\b(hoy|ma[nñ]ana)\b/i.test(t) && !/\b\d{1,2}\s*\/\s*\d{1,2}\b/.test(t)) {
+    const f = fechaPedida(t);
+    if (f) { const dia = new Date(`${f}T12:00:00Z`).getUTCDay(); return dia === 0 || dia === 6; }
+  }
   const m = t.match(/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/);
   if (!m) return false;
   const hoy = new Date();
@@ -181,7 +198,10 @@ export async function pedidoDeCambio(
       return `Tu pedido del ${fechaCorta(ped.created_at)} sale por el expreso ${expreso}, así que no se retira en nuestro depósito. Los tiempos de viaje los maneja el expreso: para saber cuándo te llega, consultalo con ellos.`;
     }
     const lista = e?.fecha_entrega ? String(e.fecha_entrega).slice(0, 10) : null;
-    if (esRetiro && pedida && lista && pedida >= lista) {
+    // "Hoy" pasadas las 16:30 (hora AR) ya no se puede confirmar: va a un asesor.
+    const ahoraAR = new Date(Date.now() - 3 * 3600_000);
+    const hoyCerrado = pedida === ahoraAR.toISOString().slice(0, 10) && ahoraAR.getUTCHours() * 60 + ahoraAR.getUTCMinutes() >= 16 * 60 + 30;
+    if (esRetiro && pedida && lista && pedida >= lista && !hoyCerrado) {
       return `Sí, podés retirar tu pedido del ${fechaCorta(ped.created_at)} el ${conDia(pedida)}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅`;
     }
   }
