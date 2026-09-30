@@ -106,6 +106,9 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // Pablo, 29/09: "cambié de dirección" / "me mudé" / "quiero agregar una sucursal" lo resuelve la IA (solicitar_nueva_sucursal);
   // antes lo atrapaba la FAQ #4 (dirección del depósito).
   if (customer && RE_NUEVA_DIRECCION.test(text)) return null;
+  // Pablo, 30/09: agregar a un pedido, mandar un pedido, preguntar si llegó un pago, razón social equivocada o factura
+  // duplicada van a la IA (ver las regex): antes una respuesta fija los atrapaba por una palabra suelta.
+  if (customer && vaALaIA(text)) return null;
   if (customer && RE_DIRECCION_ENTREGA.test(text)) {
     const r = await destinoPedidos(customer);
     if (r) return { reply: r, intent: "destino_entrega", automation_level: "semi_auto" };
@@ -154,6 +157,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // si no, pasa al agente.
   // Lo mismo con el saludo (#41, category saludo): "Hola, cuánto debo?" recibía "¿En qué te puedo ayudar?" (29/09).
   if (customer && (top.category === "greeting_fallback" || top.category === "saludo") && !esSoloSaludo(text)) return null;
+  // Pablo, 30/09: #21 (mínimo de compra / por unidad) contestaba "Cargué todo por unidad y después lo edité por caja".
+  if (customer && top.category === "minimo_compra" && RE_ERROR_CARGA.test(text)) return null;
 
   // Escalación humana: preestablecida en la FAQ (categoría HUMANO)
   if (top.automation_level === "needs_human") {
@@ -333,6 +338,27 @@ const RE_DIRECCION_ENTREGA = /(mi|la)\s+direcci[oó]n\s+de\s+(entrega|env[ií]o)
 const RE_DUPLICADO = /((pedido|confirm|carg|compra)[^.?!]{0,40}(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez|tres veces)|(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez)[^.?!]{0,40}(pedido|confirm|carg))/i;
 const RE_CLAVE = /((olvid|recuper|resete|blanque|cambi|perd|nueva|bloque|no\s+(me\s+)?(acuerdo|recuerdo))[^.?!]{0,40}(contrase|\bclave|password|usuario)|(contrase|\bclave|password|usuario)[^.?!]{0,40}(olvid|no\s+(me\s+)?(anda|funciona|toma|deja|acuerdo|recuerdo|entra)|incorrect|inv[aá]lid|bloque)|no\s+(puedo|logro|me\s+deja)\s+(entrar|ingresar|loguear)[^.?!]{0,30}(web|p[aá]gina|sistema|cuenta)?|(necesito|pasame|pas[aá]s|mandame|dame|no\s+tengo)\s+(mi\s+|el\s+|un\s+|la\s+)?(usuario|\bclave|contrase))/i;
 const RE_SUCURSAL_WEB = /(no\s+(me\s+)?(deja|puedo|aparece|figura|sale)[^.?!]{0,30}sucursal|sucursal[^.?!]{0,30}no\s+(me\s+)?(deja|aparece|figura|sale|puedo))/i;
+// Pablo, 30/09 (simulación con 57 mensajes reales): respuestas fijas que se disparaban por una palabra suelta. Todos estos
+// van a la IA, que tiene las herramientas para resolverlos o derivarlos.
+// "Quería agregar 60 unidades del 067 al pedido de ayer" → #21 (mínimo de compra) por "unidad". Agregar lo resuelve la IA
+// (solicitar_agregado_pedido, botón Aplicar).
+const RE_AGREGA_A_PEDIDO = /\b(agreg|sum[aá]|sumar|a[ñn]ad)\w*[^.?!]{0,60}\bpedido\b/i;
+// "Te paso el cotizador con el pedido" → #11 (lista de precios) por "cotizador": el cliente MANDA un pedido, no pide la lista.
+const RE_ENVIA_PEDIDO = /\b(te\s+|les\s+)?(paso|pasamos|env[ií]o|enviamos|mando|mandamos|adjunt\w*)(?![a-zñáéíóú])[^.?!]{0,40}\b(cotizador|pedido|orden\s+de\s+compra|planilla|excel)/i;
+// "¿Recibieron el pago?" → #15 (medios de pago) por "pago": pregunta si LLEGÓ un pago (lo ve Cobranzas).
+const RE_PAGO_RECIBIDO = /(recib\w*|lleg[oó]|acredit\w*|impact\w*|vieron|entr[oó])[^.?!]{0,30}\b(el\s+|mi\s+|la\s+)?(pago|transferencia|dep[oó]sito|e-?cheq|cheque)|\b(pago|transferencia|dep[oó]sito)[^.?!]{0,30}\b(recib|lleg[oó]|acredit|impact)/i;
+// "El pedido me salió a nombre de mi otra razón social" → #1 (estado de pedidos). Hay que refacturar: lo deriva la IA.
+const RE_RAZON_SOCIAL_MAL = /(otra\s+raz[oó]n\s+social|raz[oó]n\s+social\s+(equivocad|incorrect|distint|mal)|a\s+nombre\s+de\s+(mi\s+)?(otra|otro)\b|otro\s+cuit)/i;
+// "Me facturaron el mismo pedido dos veces" → control de pedidos repetidos. Es una FACTURA duplicada: reclamo, lo deriva la IA.
+const RE_FACTURA_DUPLICADA = /(factur\w*[^.?!]{0,40}(dos veces|\b2 veces|duplicad|repetid|de m[aá]s)|(duplicad|repetid)\w*[^.?!]{0,20}factura)/i;
+// "Cargué todo por unidad y después lo edité por caja" → #21 por "unidad": cuenta un error de carga, no pregunta si venden por unidad.
+const RE_ERROR_CARGA = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|me\s+equivoqu[eé]|nos\s+equivocamos|puse|pusimos)(?![a-zñáéíóú])[^.?!]{0,60}\b(unidad|caja|pedido)/i;
+function vaALaIA(text: string): boolean {
+  return RE_AGREGA_A_PEDIDO.test(text) || RE_PAGO_RECIBIDO.test(text) || RE_RAZON_SOCIAL_MAL.test(text) ||
+    RE_FACTURA_DUPLICADA.test(text) ||
+    // "Te paso el comprobante del pedido" sigue en la respuesta fija del comprobante (#20).
+    (RE_ENVIA_PEDIDO.test(text) && !/comprobante|\bpag[oó]|transfer/i.test(text));
+}
 
 async function pedidosDuplicados(customer: NonNullable<Customer>): Promise<{ cantidad: number; del: string; importe: string; minutos: string; ids: number[] } | null> {
   const { data: crudos } = await supabase.from("orders").select("id, created_at, total").eq("customer_id", customer.id)
