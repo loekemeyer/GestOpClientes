@@ -109,7 +109,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     // recibís en el día": el cron de pedidos web lo manda a las 9 y 11 según la fecha planificada, aunque el camión no
     // haya salido, así que no se promete la entrega.
     variables: ["fecha en que hizo el pedido (dd/mm)", "dirección de entrega"],
-    body: "Tu pedido del {{1}} sale hoy en el reparto hacia {{2}}.",
+    body: "Tu pedido del {{1}} para {{2}} sale hoy en el reparto.",
     ejemplos: ["22/09", "Av. Corrientes 3864"],
   },
   {
