@@ -12,6 +12,11 @@
       "bajada": "Sale con la factura en PDF adjunta. El bot elige la plantilla según la condición de pago del cliente y cuántas facturas tiene el pedido."
     },
     {
+      "id": "complementarias",
+      "titulo": "Plantillas complementarias",
+      "bajada": "Avisos que no siguen el recorrido del pedido: se disparan por una fecha o un dato (ej. un descuento por vencer). Salen por la misma cola y la misma llave de envíos."
+    },
+    {
       "id": "numero",
       "titulo": "Número y cuenta",
       "bajada": "Vinculación de un teléfono con la cuenta del cliente, y la prueba técnica de Meta."
@@ -293,6 +298,13 @@
       "estado": "otro_sistema",
       "para": "RR. HH.",
       "sale": "Planify: cumpleaños de un empleado."
+    },
+    "pedido_recordatorio_descuento": {
+      "grupo": "complementarias",
+      "orden": 1,
+      "estado": "sin_disparador",
+      "para": "Facturas con saldo (contado, crédito o sin decidir)",
+      "sale": "2 días hábiles antes de que venza cada escalón de descuento por pago (25→20, 20→15, 15→10, 10→0), sólo si la factura sigue con saldo en Deuda Viva. Lo encola lk_recordatorio-descuento; falta prenderle el cron diario."
     }
   }
 }
