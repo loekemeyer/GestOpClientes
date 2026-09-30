@@ -302,9 +302,9 @@
     "pedido_recordatorio_descuento": {
       "grupo": "complementarias",
       "orden": 1,
-      "estado": "sin_disparador",
+      "estado": "prueba",
       "para": "Facturas con saldo (contado, crédito o sin decidir)",
-      "sale": "2 días hábiles antes de que venza cada escalón de descuento por pago (25→20, 20→15, 15→10, 10→0), sólo si la factura sigue con saldo en Deuda Viva. Lo encola lk_recordatorio-descuento; falta prenderle el cron diario."
+      "sale": "Días hábiles 9:05: 2 días hábiles antes de que venza cada escalón de descuento por pago (25→20, 20→15, 15→10, 10→0), sólo si la factura sigue con saldo en Deuda Viva. Lo encola lk_recordatorio-descuento (cron bot-recordatorio-25, sql/111)."
     }
   }
 }

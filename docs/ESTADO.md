@@ -2,7 +2,12 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-09-29.
+> Última actualización: 2026-09-30.
+>
+> **30/09 (Pablo):** recordatorio de descuento por vencer (`lk_recordatorio-descuento`, cron `bot-recordatorio-25`
+> días hábiles 9:05, sql/111, plantilla `pedido_recordatorio_descuento` en revisión); FAQ #8 descuentos con las
+> facturas abiertas y fechas reales, y FAQ #10 reenvía el PDF de la factura (`_shared/faq.ts`). Fuente de "¿está
+> paga?": `GV_Cobranza_Deuda_Viva` de Gestión (sin fila con saldo = pagada).
 
 ## 🔑 Accesos, permisos y dónde está cada cosa (LEER PRIMERO)
 
