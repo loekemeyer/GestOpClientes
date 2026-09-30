@@ -129,7 +129,10 @@ iguales → pregunta si es otro o el mismo) → muestra el resumen → con el "s
 **precarga** (`wa_pedido_precarga`, Gestión no la ve) y una tarea "Pedido por WhatsApp" con **Confirmar y enviar a
 Gestión** / **Descartar** (lk_alertas `pedido_confirmar`/`pedido_descartar`). Confirmar crea el pedido con su ficha
 (origen "WhatsApp"): retry-sheets lo manda al Sheet y al cliente le llega "pedido recibido". Modo "directo" confirma
-solo. El ejemplo de abajo es el flujo viejo (bot_submit_order, sin uso).
+solo. Pedido en varios mensajes seguidos: durante un pedido (o si el mensaje trae cantidades/códigos, o llegó otro
+hace < 6 s) el webhook espera 5 s y, si llegó otro, guarda éste en el historial sin contestar y contesta el último.
+Al mostrar un artículo usa el precio del cliente (lista − dto por volumen). El ejemplo de abajo es el flujo viejo
+(bot_submit_order, sin uso).
 
 ### (viejo)
 

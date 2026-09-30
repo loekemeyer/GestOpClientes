@@ -1027,6 +1027,32 @@ async function handleMessage(
     }
   }
 
+  // 3b-bis. Pedido en varios mensajes (Pablo, 30/09): "4 cajas del 501" / "y 6 del 504" / "sumale 2 del 506" mandados en
+  //       ráfaga se procesaban cada uno por su lado y al mismo tiempo (2-3 respuestas cruzadas). Si hay un pedido por
+  //       WhatsApp en curso, el mensaje trae cantidades o códigos, o llegó otro mensaje suyo hace menos de 6 s, se esperan
+  //       5 s: si mientras tanto escribió otra cosa, éste se guarda en el historial SIN contestar y contesta el último
+  //       (que ya lo ve). Se guarda acá porque si no, el último no lo vería.
+  if (customer && !soloSaludo && msgId) {
+    const RE_ITEMS = /(\b\d+\s*(cajas?|cj|bultos?|unidades|u)\b|\bdel\s+\d{3,5}[a-z]?\b|\bc[oó]d(igo)?\.?\s*\d{3,5})/i;
+    const { data: yo } = await supabase.from("wa_inbound_seen").select("first_seen").eq("wamid", msgId).maybeSingle();
+    let rafaga = false;
+    if (yo?.first_seen) {
+      const { count: previos } = await supabase.from("wa_inbound_seen").select("wamid", { count: "exact", head: true })
+        .eq("phone", phone).neq("wamid", msgId).lt("first_seen", yo.first_seen)
+        .gt("first_seen", new Date(new Date(yo.first_seen).getTime() - 6000).toISOString());
+      rafaga = (previos ?? 0) > 0;
+    }
+    if (yo?.first_seen && (rafaga || RE_ITEMS.test(text) || await pedidoEnCurso(phone))) {
+      await new Promise((r) => setTimeout(r, 5000));
+      const { count } = await supabase.from("wa_inbound_seen").select("wamid", { count: "exact", head: true })
+        .eq("phone", phone).gt("first_seen", yo.first_seen);
+      if ((count ?? 0) > 0) {
+        await saveMessage(phone, "user", text);
+        return;
+      }
+    }
+  }
+
   // 3c. Respuesta a un aviso automático (pedido recibido, programado, en viaje…): si lo último
   //     que le mandamos fue un aviso de las últimas 48 h, lo que escribe es la respuesta.
   //     Ramas deterministas (0 tokens): cambiar/cancelar → asesor; cuándo llega → estado real;

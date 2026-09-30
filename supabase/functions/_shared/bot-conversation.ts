@@ -187,7 +187,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "buscar_productos",
     description:
-      "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, unidades por caja, precio de lista por UNIDAD y por CAJA (sin descuentos) y si tiene imagen. No confundas los dos precios.",
+      "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, unidades por caja, precio de lista por UNIDAD y por CAJA (sin descuentos), el precio DEL CLIENTE por caja (con su descuento por volumen, si tiene) y si tiene imagen. Si le decís un precio al cliente, usá precio_cliente_por_caja cuando venga (es el suyo, antes del descuento de la forma de pago); si no viene, el de lista. No confundas los precios.",
     input_schema: {
       type: "object",
       properties: {
@@ -708,10 +708,16 @@ async function executeTool(
       if (!data?.length) return { data: { mensaje: `No encontré productos para "${input.query}".` } };
       // Pablo, 29/09: list_price es por UNIDAD. El bot decía "$5.520 por caja" y la caja de 6 sale $33.120.
       // Se le pasan los dos precios con nombre explícito, de lista (sin descuentos).
+      // Pablo, 30/09: además el precio DEL CLIENTE (lista − su descuento por volumen, como la web). En el Simulador el bot
+      // mostró "$33.120 por caja" (lista) a Farimar, que tiene 8%: en un pedido se muestra el suyo.
+      const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
+      const dto = Number(cli?.[0]?.cod_cliente) === 5000 ? 0 : Number(cli?.[0]?.dto_vol ?? 0);
       // deno-lint-ignore no-explicit-any
       return { data: (data as any[]).map(({ list_price, uxb, ...r }) => ({ ...r, unidades_por_caja: uxb,
         precio_lista_por_unidad: Math.round(Number(list_price || 0)),
-        precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)) })) };
+        precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
+        ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
+          descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) })) };
     }
 
     case "consultar_stock": {
