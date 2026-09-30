@@ -164,7 +164,8 @@ export const PLANTILLAS: PlantillaMeta[] = [
     disparo: "Faltan 2 días hábiles para que venza un escalón de descuento por pago y la factura sigue con saldo (Deuda Viva de Gestión). Uno por escalón.",
     variables: ["fecha de la factura (dd/mm)", "hasta cuándo vale (\"martes 13/10\")", "% de descuento vigente",
       "monto con el descuento", "saldo sin descuento", "% que queda después", "alias", "CBU"],
-    body: "Te recordamos el pago de tu compra facturada el {{1}}: si la pagás hasta el {{2}} tenés *{{3}}% de descuento* y abonás *{{4}}* en vez de {{5}}.\nDespués de esa fecha el descuento pasa a ser del {{6}}%.\n\nDatos para el pago:\nAlias: {{7}}\nCBU: {{8}}\n\nSaludos.",
+    // Pablo, 30/09: formato "más prolijo" (fecha sola en la primera línea); alias y CBU de la configuración (Panel).
+    body: "Te recordamos el pago de tu compra facturada el {{1}}\n\nSi la pagás hasta el {{2}} tenés *{{3}}% de descuento* y abonás *{{4}}* en vez de {{5}}.\nDespués de esa fecha el descuento pasa a ser del {{6}}%.\n\nDatos para el pago:\nAlias: {{7}}\nCBU: {{8}}\n\nSaludos.",
     ejemplos: ["28/09", "martes 13/10", "25", "$896.668", "$1.195.557", "20", "loeke.srl", "1910027855002702387450"],
   },
 ];
