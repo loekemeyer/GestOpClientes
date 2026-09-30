@@ -122,8 +122,8 @@ async function tplParamCount(name: string): Promise<number | null> {
 interface ValoresFactura {
   total: string; n: string; lista: string; plazo: string; pct: string; montoCliente: string; montoContado: string;
   fecha: string; ahorro: string; alias: string; cbu: string;
-  /** Fecha del e-cheq = fecha de la factura + días del plazo (dd/mm). Pablo, 30/09. */
-  fechaEcheq: string;
+  /** Fecha del plazo = fecha de la factura + último día del plazo (e-cheq: días del cheque; crédito "31 a 45" → 45). */
+  fechaPlazo: string;
 }
 function mapearPorTexto(body: string, v: ValoresFactura, grupo: string): string[] | null {
   const vars = [...body.matchAll(/\{\{(\d+)\}\}/g)];
@@ -142,7 +142,7 @@ function mapearPorTexto(body: string, v: ValoresFactura, grupo: string): string[
     else if (/\(con IVA\):$/i.test(linea)) val = v.total;
     else if (/Detalle por factura:$/i.test(linea)) val = v.lista;
     else if (/hasta el$/i.test(linea)) val = v.fecha;
-    else if (/Echeq al$/i.test(linea)) val = v.fechaEcheq;
+    else if (/(pagar|Echeq) al$/i.test(linea)) val = v.fechaPlazo;
     else if (/ahorrarte$/i.test(linea)) val = v.ahorro;
     else if (/Total Contado:$/i.test(linea)) val = v.montoContado;
     else if (/abon[aá]s:?$/i.test(linea)) val = v.montoCliente;
@@ -318,9 +318,11 @@ function fechaLimiteContado(fechaISO: string, dias: number): string {
   const mm = String(base.getUTCMonth() + 1).padStart(2, "0");
   return `${dd}/${mm}`;   // sin año, como el resto de los avisos (Pablo, 30/09)
 }
-// Fecha del e-cheq: fecha de la factura + días del plazo (etiqueta "120", o los dígitos de la clave echeq_120). dd/mm.
-function fechaEcheq(fechaISO: string, label: string, metodo: string): string {
-  const dias = parseInt(String(label || "").match(/\d+/)?.[0] ?? String(metodo).match(/\d+/)?.[0] ?? "", 10);
+// Fecha del plazo: fecha de la factura + el ÚLTIMO número de la etiqueta del plazo ("120" → 120; "31 a 45" → 45, hasta
+// cuando vale ese descuento), o los dígitos de la clave (echeq_120). dd/mm. Pablo, 30/09.
+function fechaPlazo(fechaISO: string, label: string, metodo: string): string {
+  const nums = (String(label || "").match(/\d+/g) ?? String(metodo).match(/\d+/g) ?? []).map(Number);
+  const dias = nums.length ? Math.max(...nums) : NaN;
   const base = new Date((fechaISO || new Date().toISOString().slice(0, 10)) + "T00:00:00Z");
   if (!Number.isFinite(dias) || isNaN(base.getTime())) return "la fecha acordada";
   base.setUTCDate(base.getUTCDate() + dias);
@@ -417,7 +419,7 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
   const porTexto = cuerpoMeta ? mapearPorTexto(cuerpoMeta, {
     total: fmtARS(total_sum), n: String(n), lista, plazo: label, pct: grupo === "contado" ? contadoPct : metodoPct,
     montoCliente: fmtARS(montoCliente), montoContado: fmtARS(montoContado), fecha: fechaLimite, ahorro: fmtARS(ahorro),
-    alias: cfg.alias, cbu: cfg.cbu, fechaEcheq: fechaEcheq(fecha, label, metodo),
+    alias: cfg.alias, cbu: cfg.cbu, fechaPlazo: fechaPlazo(fecha, label, metodo),
   }, grupo) : null;
   if (porTexto) {
     params = porTexto;
