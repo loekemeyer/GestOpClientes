@@ -286,6 +286,7 @@ serve(async (req) => {
           articulos: Array.isArray(ctx.articulos) ? ctx.articulos : null,
           respuesta_cliente: ctx.respuesta_cliente ?? null, cambios: ctx.cambios ?? null, lectura_error: ctx.lectura_error ?? null,
           aplicable: ctx.aplicable === true,
+          precarga: ctx.precarga ?? null,   // pedido por WhatsApp (sql/112)
         };
       }).sort((x, y) => {
         // Abiertas primero; dentro de las abiertas: urgentes, después vencidas, después por vencimiento.
@@ -501,6 +502,56 @@ serve(async (req) => {
       await llamarPlanify({ action: "cerrar", alerta_id: id });
       console.log(`lk_alertas: agregado aplicado al pedido ${r.pedido} por ${gate.email}`);
       return json({ ok: true, total_anterior: r.total_anterior, total_nuevo: r.total_nuevo, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
+    }
+
+    // Pablo, 30/09: pedidos por WhatsApp (sql/112). La tarea trae contexto.precarga.id. "Confirmar" crea el pedido con su
+    // ficha (Gestión lo ve, retry-sheets lo manda al Sheet y al cliente le llega "pedido recibido" por la cola). Si
+    // apareció un pedido parecido después de precargar, devuelve posible_doble_pedido y hay que reenviar con forzar.
+    if (body.action === "pedido_confirmar" || body.action === "pedido_descartar") {
+      const id = Number(body.id);
+      if (!id) return json({ ok: false, error: "falta id" }, 400);
+      const { data: a } = await supabase.from("wa_alertas_humano").select("id, contexto, estado").eq("id", id).maybeSingle();
+      const pid = Number(a?.contexto?.precarga?.id);
+      if (!pid) return json({ ok: false, error: "La tarea no es un pedido por WhatsApp." }, 200);
+      const { data: r, error } = body.action === "pedido_confirmar"
+        ? await supabase.rpc("bot_pedido_confirmar", { p_precarga_id: pid, p_por: gate.email, p_forzar: body.forzar === true })
+        : await supabase.rpc("bot_pedido_descartar", { p_precarga_id: pid, p_por: gate.email, p_nota: body.nota ? String(body.nota).slice(0, 300) : null });
+      if (error) return json({ ok: false, error: error.message }, 200);
+      if (!r?.ok) return json({ ok: false, error: r?.error ?? "No se pudo (¿ya estaba resuelta?)", parecidos: r?.parecidos ?? null, articulos: r?.articulos ?? null }, 200);
+      await supabase.from("wa_alertas_humano").update({
+        estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
+        contexto: { ...a!.contexto, precarga: { ...a!.contexto.precarga, confirmado: body.action === "pedido_confirmar",
+          descartado: body.action === "pedido_descartar", order_id: r.order_id ?? null } },
+      }).eq("id", id);
+      await llamarPlanify({ action: "cerrar", alerta_id: id });
+      console.log(`lk_alertas: ${body.action} precarga ${pid} por ${gate.email}`);
+      return json({ ok: true, order_id: r.order_id ?? null });
+    }
+    // Configuración de pedidos por WhatsApp (dashboard › Configuración del agente).
+    if (body.action === "pedidos_config_get") {
+      const { data } = await supabase.rpc("wa_pedidos_cfg");
+      const { data: web } = await supabase.from("app_settings").select("value").eq("key", "web_order_discount").maybeSingle();
+      return json({ ok: true, config: data, dto_web_de_la_web: Number(web?.value ?? 0.02) });
+    }
+    if (body.action === "pedidos_config_save") {
+      const c = body.config ?? {};
+      const num = (v: unknown, min: number, max: number) => {
+        if (v === null || v === "" || v === undefined) return null;
+        const n = Number(v); return Number.isFinite(n) && n >= min && n <= max ? n : NaN;
+      };
+      const limpio = {
+        activo: c.activo === true, simulador: c.simulador !== false,
+        modo: c.modo === "directo" ? "directo" : "precarga",
+        dup_dias: num(c.dup_dias, 1, 60) ?? 7, dup_pct: num(c.dup_pct, 0.1, 1) ?? 0.5,
+        dto_web: num(c.dto_web, 0, 0.5), minimo_envio: num(c.minimo_envio, 0, 1e9), minimo_retiro: num(c.minimo_retiro, 0, 1e9),
+      };
+      if (Object.values(limpio).some((v) => typeof v === "number" && Number.isNaN(v))) {
+        return json({ ok: false, error: "Hay un valor fuera de rango: revisá días (1-60), % de artículos iguales (10-100), descuento web (0-50%) y mínimos." }, 400);
+      }
+      const { error } = await supabase.from("app_settings").upsert({ key: "wa_pedidos_config", value: JSON.stringify(limpio) }, { onConflict: "key" });
+      if (error) return json({ ok: false, error: error.message }, 200);
+      console.log(`lk_alertas: wa_pedidos_config guardada por ${gate.email}:`, JSON.stringify(limpio));
+      return json({ ok: true, config: limpio });
     }
 
     // Pablo, 29/09: reseteo de clave con aprobación. Genera una clave temporal, la guarda en la cuenta de la web del

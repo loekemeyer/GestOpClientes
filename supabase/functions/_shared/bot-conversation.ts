@@ -7,7 +7,7 @@ import { notificarHumano } from "./alertas.ts";
 import { ingresoEstimado, proximosIngresos, stockArticulo, stockNecesitaHumano, textoIngreso, textoStock } from "./stock.ts";
 import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
-import { REGLAS_OPERATIVAS, bloqueSeguridad } from "./agente-fijos.ts";
+import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinAnulados } from "./pedidos-anulados.ts";
 import {
   callModel,
@@ -24,10 +24,23 @@ import {
 // deno-lint-ignore no-explicit-any
 type ToolDef = { name: string; description: string; input_schema: any };
 
-// Pedidos por WhatsApp APAGADOS (Pablo Olejavetzky, 28/09: "que lo tenga que hacer por la página, a eso le
-// falta pulir mucho"). Sin la herramienta enviar_pedido el agente no puede cargar pedidos aunque se lo pidan.
-// Para volver a habilitarlo: true (y revisar REGLAS_OPERATIVAS en agente-fijos.ts).
+// Pedidos por WhatsApp (Pablo, 30/09): los prende app_settings.wa_pedidos_config.activo (Configuración del agente).
+// Apagados, el agente no tiene las herramientas de pedido y la regla le dice que mande a la web. `simulador` (default
+// true) los deja probar en el Simulador aunque estén apagados. La vieja enviar_pedido (bot_submit_order) quedó sin
+// uso: no mandaba el pedido a Gestión ni usaba las formas de pago de la web.
 export const PEDIDOS_POR_WHATSAPP = false;
+const HERRAMIENTAS_PEDIDO = new Set(["opciones_de_pedido", "armar_pedido", "confirmar_pedido"]);
+// deno-lint-ignore no-explicit-any
+export async function configPedidosWa(): Promise<any> {
+  const { data } = await supabase.rpc("wa_pedidos_cfg");
+  return data ?? { activo: false, modo: "precarga" };
+}
+async function pedidosWaHabilitados(): Promise<boolean> {
+  try {
+    const cfg = await configPedidosWa();
+    return cfg?.activo === true || (SIM.activo && cfg?.simulador !== false);
+  } catch { return false; }
+}
 
 const BOT_TOOLS: ToolDef[] = [
   {
@@ -277,6 +290,46 @@ const BOT_TOOLS: ToolDef[] = [
       required: ["items"],
     },
   },
+  {
+    name: "opciones_de_pedido",
+    description: "Pedidos por WhatsApp: devuelve las formas de pago que puede elegir el cliente (con su código) y sus direcciones de entrega (con su número de slot; las de tipo 'retiro' son retirar en el depósito), más la fecha mínima de retiro. Usala antes de preguntar forma de pago y entrega.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "armar_pedido",
+    description: "Pedidos por WhatsApp: arma el pedido con la misma cuenta que la web (precio del cliente, 2% web y descuento de la forma de pago) y devuelve el resumen para mostrar, errores a resolver y pedidos parecidos (posible doble pedido). NO guarda nada.",
+    input_schema: {
+      type: "object",
+      properties: {
+        items: { type: "array", description: "Artículos confirmados", items: { type: "object",
+          properties: { cod: { type: "string", description: "Código (ej. '501')" }, cajas: { type: "integer", description: "Cantidad de cajas" } },
+          required: ["cod", "cajas"] } },
+        condicion_code: { type: "integer", enum: [8, 9, 10, 11, 12, 13, 18], description: "Código de la forma de pago elegida (de opciones_de_pedido)" },
+        slot: { type: "integer", description: "Dirección de entrega elegida (slot de opciones_de_pedido)" },
+        retiro_fecha: { type: "string", description: "Sólo si retira: día elegido, YYYY-MM-DD" },
+        retiro_franja: { type: "string", enum: ["9:00 a 12:00", "13:00 a 16:30"], description: "Sólo si retira" },
+        observaciones: { type: "string", description: "Aclaración del cliente para el pedido (opcional)" },
+      },
+      required: ["items", "condicion_code", "slot"],
+    },
+  },
+  {
+    name: "confirmar_pedido",
+    description: "Pedidos por WhatsApp: SOLO después de que el cliente vio el resumen de armar_pedido y dijo que sí. Mismos datos que armar_pedido. Deja el pedido cargado para que el equipo lo pase a preparación.",
+    input_schema: {
+      type: "object",
+      properties: {
+        items: { type: "array", items: { type: "object",
+          properties: { cod: { type: "string" }, cajas: { type: "integer" } }, required: ["cod", "cajas"] } },
+        condicion_code: { type: "integer", enum: [8, 9, 10, 11, 12, 13, 18] },
+        slot: { type: "integer" },
+        retiro_fecha: { type: "string" },
+        retiro_franja: { type: "string", enum: ["9:00 a 12:00", "13:00 a 16:30"] },
+        observaciones: { type: "string" },
+      },
+      required: ["items", "condicion_code", "slot"],
+    },
+  },
 ];
 
 // ─── System prompt ─────────────────────────────────────────────────
@@ -317,7 +370,7 @@ Información del negocio:
 - Descuentos por forma de pago (contado, 30/60/90 días, e-cheq): existen y dependen del cliente. Consultalos con consultar_mis_descuentos; nunca digas que no existen.
 - Web: loekemeyer.com
 ${rectorBloque}
-${REGLAS_OPERATIVAS}
+${reglasOperativas(await pedidosWaHabilitados())}
 
 ${bloqueSeguridad(customerName, codCliente)}`;
 }
@@ -342,9 +395,11 @@ const HERRAMIENTAS = BOT_TOOLS.filter((t) => PEDIDOS_POR_WHATSAPP || t.name !== 
 // Los motivos de derivar_a_persona salen de Configuración › Derivaciones: se sacan los que "responde el bot" y
 // se suman los agregados desde el panel. Si la config no se puede leer, quedan los de siempre.
 async function herramientasDelTurno(): Promise<ToolDef[]> {
+  const conPedidos = await pedidosWaHabilitados();
+  const base = HERRAMIENTAS.filter((t) => conPedidos || !HERRAMIENTAS_PEDIDO.has(t.name));
   try {
     const mot = await motivosIA();
-    return HERRAMIENTAS.map((t) => {
+    return base.map((t) => {
       if (t.name !== "derivar_a_persona") return t;
       const enumM = [...mot.map((m) => m.clave), "alta_cliente", "escalation"];
       const desc = [...mot.map((m) => `${m.clave} = ${m.cuando}`), "alta_cliente = quiere ser cliente",
@@ -355,7 +410,7 @@ async function herramientasDelTurno(): Promise<ToolDef[]> {
     });
   } catch (e) {
     console.error("herramientasDelTurno: sin config de derivaciones", e);
-    return HERRAMIENTAS;
+    return base;
   }
 }
 
@@ -746,6 +801,109 @@ async function executeTool(
         return { data: { mensaje: "No encontré información sobre eso en la base de conocimiento." } };
       }
       return { data };
+    }
+
+    // ── Pedidos por WhatsApp (Pablo, 30/09; sql/112) ──
+    case "opciones_de_pedido": {
+      if (!(await pedidosWaHabilitados())) return { data: { error: "Los pedidos no se toman por WhatsApp: indicale que lo haga en loekemeyer.com." } };
+      const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
+      const c = cli?.[0];
+      if (!c?.customer_id) return { data: { error: "Este número no está vinculado a una cuenta: no se pueden tomar pedidos. Derivá con derivar_a_persona (alta o vinculación)." } };
+      const [{ data: cust }, { data: dirs }, { data: desde }] = await Promise.all([
+        supabase.from("customers").select("escala_activa, cod_cliente").eq("id", c.customer_id).maybeSingle(),
+        supabase.from("customer_delivery_addresses").select("slot, label, zona_expreso, nombre_expreso").eq("customer_id", c.customer_id).order("slot"),
+        supabase.rpc("entrega_sumar_habiles", { p_desde: new Date().toISOString().slice(0, 10), p_n: 3 }),
+      ]);
+      const soloContado = cust?.escala_activa === true || Number(cust?.cod_cliente) === 5000;
+      const formas = [[8, "Contado (25% de descuento)"], [9, "15 a 30 días (20%)"], [10, "31 a 45 días (15%)"], [11, "46 a 60 días (10%)"],
+        [12, "E-cheq a 90 días (5%)"], [13, "E-cheq a 120 días (sin descuento)"], [18, "Prefiero no decidir ahora (sin descuento)"]]
+        .filter(([code]) => !soloContado || code === 8).map(([code, texto]) => ({ code, texto }));
+      const entregas = (dirs ?? []).map((d: { slot: number; label: string; zona_expreso: string | null; nombre_expreso: string | null }) => {
+        const retiro = /^retira$/i.test(String(d.zona_expreso ?? "").trim());
+        return { slot: d.slot, direccion: d.label, tipo: retiro ? "retiro en el depósito (Virgilio 2788)" : d.nombre_expreso ? `por expreso ${d.nombre_expreso}` : "reparto propio" };
+      });
+      const ddmm = typeof desde === "string" ? `${desde.slice(8, 10)}/${desde.slice(5, 7)}` : null;
+      return { data: { formas_de_pago: formas, entregas,
+        ...(entregas.some((e: { tipo: string }) => e.tipo.startsWith("retiro")) ? { retiro_desde: ddmm, franjas: ["9:00 a 12:00", "13:00 a 16:30"] } : {}),
+        ...(soloContado ? { nota: "Esta cuenta sólo puede pedir con pago Contado." } : {}),
+        ...(!entregas.length ? { nota_entrega: "No tiene direcciones cargadas: pedile la dirección y usá solicitar_nueva_sucursal; el pedido se puede cargar cuando esté agregada." } : {}) } };
+    }
+
+    case "armar_pedido":
+    case "confirmar_pedido": {
+      if (!(await pedidosWaHabilitados())) return { data: { error: "Los pedidos no se toman por WhatsApp: indicale que lo haga en loekemeyer.com." } };
+      const confirmar = name === "confirmar_pedido";
+      const guardar = confirmar && !SIM.activo;   // en el Simulador nunca se guarda
+      const items = (Array.isArray(input.items) ? input.items : []).map((it: { cod: string; cajas: number }) =>
+        ({ cod: String(it.cod ?? "").trim(), cajas: Number(it.cajas) }));
+      const { data: r, error } = await supabase.rpc("bot_pedido_armar", {
+        p_telefono: phone, p_items: items, p_condicion_code: Number(input.condicion_code), p_slot: Number(input.slot),
+        p_retiro_fecha: input.retiro_fecha || null, p_retiro_franja: input.retiro_franja || null,
+        p_observaciones: input.observaciones || null, p_guardar: guardar,
+      });
+      if (error) { console.error("bot_pedido_armar:", error.message); return { data: { error: "No pude armar el pedido. Derivá con derivar_a_persona (motivo escalation)." } }; }
+      const pesos = (n: number) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
+      const EXPLICA: Record<string, string> = {
+        cliente_no_identificado: "este número no está vinculado a una cuenta (no se puede pedir por WhatsApp)",
+        forma_de_pago_invalida: "falta la forma de pago", sin_articulos: "no hay artículos", falta_entrega: "falta elegir la dirección de entrega",
+        sucursal_invalida: "esa dirección no es de la cuenta", falta_fecha_o_franja_de_retiro: "si retira, falta el día y la franja",
+        franja_invalida: "la franja tiene que ser 9:00 a 12:00 o 13:00 a 16:30",
+      };
+      const errores = ((r?.errores ?? []) as string[]).map((e) => {
+        const [k, v] = e.split(":");
+        if (k === "articulo_no_encontrado") return `no existe el artículo ${v}`;
+        if (k === "sin_stock") return `sin stock: ${v} (sacalos o cambialos)`;
+        if (k === "fecha_retiro_invalida") return `el día de retiro tiene que ser hábil y desde el ${v?.replace("minimo ", "")}`;
+        return EXPLICA[k] ?? e;
+      });
+      const ent = r?.entrega;
+      const entrega = ent ? (/^retira$/i.test(String(ent.zona_expreso ?? "").trim())
+        ? `retira en Virgilio 2788 el ${String(ent.retiro_fecha ?? "").split("-").reverse().slice(0, 2).join("/")} de ${ent.retiro_franja}`
+        : `${ent.label}${ent.nombre_expreso ? ` (por expreso ${ent.nombre_expreso})` : ""}`) : null;
+      const resumen = r?.ok ? [
+        "Tu pedido:",
+        ...((r.items ?? []) as Array<{ cajas: number; descripcion: string; cod_art: string; line_total: number }>)
+          .map((x) => `• ${x.cajas} ${x.cajas === 1 ? "caja" : "cajas"} ${x.descripcion} (${x.cod_art}) — ${pesos(x.line_total)}`),
+        `Subtotal: ${pesos(r.subtotal)}`,
+        `Descuento web ${Math.round(r.dto_web * 100)}% y forma de pago ${r.condicion}`,
+        `*Total: ${pesos(r.total)} + IVA*`,
+        `Entrega: ${entrega}`,
+      ].join("\n") : null;
+      const parecidos = (r?.parecidos ?? []) as Array<{ tipo: string; fecha: string; comunes: number; de: number }>;
+
+      if (!confirmar) {
+        return { data: { ok: r?.ok === true, errores, avisos: r?.avisos ?? [], resumen_para_el_cliente: resumen,
+          ...(parecidos.length ? { parecidos: parecidos.map((p) => `pedido ${p.tipo === "web" ? "por la web" : "por WhatsApp"} del ${p.fecha} con ${p.comunes} de ${p.de} artículos iguales`),
+            regla_parecidos: "Antes del resumen preguntale si es un pedido nuevo o el mismo que ese. Si es el mismo, no sigas." } : {}),
+          regla: r?.ok ? "Mostrale el resumen tal cual y pedile que confirme con un sí." : "Resolvé los errores con el cliente y volvé a armar." } };
+      }
+      if (!r?.ok) return { data: { ok: false, errores, regla: "No se cargó: resolvé los errores y volvé a armar el pedido." } };
+      if (SIM.activo) {
+        return { data: { ok: true, simulado: true, texto_para_el_cliente: "¡Listo! Recibimos tu pedido. Lo revisamos y te llega la confirmación por acá. 🙌" } };
+      }
+      // Precarga guardada. Modo directo: se confirma en el acto (salvo posible doble pedido, que queda para una persona).
+      const cfg = await configPedidosWa();
+      let directo: { ok: boolean; order_id?: number; error?: string } | null = null;
+      if (cfg?.modo === "directo" && r.precarga_id) {
+        const { data: c2 } = await supabase.rpc("bot_pedido_confirmar", { p_precarga_id: r.precarga_id, p_por: "bot (modo directo)", p_forzar: false });
+        directo = c2 ?? null;
+      }
+      const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
+      await notificarHumano({
+        tipo: "otro", phone, customerId: cli?.[0]?.customer_id ?? null,
+        contexto: {
+          motivo: "pedido_whatsapp", origen: "agente_ia", urgente: false, razon_social: r.cliente ?? null,
+          texto: `Pedido por WhatsApp: ${pesos(r.total)} + IVA · ${r.condicion} · ${entrega}`,
+          precarga: { id: r.precarga_id, total: r.total, subtotal: r.subtotal, condicion: r.condicion, entrega,
+            items: (r.items ?? []).map((x: { cod_art: string; descripcion: string; cajas: number; line_total: number }) =>
+              ({ cod: x.cod_art, descripcion: x.descripcion, cajas: x.cajas, importe: x.line_total })),
+            parecidos, confirmado: directo?.ok === true, order_id: directo?.order_id ?? null, observaciones: input.observaciones || null },
+        },
+      });
+      return { data: { ok: true, texto_para_el_cliente: directo?.ok
+        ? "¡Listo! Tu pedido quedó cargado. Te llega la confirmación por acá. 🙌"
+        : "¡Listo! Recibimos tu pedido. Lo revisamos y te llega la confirmación por acá. 🙌",
+        regla: "Pasale este texto tal cual. No le digas número de pedido." } };
     }
 
     case "enviar_pedido": {

@@ -13,7 +13,7 @@
 --     retry-sheets (cada 5 min, pedidos con ficha y sheets_sent = false), igual que Krikos.
 --
 -- Configuración: app_settings.wa_pedidos_config (JSON, se edita en el dashboard › Configuración del agente).
---   { "activo": false, "modo": "precarga"|"directo", "dup_dias": 7, "dup_pct": 0.5, "dto_web": null (= web_order_discount),
+--   { "activo": false, "modo": "precarga"|"directo", "dup_dias": 7, "dup_pct": 0.5, "dto_web": 0 (Pablo, 30/09: por WhatsApp NO va el 2% web; null = usa web_order_discount),
 --     "minimo_envio": null, "minimo_retiro": null }   ← mínimos: sólo aviso, la web no los controla.
 --   Sin fila = esos valores (apagado).
 -- Aplicada 30/09 a PaginaLK.
@@ -49,7 +49,7 @@ create index if not exists wa_pedido_precarga_cliente on public.wa_pedido_precar
 -- Config con defaults (apagado).
 create or replace function public.wa_pedidos_cfg()
 returns jsonb language sql stable security definer set search_path to 'public' as $$
-  select '{"activo":false,"modo":"precarga","dup_dias":7,"dup_pct":0.5,"dto_web":null,"minimo_envio":null,"minimo_retiro":null}'::jsonb
+  select '{"activo":false,"modo":"precarga","dup_dias":7,"dup_pct":0.5,"dto_web":0,"minimo_envio":null,"minimo_retiro":null}'::jsonb
          || coalesce((select value::jsonb from app_settings where key = 'wa_pedidos_config'), '{}'::jsonb);
 $$;
 

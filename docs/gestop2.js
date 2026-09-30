@@ -782,6 +782,21 @@ function tkPintarDetalle() {
     cuerpo = `<h4>Pide clave nueva para la web</h4>${a.texto ? `<div class="cita">${gesc(a.texto)}</div>` : ""}
       <div class="aviso">La clave vieja deja de andar y la nueva le llega por WhatsApp.</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkResetClave()">Generar clave temporal y mandarla</button></div>`;
+  } else if (a.precarga?.id) {
+    // Pablo, 30/09: pedido tomado por el bot (sql/112). "Confirmar" lo carga con su ficha: Gestión lo ve y al cliente le
+    // llega "pedido recibido". Hasta entonces no existe para Gestión.
+    const pc = a.precarga, $ = (n) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
+    const par = (pc.parecidos || []).length
+      ? `<div class="alerta">⚠️ Posible doble pedido: ${pc.parecidos.map((x) => `pedido ${x.tipo === "web" ? "por la web" : "por WhatsApp"} del ${gesc(x.fecha)} (${gesc(x.comunes)} de ${gesc(x.de)} artículos iguales)`).join("; ")}. El cliente dijo que es un pedido nuevo: revisalo igual.</div>` : "";
+    const hecho = pc.confirmado ? `<div class="aviso" style="border-style:solid">✅ Ya está cargado${pc.order_id ? ` (pedido ${gesc(pc.order_id)})` : ""}.</div>`
+      : pc.descartado ? `<div class="aviso" style="border-style:solid">Descartado.</div>` : "";
+    cuerpo = `<h4>Pedido por WhatsApp · ${(pc.items || []).length} artículos</h4>
+      <div class="tk-tels" style="max-width:none">${(pc.items || []).map((x) => `<div class="it"><span><b>${gesc(x.cajas)} ${Number(x.cajas) === 1 ? "caja" : "cajas"}</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})</span><span>${$(x.importe)}</span></div>`).join("")}</div>
+      ${kv([["Subtotal", $(pc.subtotal)], ["Forma de pago", gesc(pc.condicion || "")], ["Total", `<b>${$(pc.total)} + IVA</b>`],
+        ["Entrega", gesc(pc.entrega || "")], ["Aclaración del cliente", pc.observaciones ? gesc(pc.observaciones) : null]])}
+      ${par}${hecho}
+      ${pc.confirmado || pc.descartado ? "" : `<div class="aviso">El cliente vio este resumen y dijo que sí. Al confirmarlo pasa a Gestión igual que un pedido de la web (origen "WhatsApp") y le llega "pedido recibido".</div>
+      <div class="cm-acciones"><button class="g-btn prim" onclick="tkConfirmarPedidoWa(false)">Confirmar y enviar a Gestión</button><button class="g-btn" onclick="tkDescartarPedidoWa()">Descartar…</button></div>`}`;
   } else if (a.agregar?.length) {
     // Pablo, 29/09: agregado a un pedido pedido por WhatsApp. "Aplicar" lo suma al pedido y le avisa al cliente.
     cuerpo = `<h4>Agregar al pedido${a.pedido_fecha ? ` del ${gesc(a.pedido_fecha)}` : ""}</h4>
@@ -861,6 +876,33 @@ async function tkAplicarAgregado() {
     await tkCargar();
     if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
   } catch (e) { toast("No se pudo aplicar: " + e.message); }
+}
+async function tkConfirmarPedidoWa(forzar) {
+  const t = tkActual(); if (!t || !t.a) return;
+  if (!forzar && !confirm("¿Confirmar el pedido y enviarlo a Gestión? Le llega \"pedido recibido\" al cliente.")) return;
+  try {
+    const r = await tkInvoke("lk_alertas", { action: "pedido_confirmar", id: t.a.id, forzar: !!forzar });
+    toast(`Pedido cargado${r.order_id ? ` (${r.order_id})` : ""}: ya lo ve Gestión.`);
+    G.tareaSel = null; tkVolver();
+    await tkCargar();
+    if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
+  } catch (e) {
+    // Doble pedido que apareció después de la precarga: se muestra y se pide confirmar de nuevo.
+    if (/posible_doble_pedido/.test(e.message) && confirm("Entró un pedido parecido después de que el cliente confirmó. ¿Cargarlo igual?")) return tkConfirmarPedidoWa(true);
+    toast("No se pudo: " + e.message.replace("sin_stock", "hay artículos sin stock").replace("posible_doble_pedido", "posible doble pedido"));
+  }
+}
+async function tkDescartarPedidoWa() {
+  const t = tkActual(); if (!t || !t.a) return;
+  const nota = prompt("¿Por qué se descarta? (queda anotado; al cliente escribile desde la conversación)");
+  if (nota === null) return;
+  try {
+    await tkInvoke("lk_alertas", { action: "pedido_descartar", id: t.a.id, nota });
+    toast("Pedido descartado.");
+    G.tareaSel = null; tkVolver();
+    await tkCargar();
+    if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
+  } catch (e) { toast("No se pudo: " + e.message); }
 }
 async function tkAdjunto(id) {
   const w = window.open("about:blank", "_blank");

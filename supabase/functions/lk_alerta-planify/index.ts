@@ -56,6 +56,7 @@ const CORTO: Record<string, string> = {
   entrega: "Consulta de entrega",
   cambio_datos: "Dirección nueva",
   pedido_archivo: "Pedido por archivo",
+  pedido_whatsapp: "Pedido por WhatsApp",
 };
 
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);

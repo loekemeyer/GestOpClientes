@@ -25,6 +25,24 @@ export const REGLAS_OPERATIVAS = `Reglas:
 - DIRECCIÓN NUEVA: si cambió de dirección o quiere recibir en otro lugar, pedile calle y número, localidad, provincia, código postal y (si es del interior) el expreso; confirmale la dirección completa y, con su sí, usá solicitar_nueva_sucursal. No se reemplaza ninguna dirección: la nueva la elige en su próximo pedido en la web. Si quiere cambiar el MAIL de su cuenta: confirmale el mail nuevo y, con su sí, usá solicitar_cambio_mail. Sí podés ayudar con productos, precios, stock y el estado de sus pedidos
 - El pedido mínimo es de $500.000 (dato informativo si lo preguntan)`;
 
+// Pedidos por WhatsApp PRENDIDOS (Pablo, 30/09; app_settings.wa_pedidos_config.activo): reemplaza la línea "- PEDIDOS: por
+// ahora NO…" de REGLAS_OPERATIVAS. Reglas acordadas: forma de pago y entrega SIEMPRE preguntadas, resumen y "sí" explícito,
+// doble pedido consultado. La cuenta la hace armar_pedido (misma que la web), nunca el modelo.
+export const REGLA_PEDIDOS_WA = `- PEDIDOS POR WHATSAPP: podés tomar pedidos, siguiendo estos pasos sin saltear ninguno:
+  1) Artículos: buscá cada uno con buscar_productos y confirmale código, descripción y cajas. Si pide en unidades, pasalo a cajas con las unidades por caja y decíselo. Si hay más de un artículo posible, preguntá cuál.
+  2) Forma de pago: preguntala SIEMPRE, aunque creas saberla, con las opciones que devuelve opciones_de_pedido. Nunca la supongas ni la copies de un pedido anterior.
+  3) Entrega: preguntala SIEMPRE, ofreciéndole sus direcciones de opciones_de_pedido. Si elige retirar en el depósito, pedile el día (lunes a viernes, desde la fecha mínima que te da opciones_de_pedido) y la franja (9:00 a 12:00 o 13:00 a 16:30).
+  4) Con todo eso usá armar_pedido. Si devuelve errores, resolvelos con el cliente. Si devuelve parecidos, preguntale si es un pedido nuevo o el mismo que ya hizo (nombrándolo por su fecha y los artículos en común); si es el mismo, no sigas.
+  5) Mostrale el resumen que devuelve armar_pedido tal cual (artículos con cajas, subtotal, descuentos, total + IVA, forma de pago y entrega) y pedile que confirme con un sí.
+  6) Sólo con un sí explícito a ESE resumen usá confirmar_pedido con exactamente los mismos datos y pasale su texto_para_el_cliente. Un "dale", "ok" o "gracias" antes de ver el resumen NO es confirmación. Si cambia algo, volvé a armar_pedido y mostrá el resumen nuevo.
+  Nunca calcules precios, descuentos ni totales por tu cuenta ni prometas fecha de entrega. AGREGAR a un pedido que ya hizo: buscá el artículo con buscar_productos, confirmale código, descripción, cajas y el pedido (por su fecha) y, con su sí, usá solicitar_agregado_pedido. SACAR, bajar cantidades o ANULAR: derivá con derivar_a_persona (motivo "cambio_pedido") en ese mismo turno.`;
+
+/** Reglas operativas con la línea de pedidos según esté prendido o no. */
+export function reglasOperativas(pedidosWa: boolean): string {
+  if (!pedidosWa) return REGLAS_OPERATIVAS;
+  return REGLAS_OPERATIVAS.split("\n").map((l) => l.startsWith("- PEDIDOS: por ahora NO") ? REGLA_PEDIDOS_WA : l).join("\n");
+}
+
 // Bloque de Seguridad (anti-jailbreak). Interpola el cliente que escribe (para el display se
 // pasan placeholders). Reglas inquebrantables con prioridad sobre el rector y sobre el chat.
 export function bloqueSeguridad(cliente: string, codigo: string | number): string {
@@ -39,9 +57,10 @@ export function bloqueSeguridad(cliente: string, codigo: string | number): strin
 }
 
 // Versión de sólo-lectura para el Panel (con placeholders en lugar del cliente real).
-export function fijosParaPanel(): { reglas: string; seguridad: string } {
+export function fijosParaPanel(): { reglas: string; seguridad: string; reglas_pedidos: string } {
   return {
     reglas: REGLAS_OPERATIVAS,
+    reglas_pedidos: REGLA_PEDIDOS_WA,   // reemplaza la línea de PEDIDOS cuando wa_pedidos_config.activo
     seguridad: bloqueSeguridad("el cliente que te escribe", "su código"),
   };
 }

@@ -1009,6 +1009,7 @@
           <div class="subtab" id="stConsultas" onclick="showAgenteTab('consultas')">❓ Consultas <span id="consultasBadge" class="cat-pill pendiente" style="display:none;"></span></div>
           <div class="subtab" id="stEval" onclick="showAgenteTab('eval')">🧪 Evaluación</div>
           <div class="subtab" id="stModelos" onclick="showAgenteTab('modelos')">🤖 Modelos</div>
+          <div class="subtab" id="stPedidos" onclick="showAgenteTab('pedidos')">🛒 Pedidos por WhatsApp</div>
         </div>
 
         <!-- Historial de versiones (documento completo) -->
@@ -1131,6 +1132,40 @@
         </div>
 
         <!-- Sub: Modelos -->
+        <!-- Sub: Pedidos por WhatsApp (Pablo, 30/09; sql/112, wa_pedidos_config) -->
+        <div class="subpanel" id="panelPedidos">
+          <div class="config-section" style="max-width:760px;">
+            <h3>🛒 Pedidos por WhatsApp</h3>
+            <p class="hint" style="display:block;line-height:1.45;margin:-0.2rem 0 0.9rem;">
+              Cómo toma el bot un pedido: <b>1)</b> confirma cada artículo y sus cajas; <b>2)</b> pregunta <b>siempre</b> la forma de pago
+              y <b>3)</b> la entrega (si retira: día y franja), sin copiar las del pedido anterior; <b>4)</b> si el cliente tiene un pedido
+              abierto parecido, le pregunta si es otro o el mismo; <b>5)</b> le muestra el resumen con el total y <b>6)</b> sólo con su "sí"
+              lo carga. Sólo pueden pedir los números <b>vinculados y aprobados</b>. La cuenta es la misma que la web (precio del
+              cliente, descuento de la forma de pago) y el pedido llega a Gestión con origen <b>"WhatsApp"</b>.
+            </p>
+            <div class="config-row"><label style="display:flex;gap:0.5rem;align-items:center;"><input type="checkbox" id="pwActivo"> <b>Tomar pedidos por WhatsApp</b></label></div>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.7rem 1.6rem;">Apagado, el bot manda a los clientes a la web. Mientras la llave de envíos esté en prueba, sólo le contesta a los números de prueba.</p>
+            <div class="config-row"><label style="display:flex;gap:0.5rem;align-items:center;"><input type="checkbox" id="pwSimulador"> Probarlo en el Simulador aunque esté apagado</label></div>
+            <div class="config-row" style="margin-top:0.6rem;"><label for="pwModo" style="min-width:12rem;">Qué pasa con el "sí" del cliente</label>
+              <select id="pwModo" style="padding:0.35rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);">
+                <option value="precarga">Precarga: una persona lo confirma en Tareas</option>
+                <option value="directo">Directo: se carga solo en Gestión</option>
+              </select></div>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.7rem;">En <b>precarga</b> Gestión no ve nada hasta que alguien toca "Confirmar y enviar a Gestión" en la tarea. En <b>directo</b> se carga al instante (si hay un posible doble pedido, igual queda para una persona).</p>
+            <div class="config-row"><label for="pwDtoWeb" style="min-width:12rem;">Descuento web (%)</label><input type="number" id="pwDtoWeb" min="0" max="50" step="0.5" style="width:6rem;"></div>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.7rem;">Por WhatsApp va en 0 (Pablo, 30/09). El de la web es <span id="pwDtoWebWeb">—</span>.</p>
+            <div class="config-row"><label style="min-width:12rem;">Doble pedido</label>
+              <span>pedido abierto de los últimos <input type="number" id="pwDupDias" min="1" max="60" style="width:4.5rem;"> días con al menos
+              <input type="number" id="pwDupPct" min="10" max="100" step="5" style="width:4.5rem;"> % de los artículos iguales</span></div>
+            <div class="config-row"><label style="min-width:12rem;">Mínimo (sólo aviso)</label>
+              <span>envío $<input type="number" id="pwMinEnvio" min="0" step="1000" style="width:8rem;"> · retiro $<input type="number" id="pwMinRetiro" min="0" step="1000" style="width:8rem;"></span></div>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.7rem;">Vacío = no se controla (la web tampoco lo controla). Si se carga, el bot se lo avisa al cliente pero no lo frena.</p>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.6rem;">
+              <button class="config-btn primary" onclick="pwGuardar()">Guardar</button><span id="pwStatus" class="hint"></span>
+            </div>
+          </div>
+        </div>
+
         <div class="subpanel" id="panelModelos">
           <div class="config-section" style="max-width:none;">
             <h3>🤖 Modelos del agente</h3>
@@ -2310,7 +2345,7 @@ async function loadAgentePage() {
 }
 
 function showAgenteTab(tab) {
-  const map = { fijas: "Fijas", objetivo: "Objetivo", limites: "Limites", faq: "Faq", consultas: "Consultas", eval: "Eval", modelos: "Modelos" };
+  const map = { fijas: "Fijas", objetivo: "Objetivo", limites: "Limites", faq: "Faq", consultas: "Consultas", eval: "Eval", modelos: "Modelos", pedidos: "Pedidos" };
   for (const [k, cap] of Object.entries(map)) {
     document.getElementById("st" + cap).classList.toggle("active", k === tab);
     document.getElementById("panel" + cap).classList.toggle("active", k === tab);
@@ -2320,6 +2355,47 @@ function showAgenteTab(tab) {
   if (tab === "consultas") loadConsultas();
   if (tab === "eval") loadEvals();
   if (tab === "modelos") loadModelos();
+  if (tab === "pedidos") pwCargar();
+}
+
+// --- Pedidos por WhatsApp (app_settings.wa_pedidos_config vía lk_alertas, que valida admin) ---
+async function pwCargar() {
+  const st = document.getElementById("pwStatus");
+  st.textContent = "Cargando…";
+  try {
+    const { data, error } = await authedInvoke("lk_alertas", { action: "pedidos_config_get" });
+    if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
+    const c = data.config || {};
+    document.getElementById("pwActivo").checked = c.activo === true;
+    document.getElementById("pwSimulador").checked = c.simulador !== false;
+    document.getElementById("pwModo").value = c.modo === "directo" ? "directo" : "precarga";
+    document.getElementById("pwDtoWeb").value = c.dto_web == null ? "" : Math.round(Number(c.dto_web) * 1000) / 10;
+    document.getElementById("pwDtoWebWeb").textContent = Math.round(Number(data.dto_web_de_la_web || 0) * 1000) / 10 + "%";
+    document.getElementById("pwDupDias").value = c.dup_dias ?? 7;
+    document.getElementById("pwDupPct").value = Math.round(Number(c.dup_pct ?? 0.5) * 100);
+    document.getElementById("pwMinEnvio").value = c.minimo_envio ?? "";
+    document.getElementById("pwMinRetiro").value = c.minimo_retiro ?? "";
+    st.textContent = "";
+  } catch (e) { st.textContent = "⚠️ " + e.message; }
+}
+async function pwGuardar() {
+  const st = document.getElementById("pwStatus");
+  const v = (id) => document.getElementById(id).value;
+  const activo = document.getElementById("pwActivo").checked;
+  if (activo && !confirm("¿Prender la toma de pedidos por WhatsApp? El bot va a empezar a ofrecer y armar pedidos.")) return;
+  const config = {
+    activo, simulador: document.getElementById("pwSimulador").checked, modo: v("pwModo"),
+    dto_web: v("pwDtoWeb") === "" ? null : Number(v("pwDtoWeb")) / 100,
+    dup_dias: Number(v("pwDupDias")), dup_pct: Number(v("pwDupPct")) / 100,
+    minimo_envio: v("pwMinEnvio") === "" ? null : Number(v("pwMinEnvio")),
+    minimo_retiro: v("pwMinRetiro") === "" ? null : Number(v("pwMinRetiro")),
+  };
+  st.textContent = "Guardando…";
+  try {
+    const { data, error } = await authedInvoke("lk_alertas", { action: "pedidos_config_save", config });
+    if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
+    st.textContent = "✅ Guardado. El bot lo toma en el próximo mensaje.";
+  } catch (e) { st.textContent = "⚠️ " + e.message; }
 }
 
 // Partes FIJAS del prompt (read-only). Vienen de la Edge Function `lk_agente-modelos`
@@ -4031,7 +4107,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.22</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.0</div>
 <script src="gestop2.js?v=0.25.18"></script>
 </body>
 </html>

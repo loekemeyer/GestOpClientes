@@ -119,7 +119,19 @@ BOT: Pedido NP-4521:
      Programado para entrega el 28/08.
 ```
 
-## Flujo 3: Nuevo pedido
+## Flujo 3: Nuevo pedido (30/09: precarga por WhatsApp, `sql/112`)
+
+Se prende en Configuración del agente › 🛒 Pedidos por WhatsApp (`app_settings.wa_pedidos_config`; apagado por
+defecto). Sólo números vinculados y aprobados. El agente: confirma artículos y cajas → pregunta SIEMPRE forma de pago
+(`opciones_de_pedido`) → pregunta SIEMPRE entrega (si retira, día hábil desde +3 hábiles y franja) → `armar_pedido`
+(misma cuenta y ficha que la web, **sin el 2% web**; stock; pedido parecido abierto en 7 días con ≥50% de artículos
+iguales → pregunta si es otro o el mismo) → muestra el resumen → con el "sí" `confirmar_pedido`. Eso deja una
+**precarga** (`wa_pedido_precarga`, Gestión no la ve) y una tarea "Pedido por WhatsApp" con **Confirmar y enviar a
+Gestión** / **Descartar** (lk_alertas `pedido_confirmar`/`pedido_descartar`). Confirmar crea el pedido con su ficha
+(origen "WhatsApp"): retry-sheets lo manda al Sheet y al cliente le llega "pedido recibido". Modo "directo" confirma
+solo. El ejemplo de abajo es el flujo viejo (bot_submit_order, sin uso).
+
+### (viejo)
 
 ```
 CLIENTE: Quiero pedir
