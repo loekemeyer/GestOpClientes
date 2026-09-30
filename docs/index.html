@@ -966,6 +966,17 @@
             <div id="tplSyncOut" style="margin-top:0.8rem;overflow-x:auto;"></div>
             <div id="tplDefs" style="margin-top:1rem;"><div class="bl-empty">Cargando…</div></div>
           </div>
+          <!-- Plantillas de factura → Meta (lk_templates · factura_sync; texto en _shared/plantillas-factura.ts) -->
+          <div class="config-section">
+            <h3>🧾 Plantillas de factura → Meta</h3>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">Las 6 que salen con el PDF de la factura (contado, crédito y e-cheq; una o varias facturas). <b>Ver plan</b> compara con Meta sin tocar nada. <b>Subir</b> crea la versión nueva; la activa sigue saliendo hasta que Meta la apruebe.</p>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+              <button class="config-btn" onclick="tplSync(false, 'factura_sync', 'Fc')">🔍 Ver plan</button>
+              <button class="config-btn primary" onclick="tplSync(true, 'factura_sync', 'Fc')">⬆️ Subir a Meta</button>
+              <span id="tplSyncStatusFc" class="hint"></span>
+            </div>
+            <div id="tplSyncOutFc" style="margin-top:0.8rem;overflow-x:auto;"></div>
+          </div>
 
         </div>
       </div>
@@ -3345,28 +3356,41 @@ async function loadTplDefs() {
   }
 }
 
-// --- Plantillas de seguimiento → Meta (templates_sync) ---
-const TPL_SYNC_ACCION = { crear: "➕ crear", editar: "✏️ editar", igual: "✓ igual", invalida: "⚠️ inválida" };
-async function tplSync(aplicar) {
-  const st = document.getElementById("tplSyncStatus");
-  const out = document.getElementById("tplSyncOut");
-  if (aplicar && !confirm("¿Subir a Meta las plantillas que faltan o cambiaron? Las ediciones de plantillas aprobadas vuelven a revisión.")) return;
+// --- Plantillas → Meta: seguimiento (templates_sync) y factura (factura_sync) ---
+// Pablo, 30/09: el panel mostraba sólo el nombre base y no las facturas; ahora las dos tablas dicen qué versión sale
+// (Activa) y cuál está en revisión o se va a crear (Nueva). Siempre se sube como versión nueva: la activa sigue saliendo.
+const TPL_SYNC_ACCION = {
+  crear: "➕ crear", crear_version: "➕ crear", editar: "✏️ editar", igual: "✓ igual", invalida: "⚠️ inválida",
+  nueva_en_revision: "⏳ en revisión", igual_nueva_en_revision: "⏳ en revisión", nueva_con_otro_texto: "⏳ en revisión (otro texto)",
+  cambia_variables: "⛔ cambia variables", no_existe: "⚠️ no existe",
+};
+const TPL_SYNC_SUBE = new Set(["crear", "crear_version", "editar"]);
+async function tplSync(aplicar, action = "templates_sync", sufijo = "") {
+  const st = document.getElementById("tplSyncStatus" + sufijo);
+  const out = document.getElementById("tplSyncOut" + sufijo);
+  if (aplicar && !confirm("¿Subir a Meta las plantillas que cambiaron? Se crean como versión nueva: la activa sigue saliendo hasta que Meta apruebe la nueva.")) return;
   st.textContent = aplicar ? "Subiendo…" : "Comparando…";
   out.innerHTML = "";
   try {
-    const { data, error } = await authedInvoke("lk_templates", { action: "templates_sync", aplicar });
+    const { data, error } = await authedInvoke("lk_templates", { action, aplicar });
     if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
     const plan = data.plan || [];
-    const pend = plan.filter((f) => f.accion === "crear" || f.accion === "editar").length;
+    const pend = plan.filter((f) => TPL_SYNC_SUBE.has(f.accion)).length;
     st.textContent = aplicar ? `Listo · ${plan.length} plantilla(s)` : `${pend} para subir de ${plan.length}`;
+    const th = (t) => `<th style="padding:2px 10px 2px 0;">${t}</th>`;
+    const td = (t) => `<td style="padding:2px 10px 2px 0;">${t}</td>`;
+    const ver = (n, base) => n && n !== base ? n.slice(base.length + 1) || n : "base";
     out.innerHTML = `<table style="border-collapse:collapse;font-size:0.8rem;">
-      <tr style="text-align:left;color: var(--muted);"><th style="padding:2px 10px 2px 0;">Plantilla</th><th style="padding:2px 10px 2px 0;">Acción</th><th style="padding:2px 10px 2px 0;">En Meta</th><th style="padding:2px 0;">Resultado</th></tr>
+      <tr style="text-align:left;color: var(--muted);">${th("Plantilla")}${th("Activa")}${th("Nueva")}${th("Acción")}${th("En Meta")}${th("Resultado")}</tr>
       ${plan.map((f) => {
+        const activa = f.activa || f.nombre_meta;
+        const nueva = f.nombre_meta && f.nombre_meta !== activa ? ver(f.nombre_meta, f.name) : "—";
         const r = f.resultado ? (f.resultado.ok ? `✅ ${esc(f.resultado.status || "")}` : `❌ ${esc(f.resultado.error || "")}`)
           : esc(f.aviso || (f.errores || []).join("; "));
-        return `<tr><td style="padding:2px 10px 2px 0;"><code>${esc(f.name)}</code></td><td style="padding:2px 10px 2px 0;">${TPL_SYNC_ACCION[f.accion] || esc(f.accion)}</td><td style="padding:2px 10px 2px 0;">${esc(f.estado_meta)}</td><td style="padding:2px 0;">${r}</td></tr>`;
+        return `<tr>${td(`<code>${esc(f.name)}</code>`)}${td(esc(ver(activa, f.name)))}${td(esc(nueva))}${td(TPL_SYNC_ACCION[f.accion] || esc(f.accion))}${td(esc(f.estado_meta))}<td style="padding:2px 0;">${r}</td></tr>`;
       }).join("")}
-    </table>`;
+    </table>
+    <div class="hint" style="margin-top:0.4rem;">Activa = la que sale hoy · Nueva = la versión en revisión o la que se va a crear · En Meta = estado de la Nueva (o de la Activa si no hay).</div>`;
   } catch (e) {
     st.textContent = "⚠️ " + e.message;
   }
@@ -4004,7 +4028,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.19</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.20</div>
 <script src="gestop2.js?v=0.25.18"></script>
 </body>
 </html>
