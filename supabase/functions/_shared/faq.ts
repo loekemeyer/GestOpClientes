@@ -109,11 +109,24 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // Pablo, 30/09: agregar a un pedido, mandar un pedido, preguntar si llegó un pago, razón social equivocada o factura
   // duplicada van a la IA (ver las regex): antes una respuesta fija los atrapaba por una palabra suelta.
   if (customer && vaALaIA(text)) return null;
+  // Pablo, 30/09 (1.9): "Figura programado para el 30/09 pero en el detalle dice 13/10, ¿cuál es?". La IA le contestaba
+  // "¿puede ser que el 13/10 lo hayas visto en otro lado?": nunca se asume que el cliente se equivocó. Lo revisa una persona.
+  if (customer && RE_FECHAS_NO_COINCIDEN.test(text)) {
+    return { reply: "Gracias por avisarnos. Le pido a una persona del equipo que revise las fechas de tu pedido y te confirme por acá cuál es la correcta. 🙏",
+      intent: "fechas_no_coinciden", automation_level: "needs_human", topic: "Fechas del pedido que no coinciden",
+      alerta: { motivo: "entrega", detalle: `Fechas que no coinciden: ${text.slice(0, 200)}` } };
+  }
   // Pablo, 30/09: "Hace 10 días hice un pedido, quería saber el estado" caía en la IA, que convertía "hace 10 días" en
   // una fecha equivocada ("el del 20/09 (14 de septiembre)"). Sin fecha explícita, va a la respuesta fija con los
   // pedidos que faltan entregar; con fecha ("el pedido del 17/9") sigue la IA, que lo busca.
   if (customer && RE_ESTADO_PEDIDO.test(text) && !RE_FECHA_EXPLICITA.test(text)) {
-    return { reply: await lookupOrderStatus(customer), intent: "faq", automation_level: "semi_auto", faq_id: 1 };
+    return { reply: (await lookupOrderStatus(customer)) ?? "", intent: "faq", automation_level: "semi_auto", faq_id: 1 };
+  }
+  // Pablo, 30/09 (1.8): "¿qué plazo de entrega están manejando?" → sus pedidos por entregar con estado y entrega estimada.
+  // Sin pedidos por entregar sigue el flujo normal (plazo general). "No me llegó" es reclamo: lo ve la IA.
+  if (customer && RE_PLAZO_ENTREGA.test(text) && !/\bno\s+(me\s+|nos\s+)?(lleg|entreg)/i.test(text)) {
+    const r = await lookupOrderStatus(customer, { plazo: true });
+    if (r) return { reply: r, intent: "faq", automation_level: "semi_auto", faq_id: 1 };
   }
   if (customer && RE_DIRECCION_ENTREGA.test(text)) {
     const r = await destinoPedidos(customer);
@@ -362,6 +375,11 @@ const RE_ERROR_CARGA = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|me\s+
 // "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" / "¿novedades del pedido?".
 // No "me llegó el pedido en mal estado" (reclamo: lo ve la IA).
 const RE_ESTADO_PEDIDO = /\bpedido\b[^.?!]{0,60}\b((?<!mal\s)(?<!buen\s)estado|confirmad[oa]|novedad(es)?)\b|\b(estado|confirmad[oa]|novedad(es)?)\b[^.?!]{0,40}\bpedido\b/i;
+// "Qué período de tiempo están contemplando para entregas" / "¿cuánto tarda la entrega?" / "¿qué plazo de entrega tienen?".
+const RE_PLAZO_ENTREGA = /\b(per[ií]odo|plazo|tiempo)s?\b[^.?!]{0,50}\b(entrega|entregas|entregar|env[ií]os?)\b|\bcu[aá]nt[oa]s?\s+(d[ií]as\s+)?(tarda|tardan|demora|demoran)\b[^.?!]{0,30}\b(entrega|entregar|env[ií]o|llegar|pedido)/i;
+// "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
+// "no coincide" + fecha.
+const RE_FECHAS_NO_COINCIDEN = /\b\d{1,2}\s*\/\s*\d{1,2}\b[^?!]{0,80}\b(pero|y|mientras|en\s+cambio)\b[^?!]{0,40}\b(dice|figura|aparece|pone|sale|muestra)\b[^?!]{0,30}\b\d{1,2}\s*\/\s*\d{1,2}\b|\bfechas?\b[^.?!]{0,30}\bno\s+(coincide|coinciden|es\s+la\s+misma|son\s+las\s+mismas)\b|\bno\s+coincide[n]?\b[^.?!]{0,30}\bfechas?\b/i;
 // "el pedido del 17/9", "del 31/08", "del 18 de marzo".
 const RE_FECHA_EXPLICITA = /\b\d{1,2}\s*[/-]\s*\d{1,2}\b|\b\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i;
 function vaALaIA(text: string): boolean {
@@ -454,7 +472,11 @@ async function pedidoExpresoAbierto(customer: NonNullable<Customer>): Promise<{ 
   return null;
 }
 
-async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<string> {
+// plazo (Pablo, 30/09, fila 1.8 "¿qué plazo de entrega manejan?"): a los pedidos sin fecha de salida les suma la entrega
+// estimada que calculó la confirmación del pedido (wa_fecha_estimada, sql/082) y, si no hay pedidos por entregar, devuelve
+// null para que conteste el plazo general (IA). No se le pregunta si recibió la confirmación: con la llave en "prueba"
+// hoy no le llega a ningún cliente.
+async function lookupOrderStatus(customer: NonNullable<Customer>, opts: { plazo?: boolean } = {}): Promise<string | null> {
   const { data: crudos } = await supabase
     .from("orders")
     .select("id, created_at, total, status")
@@ -466,6 +488,7 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
   // Anulados o borrados en Gestión: para el bot no existen (pedidos-anulados.ts).
   const orders = await sinAnulados(crudos ?? []);
   if (!orders?.length) {
+    if (opts.plazo) return null;
     // Pedidos por WhatsApp apagados (28/09): se lo manda a la web, no "decime".
     return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, entrá a loekemeyer.com → "Pedidos Mayorista".`;
   }
@@ -516,6 +539,7 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
   const notaExpresoTxt = "\n\n🚛 En los pedidos por expreso, la fecha en que te llega puede diferir según el expreso: una vez que se lo entregamos, los tiempos de viaje dependen de ellos.";
 
   if (!visibles.length) {
+    if (opts.plazo) return null;
     // Todos entregados: se nombra el último para que el cliente lo reconozca.
     const o = orders[0];
     const { t } = estadoDe(o);
@@ -525,6 +549,11 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
     return `${customer.business_name}, todos tus pedidos están entregados. El último, del ${ddmm(o.created_at)}, se entregó${donde}${cuando}.${m.modo === "expreso" ? notaExpresoTxt : ""}\n\n${cierre}`;
   }
 
+  const estimada = new Map<string, string>();
+  if (opts.plazo) {
+    const { data: est } = await supabase.from("wa_fecha_estimada").select("order_id, texto").in("order_id", visibles.map((o) => o.id));
+    for (const e of (est ?? []) as Array<{ order_id: number; texto: string | null }>) if (e.texto) estimada.set(String(e.order_id), e.texto);
+  }
   let hayExpreso = false;
   const lines = visibles.map((o, i) => {
     const { t, rawStatus } = estadoDe(o);
@@ -540,6 +569,7 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
     } else if (!t?.fecha_entrega && m.modo === "expreso" && rawStatus !== "entregado") {
       line += ` (va por el expreso *${m.expreso}*)`;
     }
+    if (!t?.fecha_entrega && rawStatus !== "entregado" && estimada.has(String(o.id))) line += `. Entrega estimada: ${estimada.get(String(o.id))}`;
     if (t?.fecha_entrega && rawStatus === "entregado") {
       if (m.modo === "expreso") { line = `${i + 1}️⃣ Pedido del ${ddmm(o.created_at)} — ✅ entregado en el expreso *${m.expreso}* el ${conDia(t.fecha_entrega)}`; hayExpreso = true; }
       else line += ` el ${conDia(t.fecha_entrega)}`;

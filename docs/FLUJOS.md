@@ -113,6 +113,11 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 > "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" van a esta respuesta fija
 > (`RE_ESTADO_PEDIDO`) y no a la IA, que convertía "hace 10 días" en una fecha equivocada. Con fecha explícita ("el
 > pedido del 17/9") sigue la IA, que tiene prohibido convertir referencias relativas en fechas (`agente-fijos.ts`).
+> "¿Qué plazo de entrega manejan?" (`RE_PLAZO_ENTREGA`) → la misma lista con la *entrega estimada* de la confirmación
+> (`wa_fecha_estimada`) en los pedidos sin fecha; sin pedidos por entregar sigue el flujo normal. No se pregunta si le
+> llegó la confirmación (con la llave en "prueba" no le llega a ningún cliente).
+> "Figura el 30/09 pero en el detalle dice 13/10" (`RE_FECHAS_NO_COINCIDEN`) → "una persona revisa las fechas y te
+> confirma" + alerta `entrega`. Regla fija de la IA: nunca asumir que el cliente se equivocó.
 
 ```
 CLIENTE: ¿Sabés cuándo me entregan el pedido?
