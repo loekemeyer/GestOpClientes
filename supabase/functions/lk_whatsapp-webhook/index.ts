@@ -516,7 +516,7 @@ const ADJUNTO_MIMES = new Set([
   "text/csv", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 // Mismo criterio que RE_RECLAMO de faq.ts, más "foto de la rotura".
-const RE_ADJ_RECLAMO = /(\brot[oa]s?\b|\bromp|fallad|defectuos|mal estado|da[ñn]ad|vino\s+mal|lleg\w*\s+mal|\bme\s+falt|\bfalt(a|an|aron)\b|incorrect|equivocad|reclam|golpead|abollad|partid|quebrad)/i;
+const RE_ADJ_RECLAMO = /(c[oó]digos?\s+de\s+barras?|\betiquet|\brot[oa]s?\b|\bromp|fallad|defectuos|mal estado|da[ñn]ad|vino\s+mal|lleg\w*\s+mal|\bme\s+falt|\bfalt(a|an|aron)\b|incorrect|equivocad|reclam|golpead|abollad|partid|quebrad)/i;
 const RE_ADJ_PAGO = /(comprobante|transfer|pagu[eé]|\bpago\b|deposit|abon[eé]|recibo de pago|cheque|echeq)/i;
 
 interface AdjuntoMsg {

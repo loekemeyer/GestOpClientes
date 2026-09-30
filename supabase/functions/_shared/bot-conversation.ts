@@ -727,7 +727,9 @@ async function executeTool(
       }, 0);
       return { data: { saldo_total: pesos(saldo),
         ...(Math.round(conDto) < Math.round(saldo) ? { total_con_descuento: `${pesos(conDto)} (pagando cada factura hasta su fecha de descuento)` } : {}),
-        facturas, nota: "Importes con IVA, redondeados a pesos. Cobranzas quedó avisada de la consulta." } };
+        facturas, nota: "Importes con IVA, redondeados a pesos. Cobranzas quedó avisada de la consulta.",
+        // Thommy, 30/09: en toda respuesta de importes, pedir el comprobante.
+        regla: "Cerrá pidiéndole que, cuando pague, mande el comprobante por acá." } };
     }
 
     case "consultar_mis_descuentos": {

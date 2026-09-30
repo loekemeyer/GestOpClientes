@@ -145,6 +145,13 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       intent: "mercaderia_rota", automation_level: "needs_human", topic: "Mercadería rota o fallada",
       alerta: { motivo: "reclamo", urgente: true, detalle: `Mercadería rota (se le pidió foto): ${text.slice(0, 200)}` } };
   }
+  // Thommy, 30/09 (11.3): "Los pelapapas vinieron con el mismo código de barras" repreguntaba. Es un reclamo: alerta
+  // (va a Planify) y se le pide la foto de la etiqueta (el webhook la suma al reclamo: RE_ADJ_RECLAMO mira "código de barras").
+  if (customer && RE_ETIQUETA.test(text)) {
+    return { reply: "Disculpá el inconveniente. Le paso a una persona del equipo para que revise el etiquetado y te escriba por acá. Si podés, mandanos una foto de la etiqueta. 🙏",
+      intent: "error_etiqueta", automation_level: "needs_human", topic: "Error de etiqueta o código de barras",
+      alerta: { motivo: "reclamo", detalle: `Error de etiqueta / código de barras: ${text.slice(0, 200)}` } };
+  }
   // Pablo, 30/09 (1.9): "Figura programado para el 30/09 pero en el detalle dice 13/10, ¿cuál es?". La IA le contestaba
   // "¿puede ser que el 13/10 lo hayas visto en otro lado?": nunca se asume que el cliente se equivocó. Lo revisa una persona.
   if (customer && RE_FECHAS_NO_COINCIDEN.test(text)) {
@@ -391,7 +398,7 @@ const RE_DIRECCION_ENTREGA = /(mi|la)\s+direcci[oó]n\s+de\s+(entrega|env[ií]o)
 
 // A dónde va cada pedido abierto del cliente: sucursal de entrega cargada en la web y, si sale por expreso, cuál.
 const RE_DUPLICADO = /((pedido|confirm|carg|compra)[^.?!]{0,40}(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez|tres veces)|(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez)[^.?!]{0,40}(pedido|confirm|carg))/i;
-const RE_CLAVE = /((olvid|recuper|resete|blanque|cambi|perd|nueva|bloque|no\s+(me\s+)?(acuerdo|recuerdo))[^.?!]{0,40}(contrase|\bclave|password|usuario)|(contrase|\bclave|password|usuario)[^.?!]{0,40}(olvid|no\s+(me\s+)?(anda|funciona|toma|deja|acuerdo|recuerdo|entra)|incorrect|inv[aá]lid|bloque)|no\s+(puedo|logro|me\s+deja)\s+(entrar|ingresar|loguear)[^.?!]{0,30}(web|p[aá]gina|sistema|cuenta)?|(necesito|pasame|pas[aá]s|mandame|dame|no\s+tengo)\s+(mi\s+|el\s+|un\s+|la\s+)?(usuario|\bclave|contrase))/i;
+const RE_CLAVE = /((olvid|recuper|resete|blanque|cambi|perd|nueva|bloque|no\s+(me\s+)?(acuerdo|recuerdo))[^.?!]{0,40}(contrase|\bclave|password|usuario)|(contrase|\bclave|password|usuario)[^.?!]{0,40}(olvid|no\s+(me\s+)?(anda|funciona|toma|deja|acuerdo|recuerdo|entra)|incorrect|inv[aá]lid|bloque)|no\s+(puedo|logro|me\s+deja)\s+(entrar|ingresar|loguear)[^.?!]{0,30}(web|p[aá]gina|sistema|cuenta)?|(necesito|pasame|pas[aá]s|mandame|dame|no\s+tengo)\s+(mi\s+|el\s+|un\s+|la\s+)?(usuario|\bclave|contrase)|\b(saber|cu[aá]l\s+es|record[aá]me|decime)\s+(cu[aá]l\s+es\s+)?(mi\s+|la\s+)?(usuario|\bclave|contrase))/i;
 const RE_SUCURSAL_WEB = /(no\s+(me\s+)?(deja|puedo|aparece|figura|sale)[^.?!]{0,30}sucursal|sucursal[^.?!]{0,30}no\s+(me\s+)?(deja|aparece|figura|sale|puedo))/i;
 // Pablo, 30/09 (simulación con 57 mensajes reales): respuestas fijas que se disparaban por una palabra suelta. Todos estos
 // van a la IA, que tiene las herramientas para resolverlos o derivarlos.
@@ -419,6 +426,7 @@ const RE_LLEGANDO = /\b(estoy|estamos)\s+(llegando|yendo|en\s+camino|a\s+\d+\s+(
 const RE_PIDE_FACTURA = /\b(mand[aá]me|pas[aá]me|envi[aá]me|reenvi[aá]\w*|me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*)\b[^.?!]{0,30}\bfacturas?\b|\bfacturas?\b[^.?!]{0,40}\b(me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*|mand[aá]me|pas[aá]me|reenvi\w*)|\bno\s+(me\s+)?lleg[oó]\s+(la\s+|las\s+)?factura/i;
 // "Llegaron 59 aceiteras de 60, pido la NC" / "tengo un faltante en el remito" / "me faltó una caja".
 const RE_FALTANTE = /\bfalt(ante|aron|[oó]|an?)(?![a-záéíóúñ])[^?]{0,60}\b(cajas?|unidad\w*|art[ií]culos?|c[oó]d\w*|\d+)\b|\bfaltante\b|\blleg(aron|[oó])\s+\d+\s+de\s+\d+\b|\b(pido|necesito|quiero|hacen?|me\s+hacen)\s+(la\s+|una\s+)?(nc|nota\s+de\s+cr[eé]dito)\b/i;
+const RE_ETIQUETA = /(c[oó]digos?\s+de\s+barras?|\betiquet\w*|\bean\b)[^?]{0,60}\b(mism[oa]s?|mal|equivocad\w*|incorrect\w*|distint\w*|cambiad\w*|no\s+(los\s+|las\s+|lo\s+|la\s+)?(lee|leen|pasa|pasan|escanea\w*|coincide\w*))|\b(mism[oa]s?|mal|equivocad\w*|incorrect\w*|distint\w*)\b[^?]{0,40}(c[oó]digos?\s+de\s+barras?|\betiquet\w*)/i;
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
@@ -911,7 +919,7 @@ async function lookupFacturaReenvio(customer: NonNullable<Customer>, message: st
     for (const gr of delDia) lineas.push("", ...(await lineasPago(gr, true)));
     if (delDia.length) {
       const alias = cfg?.pago?.alias ?? PAGO_ALIAS_FALLBACK, cbu = cfg?.pago?.cbu ?? PAGO_CBU_FALLBACK;
-      lineas.push("", `Datos para el pago:\nAlias: ${alias}\nCBU: ${cbu}`);
+      lineas.push("", `Datos para el pago:\nAlias: ${alias}\nCBU: ${cbu}`, "", "Cuando pagues, mandanos el comprobante por acá. 🙏");
     }
     return { reply: lineas.join("\n"), intent: "factura_reenvio", automation_level: "semi_auto", documentos };
   } catch (e) {
