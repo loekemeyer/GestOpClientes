@@ -126,7 +126,8 @@ export const PLANTILLAS: PlantillaMeta[] = [
     disparo: "Carga Camión de la NP, cuando sale por expreso (se entrega al expreso).",
     // Sin la doble presentación (Pablo, 29/09, sql/094). {{2}} = expreso sin la palabra "Expreso".
     variables: ["fecha en que hizo el pedido (dd/mm)", "expreso (sin la palabra Expreso)"],
-    body: "Tu pedido del {{1}} ya salió hacia Expreso {{2}}.\nDesde ahí el expreso te lo lleva con sus tiempos de entrega.",
+    // Pablo, 30/09: + "si llegó algo mal, avisanos" (antes sólo lo decía pedido_entregado, que expreso no recibe).
+    body: "Tu pedido del {{1}} ya salió hacia Expreso {{2}}.\nDesde ahí el expreso te lo lleva con sus tiempos de entrega.\nCuando lo recibas, si falta algo o llegó algo mal, avisanos por acá.",
     ejemplos: ["22/09", "Arias"],
   },
   {
