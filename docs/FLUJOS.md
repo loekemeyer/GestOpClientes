@@ -31,9 +31,13 @@ Cada aviso (pedido recibido, programado, en viaje…) queda en el historial como
 Si lo último del historial es un aviso de las últimas 48 h, el webhook trata el mensaje como
 respuesta (`_shared/respuesta-aviso.ts`), antes de las FAQ, sin gastar tokens:
 
+Botones de respuesta rápida (30/09): "Necesito cambiar la fecha" (programado) y "No puedo ese día" (listo para
+retirar) llegan como si el cliente hubiera escrito ese texto (`extractMessage` en `_shared/wa-api.ts`) y caen en la
+fila de "Cambiar" de abajo.
+
 | El cliente dice | Ejemplo | Responde |
 |---|---|---|
-| Cambiar / cancelar / reclamar | "no voy a estar", "cancelalo", "agregame…", "hay un error" | "Le paso tu pedido a un asesor…" + alerta en `wa_alertas_humano` (`respuesta_aviso_cambio`) |
+| Cambiar / cancelar / reclamar | "no voy a estar", "cancelalo", "agregame…", "hay un error", botón "Necesito cambiar la fecha" / "No puedo ese día" | "Le paso tu pedido a un asesor…" + alerta en `wa_alertas_humano` (`respuesta_aviso_cambio`) |
 | Cuándo llega | "¿a qué hora llega?", "¿cuándo sale?" | estado y fecha real del pedido (`bot_estado_pedidos_gv`) |
 | Agradece / confirma (sólo eso) | "gracias", "ok", "buenísimo", 👍 | "¡Gracias a vos! Cualquier consulta sobre tu pedido del dd/mm, escribinos por acá." |
 | Otra cosa | "¿tengo el pelapapas A en ese pedido?" | flujo normal (FAQ / agente), que ve el aviso en el historial |

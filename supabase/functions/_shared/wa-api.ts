@@ -205,6 +205,8 @@ export interface WaMessage {
   mediaMime?: string;
   mediaFilename?: string;
   caption?: string;
+  /** Texto del botón de respuesta rápida que tocó (llega como texto normal en `text`). */
+  boton?: string;
 }
 
 /**
@@ -225,7 +227,11 @@ export function extractMessage(body: Record<string, unknown>): WaMessage | null 
     if (!msg) return null;
 
     const contact = value?.contacts?.[0];
-    const type = msg.type ?? "text";
+    // Botón de respuesta rápida de una plantilla (type "button") o de un mensaje interactivo: se trata como si hubiera
+    // escrito el texto del botón (Pablo, 30/09), así lo atiende la misma lógica que un mensaje escrito.
+    const boton: string | undefined = msg.type === "button" ? msg.button?.text
+      : msg.type === "interactive" ? (msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title) : undefined;
+    const type = boton ? "text" : (msg.type ?? "text");
     const mediaBlock = ["image", "document", "audio", "video", "sticker"].includes(type)
       ? msg[type] ?? {}
       : {};
@@ -233,8 +239,9 @@ export function extractMessage(body: Record<string, unknown>): WaMessage | null 
     return {
       from: msg.from,
       msgId: msg.id,
-      text: msg.text?.body ?? "",
+      text: boton ?? msg.text?.body ?? "",
       type,
+      ...(boton ? { boton } : {}),
       name: contact?.profile?.name,
       timestamp: msg.timestamp,
       mediaId: mediaBlock.id ?? undefined,

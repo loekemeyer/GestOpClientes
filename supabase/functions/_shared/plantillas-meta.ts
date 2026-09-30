@@ -34,6 +34,10 @@ export type PlantillaMeta = {
   body: string;
   /** Un valor de ejemplo por {{n}}, en el mismo orden. Meta lo exige. */
   ejemplos: string[];
+  /** Botones de respuesta rápida (máx. 25 caracteres). El webhook los recibe como texto (wa-api.ts extractMessage)
+   *  y la lógica de siempre los atiende: por eso el texto del botón tiene que ser una frase que ya deriva
+   *  ("Necesito cambiar la fecha" → cambio de fecha; "No puedo ese día" → reprogramar retiro). Pablo, 30/09. */
+  botones?: string[];
 };
 
 const ES = "es_AR" as const;
@@ -69,6 +73,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     variables: ["fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)", "dirección de entrega"],
     body: "Tu pedido del {{1}} ya tiene fecha: lo entregamos el {{2}} en {{3}}.\nTe avisamos cuando salga en el camión.",
     ejemplos: ["22/09", "miércoles 30/09", "Lamadrid 157 - S.M. Tucumán"],
+    botones: ["Necesito cambiar la fecha"],
   },
   {
     name: "pedido_programado_expreso",
@@ -78,6 +83,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     variables: ["fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)", "expreso (sin la palabra Expreso)"],
     body: "Tu pedido del {{1}} ya tiene fecha: lo despachamos el {{2}} a Expreso {{3}}.\nTe avisamos cuando lo entreguemos al expreso.",
     ejemplos: ["22/09", "miércoles 30/09", "Arias"],
+    botones: ["Necesito cambiar la fecha"],
   },
   {
     name: "pedido_programado_retira",
@@ -87,6 +93,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     variables: ["fecha en que hizo el pedido (dd/mm)", "día en que está listo (día de semana + dd/mm)"],
     body: "Tu pedido del {{1}} va a estar listo para retirar el {{2}}.\nTe confirmamos por este medio cuando puedas pasar a buscarlo.",
     ejemplos: ["22/09", "miércoles 30/09"],
+    botones: ["Necesito cambiar la fecha"],
   },
   {
     name: "pedido_reprogramado",
@@ -134,6 +141,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     variables: ["fecha en que hizo el pedido (dd/mm)", "fecha límite con artículo (\"el jueves 02/10\")"],
     body: "Tu pedido del {{1}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 9 a 12 y de 13 a 16:30 h.\nRetiralo hasta {{2}}: al día siguiente se desarma.",
     ejemplos: ["22/09", "el jueves 02/10"],
+    botones: ["No puedo ese día"],
   },
 
   // ── Pedido entregado (reparto propio). Pedido de Pablo Olejavetzky (28/09): el aviso de entregado
@@ -155,7 +163,9 @@ export function componentesMeta(p: PlantillaMeta) {
     type: "BODY",
     text: p.body,
     ...(p.ejemplos.length ? { example: { body_text: [p.ejemplos] } } : {}),
-  }];
+  }, ...(p.botones?.length
+    ? [{ type: "BUTTONS", buttons: p.botones.map((text) => ({ type: "QUICK_REPLY", text })) }]
+    : [])];
 }
 
 /** Errores de forma que Meta rechazaría. Vacío = OK. */
@@ -173,6 +183,7 @@ export function validar(p: PlantillaMeta): string[] {
     err.push("el cuerpo no puede empezar ni terminar con una variable (tampoco seguida sólo de un punto)");
   }
   if (p.body.length > 1024) err.push("cuerpo > 1024 caracteres");
+  for (const b of p.botones ?? []) if (!b.trim() || b.length > 25) err.push(`botón "${b}": 1 a 25 caracteres`);
   return err;
 }
 

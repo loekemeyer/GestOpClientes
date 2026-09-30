@@ -358,6 +358,11 @@ el killswitch, sin ningún consumidor de esa cola.
 - **Pedido recibido con total con IVA** (Pablo, 29/09, sql/108): texto nuevo "Recibimos tu pedido del 15/09 por
   $896.668 ($741.048 + IVA)." con una línea en blanco tras el saludo, como `pedido_recibido_v2` (sistema de versiones).
   El disparador arma `{{3}}` según la versión activa: con la vieja (que ya dice "+ IVA") sigue mandando sólo el neto.
+- **Botones de respuesta rápida (Pablo, 30/09, auditoría):** `pedido_programado` (+ `_expreso`, `_retira`) con
+  "Necesito cambiar la fecha" y `pedido_listo_retirar` con "No puedo ese día" (`botones` en `plantillas-meta.ts`, van
+  como versión nueva). El webhook los recibe como texto (`_shared/wa-api.ts` `extractMessage`, campo `boton`) y los
+  atiende la lógica de siempre (`pedidoDeCambio` / `responderAviso`: deriva a una persona). `templates_sync` compara
+  texto Y botones. Pendientes ese día: listo_retirar_v2 (esperar aprobación para sumar el botón en v3).
 - **Aviso de despacho de NP de ISIS APAGADO (Pablo, 30/09, sql/109):** desde el 21/09 no entran NP de ISIS; se borró el
   disparador `ppp_facturacion_wa_notify` (mandaba `pedido_en_viaje` al FACTURAR, que puede ser días antes de la salida).
   Los pedidos web siguen con sus crons. `pedido_en_viaje_v3` ("Tu pedido del X para Y sale hoy en el reparto.") en revisión.

@@ -262,6 +262,14 @@ function bodyDe(t: any): string {
   // deno-lint-ignore no-explicit-any
   return (t?.components ?? []).find((c: any) => c.type === "BODY")?.text ?? "";
 }
+// Botones de respuesta rápida de una plantilla de Meta, en orden (para comparar con `botones` del repo).
+// deno-lint-ignore no-explicit-any
+function botonesDe(t: any): string {
+  // deno-lint-ignore no-explicit-any
+  const b = (t?.components ?? []).find((c: any) => c.type === "BUTTONS")?.buttons ?? [];
+  // deno-lint-ignore no-explicit-any
+  return b.map((x: any) => x.text).join("|");
+}
 
 async function guardarVersiones(v: Versiones) {
   await supabase.from("app_settings").upsert({ key: "wa_plantillas_version", value: JSON.stringify(v) }, { onConflict: "key" });
@@ -321,7 +329,9 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
     // Pablo, 30/09: "siempre por la versión nueva": si el texto cambió se crea base_vN (la activa sigue saliendo mientras
     // Meta revisa). Editar en el lugar sólo con `editar_en_lugar: true`.
     const actMeta = enMeta.get(`${activa}|${p.language}`);
-    const difiere = bodyDe(actMeta) !== p.body;
+    const botonesP = (p.botones ?? []).join("|");
+    const iguales = (t: unknown) => bodyDe(t) === p.body && botonesDe(t) === botonesP;
+    const difiere = !iguales(actMeta);
     if (actMeta && !versiones[p.name]?.nueva
         && ((difiere && body.editar_en_lugar !== true) || (pideVersion.has(p.name) && actMeta.status !== "APPROVED"))) {
       destino = siguienteNombre(p.name, versiones, nombresMeta);
@@ -334,8 +344,10 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
     const nVars = (t: string) => new Set(t.match(/\{\{\d+\}\}/g) ?? []).size;
     const cambiaVars = !!actMeta && (creaVersion || destino === activa) && nVars(bodyDe(actMeta)) !== nVars(p.body);
     const accion = errores.length ? "invalida"
-      : cambiaVars && body.acepto_variables !== true && !(actual && bodyDe(actual) === p.body) ? "cambia_variables"
-      : !actual ? "crear" : bodyDe(actual) === p.body ? "igual" : "editar";
+      : cambiaVars && body.acepto_variables !== true && !(actual && iguales(actual)) ? "cambia_variables"
+      : !actual ? "crear" : iguales(actual) ? "igual"
+      // La versión nueva todavía en revisión con otro texto: Meta no deja editarla; se reintenta cuando se apruebe.
+      : destino !== activa && actual.status === "PENDING" ? "nueva_en_revision" : "editar";
     // deno-lint-ignore no-explicit-any
     const fila: Record<string, any> = {
       name: p.name, nombre_meta: destino, ...(destino !== activa ? { activa } : {}), accion, estado_meta: actual?.status ?? "NO_EXISTE",
