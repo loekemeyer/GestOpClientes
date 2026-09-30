@@ -155,6 +155,18 @@ export const PLANTILLAS: PlantillaMeta[] = [
     body: "Tu pedido del {{1}} fue entregado.\nSi falta algo o llegó algo mal, avisanos por acá.",
     ejemplos: ["22/09"],
   },
+  // Recordatorio de descuento por vencer (Pablo, 30/09, con el OK de Thomy): 2 días hábiles antes de CADA escalón
+  // (25→20, 20→15, 15→10, 10→0), sólo si la factura sigue con saldo en Deuda Viva. Lo encola lk_recordatorio-descuento.
+  // "compra facturada" y no "factura": un mismo día puede tener varias facturas.
+  {
+    name: "pedido_recordatorio_descuento",
+    language: ES, category: UT,
+    disparo: "Faltan 2 días hábiles para que venza un escalón de descuento por pago y la factura sigue con saldo (Deuda Viva de Gestión). Uno por escalón.",
+    variables: ["fecha de la factura (dd/mm)", "hasta cuándo vale (\"martes 13/10\")", "% de descuento vigente",
+      "monto con el descuento", "saldo sin descuento", "% que queda después", "alias", "CBU"],
+    body: "Te recordamos el pago de tu compra facturada el {{1}}: si la pagás hasta el {{2}} tenés *{{3}}% de descuento* y abonás *{{4}}* en vez de {{5}}.\nDespués de esa fecha el descuento pasa a ser del {{6}}%.\n\nDatos para el pago:\nAlias: {{7}}\nCBU: {{8}}\n\nSaludos.",
+    ejemplos: ["28/09", "martes 13/10", "25", "$896.668", "$1.195.557", "20", "loeke.srl", "1910027855002702387450"],
+  },
 ];
 
 /** Payload de `components` que espera Meta para crear/editar. */
