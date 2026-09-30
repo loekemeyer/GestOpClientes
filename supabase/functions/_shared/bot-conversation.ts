@@ -718,7 +718,16 @@ async function executeTool(
         });
       }
       if (!rows.length) return { data: { mensaje: "No tiene facturas impagas. Cobranzas quedó avisada de la consulta." } };
-      return { data: { saldo_total: pesos(saldo), facturas, nota: "Importes con IVA, redondeados a pesos. Cobranzas quedó avisada de la consulta." } };
+      // Pablo, 30/09 (6.1): "pasame el importe con el 25% de contado" → el total CON descuento lo suma el código, no el modelo.
+      const conDto = rows.reduce((a, r) => {
+        const pend = Number(r.pendiente || 0), lista = Number(r.lista || 0), dto = Number(r.dto_cond || 0);
+        const vence = String(r.vence ?? "") || null;
+        const aplica = !!vence && vence >= hoy && Math.abs(pend - lista) < 1 && dto > 0;
+        return a + (aplica ? pend * (1 - dto) : pend);
+      }, 0);
+      return { data: { saldo_total: pesos(saldo),
+        ...(Math.round(conDto) < Math.round(saldo) ? { total_con_descuento: `${pesos(conDto)} (pagando cada factura hasta su fecha de descuento)` } : {}),
+        facturas, nota: "Importes con IVA, redondeados a pesos. Cobranzas quedó avisada de la consulta." } };
     }
 
     case "consultar_mis_descuentos": {
