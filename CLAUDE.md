@@ -18,6 +18,9 @@ siempre y no dependan de que estén cargadas en la sesión.
 - **Verdad incómoda primero.** Si me contradigo, no retrocedas salvo info nueva; "pero yo
   creo…" no cuenta.
 - Respuestas **breves y numeradas**; actor + acción por punto.
+- **Consultas de a UNA por mensaje** (Pablo, 30/09, dicho dos veces: *"Haceme las consultas siempre de
+  una en una"*). También el cierre de "decisiones pendientes": se pregunta sólo la de mayor impacto;
+  las demás esperan a que se responda esa.
 - Claude Code / UI: evitar 100% de ancho y huecos.
 
 ### DATOS
