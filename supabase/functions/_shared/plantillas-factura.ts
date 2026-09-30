@@ -60,6 +60,6 @@ export const PLANTILLAS_FACTURA: Array<{ name: string; disparo: string; body: st
     "disparo": "Se factura el pedido y el cliente paga con e-cheq (varias facturas). Sale con la factura en PDF (lk_factura-check).",
     // Pablo, 30/09: e-cheq con la fecha del cheque (factura + días del plazo), el ahorro de contado y al final el total.
     "body": "¡Hola! Te adjuntamos la factura de tu pedido.\n\nTotal a pagar Echeq al {{1}} ({{2}}% dto) abonás *{{3}}*\nRecordá enviar el e-cheq al momento de recibir el pedido.\n\n*Pagando hasta el {{4}} podés ahorrarte {{5}}.*\n*Total Contado: {{6}}*\n\nDetalle por factura: {{7}}\nTotal de tus facturas (con IVA): {{8}}, en {{9}} facturas.\n\nDatos para el pago:\nAlias: {{10}}\nCBU: {{11}}\n\nSaludos.",
-    "ejemplos": ["26/01", "0", "$475.000", "12/10", "$100.000", "$375.000", "$153.355 / $200.100 / $146.545", "$500.000", "3", "loeke.srl", "1910027855002702387450"]
+    "ejemplos": ["27/12", "5", "$475.000", "12/10", "$100.000", "$375.000", "$153.355 / $200.100 / $146.545", "$500.000", "3", "loeke.srl", "1910027855002702387450"]
   }
 ];
