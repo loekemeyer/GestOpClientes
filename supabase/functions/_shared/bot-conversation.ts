@@ -48,7 +48,7 @@ export async function pedidoEnCurso(phone: string): Promise<boolean> {
       .order("creado_en", { ascending: false }).limit(1);
   const ult = data?.[0];
   if (!ult || Date.now() - new Date(ult.creado_en).getTime() > 60 * 60_000) return false;
-  return /(formas? de pago|resumen (de|del) (tu )?pedido|tu pedido:|confirm(á|as)\s+(el pedido|con un s[ií])|¿?con cu[aá]l (vas|pag)|direcci[oó]n de entrega|¿(a )?d[oó]nde (lo )?(enviamos|entregamos)|franja|d[ií]a de retiro)/i
+  return /(te tomo el pedido|qu[eé] art[ií]culos (necesit|quer)|algo m[aá]s\?|confirm[aá]s \d+ cajas|formas? de pago|resumen (de|del) (tu )?pedido|tu pedido:|confirm(á|as)\s+(el pedido|con un s[ií])|¿?con cu[aá]l (vas|pag)|direcci[oó]n de entrega|¿(a )?d[oó]nde (lo )?(enviamos|entregamos)|franja|d[ií]a de retiro)/i
     .test(String(ult.contenido ?? ""));
 }
 
