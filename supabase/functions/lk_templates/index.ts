@@ -263,6 +263,20 @@ async function guardarVersiones(v: Versiones) {
   await supabase.from("app_settings").upsert({ key: "wa_plantillas_version", value: JSON.stringify(v) }, { onConflict: "key" });
 }
 
+// Tiempos de aprobación de Meta (Pablo, 30/09: "saber qué es más rápido", crear una nueva o editar la aprobada).
+// app_settings.wa_plantillas_tiempos = { nombre: { tipo: "creada"|"editada", pedida_at, aprobada_at?, estado? } }.
+// templates_sync anota cuándo se pidió; templates_promover (cron cada 30 min) anota cuándo la vio APPROVED o REJECTED.
+type Tiempos = Record<string, { tipo: string; pedida_at: string; aprobada_at?: string; estado?: string }>;
+async function leerTiempos(): Promise<Tiempos> {
+  const v = await getSetting("wa_plantillas_tiempos");
+  try { return v ? JSON.parse(v) : {}; } catch { return {}; }
+}
+async function anotarTiempo(nombre: string, tipo: string) {
+  const t = await leerTiempos();
+  t[nombre] = { tipo, pedida_at: new Date().toISOString() };
+  await supabase.from("app_settings").upsert({ key: "wa_plantillas_tiempos", value: JSON.stringify(t) }, { onConflict: "key" });
+}
+
 async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: string) {
   const aplicar = body.aplicar === true;
   const solo = Array.isArray(body.solo) ? (body.solo as unknown[]).map(String) : null;
@@ -297,7 +311,10 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
     let destino = versiones[p.name]?.nueva ?? activa;
     // Versión nueva pedida y la activa tiene otro texto: se crea base_vN en vez de editar.
     let creaVersion = false;
-    if (pideVersion.has(p.name) && !versiones[p.name]?.nueva && bodyDe(enMeta.get(`${activa}|${p.language}`)) !== p.body) {
+    // Pablo, 30/09: también si la activa está trabada en revisión (misma plantilla, otro nombre: la que Meta apruebe
+    // primero es la que se usa; sirve para medir si una nueva sale más rápido que una edición).
+    const actMeta = enMeta.get(`${activa}|${p.language}`);
+    if (pideVersion.has(p.name) && !versiones[p.name]?.nueva && (bodyDe(actMeta) !== p.body || actMeta?.status !== "APPROVED")) {
       destino = siguienteNombre(p.name, versiones, nombresMeta);
       creaVersion = true;
     }
@@ -327,6 +344,7 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
         ? { ok: false, error: `Meta (#${out.error.code ?? "?"}${out.error.error_subcode ? "/" + out.error.error_subcode : ""}): ${out.error.error_user_msg ?? out.error.message ?? ""}` }
         : { ok: true, id: out.id ?? actual?.id ?? null, status: out.status ?? "PENDING", category: out.category ?? null };
       console.log(`templates_sync ${accion} ${destino} por ${adminEmail}:`, JSON.stringify(fila.resultado));
+      if (fila.resultado.ok) await anotarTiempo(destino, accion === "crear" ? "creada" : "editada");
       if (creaVersion && fila.resultado.ok) {
         versiones[p.name] = { activa, nueva: destino };
         versionesCambiaron = true;
@@ -345,7 +363,9 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
 async function handleTemplatesPromover(body: Record<string, unknown>, quien: string) {
   const versiones = await leerVersiones(supabase);
   const pendientes = Object.entries(versiones).filter(([, x]) => x.nueva);
-  if (!pendientes.length) return json({ ok: true, promovidas: [], pendientes: [] });
+  const tiempos = await leerTiempos();
+  const sinResolver = Object.entries(tiempos).filter(([, x]) => !x.aprobada_at && !x.estado);
+  if (!pendientes.length && !sinResolver.length) return json({ ok: true, promovidas: [], pendientes: [] });
   const token = await metaToken();
   if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
   const { wabaId } = await resolveWaba(token);
@@ -354,6 +374,16 @@ async function handleTemplatesPromover(body: Record<string, unknown>, quien: str
   const data = await res.json();
   if (data.error) return json({ ok: false, error: `Meta: ${data.error.message ?? ""}` }, 200);
   const estado = new Map<string, string>((data.data ?? []).map((t: { name: string; status: string }) => [t.name, t.status]));
+  // Tiempos: la primera vez que se la ve APPROVED (o REJECTED) queda la hora (resolución: la del cron, 30 min).
+  if (sinResolver.length) {
+    const ahora = new Date().toISOString();
+    for (const [n, x] of sinResolver) {
+      const st = estado.get(n);
+      if (st === "APPROVED") x.aprobada_at = ahora;
+      else if (st === "REJECTED") { x.estado = "REJECTED"; x.aprobada_at = ahora; }
+    }
+    await supabase.from("app_settings").upsert({ key: "wa_plantillas_tiempos", value: JSON.stringify(tiempos) }, { onConflict: "key" });
+  }
   const promovidas: Array<Record<string, unknown>> = [], siguen: Array<Record<string, unknown>> = [];
   for (const [base, x] of pendientes) {
     const st = estado.get(x.nueva!) ?? "NO_EXISTE";
