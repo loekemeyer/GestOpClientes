@@ -815,6 +815,15 @@
           <div class="config-section">
             <h3>💰 Descuentos por pago</h3>
             <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">Tocá <b>✏️</b> para editar y <b>💾</b> para guardar. Rige apenas guardás.</p>
+            <p class="hint" style="display:block;margin:-0.4rem 0 0.9rem;line-height:1.5;">
+              <b>Cómo se usan en el aviso de factura por WhatsApp</b> (lo arma <code>lk_factura-check</code> con esta tabla):<br>
+              • Las fechas se cuentan en <b>días corridos desde la fecha de la factura</b>; si caen sábado, domingo o feriado,
+              pasan al <b>próximo día hábil</b>.<br>
+              • <b>Contado</b>: «Pagando hasta el dd/mm» = factura + el plazo de contado.<br>
+              • <b>Crédito y e-cheq</b>: «Total a pagar al dd/mm» = factura + el <b>último número de la etiqueta</b>
+              del plazo («31 a 45» → 45 días; «120» → 120). Si cambiás la etiqueta, cambia la fecha.<br>
+              • El % de cada fila es el descuento que se aplica al total de la factura.
+            </p>
 
             <!-- 1) Datos de pago (Alias / CBU) -->
             <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Datos de pago</div>
@@ -3995,7 +4004,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.18</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.19</div>
 <script src="gestop2.js?v=0.25.18"></script>
 </body>
 </html>
