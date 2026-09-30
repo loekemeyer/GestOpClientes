@@ -147,7 +147,8 @@ serve(async (req) => {
       const key = Deno.env.get("ANTHROPIC_API_KEY") ?? (await getSetting("ANTHROPIC_API_KEY")) ?? "";
       const r = await leerPedidoArchivo(bytes, String(body.mime ?? ""), key, null, body.nombre ?? null);
       const arts = r.lineas.length ? await resolverArticulos(r.lineas, key, null) : [];
-      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, articulos: arts, mensaje: arts.length ? textoConfirmacion(arts) : null });
+      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, articulos: arts, mensaje: arts.length ? textoConfirmacion(arts, { cotizador: r.cotizador === true, seguir: true, condicion_code: r.condicion_code }) : null,
+        cotizador: r.cotizador === true, condicion_code: r.condicion_code ?? null });
     }
 
     const { data: c } = await supabase.from("customers")

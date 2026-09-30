@@ -8,8 +8,10 @@
 > días hábiles 9:05, sql/111, plantilla `pedido_recordatorio_descuento` en revisión); FAQ #8 descuentos con las
 > facturas abiertas y fechas reales, y FAQ #10 reenvía el PDF de la factura (`_shared/faq.ts`). Fuente de "¿está
 > paga?": `GV_Cobranza_Deuda_Viva` de Gestión (sin fila con saldo = pagada).
-> Pedidos por WhatsApp (sql/112, **apagados** hasta que se prendan en Configuración del agente › Pedidos por
-> WhatsApp): precarga + confirmación en Tareas; sin 2% web; ver FLUJOS.md Flujo 3.
+> Pedidos por WhatsApp (sql/112-113): **PRENDIDOS desde el 30/09** (`app_settings.wa_pedidos_config` =
+> `{"activo":true,"modo":"precarga"}`, con "sí" de Pablo) para probar con Thomy (sólo whitelist). Precarga +
+> confirmación en Tareas; sin 2% web salvo origen Cotizador; ver FLUJOS.md Flujo 3. ⚠ Thomy está asociado a
+> Farimar (4028, cliente REAL): las precargas de prueba se DESCARTAN, no se confirman.
 
 ## 🔑 Accesos, permisos y dónde está cada cosa (LEER PRIMERO)
 
