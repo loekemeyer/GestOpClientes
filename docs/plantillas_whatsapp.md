@@ -1,5 +1,12 @@
 # Plantillas WhatsApp — Tutorial de carga en Meta Business (WhatsApp Manager)
 
+> **Desde el 30/09 (Pablo) la fuente del texto es `supabase/functions/_shared/plantillas-factura.ts`** y ya no se cargan a
+> mano: `lk_templates` action `factura_sync` las sube a Meta **siempre como versión nueva** (`pedido_credito_p_v2`, …),
+> la vigente sigue saliendo mientras Meta revisa y `lk_promover-plantillas` pasa a la nueva cuando se aprueba.
+> Formato nuevo en las 6: lo que paga el cliente arriba y el detalle antes del total. `lk_factura-check` reconoce cada
+> variable por el texto que la rodea en la versión activa (`mapearPorTexto`), así no depende del orden. Los textos de
+> abajo de crédito y e-cheq son los anteriores (referencia).
+
 6 plantillas: 3 métodos de pago × (1 factura | varias facturas). El bot elige sola cuál
 usar según el método del cliente y la cantidad de facturas del pedido.
 

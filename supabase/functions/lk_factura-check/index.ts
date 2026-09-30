@@ -116,17 +116,41 @@ async function tplStatus(name: string): Promise<string | null> {
 async function tplParamCount(name: string): Promise<number | null> {
   await refreshTpls(); const v = _tplParams![name]; return (v === undefined) ? null : v;
 }
-// Pablo, 29/09: en las de contado el total a pagar va primero y el detalle antes del total de las facturas. Se edita a
-// mano en WhatsApp Manager; el orden de las variables sigue al texto que Meta tenga (posición de cada bloque), así no
-// hay que tocar nada el día que la aprueba. Mientras la edición está en revisión no está APPROVED y no se manda.
-type Bloque = "total" | "detalle" | "pago";
-async function ordenContado(name: string): Promise<{ orden: Bloque[]; body: string } | null> {
-  await refreshTpls();
-  const b = _tplBody[name] ?? "";
-  const pos: Array<[Bloque, number]> = [["total", b.search(/Total de tus? factura/)],
-    ["detalle", b.search(/Detalle por factura/)], ["pago", b.search(/Total a pagar\W*Contado/)]];
-  if (pos.some(([k, i]) => i < 0 && !(k === "detalle"))) return null;   // texto desconocido → orden de siempre
-  return { orden: pos.filter(([, i]) => i >= 0).sort((x, y) => x[1] - y[1]).map(([k]) => k), body: b };
+// Pablo, 29-30/09: el orden de las variables sigue al texto de la plantilla ACTIVA en Meta (formato nuevo: lo que paga
+// arriba, el detalle antes del total). Cada {{n}} se reconoce por el texto que lo rodea, así una versión nueva con otro
+// orden funciona sola el día que se promueve. Si alguna variable no se reconoce → null (orden fijo de siempre).
+interface ValoresFactura {
+  total: string; n: string; lista: string; plazo: string; pct: string; montoCliente: string; montoContado: string;
+  fecha: string; ahorro: string; alias: string; cbu: string;
+}
+function mapearPorTexto(body: string, v: ValoresFactura, grupo: string): string[] | null {
+  const vars = [...body.matchAll(/\{\{(\d+)\}\}/g)];
+  if (!vars.length) return null;
+  const porNumero: Record<number, string> = {};
+  for (const m of vars) {
+    const i = m.index ?? 0;
+    const linea = body.slice(body.lastIndexOf("\n", i - 1) + 1, i).replace(/[\s*]+$/, "");
+    const despues = body.slice(i + m[0].length).replace(/^[\s*]+/, "");
+    let val: string | null = null;
+    if (/^%/.test(despues)) val = v.pct;
+    else if (/^d[ií]as/i.test(despues)) val = v.plazo;
+    else if (/^facturas/i.test(despues)) val = v.n;
+    else if (/Alias:$/i.test(linea)) val = v.alias;
+    else if (/CBU:$/i.test(linea)) val = v.cbu;
+    else if (/\(con IVA\):$/i.test(linea)) val = v.total;
+    else if (/Detalle por factura:$/i.test(linea)) val = v.lista;
+    else if (/hasta el$/i.test(linea)) val = v.fecha;
+    else if (/ahorrarte$/i.test(linea)) val = v.ahorro;
+    else if (/Total Contado:$/i.test(linea)) val = v.montoContado;
+    else if (/abon[aá]s:$/i.test(linea)) val = v.montoCliente;
+    else if (grupo === "contado" && /Dto\)\*?:$/i.test(linea)) val = v.montoContado;
+    if (val === null) return null;
+    porNumero[Number(m[1])] = val;
+  }
+  const max = Math.max(...Object.keys(porNumero).map(Number));
+  const out: string[] = [];
+  for (let k = 1; k <= max; k++) { if (porNumero[k] === undefined) return null; out.push(porNumero[k]); }
+  return out;
 }
 // Cantidad de {{n}} esperada por formato/grupo, para autodetectar contra Meta.
 function countV1(grupo: string, esMultiple: boolean): number { return grupo === "contado" ? (esMultiple ? 4 : 2) : (esMultiple ? 8 : 6); }
@@ -341,12 +365,15 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
   const esMultiple = n > 1;
   const lista = totales.map((t) => fmtARS(t)).join(" / ");
   const template = esMultiple ? TPL[grupo].multi : TPL[grupo].single;
+  // Versión que se manda hoy (pedido_contado_p → pedido_contado_p_v2 cuando Meta aprobó la nueva): su estado y su
+  // texto son los que valen (Pablo, 30/09: los cambios de texto van siempre por versión nueva).
+  const nombreMeta = nombreActivo(await leerVersiones(paginalk), template);
   // Formato: 'v1'/'v2' fuerza; 'auto' (default) lo detecta contando los {{n}} vivos en Meta.
   let v2: boolean;
   if (cfg.formato === "v2") v2 = true;
   else if (cfg.formato === "v1") v2 = false;
   else {
-    const lc = await tplParamCount(template);
+    const lc = await tplParamCount(nombreMeta);
     v2 = (lc === countV2(grupo, esMultiple)) ? true
        : (lc === countV1(grupo, esMultiple)) ? false
        : (lc != null && lc >= countV2(grupo, esMultiple)); // desconocido/no leído → v1 (seguro)
@@ -371,24 +398,22 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
       ? [...base, label, fmtARS(montoCliente), metodoPct, fechaLimite, fmtARS(ahorro), fmtARS(montoContado)]
       : [...base, label, fmtARS(montoCliente), fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
   }
-  // Contado v2: las variables van en el orden de los bloques del texto aprobado en Meta (ordenContado) y el texto del
-  // historial es ese mismo cuerpo con los valores, así coincide con lo que leyó el cliente.
-  let textoMeta: string | null = null;
-  const oc = v2 && grupo === "contado" ? await ordenContado(template) : null;
-  if (oc) {
-    const bloques: Record<Bloque, string[]> = {
-      total: esMultiple ? [fmtARS(total_sum), String(n)] : [fmtARS(total_sum)],
-      detalle: esMultiple ? [lista] : [],
-      pago: [contadoPct, fmtARS(montoContado)],
-    };
-    params = oc.orden.flatMap((k) => bloques[k]);
-    const todos = [...params, cfg.alias, cfg.cbu];
-    const cuenta = (oc.body.match(/\{\{\d+\}\}/g) ?? []).length;
-    if (cuenta === todos.length) textoMeta = oc.body.replace(/\{\{(\d+)\}\}/g, (_m, i) => todos[Number(i) - 1] ?? "");
-  }
   if (v2) params = [...params, cfg.alias, cfg.cbu]; // pie de pago (variables) sólo en v2
+  // Orden y texto según la plantilla activa en Meta (mapearPorTexto); el historial guarda ese cuerpo con los valores.
+  let textoMeta: string | null = null;
+  await refreshTpls();
+  const cuerpoMeta = _tplBody[nombreMeta] ?? "";
+  const porTexto = cuerpoMeta ? mapearPorTexto(cuerpoMeta, {
+    total: fmtARS(total_sum), n: String(n), lista, plazo: label, pct: grupo === "contado" ? contadoPct : metodoPct,
+    montoCliente: fmtARS(montoCliente), montoContado: fmtARS(montoContado), fecha: fechaLimite, ahorro: fmtARS(ahorro),
+    alias: cfg.alias, cbu: cfg.cbu,
+  }, grupo) : null;
+  if (porTexto) {
+    params = porTexto;
+    textoMeta = cuerpoMeta.replace(/\{\{(\d+)\}\}/g, (_m, i) => porTexto[Number(i) - 1] ?? "");
+  }
   return {
-    template, language: "es_AR", metodo, grupo, n_facturas: n, multiple: esMultiple, formato: v2 ? "v2" : "v1",
+    template, template_meta: nombreMeta, language: "es_AR", metodo, grupo, n_facturas: n, multiple: esMultiple, formato: v2 ? "v2" : "v1",
     params, lista_facturas: lista, texto_legible: textoMeta ?? textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu, v2),
     total_sum, total_fmt: fmtARS(total_sum),
     desglose: {
@@ -512,7 +537,7 @@ async function handleGrupo(body: any) {
     let estado = "delivered";
     // deno-lint-ignore no-explicit-any
     const mensaje: any = await armarMensaje(sub.metodo, sub.facturas, String(body.dia ?? hoy), cfg);
-    const st = await tplStatus(mensaje.template);
+    const st = await tplStatus(mensaje.template_meta ?? mensaje.template);
     mensaje.tpl_status = st;
     if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
     mensaje.real_group = { group_key: sgKey, cod_cliente: body.cod_cliente ?? null, comprobantes: sub.facturas.map((f) => f.comprobante_id).filter(Boolean) };
@@ -586,7 +611,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
       let estado0 = "delivered";
       // deno-lint-ignore no-explicit-any
       const base: any = await armarMensaje(sub.metodo, sub.facturas, fecha, cfg);
-      const st = await tplStatus(base.template);
+      const st = await tplStatus(base.template_meta ?? base.template);
       base.tpl_status = st;
       if (st && st !== "APPROVED") estado0 = "held_tpl_no_aprobada";
       base.real_group = { cuit, empresa: gr.empresa, destino, cod_cliente: gr.cod_cliente ?? null, razon_social: gr.razon_social ?? null, comprobantes: sub_comprob };
@@ -712,7 +737,7 @@ serve(async (req) => {
       let estado = "delivered";
       // deno-lint-ignore no-explicit-any
       const mensaje: any = await armarMensaje(sub.metodo, sub.facturas, fecha, cfg);
-      const st = await tplStatus(mensaje.template);
+      const st = await tplStatus(mensaje.template_meta ?? mensaje.template);
       mensaje.tpl_status = st;
       if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
       if (multiMetodo) mensaje.split_metodo = { metodo: sub.metodo, de_grupo: grupoKey, n_sub: subgrupos.length };

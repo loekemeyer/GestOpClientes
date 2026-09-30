@@ -318,8 +318,12 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
     let creaVersion = false;
     // Pablo, 30/09: también si la activa está trabada en revisión (misma plantilla, otro nombre: la que Meta apruebe
     // primero es la que se usa; sirve para medir si una nueva sale más rápido que una edición).
+    // Pablo, 30/09: "siempre por la versión nueva": si el texto cambió se crea base_vN (la activa sigue saliendo mientras
+    // Meta revisa). Editar en el lugar sólo con `editar_en_lugar: true`.
     const actMeta = enMeta.get(`${activa}|${p.language}`);
-    if (pideVersion.has(p.name) && !versiones[p.name]?.nueva && (bodyDe(actMeta) !== p.body || actMeta?.status !== "APPROVED")) {
+    const difiere = bodyDe(actMeta) !== p.body;
+    if (actMeta && !versiones[p.name]?.nueva
+        && ((difiere && body.editar_en_lugar !== true) || (pideVersion.has(p.name) && actMeta.status !== "APPROVED"))) {
       destino = siguienteNombre(p.name, versiones, nombresMeta);
       creaVersion = true;
     }
@@ -430,10 +434,12 @@ async function handleTemplatesPromover(body: Record<string, unknown>, quien: str
 // ── factura_sync: edita en Meta las 6 plantillas de factura con el texto de _shared/plantillas-factura.ts ──
 // (Pablo, 30/09: "¿no podés cambiarlo vos en WhatsApp Manager?"). Tienen encabezado Documento y Meta pide un PDF de
 // muestra al editar: se genera uno de ejemplo, se sube con la API de subidas (app del token) y se manda su handle.
-// Simulacro por defecto; `aplicar: true` edita. `solo: [...]` limita. Edita EN EL LUGAR (no versión nueva): mientras
-// Meta la revisa, lk_factura-check la retiene (held_tpl_no_aprobada). Hoy la factura sólo va a los números de prueba.
+// Simulacro por defecto; `aplicar: true` aplica. `solo: [...]` limita. Crea SIEMPRE versión nueva (base_vN, Pablo 30/09):
+// la activa sigue saliendo mientras Meta revisa y lk_promover-plantillas pasa a la nueva cuando la aprueba.
+// `editar_en_lugar: true` edita la vigente (se corta el aviso mientras Meta la revisa).
 async function handleFacturaSync(body: Record<string, unknown>, quien: string) {
   const aplicar = body.aplicar === true;
+  const enLugar = body.editar_en_lugar === true;   // sólo a pedido: corta el aviso mientras Meta revisa
   const solo = Array.isArray(body.solo) ? (body.solo as unknown[]).map(String) : null;
   const token = await metaToken();
   if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
@@ -445,41 +451,57 @@ async function handleFacturaSync(body: Record<string, unknown>, quien: string) {
   if (data.error) return json({ ok: false, error: `Meta: ${data.error.message ?? ""}` }, 200);
   // deno-lint-ignore no-explicit-any
   const enMeta = new Map<string, any>((data.data ?? []).map((t: any) => [t.name, t]));
+  const nombresMeta = new Set<string>(enMeta.keys());
+  const versiones = await leerVersiones(supabase);
+  let versionesCambiaron = false;
   let handle: string | null = null;
   const plan = [];
   for (const p of PLANTILLAS_FACTURA) {
     if (solo && !solo.includes(p.name)) continue;
-    const t = enMeta.get(p.name);
+    const activa = nombreActivo(versiones, p.name);
+    const nueva = versiones[p.name]?.nueva;
+    const t = enMeta.get(activa);
     // deno-lint-ignore no-explicit-any
-    const comp = (tipo: string) => (t?.components ?? []).find((c: any) => c.type === tipo);
-    const actual = comp("BODY")?.text ?? null;
-    const accion = !t ? "no_existe" : actual === p.body ? "igual" : "editar";
+    const comp = (x: any, tipo: string) => (x?.components ?? []).find((c: any) => c.type === tipo);
+    const actual = comp(t, "BODY")?.text ?? null;
+    const tNueva = nueva ? enMeta.get(nueva) : null;
+    let accion: string, destino = activa;
+    if (!t) accion = "no_existe";
+    else if (actual === p.body) accion = "igual";
+    else if (nueva) { destino = nueva; accion = comp(tNueva, "BODY")?.text === p.body ? "igual_nueva_en_revision" : "nueva_con_otro_texto"; }
+    else if (enLugar) accion = "editar";
+    else { destino = siguienteNombre(p.name, versiones, nombresMeta); accion = "crear_version"; }
     // deno-lint-ignore no-explicit-any
-    const fila: Record<string, any> = { name: p.name, accion, estado_meta: t?.status ?? "NO_EXISTE",
-      ...(accion === "editar" ? { texto_meta: actual, texto_nuevo: p.body } : {}) };
-    if (aplicar && accion === "editar") {
+    const fila: Record<string, any> = { name: p.name, activa, nombre_meta: destino, accion, estado_meta: (destino === activa ? t : tNueva)?.status ?? "NO_EXISTE",
+      ...(accion === "editar" || accion === "crear_version" || accion === "nueva_con_otro_texto" ? { texto_meta: actual, texto_nuevo: p.body } : {}) };
+    if (aplicar && (accion === "editar" || accion === "crear_version")) {
       try {
         handle ??= await subirPdfMuestra(token);
-        const pie = comp("FOOTER");
+        const pie = comp(t, "FOOTER");
         const components = [
           { type: "HEADER", format: "DOCUMENT", example: { header_handle: [handle] } },
           { type: "BODY", text: p.body, example: { body_text: [p.ejemplos] } },
           ...(pie?.text ? [{ type: "FOOTER", text: pie.text }] : []),
         ];
-        const r = await fetch(`${META_API}/${t.id}`, {
-          method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ components }),
-        });
+        const r = accion === "editar"
+          ? await fetch(`${META_API}/${t.id}`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ components }) })
+          : await fetch(`${META_API}/${wabaId}/message_templates`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ name: destino, language: t.language ?? "es_AR", category: "UTILITY", components }) });
         const out = await r.json();
         fila.resultado = out.error
           ? { ok: false, error: `Meta (#${out.error.code ?? "?"}${out.error.error_subcode ? "/" + out.error.error_subcode : ""}): ${out.error.error_user_msg ?? out.error.message ?? ""}` }
-          : { ok: true, status: "PENDING" };
+          : { ok: true, id: out.id ?? t.id, status: out.status ?? "PENDING" };
       } catch (e) { fila.resultado = { ok: false, error: e instanceof Error ? e.message : String(e) }; }
-      console.log(`factura_sync editar ${p.name} por ${quien}:`, JSON.stringify(fila.resultado));
-      if (fila.resultado.ok) await anotarTiempo(p.name, "editada");
+      console.log(`factura_sync ${accion} ${destino} por ${quien}:`, JSON.stringify(fila.resultado));
+      if (fila.resultado.ok) {
+        await anotarTiempo(destino, accion === "editar" ? "editada" : "creada");
+        if (accion === "crear_version") { versiones[p.name] = { activa, nueva: destino }; versionesCambiaron = true; nombresMeta.add(destino); }
+      }
     }
     plan.push(fila);
   }
+  if (versionesCambiaron) await guardarVersiones(versiones);
   return json({ ok: true, aplicado: aplicar, plan });
 }
 
