@@ -3,6 +3,7 @@
 select jsonb_build_object(
   'generado', now(),
   'llave', (select value from app_settings where key = 'wa_envio_automatico'),
+  'versiones', coalesce((select value::jsonb from app_settings where key = 'wa_plantillas_version'), '{}'::jsonb),
   'plantillas', (
     select jsonb_agg(jsonb_build_object(
       'name', t->>'name', 'status', t->>'status', 'category', t->>'category', 'language', t->>'language',

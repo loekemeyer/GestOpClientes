@@ -140,7 +140,13 @@ function burbuja(p) {
   const pie = p.footer ? `<div class="pie">${esc(p.footer)}</div>` : "";
   const bots = (p.buttons || []).length ? `<div class="botones">${p.buttons.map((b) => `<span>${esc(b)}</span>`).join("")}</div>` : "";
   const rev = p.en_revision ? `<div style="font-size:13px;font-weight:700;color:#856404;background:#fff3cd;border-radius:6px;padding:4px 8px;margin-bottom:6px">🕓 Texto nuevo, en revisión en Meta</div>` : "";
-  return `<div class="chat"><div class="burbuja">${rev}${doc}${head}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
+  // Versiones (Pablo, 30/09): la que no se manda queda aprobada y sin uso; la nueva en carrera todavía no se usa.
+  const ver = p.version_rol === "sin_uso"
+    ? `<div style="font-size:13px;font-weight:700;color:#6c757d;background:#e9ecef;border-radius:6px;padding:4px 8px;margin-bottom:6px">⏸ Versión sin uso: se manda ${esc(p.version_activa)}</div>`
+    : p.version_rol === "nueva"
+      ? `<div style="font-size:13px;font-weight:700;color:#0c5460;background:#d1ecf1;border-radius:6px;padding:4px 8px;margin-bottom:6px">🔁 Versión nueva: reemplaza a ${esc(p.version_activa)} cuando Meta la apruebe</div>`
+      : "";
+  return `<div class="chat"><div class="burbuja">${ver}${rev}${doc}${head}<div class="txt">${cuerpo(p.body, p.ejemplos)}</div>${pie}<div class="hora">10:24</div>${bots}</div></div>`;
 }
 const veces = (name) => {
   const n = DATOS.simulacion?.uso_2m?.[name];

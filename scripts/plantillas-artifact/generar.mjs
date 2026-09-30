@@ -29,12 +29,20 @@ if (!Array.isArray(datos.plantillas) || !datos.plantillas.length) {
 }
 
 const avisos = [];
+// Versiones (app_settings.wa_plantillas_version, Pablo 30/09): pedido_recibido_v2 es la misma plantilla que
+// pedido_recibido con otro nombre. Se documenta con el disparador de la base y se marca cuál se manda.
+const versiones = datos.versiones ?? {};
+const baseDe = (n) => versiones[n] ? n : (() => { const b = n.replace(/_v\d+$/, ""); return b !== n && (versiones[b] || disp.plantillas[b]) ? b : n; })();
 const plantillas = datos.plantillas.map((t) => {
-  const d = disp.plantillas[t.name];
+  const base = baseDe(t.name);
+  const v = versiones[base];
+  const activa = v?.activa ?? base;
+  const version_rol = !v && base === t.name ? null : t.name === activa ? "activa" : t.name === v?.nueva ? "nueva" : "sin_uso";
+  const d = disp.plantillas[t.name] ?? disp.plantillas[base];
   if (!d) avisos.push(`sin disparador cargado: ${t.name}`);
-  const def = definido[t.name];
+  const def = definido[t.name] ?? definido[base];
   // Si el sistema ya tiene un texto nuevo que Meta todavía no aprobó, el artifact muestra el nuevo (Pablo, 29/09).
-  const pendiente = def !== undefined && def.trim() !== String(t.body ?? "").trim();
+  const pendiente = version_rol !== "sin_uso" && def !== undefined && def.trim() !== String(t.body ?? "").trim();
   return {
     ...t,
     body: pendiente ? def : t.body,
@@ -48,6 +56,7 @@ const plantillas = datos.plantillas.map((t) => {
     difiere: false,
     definido: def ?? null,
     uso: datos.uso?.[t.name] ?? null,
+    version_rol, version_activa: activa,
   };
 });
 for (const n of Object.keys(disp.plantillas)) {

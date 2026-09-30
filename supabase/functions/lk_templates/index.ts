@@ -283,6 +283,7 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
   // `version_nueva: ["pedido_recibido", …]`: en vez de EDITAR la aprobada (1 cada 24 h y se corta mientras Meta revisa)
   // se crea pedido_recibido_v2 y se sigue mandando la activa hasta que Meta apruebe la nueva (templates_promover).
   const pideVersion = new Set(Array.isArray(body.version_nueva) ? (body.version_nueva as unknown[]).map(String) : []);
+  const carrera = body.carrera === true;   // con version_nueva: también edita la activa (ver abajo)
   const versiones = await leerVersiones(supabase);
   let versionesCambiaron = false;
 
@@ -329,6 +330,9 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
         ? { aviso: "aprobada: vuelve a revisión y consume 1 de las ediciones (1/24 h, 10/30 días)" } : {}),
     };
 
+    if (carrera && creaVersion && actMeta?.id && bodyDe(actMeta) !== p.body && actMeta.status !== "PENDING") {
+      fila.carrera_plan = `también edita ${activa} (se corta mientras Meta la revisa)`;
+    }
     if (aplicar && (accion === "crear" || accion === "editar")) {
       const url = accion === "crear" ? `${META_API}/${wabaId}/message_templates` : `${META_API}/${actual.id}`;
       const payload = accion === "crear"
@@ -348,6 +352,23 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
       if (creaVersion && fila.resultado.ok) {
         versiones[p.name] = { activa, nueva: destino };
         versionesCambiaron = true;
+        // `carrera: true` (Pablo, 30/09): además de crear base_vN se EDITA la activa con el mismo texto, al mismo tiempo,
+        // para medir qué aprueba Meta antes. Costo: la activa editada no se puede mandar mientras Meta la revisa, así que
+        // el aviso se corta hasta que se apruebe una de las dos. Sólo sirve si las variables no cambian con la versión
+        // (un disparador que arma distinto según la versión activa, como sql/108, se rompería).
+        if (carrera && actMeta?.id && bodyDe(actMeta) !== p.body && actMeta.status !== "PENDING") {
+          const re = await fetch(`${META_API}/${actMeta.id}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ components: componentesMeta(p) }),
+          });
+          const oe = await re.json();
+          fila.carrera = oe.error
+            ? { ok: false, error: `Meta (#${oe.error.code ?? "?"}): ${oe.error.error_user_msg ?? oe.error.message ?? ""}` }
+            : { ok: true, editada: activa };
+          console.log(`templates_sync carrera editar ${activa} por ${adminEmail}:`, JSON.stringify(fila.carrera));
+          if (fila.carrera.ok) await anotarTiempo(activa, "editada");
+        }
       }
     }
     plan.push(fila);
