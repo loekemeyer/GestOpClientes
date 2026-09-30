@@ -511,7 +511,7 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
     return renderTemplate(sinLineasSinDato(tpl, vars), vars);
   }
   const pago = pagoBlock ? `\n💰 *Por pago*, contando desde la fecha de la factura:\n${pagoBlock}` : "";
-  const fac = facturasBlock ? `\n\n*Tus facturas abiertas:*\n${facturasBlock}` : "";
+  const fac = facturasBlock ? `\n\n${facturasBlock}` : "";
   return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}% (ya incluido en tus precios de la web)\n💻 *Por compra web*: 2% adicional${pago}${fac}\n\nLa factura sale con el total lleno: el descuento por pago se te reconoce cuando pagás, según los días que pasaron.`;
 }
 
@@ -532,12 +532,14 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
     // deno-lint-ignore no-explicit-any
     const cfg: any = JSON.parse(String(cfgRow?.value ?? "{}"));
     const g = await getGestionClient("public");
-    const { data: filas } = await g.from("GV_Cobranza_Deuda_Viva")
+    const { data: filas, error } = await g.from("GV_Cobranza_Deuda_Viva")
       .select("comprobante, fecha, condicion, pendiente")
       .eq("empresa", "lk").eq("cod_cliente", String(customer.cod_cliente))
       .gt("pendiente", 0).like("comprobante", "FC%")
       .order("fecha", { ascending: false });
-    if (!filas?.length) return "";
+    // Pablo, 30/09: sin facturas abiertas se lo dice (un error de lectura, en cambio, devuelve "" y la línea no sale).
+    if (error) { console.warn("descuentosFacturasBlock:", error.message); return ""; }
+    if (!filas?.length) return "*Tus facturas abiertas:* no tenés facturas con saldo pendiente. ✅";
 
     const pesos = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
     const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
@@ -599,7 +601,7 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
       const n = resto.reduce((s, x) => s + x.n, 0), saldo = resto.reduce((s, x) => s + x.saldo, 0);
       bloques.push(`Y ${n} factura${n > 1 ? "s" : ""} anterior${n > 1 ? "es" : ""} por ${pesos(saldo)}.`);
     }
-    return bloques.join("\n\n");
+    return "*Tus facturas abiertas:*\n" + bloques.join("\n\n");
   } catch (e) {
     console.warn("descuentosFacturasBlock:", e instanceof Error ? e.message : e);
     return "";

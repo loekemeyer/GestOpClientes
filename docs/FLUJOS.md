@@ -72,7 +72,7 @@ webhook deriva antes de las FAQ: "Le paso tu pedido del dd/mm a un asesor para q
 fecha + condición, las 3 más nuevas) con "Pagando hasta el mié 14/10: 25% → pagás $X" para cada escalón que todavía
 no venció (factura + días del escalón, corridos, al hábil: misma cuenta que el WhatsApp de la factura). Si eligió
 e-cheq, le reclama el envío (fecha del cheque y monto). "NN FF" / "Sin Cotizador": sólo el saldo. Sin facturas
-abiertas, la línea no sale. Código: `descuentosFacturasBlock` en `_shared/faq.ts`.
+abiertas responde "no tenés facturas con saldo pendiente" (si falla la lectura, la línea no sale). Código: `descuentosFacturasBlock` en `_shared/faq.ts`.
 
 **FAQ (28/09):** el saludo de respaldo (`greeting_fallback`) ya no contesta a un cliente identificado
 si el mensaje trae contenido (números o más de 3 palabras): pasa al agente. Una línea de una FAQ con
