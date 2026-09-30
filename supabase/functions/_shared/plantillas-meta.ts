@@ -127,10 +127,13 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     // Horario = franjas de retiro de la web (9:00 a 12:00 y 13:00 a 16:30), Pablo 29/09.
     disparo: "Retira en depósito: el pedido web llega a 'facturado' en Gestión (cron lk_aviso-retiro-web, sql/083).",
-    // Sin la doble presentación (Pablo, 29/09, sql/094).
-    variables: ["fecha en que hizo el pedido (dd/mm)"],
-    body: "Tu pedido del {{1}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 9 a 12 y de 13 a 16:30 h.",
-    ejemplos: ["22/09"],
+    // Sin la doble presentación (Pablo, 29/09, sql/094). Pablo, 30/09 (auditoría): suma hasta cuándo retirarlo = la
+    // fecha acordada (fecha de entrega en Gestión; al día siguiente se desarma). {{2}} lleva el artículo ("el jueves
+    // 02/10", o "la fecha acordada" si Gestión no tiene fecha). En Meta la v1 era {nombre, fecha}: el cron arma las
+    // variables según la versión activa (sql/110).
+    variables: ["fecha en que hizo el pedido (dd/mm)", "fecha límite con artículo (\"el jueves 02/10\")"],
+    body: "Tu pedido del {{1}} está listo para retirar en Virgilio 2788, Villa Devoto.\nHorario: lunes a viernes de 9 a 12 y de 13 a 16:30 h.\nRetiralo hasta {{2}}: al día siguiente se desarma.",
+    ejemplos: ["22/09", "el jueves 02/10"],
   },
 
   // ── Pedido entregado (reparto propio). Pedido de Pablo Olejavetzky (28/09): el aviso de entregado
