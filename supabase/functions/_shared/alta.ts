@@ -125,7 +125,9 @@ export const MSG_ALTA_CANCELADA =
 // la intención ("dale, registrame"). Y si el mensaje trae un CUIT, `handleRegistration` ya
 // cortó antes de llegar acá.
 export const RE_ALTA_START =
-  /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo))\b/i;
+  // Pablo, 30/09: "queremos abrir cuenta" / "ser distribuidor" (visto en las consultas reales) pedían el CUIT antes de
+  // arrancar el alta. Sólo se mira para números que todavía no son clientes, así que "cuenta corriente" de un cliente no cae acá.
+  /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo)|abrir (una )?cuenta|ser (distribuidor|distribuidora|revendedor|revendedora)(es|s)?)\b/i;
 // Cortar el alta en curso.
 export const RE_ALTA_CANCEL = /\b(cancelar|cancelá|salir|dejar|olvidalo|no quiero|parar|basta)\b/i;
 

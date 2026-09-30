@@ -507,7 +507,7 @@ el killswitch, sin ningún consumidor de esa cola.
   Copy no-cliente: *"No tengo tu número registrado como cliente. ¿Me pasarías tu CUIT para verificar?"*.
 - **Alta de cliente nuevo (webhook, portada de `lk_chat-test` el 2026-09-04):** cuando el
   CUIT **no está en el sistema** (`cuit_not_found`) o el no-cliente dice *registrarme / soy nuevo /
-  dale*, arranca la **toma de datos paso a paso** (0 tokens, sin IA). Estado en
+  dale* (desde el 30/09 también *abrir cuenta* y *ser distribuidor/revendedor*, `RE_ALTA_START`), arranca la **toma de datos paso a paso** (0 tokens, sin IA). Estado en
   `wa_prospect_leads` (`status='pending'` + `alta_step`); cada mensaje entrante es la respuesta al
   campo que toca (interceptado en `handleMessage` paso 3b, **antes** del FAQ). 13 campos base
   (razón social, contacto, tel, mail, dirección, localidad, expreso ×3, tipo/dimensión de comercio,
