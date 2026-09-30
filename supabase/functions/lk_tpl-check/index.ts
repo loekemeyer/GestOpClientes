@@ -83,7 +83,7 @@ async function datosArtifact(ts: any[]) {
     if (String(f.status).startsWith("held")) u.retenidos++;
     const dia = String(f.created_at).slice(0, 10);
     if (dia > u.ultimo) u.ultimo = dia;
-    if (f.error && new Date(f.created_at).getTime() > desde24) {
+    if (f.error && f.status !== "sent" && new Date(f.created_at).getTime() > desde24) {   // los que al final salieron no cuentan
       const r = rechazos_24h[f.template_name] ??= { n: 0, error: "" };
       r.n++; r.error = String(f.error).slice(0, 120);
     }
