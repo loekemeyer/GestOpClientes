@@ -52,6 +52,7 @@ const CORTO: Record<string, string> = {
   reclamo: "Reclamo",
   pago: "Pago o importe",
   cambio_pedido: "Cambio de pedido",
+  anulacion_pedido: "Anulación de pedido",
   pedido_no_encontrado: "Pedido que no aparece",
   entrega: "Consulta de entrega",
   cambio_datos: "Dirección nueva",

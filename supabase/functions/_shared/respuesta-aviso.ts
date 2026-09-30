@@ -157,6 +157,29 @@ async function estadoPedido(pedido: number): Promise<string> {
  * Cliente con un pedido abierto que pide cambiar la fecha o cancelar, en cualquier momento de la
  * charla → deriva a un asesor (alerta respuesta_aviso_cambio → tarea en Planify). null si no aplica.
  */
+// Pablo, 30/09 (2.9): "una anulación no es un cambio, tenemos que ver el estado del pedido antes de hacerlo". Se le dice en
+// qué estado está y la alerta sale como anulación (motivo anulacion_pedido, urgente), con el estado para quien la toma.
+const RE_ANULA = /\b(anul\w*|cancel\w*|dar\s+de\s+baja|no\s+lo\s+(quiero|necesito)\s+m[aá]s)/i;
+async function anularPedido(
+  phone: string, t: string, customer: { customer_id: string; business_name: string },
+  ped: { id: number | string; created_at: string }, e: { status?: string; fecha_entrega?: string | null } | undefined,
+): Promise<string> {
+  const del = fechaCorta(ped.created_at);
+  const st = String(e?.status ?? "recibido");
+  const sale = e?.fecha_entrega ? ` (sale el ${conDia(String(e.fecha_entrega).slice(0, 10))})` : "";
+  const estado = st === "facturado" ? "ya está facturado y listo para salir"
+    : st === "programado" || st === "en preparacion" ? `ya está programado${sale}`
+    : "todavía no entró en preparación";
+  await notificarHumano({
+    tipo: "escalation", phone, customerId: customer.customer_id,
+    contexto: { motivo: "anulacion_pedido", pedido: ped.id, texto_recibido: t.slice(0, 300), estado_pedido: st,
+      detalle: `Anulación del pedido del ${del} (${st})`, razon_social: customer.business_name },
+  });
+  return st === "recibido" || st === "pendiente"
+    ? `Tu pedido del ${del} ${estado}. Le paso la anulación a una persona del equipo, que te la confirma por acá. 🙏`
+    : `Tu pedido del ${del} ${estado}. Le paso la anulación a una persona del equipo para que revise si todavía se puede frenar, y te confirma por acá. 🙏`;
+}
+
 export async function pedidoDeCambio(
   phone: string,
   text: string,
@@ -180,6 +203,26 @@ export async function pedidoDeCambio(
   const { data: est } = await estadoPedidos(ordsVivos.map((o) => o.id));
   const abiertos = new Set((est ?? []).filter((e: { status: string }) => e.status !== "entregado")
     .map((e: { order_id: number }) => Number(e.order_id)));
+  if (RE_ANULA.test(t) && !retiroDia) {
+    const vivos = ordsVivos.filter((o) => abiertos.has(Number(o.id)));
+    if (!vivos.length) return null;
+    const estDe = (o: { id: number | string }) =>
+      (est ?? []).find((x: { order_id: number }) => Number(x.order_id) === Number(o.id)) as { status?: string; fecha_entrega?: string | null } | undefined;
+    // "anulá el pedido del 30/09": ése. Si no dice cuál y tiene más de uno abierto, se le pregunta (no se asume el último).
+    const fechaDicha = t.match(/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/);
+    const elegido = fechaDicha
+      ? vivos.find((o) => fechaCorta(o.created_at) === `${fechaDicha[1].padStart(2, "0")}/${fechaDicha[2].padStart(2, "0")}`)
+      : vivos.length === 1 ? vivos[0] : undefined;
+    if (elegido) return await anularPedido(phone, t, customer, elegido, estDe(elegido));
+    const lista = vivos.slice(0, 5).map((o, i) => {
+      const e = estDe(o);
+      const st = String(e?.status ?? "recibido");
+      const txt = st === "facturado" ? "facturado, listo para salir" : st === "programado" || st === "en preparacion"
+        ? `programado${e?.fecha_entrega ? `, sale el ${conDia(String(e.fecha_entrega).slice(0, 10))}` : ""}` : "recibido, todavía sin fecha de salida";
+      return `${i + 1}️⃣ Pedido del ${fechaCorta(o.created_at)} — ${txt}`;
+    });
+    return `¿Cuál de tus pedidos querés anular?\n\n${lista.join("\n")}\n\nConfirmame de qué fecha es y lo reviso.`;
+  }
   const ped = ordsVivos.find((o) => abiertos.has(Number(o.id)));
   if (!ped) return null;
 
@@ -312,6 +355,13 @@ export async function responderAviso(
   // el flujo normal sin pasar por las de pedido: "no puedo" o "error" no son un cambio de pedido acá).
   if (aviso.plantilla.startsWith("pedido_recordatorio_descuento")) return await responderRecordatorio(phone, t, customer, aviso);
 
+  if (RE_ANULA.test(t) && aviso.pedido) {
+    const [{ data: ord }, { data: est }] = await Promise.all([
+      supabase.from("orders").select("id, created_at").eq("id", aviso.pedido).maybeSingle(),
+      estadoPedidos([aviso.pedido]),
+    ]);
+    if (ord) return await anularPedido(phone, t, customer, ord, est?.[0]);
+  }
   if (RE_CAMBIO.test(t) && !(RE_AGREGA.test(t) && !(RE_SACAR.test(t) || /\b(cancel|anul)/i.test(t)))) {
     await notificarHumano({
       tipo: "escalation",

@@ -10,7 +10,7 @@ import { SIM } from "./simulacion.ts";
 import { esUrgente } from "./humor-reglas.ts";
 
 // Categorías que siempre son urgentes (además de lo que diga el texto).
-const MOTIVOS_URGENTES = new Set(["cliente_molesto", "respuesta_aviso_cambio", "comprobante_error"]);
+const MOTIVOS_URGENTES = new Set(["cliente_molesto", "respuesta_aviso_cambio", "comprobante_error", "anulacion_pedido"]);
 
 export type TipoAlerta =
   | "llm_timeout"

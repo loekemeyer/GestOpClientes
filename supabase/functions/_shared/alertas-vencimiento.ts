@@ -29,7 +29,8 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   // Motivos que elige la IA al derivar (herramienta derivar_a_persona, 29/09).
   reclamo:                { label: "Reclamo: NC, faltante, rotura o factura", min: 120 },
   pago:                   { label: "Pago o importe", min: 120 },
-  cambio_pedido:          { label: "Cambio o cancelación de pedido", min: 60 },
+  cambio_pedido:          { label: "Cambio de artículos de un pedido", min: 60 },
+  anulacion_pedido:       { label: "Anulación de pedido", min: 60 },
   pedido_no_encontrado:   { label: "Pedido que no aparece", min: 60 },
   entrega:                { label: "Entrega: sin fecha, no llegó o fecha distinta", min: 120 },
   otro:                   { label: "Otros", min: 240 },

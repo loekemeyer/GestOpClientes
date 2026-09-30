@@ -108,7 +108,34 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (customer && RE_NUEVA_DIRECCION.test(text)) return null;
   // Pablo, 30/09: agregar a un pedido, mandar un pedido, preguntar si llegó un pago, razón social equivocada o factura
   // duplicada van a la IA (ver las regex): antes una respuesta fija los atrapaba por una palabra suelta.
+  // Pablo, 30/09 (4.4): "Me facturaron el mismo pedido dos veces" → se chequea en las facturas antes de derivar.
+  if (customer && RE_FACTURA_DUPLICADA.test(text)) return await facturaDuplicada(customer, text);
+  // Pablo, 30/09 (4.5): "No me llegó la factura, ¿me la mandás por acá?" → el bot la reenvía (lookupFacturaReenvio).
+  if (customer && RE_PIDE_FACTURA.test(text)) {
+    const r = await lookupFacturaReenvio(customer, text);
+    if (r) return r;
+  }
   if (customer && vaALaIA(text)) return null;
+  // Pablo, 30/09 (3.3 y 3.4): horario del depósito, con el corte del almuerzo. "¿Cierran para almorzar?" contestaba "no tengo
+  // ese dato"; "Estoy llegando, ¿me esperan?" preguntaba qué necesitaba.
+  if (RE_ALMUERZO.test(text)) {
+    return { reply: `El depósito cierra para almorzar de 12 a 13. ${HORARIO_DEPOSITO}`, intent: "faq", automation_level: "full_auto" };
+  }
+  if (RE_LLEGANDO.test(text)) {
+    return { reply: `¡Te esperamos! ${HORARIO_DEPOSITO}`, intent: "faq", automation_level: "full_auto" };
+  }
+  // Pablo, 30/09 (4.1): "Llegaron 59 aceiteras de 60, pido la NC". Disculpas y se le piden los datos de la factura (la tiene:
+  // le llegó con el pedido). El reclamo queda registrado ya, para que no se pierda si no contesta.
+  if (customer && RE_FALTANTE.test(text)) {
+    const fac = text.match(RE_NRO_FACTURA)?.[0];
+    return {
+      reply: fac
+        ? `Disculpá el inconveniente. Quedó registrado el faltante de la factura ${fac}: una persona del equipo te gestiona la nota de crédito y te escribe por acá. 🙏`
+        : "Disculpá el inconveniente. ¿Me pasás el número de la factura en la que vino el pedido? Figura arriba a la derecha (por ejemplo, FCA 0004-00036011). Con eso una persona del equipo te gestiona la nota de crédito y te escribe por acá. 🙏",
+      intent: "faltante", automation_level: "needs_human", topic: "Faltante: pide nota de crédito",
+      alerta: { motivo: "reclamo", detalle: `Faltante${fac ? ` (factura ${fac})` : ""}: ${text.slice(0, 200)}` },
+    };
+  }
   // Pablo, 30/09 (1.9): "Figura programado para el 30/09 pero en el detalle dice 13/10, ¿cuál es?". La IA le contestaba
   // "¿puede ser que el 13/10 lo hayas visto en otro lado?": nunca se asume que el cliente se equivocó. Lo revisa una persona.
   if (customer && RE_FECHAS_NO_COINCIDEN.test(text)) {
@@ -310,7 +337,7 @@ async function handleFaqLookup(
 ): Promise<string | null> {
   switch (lookupType) {
     case "order_status":       return lookupOrderStatus(customer);
-    case "customer_discount":  return lookupCustomerDiscount(customer, faq);
+    case "customer_discount":  return lookupCustomerDiscount(customer, faq, message);
     case "product_price":      return lookupProductPrice(customer, message);
     case "product_stock":      return lookupProductStock(customer, message);
     case "order_modify":       return lookupOrderModify(customer);
@@ -377,6 +404,13 @@ const RE_ERROR_CARGA = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|me\s+
 const RE_ESTADO_PEDIDO = /\bpedido\b[^.?!]{0,60}\b((?<!mal\s)(?<!buen\s)estado|confirmad[oa]|novedad(es)?)\b|\b(estado|confirmad[oa]|novedad(es)?)\b[^.?!]{0,40}\bpedido\b/i;
 // "Qué período de tiempo están contemplando para entregas" / "¿cuánto tarda la entrega?" / "¿qué plazo de entrega tienen?".
 const RE_PLAZO_ENTREGA = /\b(per[ií]odo|plazo|tiempo)s?\b[^.?!]{0,50}\b(entrega|entregas|entregar|env[ií]os?)\b|\bcu[aá]nt[oa]s?\s+(d[ií]as\s+)?(tarda|tardan|demora|demoran)\b[^.?!]{0,30}\b(entrega|entregar|env[ií]o|llegar|pedido)/i;
+const HORARIO_DEPOSITO = "Estamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (de 12 a 13 cerramos para almorzar).";
+const RE_ALMUERZO = /\b(almuerz\w*|almorz\w*|almuerc\w*|mediod[ií]a)/i;
+const RE_LLEGANDO = /\b(estoy|estamos)\s+(llegando|yendo|en\s+camino|a\s+\d+\s+(cuadras|minutos))\b|\bme\s+esperan\b|\bya\s+(voy|salgo)\s+para\s+(all[aá]|el\s+dep[oó]sito)/i;
+const RE_PIDE_FACTURA = /\b(mand[aá]me|pas[aá]me|envi[aá]me|reenvi[aá]\w*|me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*)\b[^.?!]{0,30}\bfacturas?\b|\bfacturas?\b[^.?!]{0,40}\b(me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*|mand[aá]me|pas[aá]me|reenvi\w*)|\bno\s+(me\s+)?lleg[oó]\s+(la\s+|las\s+)?factura/i;
+// "Llegaron 59 aceiteras de 60, pido la NC" / "tengo un faltante en el remito" / "me faltó una caja".
+const RE_FALTANTE = /\bfalt(ante|aron|[oó]|an?)(?![a-záéíóúñ])[^?]{0,60}\b(cajas?|unidad\w*|art[ií]culos?|c[oó]d\w*|\d+)\b|\bfaltante\b|\blleg(aron|[oó])\s+\d+\s+de\s+\d+\b|\b(pido|necesito|quiero|hacen?|me\s+hacen)\s+(la\s+|una\s+)?(nc|nota\s+de\s+cr[eé]dito)\b/i;
+const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
 // "no coincide" + fecha.
 const RE_FECHAS_NO_COINCIDEN = /\b\d{1,2}\s*\/\s*\d{1,2}\b[^?!]{0,80}\b(pero|y|mientras|en\s+cambio)\b[^?!]{0,40}\b(dice|figura|aparece|pone|sale|muestra)\b[^?!]{0,30}\b\d{1,2}\s*\/\s*\d{1,2}\b|\bfechas?\b[^.?!]{0,30}\bno\s+(coincide|coinciden|es\s+la\s+misma|son\s+las\s+mismas)\b|\bno\s+coincide[n]?\b[^.?!]{0,30}\bfechas?\b/i;
@@ -587,7 +621,7 @@ async function lookupOrderStatus(customer: NonNullable<Customer>, opts: { plazo?
 }
 
 // deno-lint-ignore no-explicit-any
-async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any): Promise<string | null> {
+async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any, message = ""): Promise<string | null> {
   // OJO: la columna es `dto_vol`, no `discount` (que no existe en `customers`).
   // Con el nombre mal, el select devolvía error, `row` quedaba en null y el bot
   // le contestaba "Por volumen: 0%" a TODOS — 561 de los 1.273 clientes tienen
@@ -602,6 +636,16 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
   const pagoBlock = await pagoDiscountBlock();
   // Pablo, 30/09: si ya tiene facturas abiertas, fechas reales ("pagando hasta el mié 14/10 tenés 25%").
   const facturasBlock = await descuentosFacturasBlock(customer);
+  // Pablo, 30/09 (4.3): "En las últimas facturas no veo el descuento" recibía toda la tabla y todas las facturas abiertas
+  // ("muy larga"). Si habla de facturas: sólo la última, por qué no ve el descuento en ella, y el resto si lo pide.
+  if (/factur/i.test(message) && facturasBlock.startsWith("*Tus facturas abiertas:*\n")) {
+    const cuerpo = facturasBlock.replace("*Tus facturas abiertas:*\n", "");
+    const m = cuerpo.match(/\n\n(Tenés además [^\n]+)$/);
+    const ultima = m ? cuerpo.slice(0, m.index) : cuerpo;
+    return `${customer.business_name}, tu última factura:\n${ultima}\n\nTu descuento por volumen (${volumeDiscount}%) ya viene en los precios. ` +
+      `El de pago no figura en la factura: se te reconoce cuando pagás, según los días que pasaron.${m ? `\n\n${m[1]}` : ""}`;
+  }
+
   // Plantilla editable desde el front: si trae {{descuento_volumen}} o {{descuentos_pago}}
   // se renderiza con los datos reales; si no, se usa el texto por defecto (también dinámico).
   // Una línea con un token vacío se saca entera (sin facturas abiertas no queda "Tus facturas:" suelto).
@@ -715,7 +759,7 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
     if (grupos === null) return "";
     if (!grupos.length) return "*Tus facturas abiertas:* no tenés facturas con saldo pendiente. ✅";
     const { pesos, ddmm, lineasPago } = await contextoDescuentos();
-    const MAX = 3;
+    const MAX = 1;   // Pablo, 30/09 (4.3): sólo la última; el resto si lo pide.
     const bloques: string[] = [];
     for (const gr of grupos.slice(0, MAX)) {
       const cab = `🧾 *${gr.n > 1 ? `Facturas del ${ddmm(gr.fecha)} (${gr.n})` : `Factura del ${ddmm(gr.fecha)}`}* — saldo ${pesos(gr.saldo)}`;
@@ -724,7 +768,7 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
     const resto = grupos.slice(MAX);
     if (resto.length) {
       const n = resto.reduce((s, x) => s + x.n, 0), saldo = resto.reduce((s, x) => s + x.saldo, 0);
-      bloques.push(`Y ${n} factura${n > 1 ? "s" : ""} anterior${n > 1 ? "es" : ""} por ${pesos(saldo)}.`);
+      bloques.push(`Tenés además ${n} factura${n > 1 ? "s" : ""} abierta${n > 1 ? "s" : ""} por ${pesos(saldo)}: si querés, te paso el detalle.`);
     }
     return "*Tus facturas abiertas:*\n" + bloques.join("\n\n");
   } catch (e) {
@@ -741,6 +785,41 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
 // Si la factura sigue con saldo, agrega el descuento vigente HOY (misma cuenta que la FAQ de descuentos) y los datos
 // para transferir; si no tiene saldo, "ya figura pagada".
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+// 4.4: busca en las facturas del cliente (isis_lk.documentos, las mismas que reenvía el bot) dos o más del mismo importe
+// en 15 días. Encuentre o no, lo revisa una persona: nunca se le dice al cliente que se equivocó.
+async function facturaDuplicada(customer: NonNullable<Customer>, text: string): Promise<FaqResult> {
+  const res = (reply: string, detalle: string, urgente: boolean): FaqResult => ({
+    reply, intent: "factura_duplicada", automation_level: "needs_human", topic: "Factura duplicada",
+    alerta: { motivo: "reclamo", urgente, detalle } });
+  try {
+    const isis = await getIsisClient();
+    const { data, error } = await isis.from("documentos").select("numero, punto_venta, letra, fecha, total")
+      .eq("contraparte_codigo", String(customer.cod_cliente)).like("tipo", "FC%")
+      .gte("fecha", new Date(Date.now() - 60 * 86400_000).toISOString().slice(0, 10))
+      .order("fecha", { ascending: false }).limit(60);
+    if (error) throw new Error(error.message);
+    const docs = (data ?? []) as Array<{ numero: string; punto_venta: string; letra: string | null; fecha: string; total: number }>;
+    const nro = (d: typeof docs[number]) => `FC${d.letra ?? ""} ${d.punto_venta}-${d.numero}`;
+    const ddmm = (f: string) => `${f.slice(8, 10)}/${f.slice(5, 7)}`;
+    for (const d of docs) {
+      const iguales = docs.filter((x) => Math.round(Number(x.total)) === Math.round(Number(d.total)) &&
+        Math.abs(Date.parse(x.fecha.slice(0, 10)) - Date.parse(d.fecha.slice(0, 10))) <= 15 * 86400_000);
+      if (iguales.length > 1) {
+        const lista = iguales.map((x) => `${nro(x)} del ${ddmm(x.fecha)}`).join(" y ");
+        const importe = "$" + Math.round(Number(d.total)).toLocaleString("es-AR");
+        return res(`Disculpá el inconveniente. Veo ${iguales.length} facturas por ${importe}: ${lista}. Le paso a una persona del equipo para que lo corrija y te confirme por acá. 🙏`,
+          `Factura duplicada: ${lista} por ${importe}. Escribió: ${text.slice(0, 150)}`, true);
+      }
+    }
+    return res("Disculpá el inconveniente. En tus facturas de los últimos 60 días no encuentro dos por el mismo importe, así que le paso a una persona del equipo para que lo revise con vos. Si tenés los números de las facturas, pasámelos por acá. 🙏",
+      `Dice que le facturaron dos veces; no hay dos facturas del mismo importe en 60 días. Escribió: ${text.slice(0, 150)}`, false);
+  } catch (e) {
+    console.warn("facturaDuplicada:", e instanceof Error ? e.message : e);
+    return res("Disculpá el inconveniente. Le paso a una persona del equipo para que lo revise y te confirme por acá. 🙏",
+      `Dice que le facturaron dos veces. Escribió: ${text.slice(0, 150)}`, true);
+  }
+}
+
 async function lookupFacturaReenvio(customer: NonNullable<Customer>, message: string): Promise<FaqResult | null> {
   const derivar = (motivo: string, texto: string): FaqResult => ({
     reply: texto, intent: "factura_reenvio", automation_level: "semi_auto",

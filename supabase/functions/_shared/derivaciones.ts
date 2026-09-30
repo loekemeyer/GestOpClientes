@@ -18,12 +18,13 @@ import { CATEGORIAS, type MotivoExtra, registrarExtras } from "./alertas-vencimi
 export const SETTING_DERIVACIONES = "wa_derivaciones";
 
 // Motivos que deriva la IA (derivar_a_persona). Son los únicos que pueden quedar en "lo responde el bot".
-export const MOTIVOS_IA = ["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado", "entrega"];
+export const MOTIVOS_IA = ["reclamo", "pago", "cambio_pedido", "anulacion_pedido", "pedido_no_encontrado", "entrega"];
 // Cuándo usar cada uno (va a la descripción de la herramienta de la IA).
 export const CUANDO_IA: Record<string, string> = {
   reclamo: "NC, faltante, rotura, factura mal o duplicada, descuento que no se aplicó",
   pago: "importes, pagos, comprobantes, e-cheq",
-  cambio_pedido: "agregar, sacar o anular artículos de un pedido",
+  cambio_pedido: "sacar o cambiar artículos de un pedido",
+  anulacion_pedido: "anular un pedido entero (decile antes en qué estado está: consultar_mis_pedidos)",
   pedido_no_encontrado: "dice que pidió y el pedido no está",
   entrega: "necesita fecha y el pedido no la tiene, no le llegó, o la fecha no coincide con la que le dijeron",
 };

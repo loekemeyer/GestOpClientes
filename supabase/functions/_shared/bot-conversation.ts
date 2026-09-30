@@ -59,6 +59,35 @@ export async function pedidosWaHabilitados(): Promise<boolean> {
   } catch { return false; }
 }
 
+// ── Productos discontinuados y foto (Pablo, 30/09, fila 2.5) ──
+const REGLA_DISCONTINUADO = "Decile que ese código está discontinuado (nombrándolo con su descripción), nunca que no lo encontraste ni que revise el código, y ofrecele el más parecido de parecidos_activos con el link de su foto si lo tiene, para que confirme.";
+const sinTildes = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+async function fotoProducto(cod: string): Promise<string | null> {
+  const url = `${Deno.env.get("SUPABASE_URL") ?? ""}/storage/v1/object/public/products-images/${encodeURIComponent(cod)}.webp`;
+  try {
+    const r = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(2000) });
+    return r.ok ? url : null;
+  } catch { return null; }
+}
+async function codigosDiscontinuados(query: string) {
+  const codigos = [...new Set((query.match(/\b\d{2,4}[a-z]?\b/gi) ?? []).map((c) => c.toUpperCase()))];
+  if (!codigos.length) return [];
+  const { data: inact } = await supabase.from("products").select("cod, description, category").in("cod", codigos).eq("active", false);
+  const out = [];
+  for (const p of (inact ?? []) as Array<{ cod: string; description: string; category: string }>) {
+    const raiz = (w: string) => w.replace(/s$/, "");
+    const palabras = new Set(sinTildes(p.description).split(/\s+/).filter((w) => w.length > 3).map(raiz));
+    const { data: mismos } = await supabase.from("products").select("cod, description, uxb").eq("active", true).eq("category", p.category).limit(60);
+    const top = ((mismos ?? []) as Array<{ cod: string; description: string; uxb: number }>)
+      .map((m) => ({ m, n: sinTildes(m.description).split(/\s+/).map(raiz).filter((w) => palabras.has(w)).length }))
+      .filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3);
+    const parecidos_activos = await Promise.all(top.map(async ({ m }) => ({ cod: m.cod, descripcion: m.description,
+      unidades_por_caja: m.uxb, ...(await fotoProducto(m.cod).then((f) => f ? { foto: f } : {})) })));
+    out.push({ cod: p.cod, descripcion: p.description, discontinuado: true, parecidos_activos });
+  }
+  return out;
+}
+
 const BOT_TOOLS: ToolDef[] = [
   {
     // 29/09 (estudio de cobertura): la IA no tenía cómo pasar la charla a una persona y "derivaba" dando mails y
@@ -71,8 +100,8 @@ const BOT_TOOLS: ToolDef[] = [
       properties: {
         motivo: {
           type: "string",
-          enum: ["reclamo", "pago", "cambio_pedido", "pedido_no_encontrado", "entrega", "alta_cliente", "escalation"],
-          description: "reclamo = NC/faltante/rotura/factura; pago = importes, pagos, comprobantes; cambio_pedido = agregar/sacar/anular; pedido_no_encontrado = dice que pidió y no está; entrega = necesita fecha y el pedido no la tiene, no le llegó, o la fecha no coincide con la que le dijeron; alta_cliente = quiere ser cliente; escalation = cualquier otra cosa o pidió una persona.",
+          enum: ["reclamo", "pago", "cambio_pedido", "anulacion_pedido", "pedido_no_encontrado", "entrega", "alta_cliente", "escalation"],
+          description: "reclamo = NC/faltante/rotura/factura; pago = importes, pagos, comprobantes; cambio_pedido = sacar o cambiar artículos; anulacion_pedido = anular un pedido entero (antes decile en qué estado está); pedido_no_encontrado = dice que pidió y no está; entrega = necesita fecha y el pedido no la tiene, no le llegó, o la fecha no coincide con la que le dijeron; alta_cliente = quiere ser cliente; escalation = cualquier otra cosa o pidió una persona.",
         },
         resumen: { type: "string", description: "Qué pide el cliente en una o dos frases, con los datos que dio (fechas, códigos, cantidades)." },
         urgente: { type: "boolean", description: "true si está molesto, apurado o menciona un problema grave." },
@@ -707,7 +736,16 @@ async function executeTool(
         p_limit: input.limite ?? 10,
       });
       if (error) return { data: { error: error.message } };
-      if (!data?.length) return { data: { mensaje: `No encontré productos para "${input.query}".` } };
+      // Pablo, 30/09 (2.5): un código que existe pero está inactivo es "discontinuado", no "no encontré". Se le ofrecen los
+      // activos más parecidos de su categoría, con el link de la foto para que el cliente confirme.
+      const discontinuados = await codigosDiscontinuados(String(input.query ?? ""));
+      if (!data?.length) {
+        if (discontinuados.length) return { data: { discontinuados, regla: REGLA_DISCONTINUADO } };
+        return { data: { mensaje: `No encontré productos para "${input.query}".` } };
+      }
+      // Link de la foto (bucket público products-images/<cod>.webp) cuando son pocos resultados: para que el cliente
+      // confirme el artículo que el bot supone.
+      const fotos = data.length <= 5 ? await Promise.all((data as Array<{ cod: string }>).map((p) => fotoProducto(p.cod))) : [];
       // Pablo, 29/09: list_price es por UNIDAD. El bot decía "$5.520 por caja" y la caja de 6 sale $33.120.
       // Se le pasan los dos precios con nombre explícito, de lista (sin descuentos).
       // Pablo, 30/09: además el precio DEL CLIENTE (lista − su descuento por volumen, como la web). En el Simulador el bot
@@ -715,11 +753,12 @@ async function executeTool(
       const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
       const dto = Number(cli?.[0]?.cod_cliente) === 5000 ? 0 : Number(cli?.[0]?.dto_vol ?? 0);
       // deno-lint-ignore no-explicit-any
-      return { data: (data as any[]).map(({ list_price, uxb, ...r }) => ({ ...r, unidades_por_caja: uxb,
+      const res = (data as any[]).map(({ list_price, uxb, ...r }, i) => ({ ...r, unidades_por_caja: uxb, ...(fotos[i] ? { foto: fotos[i] } : {}),
         precio_lista_por_unidad: Math.round(Number(list_price || 0)),
         precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
         ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
-          descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) })) };
+          descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) }));
+      return { data: discontinuados.length ? { productos: res, discontinuados, regla: REGLA_DISCONTINUADO } : res };
     }
 
     case "consultar_stock": {
@@ -896,8 +935,19 @@ async function executeTool(
       const entrega = ent ? (/^retira$/i.test(String(ent.zona_expreso ?? "").trim())
         ? `retira en Virgilio 2788 el ${String(ent.retiro_fecha ?? "").split("-").reverse().slice(0, 2).join("/")} de ${ent.retiro_franja}`
         : `${ent.label}${ent.nombre_expreso ? ` (por expreso ${ent.nombre_expreso})` : ""}`) : null;
+      // Pablo, 30/09 (2.12): "el pedido me salió a nombre de mi otra razón social". En el resumen va a nombre de quién se
+      // carga (razón social y CUIT) para que el cliente lo confirme con el "sí".
+      let aNombre = "";
+      if (r?.ok) {
+        const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
+        const c0 = cli?.[0];
+        if (c0?.business_name) {
+          const { data: cu } = await supabase.from("customers").select("cuit").eq("id", c0.customer_id).maybeSingle();
+          aNombre = ` a nombre de *${c0.business_name}*${cu?.cuit ? ` (CUIT ${cu.cuit})` : ""}`;
+        }
+      }
       const resumen = r?.ok ? [
-        "Tu pedido:",
+        `Tu pedido${aNombre}:`,
         ...((r.items ?? []) as Array<{ cajas: number; descripcion: string; cod_art: string; line_total: number }>)
           .map((x) => `• ${x.cajas} ${x.cajas === 1 ? "caja" : "cajas"} ${x.descripcion} (${x.cod_art}) — ${pesos(x.line_total)}`),
         `Subtotal: ${pesos(r.subtotal)}`,
@@ -911,7 +961,7 @@ async function executeTool(
         return { data: { ok: r?.ok === true, errores, avisos: r?.avisos ?? [], resumen_para_el_cliente: resumen,
           ...(parecidos.length ? { parecidos: parecidos.map((p) => `pedido ${p.tipo === "web" ? "por la web" : "por WhatsApp"} del ${p.fecha} con ${p.comunes} de ${p.de} artículos iguales`),
             regla_parecidos: "Antes del resumen preguntale si es un pedido nuevo o el mismo que ese. Si es el mismo, no sigas." } : {}),
-          regla: r?.ok ? "Mostrale el resumen tal cual y pedile que confirme con un sí." : "Resolvé los errores con el cliente y volvé a armar." } };
+          regla: r?.ok ? "Mostrale el resumen tal cual (incluida la razón social a nombre de la que va) y pedile que confirme con un sí." : "Resolvé los errores con el cliente y volvé a armar." } };
       }
       if (!r?.ok) return { data: { ok: false, errores, regla: "No se cargó: resolvé los errores y volvé a armar el pedido." } };
       if (SIM.activo) {

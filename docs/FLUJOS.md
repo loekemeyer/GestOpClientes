@@ -131,6 +131,22 @@ CLIENTE: El del 14/09
 BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el viernes 18/09 …
 ```
 
+### Revisión del Excel "Respuestas bot por causa" (Pablo, 30/09) — respuestas fijas nuevas (`faq.ts`, sin IA)
+
+| Fila | Mensaje | Respuesta |
+|---|---|---|
+| 2.9 | "Anulá todo el pedido" | No es un cambio: dice en qué estado está el pedido (sin preparar / programado / facturado) y deriva con motivo `anulacion_pedido` (urgente). Con más de un pedido abierto y sin fecha, pregunta cuál. |
+| 3.3 | "¿Cierran para almorzar?" | "El depósito cierra para almorzar de 12 a 13" + horario completo. |
+| 3.4 | "Estoy llegando, ¿me esperan?" | "¡Te esperamos!" + dirección y horario. |
+| 4.1 / 4.2 | "Llegaron 59 de 60, pido la NC" | Disculpas + pide el número de factura; el reclamo queda registrado ya. |
+| 4.3 | "No veo el descuento en las facturas" | Sólo la última factura con sus descuentos por fecha, por qué no figura el descuento y "si querés, te paso el detalle" del resto. |
+| 4.4 | "Me facturaron dos veces" | Busca en las facturas (isis_lk.documentos) dos del mismo importe en 15 días; las nombra si las hay. Deriva siempre. |
+| 4.5 | "No me llegó la factura, ¿me la mandás?" | Reenvía la factura en PDF (`lookupFacturaReenvio`). |
+
+IA (`agente-fijos.ts`): tono cordial sin muletillas (2.4); nunca asumir que el cliente se equivocó (1.9); código
+inactivo = "discontinuado" + parecidos con link de foto (2.5, `buscar_productos`); anular con el estado y motivo
+`anulacion_pedido`. El resumen del pedido por WhatsApp dice a nombre de qué razón social y CUIT va (2.12).
+
 ## Flujo 3: Nuevo pedido (30/09: precarga por WhatsApp, `sql/112`)
 
 Se prende en Configuración del agente › 🛒 Pedidos por WhatsApp (`app_settings.wa_pedidos_config`; apagado por
