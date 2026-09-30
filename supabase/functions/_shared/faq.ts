@@ -115,6 +115,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     const r = await lookupFacturaReenvio(customer, text);
     if (r) return r;
   }
+  // Pablo, 30/09 (6.3): "¿Recibieron el pago?" → se mira si está registrado (recibos de Gestión); si no, aviso a Cobranzas.
+  if (customer && RE_PAGO_RECIBIDO.test(text) && !/comprobante/i.test(text)) return await pagoRegistrado(customer, text);
   if (customer && vaALaIA(text)) return null;
   // Pablo, 30/09 (3.3 y 3.4): horario del depósito, con el corte del almuerzo. "¿Cierran para almorzar?" contestaba "no tengo
   // ese dato"; "Estoy llegando, ¿me esperan?" preguntaba qué necesitaba.
@@ -785,6 +787,38 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
 // Si la factura sigue con saldo, agrega el descuento vigente HOY (misma cuenta que la FAQ de descuentos) y los datos
 // para transferir; si no tiene saldo, "ya figura pagada".
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+// 6.3: último pago registrado del cliente (gv_cobranza_recibos de Gestión: un recibo por pago imputado). Si hay uno de
+// los últimos 7 días se le confirma; si no, se le dice que todavía no figura y se avisa a Cobranzas (nunca que no pagó).
+async function pagoRegistrado(customer: NonNullable<Customer>, text: string): Promise<FaqResult> {
+  const cobranzas = (reply: string, detalle: string): FaqResult => ({ reply, intent: "pago_recibido", automation_level: "needs_human",
+    topic: "Pregunta si llegó su pago", alerta: { motivo: "pago", urgente: false, detalle } });
+  try {
+    const g = await getGestionClient("public");
+    const r = await Promise.race([
+      g.from("gv_cobranza_recibos").select("recibo, fecha_primer_cobro, pagado, medio").eq("empresa", "lk")
+        .eq("cod_cliente", String(customer.cod_cliente)).not("fecha_primer_cobro", "is", null)
+        .order("fecha_primer_cobro", { ascending: false }).limit(1),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
+    ]);
+    if (r.error) throw new Error(r.error.message);
+    const u = (r.data ?? [])[0] as { recibo: string; fecha_primer_cobro: string; pagado: number; medio: string | null } | undefined;
+    const pesos = (n: unknown) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
+    const ddmm = (f: string) => `${f.slice(8, 10)}/${f.slice(5, 7)}`;
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+    const dias = u ? Math.round((Date.parse(hoy) - Date.parse(u.fecha_primer_cobro.slice(0, 10))) / 86400_000) : null;
+    if (u && dias !== null && dias <= 7) {
+      return { reply: `Sí, tenemos registrado tu pago del ${ddmm(u.fecha_primer_cobro)} por ${pesos(u.pagado)}${u.medio ? ` (${u.medio})` : ""}. ¡Gracias! ` +
+        "Si te referís a otro pago, contame la fecha y el importe y le aviso a Cobranzas.", intent: "pago_recibido", automation_level: "semi_auto" };
+    }
+    const ultimo = u ? ` (el último que tenemos es del ${ddmm(u.fecha_primer_cobro)} por ${pesos(u.pagado)})` : "";
+    return cobranzas(`Todavía no lo vemos registrado${ultimo}. Le aviso a Cobranzas para que lo revise y te confirme por acá. Si tenés el comprobante, mandalo por acá así lo agilizan. 🙏`,
+      `Pregunta si llegó su pago; no hay recibo de los últimos 7 días${u ? ` (último ${ddmm(u.fecha_primer_cobro)} ${pesos(u.pagado)})` : ""}. Escribió: ${text.slice(0, 150)}`);
+  } catch (e) {
+    console.warn("pagoRegistrado:", e instanceof Error ? e.message : e);
+    return cobranzas("Le aviso a Cobranzas para que revise tu pago y te confirme por acá. 🙏", `Pregunta si llegó su pago. Escribió: ${text.slice(0, 150)}`);
+  }
+}
+
 // 4.4: busca en las facturas del cliente (isis_lk.documentos, las mismas que reenvía el bot) dos o más del mismo importe
 // en 15 días. Encuentre o no, lo revisa una persona: nunca se le dice al cliente que se equivocó.
 async function facturaDuplicada(customer: NonNullable<Customer>, text: string): Promise<FaqResult> {
