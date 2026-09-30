@@ -520,8 +520,11 @@
         <div class="control-panel">
           <h4>🧪 Simulador</h4>
           <div class="toggle-desc" style="margin-bottom:0.6rem;">Escribí como si fueras el cliente. No manda WhatsApp ni crea pedidos. La IA gasta como siempre.</div>
-          <div style="display:flex;gap:0.4rem;">
-            <input type="number" id="simCod" value="4210" placeholder="N° de cliente" style="flex:1;min-width:0;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
+          <!-- Pablo, 30/09: con los dos botones al lado el campo quedaba en ~20 px y sin color de texto. Va en su propia
+               fila, con ancho para 6 dígitos y los colores del tema. -->
+          <label for="simCod" class="toggle-desc" style="display:block;margin-bottom:0.25rem;">N° de cliente</label>
+          <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
+            <input type="number" id="simCod" value="4210" placeholder="4210" onkeydown="if(event.key==='Enter')simReset(this.value)" style="width:9ch;padding:0.4rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.9rem;background: var(--card);color: var(--text);">
             <button class="config-btn small" onclick="simReset(document.getElementById('simCod').value)">Usar</button>
             <button class="config-btn small" title="Alguien que todavía no es cliente: prueba el alta" onclick="simReset('nuevo')">📱 Número nuevo</button>
           </div>
@@ -4028,7 +4031,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.20</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.25.21</div>
 <script src="gestop2.js?v=0.25.18"></script>
 </body>
 </html>
