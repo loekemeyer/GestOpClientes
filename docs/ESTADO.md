@@ -368,6 +368,10 @@ el killswitch, sin ningún consumidor de esa cola.
 - **Factura contado: el total a pagar primero** (Pablo, 29-30/09): `pedido_contado_p` y `pedido_contado_s` editadas en
   Meta el 30/09 08:51 AR con `lk_templates` action `factura_sync` (texto de `_shared/plantillas-factura.ts`; genera y sube
   un PDF de muestra para el encabezado Documento, así ya no hace falta WhatsApp Manager). Texto en `docs/plantillas_whatsapp.md`.
+  Crédito y e-cheq (s/p) con el formato nuevo como `_v2` (30/09 09:00 AR, PENDING; las vigentes siguen saliendo).
+  **Regla (Pablo, 30/09): los cambios de texto van SIEMPRE por versión nueva** (`factura_sync` y `templates_sync` crean
+  `base_vN`; editar en el lugar sólo con `editar_en_lugar: true`). `lk_factura-check` usa la versión activa y reconoce
+  cada variable por el texto que la rodea (`mapearPorTexto`).
   `lk_factura-check` (`ordenContado`) lee el texto aprobado, ordena las variables por la posición de cada bloque y guarda
   en el historial ese mismo cuerpo con los valores; mientras Meta la revisa no está APPROVED y queda `held_tpl_no_aprobada`.
   Además la factura enviada queda en `bot_historial_chat` (se ve en Conversaciones y el bot sabe a qué le contestan).
