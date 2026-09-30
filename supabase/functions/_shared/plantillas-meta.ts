@@ -92,9 +92,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_reprogramado",
     language: ES, category: UT,
     disparo: "Cambia la fecha de salida de una NP ya avisada como programada.",
-    // Sin la doble presentación (Pablo, 29/09, sql/092).
-    variables: ["fecha en que hizo el pedido (dd/mm)", "nueva fecha de salida (día de semana + dd/mm)"],
-    body: "Cambió la fecha de tu pedido del {{1}}: ahora sale el {{2}}.\nDisculpá las molestias.",
+    // Sin la doble presentación (Pablo, 29/09, sql/092). Pablo, 30/09 (auditoría): texto neutro para los 3 modos (antes
+    // "ahora sale el", que no vale para quien retira).
+    variables: ["fecha en que hizo el pedido (dd/mm)", "nueva fecha (día de semana + dd/mm)"],
+    body: "Cambió la fecha de tu pedido del {{1}}: la nueva fecha es el {{2}}.\nDisculpá las molestias.",
     ejemplos: ["22/09", "viernes 02/10"],
   },
 
