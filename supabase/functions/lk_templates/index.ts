@@ -328,12 +328,21 @@ async function handleTemplatesSync(body: Record<string, unknown>, adminEmail: st
       creaVersion = true;
     }
     const actual = enMeta.get(`${destino}|${p.language}`);
-    const accion = errores.length ? "invalida" : !actual ? "crear" : bodyDe(actual) === p.body ? "igual" : "editar";
+    // Los disparadores SQL arman un juego fijo de variables para la versión que se manda: una versión nueva con OTRA
+    // cantidad de {{n}} rompería el aviso el día que se promueve (auditoría 30/09: pedido_listo_retirar en Meta tiene 2
+    // y el repo 1). Sólo con `acepto_variables: true`, después de adaptar el disparador (patrón sql/108).
+    const nVars = (t: string) => new Set(t.match(/\{\{\d+\}\}/g) ?? []).size;
+    const cambiaVars = !!actMeta && (creaVersion || destino === activa) && nVars(bodyDe(actMeta)) !== nVars(p.body);
+    const accion = errores.length ? "invalida"
+      : cambiaVars && body.acepto_variables !== true && !(actual && bodyDe(actual) === p.body) ? "cambia_variables"
+      : !actual ? "crear" : bodyDe(actual) === p.body ? "igual" : "editar";
     // deno-lint-ignore no-explicit-any
     const fila: Record<string, any> = {
       name: p.name, nombre_meta: destino, ...(destino !== activa ? { activa } : {}), accion, estado_meta: actual?.status ?? "NO_EXISTE",
       ...(errores.length ? { errores } : {}),
       ...(accion === "editar" ? { texto_meta: bodyDe(actual), texto_nuevo: p.body } : {}),
+      ...(accion === "cambia_variables" ? { texto_meta: bodyDe(actMeta), texto_nuevo: p.body,
+        aviso: "cambia la cantidad de variables: no se crea hasta adaptar el disparador (acepto_variables: true)" } : {}),
       ...(accion === "editar" && actual?.status === "APPROVED"
         ? { aviso: "aprobada: vuelve a revisión y consume 1 de las ediciones (1/24 h, 10/30 días)" } : {}),
     };
