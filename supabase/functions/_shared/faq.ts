@@ -429,7 +429,8 @@ async function lookupOrderStatus(customer: NonNullable<Customer>): Promise<strin
   // Anulados o borrados en Gestión: para el bot no existen (pedidos-anulados.ts).
   const orders = (await sinAnulados(crudos ?? [])).slice(0, 5);
   if (!orders?.length) {
-    return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, decime.`;
+    // Pedidos por WhatsApp apagados (28/09): se lo manda a la web, no "decime".
+    return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, entrá a loekemeyer.com → "Pedidos Mayorista".`;
   }
   // Estado real del pedido en Gestión Virgilio (RPC bot_estado_pedidos_gv, sql/066). Para
   // los pedidos anteriores a Gestión cae sola a order_tracking. Antes se leía order_tracking
