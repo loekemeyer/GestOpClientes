@@ -8,7 +8,7 @@
 // El agente conversacional (`runConversation`) queda como último recurso:
 // solo se invoca si acá no hay match útil.
 
-import { supabase } from "./supabase.ts";
+import { getGestionClient, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { sinAnulados } from "./pedidos-anulados.ts";
@@ -495,18 +495,115 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
   // no hardcodeados. Así lo que el vendedor edita en "Descuentos por pago" es lo que el bot
   // le responde al cliente — la misma fuente que usan las plantillas de factura.
   const pagoBlock = await pagoDiscountBlock();
+  // Pablo, 30/09: si ya tiene facturas abiertas, fechas reales ("pagando hasta el mié 14/10 tenés 25%").
+  const facturasBlock = await descuentosFacturasBlock(customer);
   // Plantilla editable desde el front: si trae {{descuento_volumen}} o {{descuentos_pago}}
   // se renderiza con los datos reales; si no, se usa el texto por defecto (también dinámico).
+  // Una línea con un token vacío se saca entera (sin facturas abiertas no queda "Tus facturas:" suelto).
   const tpl = String(faq?.bot_response ?? "").trim();
   if (tpl.includes("{{descuento_volumen}}") || tpl.includes("{{descuentos_pago}}")) {
-    return renderTemplate(tpl, {
+    const vars = {
       nombre_cliente: customer.business_name,
       descuento_volumen: volumeDiscount,
       descuentos_pago: pagoBlock,
-    });
+      descuentos_facturas: facturasBlock,
+    };
+    return renderTemplate(sinLineasSinDato(tpl, vars), vars);
   }
-  const pago = pagoBlock ? `\n💰 *Por pago*:\n${pagoBlock}` : "";
-  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}%\n💻 *Por compra web*: 2% adicional${pago}\n\nEstos se aplican sobre el precio base de la web. 💡`;
+  const pago = pagoBlock ? `\n💰 *Por pago*, contando desde la fecha de la factura:\n${pagoBlock}` : "";
+  const fac = facturasBlock ? `\n\n*Tus facturas abiertas:*\n${facturasBlock}` : "";
+  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}% (ya incluido en tus precios de la web)\n💻 *Por compra web*: 2% adicional${pago}${fac}\n\nLa factura sale con el total lleno: el descuento por pago se te reconoce cuando pagás, según los días que pasaron.`;
+}
+
+// Facturas abiertas del cliente con las fechas REALES de cada descuento (Pablo, 30/09: "si ya tiene una factura
+// deberías tomar fechas reales, si pagás antes de tal fecha tenés este descuento"; "si eligió e-cheq hay que reclamar
+// el envío"). Fuente: GV_Cobranza_Deuda_Viva de Gestión (una fila por comprobante con saldo; se recalcula desde el
+// Excel de deuda + los pagos del banco). La factura sale con el total lleno y el descuento se gana según los días que
+// pasan desde la fecha de la factura (cobranzas_escalones = wa_descuentos_config): se cuentan corridos y se corren al
+// hábil (wa_proximo_habil), igual que la fecha que ya le mandamos con la factura (lk_factura-check).
+// Condición de la factura:
+//   e-cheq → el descuento es fijo por el plazo del cheque: se le recuerda mandarlo, con la fecha y el monto.
+//   "NN FF" / "Sin Cotizador" → sin descuento por pago: sólo el saldo.
+//   contado / crédito / "Prefiero no decidir" / sin dato → los escalones que todavía no vencieron.
+// Se agrupa por fecha + condición (varias facturas del mismo día = un pedido) y se muestran los 3 grupos más nuevos.
+async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise<string> {
+  try {
+    const { data: cfgRow } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
+    // deno-lint-ignore no-explicit-any
+    const cfg: any = JSON.parse(String(cfgRow?.value ?? "{}"));
+    const g = await getGestionClient("public");
+    const { data: filas } = await g.from("GV_Cobranza_Deuda_Viva")
+      .select("comprobante, fecha, condicion, pendiente")
+      .eq("empresa", "lk").eq("cod_cliente", String(customer.cod_cliente))
+      .gt("pendiente", 0).like("comprobante", "FC%")
+      .order("fecha", { ascending: false });
+    if (!filas?.length) return "";
+
+    const pesos = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
+    const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+    const conDia = (iso: string) => { const d = new Date(iso + "T12:00:00Z"); return `${DIAS[d.getUTCDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`; };
+    const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+    const cache = new Map<string, string>();
+    const habilDesde = async (fecha: string, dias: number) => {
+      const d = new Date(fecha + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + dias);
+      const iso = d.toISOString().slice(0, 10);
+      if (!cache.has(iso)) {
+        const { data } = await supabase.rpc("wa_proximo_habil", { p: iso });
+        cache.set(iso, typeof data === "string" ? data.slice(0, 10) : iso);
+      }
+      return cache.get(iso)!;
+    };
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+    const ultimoNum = (s: unknown) => Math.max(0, ...(String(s ?? "").match(/\d+/g) ?? []).map(Number));
+    // Escalones por días desde la factura: contado + crédito (fin de cada tramo).
+    const escalones: Array<{ dias: number; dto: number }> = [];
+    if (cfg?.contado) escalones.push({ dias: Number(cfg.contado.dias_limite) || 14, dto: Number(cfg.contado.dto) || 0 });
+    for (const r of (cfg?.credito ?? [])) if (ultimoNum(r?.label)) escalones.push({ dias: ultimoNum(r.label), dto: Number(r.dto) || 0 });
+    escalones.sort((a, b) => a.dias - b.dias);
+
+    // Agrupar por fecha + condición.
+    const grupos: Array<{ fecha: string; condicion: string; saldo: number; n: number }> = [];
+    for (const f of filas as Array<{ fecha: string; condicion: string | null; pendiente: number }>) {
+      const fecha = String(f.fecha).slice(0, 10), condicion = String(f.condicion ?? "");
+      const gr = grupos.find((x) => x.fecha === fecha && x.condicion === condicion);
+      if (gr) { gr.saldo += Number(f.pendiente); gr.n++; } else grupos.push({ fecha, condicion, saldo: Number(f.pendiente), n: 1 });
+    }
+    const MAX = 3;
+    const bloques: string[] = [];
+    for (const gr of grupos.slice(0, MAX)) {
+      const cab = `🧾 *${gr.n > 1 ? `Facturas del ${ddmm(gr.fecha)} (${gr.n})` : `Factura del ${ddmm(gr.fecha)}`}* — saldo ${pesos(gr.saldo)}`;
+      const lineas: string[] = [];
+      if (/e-?cheq/i.test(gr.condicion)) {
+        const dias = ultimoNum(gr.condicion) || 90;
+        // deno-lint-ignore no-explicit-any
+        const r = (cfg?.echeq ?? []).find((x: any) => ultimoNum(x?.label) === dias);
+        const dto = Number(r?.dto) || 0;
+        const fechaCheque = await habilDesde(gr.fecha, dias);
+        // Saldo abierto con e-cheq = no figura cobrado. Puede estar en camino: por eso "si todavía no lo mandaste".
+        lineas.push(`  ⚠️ Elegiste pagar con *e-cheq a ${dias} días* y no lo tenemos registrado.`);
+        lineas.push(`  Si todavía no lo mandaste: e-cheq con fecha ${ddmm(fechaCheque)} por ${pesos(gr.saldo * (1 - dto))}${dto ? ` (${Math.round(dto * 100)}% dto)` : ""}.`);
+      } else if (/\bFF\b|sin cotizador/i.test(gr.condicion)) {
+        lineas.push(`  Condición ${gr.condicion.trim()}: sin descuento por pago.`);
+      } else {
+        for (const e of escalones) {
+          const hasta = await habilDesde(gr.fecha, e.dias);
+          if (hasta < hoy) continue;
+          lineas.push(`  • Pagando hasta el ${conDia(hasta)}: ${Math.round(e.dto * 100)}% → pagás ${pesos(gr.saldo * (1 - e.dto))}`);
+        }
+        if (!lineas.length) lineas.push(`  Ya pasó el plazo de descuento por pago: el saldo es ${pesos(gr.saldo)}.`);
+      }
+      bloques.push([cab, ...lineas].join("\n"));
+    }
+    const resto = grupos.slice(MAX);
+    if (resto.length) {
+      const n = resto.reduce((s, x) => s + x.n, 0), saldo = resto.reduce((s, x) => s + x.saldo, 0);
+      bloques.push(`Y ${n} factura${n > 1 ? "s" : ""} anterior${n > 1 ? "es" : ""} por ${pesos(saldo)}.`);
+    }
+    return bloques.join("\n\n");
+  } catch (e) {
+    console.warn("descuentosFacturasBlock:", e instanceof Error ? e.message : e);
+    return "";
+  }
 }
 
 // Bloque "Por pago" armado desde wa_descuentos_config (contado + crédito[] + e-cheq[]).

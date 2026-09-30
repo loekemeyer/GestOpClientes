@@ -67,6 +67,13 @@ tiene un pedido abierto (no entregado según Gestión) y pide cambiar la fecha /
 webhook deriva antes de las FAQ: "Le paso tu pedido del dd/mm a un asesor para que coordine el cambio…"
 + alerta `respuesta_aviso_cambio` (→ tarea en Planify). `pedidoDeCambio` en `_shared/respuesta-aviso.ts`.
 
+**Descuentos con fechas reales (30/09, Pablo):** la FAQ de descuentos (#8, `customer_discount`) suma el token
+`{{descuentos_facturas}}`: las facturas abiertas del cliente (`GV_Cobranza_Deuda_Viva` de Gestión, agrupadas por
+fecha + condición, las 3 más nuevas) con "Pagando hasta el mié 14/10: 25% → pagás $X" para cada escalón que todavía
+no venció (factura + días del escalón, corridos, al hábil: misma cuenta que el WhatsApp de la factura). Si eligió
+e-cheq, le reclama el envío (fecha del cheque y monto). "NN FF" / "Sin Cotizador": sólo el saldo. Sin facturas
+abiertas, la línea no sale. Código: `descuentosFacturasBlock` en `_shared/faq.ts`.
+
 **FAQ (28/09):** el saludo de respaldo (`greeting_fallback`) ya no contesta a un cliente identificado
 si el mensaje trae contenido (números o más de 3 palabras): pasa al agente. Una línea de una FAQ con
 un `{{token}}` sin dato se saca entera (nunca "programado para: " vacío). La FAQ de stock toma el
