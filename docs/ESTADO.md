@@ -4,6 +4,17 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-01.
 >
+> **01/10 (Pablo): audios de WhatsApp con Groq Whisper** (`_shared/transcribir.ts`, `textoDeAudio` en el webhook). Claude no recibe audio
+> (la API sólo acepta texto, imagen y PDF), así que el audio se baja de Meta, se transcribe con Whisper de Groq (clave `groq` de
+> `wa_agente_model_keys`, plan gratis: 20 pedidos/min, 2.000/día, 7.200 s de audio/hora, 28.800 s/día) y el TEXTO entra a `handleMessage`
+> como si lo hubiera escrito. **Apagado de fábrica: `app_settings.wa_audio_activo` = 1 lo prende.** Antes de prenderlo con audios reales:
+> activar Zero Data Retention en el panel de Groq (su doc dice que por defecto no retiene datos de inferencia pero no aclara si los usa
+> para entrenar). Candados: whitelist y blacklist se miran ANTES de bajar el audio; tope de 3 MB (~7 min); `.ogg`, `.mp3`, `.m4a`, `.wav`,
+> `.webm`, `.flac` (el `.amr` no se lee). Si falla, está apagado o pasa el límite: "No pudimos entender tu audio, escribinos" + alerta
+> `adjunto_recibido` a una persona. Queda un renglón por audio en `bot_token_usage` (motivo `audio_transcripcion` o `audio_fallo:<causa>`,
+> costo 0). ⚠ Limitaciones: la conversación guarda el texto transcripto como si el cliente lo hubiera escrito (no dice que fue un audio), y
+> no se probó contra Groq real (sin audios de prueba ni la llave prendida). Backend: la versión visible del dashboard no cambia.
+>
 > **01/10 (Pablo): comprobante de pago y consulta de pago → datos de Cobranzas.** Al llegar un comprobante (imagen/PDF que habla de
 > pago) el webhook contesta con el texto de la plantilla de la marca, con el dato de la ficha Empresas (`empresas.<lk|chef>.cobranzas`:
 > WhatsApp o mail): `respuestaComprobante` en `_shared/empresas.ts`. **Dos plantillas nuevas en `plantillas-meta.ts`:
@@ -168,6 +179,8 @@ retiraron (2026-09-09, sin uso: 0 dep DB, 0 cron, 0 REST).** Backup restore-read
 | `wa_factura_envio_modo` | `modulo` (chat de prueba) / `whatsapp` (real) | `modulo` |
 | `wa_bot_solo_whitelist` | killswitch del bot de chat: `1` = solo responde a `wa_envio_contactos` | `1` |
 | `wa_comprobantes_activo` | flujo de comprobantes entrantes: `0` apagado / `1` on | `0` |
+| `wa_audio_activo` | transcribir audios de clientes con Groq Whisper y tratarlos como texto: `0` apagado / `1` on (sin fila = `0`) | `0` |
+| `wa_audio_modelo` | modelo de Whisper de Groq (sin fila = `whisper-large-v3`; `whisper-large-v3-turbo` es 3x más barato en plan pago) | — |
 
 **Secrets de edge function (no van en `app_settings`):** `META_APP_SECRET` (firma de Meta) y
 `LK_INTERNAL_SECRET` (acciones internas del webhook). **Los dos sin cargar al 07/09**: mientras
@@ -370,7 +383,7 @@ el killswitch, sin ningún consumidor de esa cola.
 - **Adjuntos**: ya no se contesta "no enviar adjuntos". Imagen/PDF/Excel/CSV/Word se bajan de Meta, van al bucket
   `wa-comprobantes` + fila en `wa_comprobantes` y se crea la tarea con botón "Ver archivo". Foto con charla de rotura
   (últimos 30 min o texto) → motivo `reclamo`; texto de pago → `comprobante_recibido` (el lector automático sólo con
-  `wa_comprobantes_activo`=1); el resto → `adjunto_recibido`. Audio/video → pide que lo escriba. Si no se puede
+  `wa_comprobantes_activo`=1); el resto → `adjunto_recibido`. Audio → se transcribe si `wa_audio_activo`=1 (01/10), si no pide que lo escriba; video → pide que lo escriba. Si no se puede
   guardar, igual contesta y la tarea sale con `error_archivo`. **Excel/Word necesitan sql/098** (mime del bucket).
 - **Pedido duplicado** ("apreté confirmar varias veces"): `faq.ts` `pedidosDuplicados` busca en 7 días pedidos con
   el mismo importe a ≤30 min; si hay, lo dice y deja tarea `cambio_pedido` urgente. No anula nada.

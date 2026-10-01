@@ -127,6 +127,17 @@ Las plantillas están definidas en `plantillas-meta.ts` y **todavía no están s
 mensaje libre; la plantilla es para mandarlo fuera de la ventana. Si el cliente tiene cuenta en las dos empresas, el comprobante
 recibe los datos de Loekemeyer (no se sabe a cuál va el pago).
 
+**Audios (01/10, Pablo):** con `app_settings.wa_audio_activo` = 1 el bot transcribe la nota de voz (Groq Whisper, `_shared/transcribir.ts`) y
+procesa el texto como un mensaje escrito (FAQ, agente, "ya pagué", pedidos). Apagado de fábrica.
+
+| El cliente manda | Pasa |
+|---|---|
+| un audio, llave prendida, número autorizado | se transcribe y se contesta como si lo hubiera escrito |
+| un audio, llave apagada | "Por ahora no podemos escuchar audios…" + alerta `adjunto_recibido` (como antes) |
+| un audio que no se pudo entender (muy largo, silencio, `.amr`, límite o caída de Groq) | "No pudimos entender tu audio. Escribinos…" + alerta `adjunto_recibido` |
+| un audio desde un número fuera de la whitelist o en la blacklist | no se transcribe (no sale a Groq): sigue el camino de siempre |
+| un video o un sticker | "no podemos ver videos…" + alerta, como antes |
+
 **Pedidos por WhatsApp apagados (28/09, Pablo):** el agente no toma ni ofrece pedidos; los deriva a la
 web loekemeyer.com → "Pedidos Mayorista". Sin la herramienta `enviar_pedido` (flag `PEDIDOS_POR_WHATSAPP`
 en `_shared/bot-conversation.ts`) y con la regla fija en `agente-fijos.ts`. Stock "hay" cierra con

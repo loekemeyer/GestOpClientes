@@ -32,6 +32,7 @@ import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
 import { datosEmpresas, respuestaComprobante } from "../_shared/empresas.ts";
+import { audioActivo, transcribirAudio } from "../_shared/transcribir.ts";
 import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
@@ -501,7 +502,9 @@ async function ingestStatuses(body: any): Promise<void> {
 //       · comprobante de pago (el texto habla de pago/transferencia) → `comprobante_recibido`; el lector
 //         automático corre sólo con `app_settings.wa_comprobantes_activo` = 1
 //       · cualquier otro (lista de pedido en Excel, etc.) → `adjunto_recibido`
-//   audio / video / sticker → pide que lo escriba (no lo podemos escuchar ni ver) y avisa a una persona.
+//   audio → con `app_settings.wa_audio_activo` = 1 se transcribe con Groq Whisper (_shared/transcribir.ts) y el texto entra al
+//     flujo normal como si lo hubiera escrito (textoDeAudio, abajo). Si está apagado o falla: pide que lo escriba y avisa a una persona.
+//   video / sticker → pide que lo escriba (no lo podemos ver) y avisa a una persona.
 //
 // Si falla la bajada o la subida, igual contesta y deja la alerta (sin archivo): la persona se lo pide
 // de nuevo. Respeta kill switch y whitelist.
@@ -520,6 +523,8 @@ async function respuestaPago(esChef: boolean): Promise<string> {
     return MSG_ADJUNTO_PAGO;
   }
 }
+// Con la transcripción prendida el audio sí se intenta escuchar: si no se pudo (muy largo, ruido, límite de Groq), se pide por escrito.
+const MSG_AUDIO_NO_ENTENDIDO = "No pudimos entender tu audio. 🙏\nEscribinos tu consulta en un mensaje y te respondemos.";
 const MSG_ADJUNTO_AUDIO =
   "Por ahora no podemos escuchar audios ni ver videos. 🙏\nEscribinos tu consulta en un mensaje y te respondemos.";
 
@@ -544,7 +549,7 @@ interface AdjuntoMsg {
   caption?: string;
 }
 
-async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
+async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): Promise<void> {
   const phone = msg.from;
 
   // Kill switch / whitelist (mismo gate que handleMessage)
@@ -596,7 +601,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
     : msg.type === "document" ? (ADJUNTO_MIMES.has(mime) || /\.(xlsx?|csv|pdf|docx?|jpe?g|png|webp)$/i.test(msg.mediaFilename ?? ""))
     : false;
   if (!esGuardable) {
-    await responder(MSG_ADJUNTO_AUDIO);
+    await responder(msg.type === "audio" && msgAudio ? msgAudio : MSG_ADJUNTO_AUDIO);
     if (msg.type !== "sticker") await alerta("adjunto_recibido", { motivo: "adjunto_recibido", sin_archivo: "audio_video", mime });
     return;
   }
@@ -680,6 +685,32 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
     comprobante_id: comprobanteId, mime, archivo: msg.mediaFilename ?? null,
     ...(falla ? { error_archivo: falla } : {}),
   });
+}
+
+/**
+ * Pablo, 01/10: el audio de un cliente se transcribe (Groq Whisper, _shared/transcribir.ts) y el texto se procesa como un
+ * mensaje escrito. `texto` null = no hay transcripción (llave apagada, número fuera de la whitelist o en la blacklist, formato
+ * que no se lee, muy largo, límite o falla de Groq); `intentado` dice si se llegó a probar, para elegir qué se le contesta.
+ * Mismos candados que handleMessage ANTES de bajar el audio: un número no autorizado no gasta cuota de transcripción ni
+ * manda su audio a un tercero.
+ */
+async function textoDeAudio(msg: AdjuntoMsg, cfg: Config): Promise<{ texto: string | null; intentado: boolean }> {
+  try {
+    if (!(await audioActivo())) return { texto: null, intentado: false };
+    const phone = msg.from;
+    const soloWhitelist = Number((await getSetting("wa_bot_solo_whitelist")) ?? "1") === 1;
+    if (soloWhitelist && !(await estaEnWhitelist(phone))) return { texto: null, intentado: false };
+    if (await blacklistRow(phone)) return { texto: null, intentado: false };
+    if (!msg.mediaId) return { texto: null, intentado: true };
+    const dl = await downloadMediaFromMeta(msg.mediaId, cfg.waToken);
+    const r = await transcribirAudio(dl.bytes, dl.mime, phone);
+    if (r.ok) return { texto: r.texto, intentado: true };
+    console.warn(`[audio] no se pudo transcribir (${r.motivo})`);
+    return { texto: null, intentado: true };
+  } catch (e) {
+    console.error("[audio] falló:", e instanceof Error ? e.message : e);
+    return { texto: null, intentado: true };
+  }
 }
 
 function extFromMime(mime: string): string | null {
@@ -1374,6 +1405,15 @@ Deno.serve(async (req: Request) => {
         if (msg.msgId) {
           const { error: dupA } = await supabase.from("wa_inbound_seen").insert({ wamid: msg.msgId, phone: msg.from });
           if (dupA?.code === "23505") { console.log(`[idem] adjunto repetido, se ignora: ${msg.msgId}`); return new Response("OK", { status: 200 }); }
+        }
+        if (msg.type === "audio") {
+          const a = await textoDeAudio(msg, cfg);
+          if (a.texto) {
+            await handleMessage(msg.from, a.texto, msg.msgId, msg.name, cfg);
+            return new Response("OK", { status: 200 });
+          }
+          await handleAdjunto(msg, cfg, a.intentado ? MSG_AUDIO_NO_ENTENDIDO : undefined);
+          return new Response("OK", { status: 200 });
         }
         await handleAdjunto(msg, cfg);
         return new Response("OK", { status: 200 });
