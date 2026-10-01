@@ -4,6 +4,16 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-01.
 >
+> **01/10 (Pablo): revisión de respuestas del bot en el dashboard** (Configuración del agente › 🧪 Evaluación, v0.26.6).
+> Los ejemplos del estudio de consultas por WhatsApp (por causa y tipo, con cuántas consultas representa cada uno, y un
+> ejemplo por causa) son casos de `wa_agente_evals` (sql/117: `clave` m…/r…, `respuesta_bot` simulada, `obs_claude`,
+> `respuesta_corregida`, `estado` pendiente→corregida→aplicada). El admin los vuelve a simular (`lk_bot-simular`) y guarda
+> la corrección (`lk_agente-modelos` eval_resultado / eval_corregir / eval_list, exigen admin). **Para pasar las
+> correcciones al bot:** `select clave, causa, pregunta, respuesta_bot, respuesta_corregida, nota_esperada from
+> wa_agente_evals where estado = 'corregida' order by orden;` y, ya aplicada, `estado = 'aplicada'` (con "sí").
+> sql/118: la tabla deja de leerse con la anon key (guarda respuestas simuladas con un cliente real). Reemplaza al Excel
+> "Respuestas bot por causa" y al artifact del mismo nombre.
+>
 > **30/09 (Pablo):** recordatorio de descuento por vencer (`lk_recordatorio-descuento`, cron `bot-recordatorio-25`
 > días hábiles 9:05, sql/111, plantilla `pedido_recordatorio_descuento` en revisión); FAQ #8 descuentos con las
 > facturas abiertas y fechas reales, y FAQ #10 reenvía el PDF de la factura (`_shared/faq.ts`). Fuente de "¿está
