@@ -149,7 +149,8 @@ export function textoPedidosChef(
     ? (unoSolo ? "este es tu pedido de Chef en curso" : "estos son tus pedidos de Chef en curso")
     : (unoSolo ? "este es tu pedido de Chef que falta entregar" : "estos son tus pedidos de Chef que faltan entregar");
   const resto = nuevos.length > visibles.length ? "Los demás pedidos ya están entregados. " : "";
-  return `${saludo}${titulo}:\n\n${lineas.join("\n")}\n\n${resto}${cierre ? CIERRE_PEDIDOS : ""}`.trimEnd();
+  const cabecera = opts.sinNombre ? titulo.charAt(0).toUpperCase() + titulo.slice(1) : `${saludo}${titulo}`;   // sin nombre, arranca una oración
+  return `${cabecera}:\n\n${lineas.join("\n")}\n\n${resto}${cierre ? CIERRE_PEDIDOS : ""}`.trimEnd();
 }
 
 // ── datos ────────────────────────────────────────────────────────────────────────────────────────
