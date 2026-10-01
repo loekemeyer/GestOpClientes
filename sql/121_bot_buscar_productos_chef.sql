@@ -10,7 +10,8 @@
 --     ("reposteria" encuentra "Repostería").
 -- Sólo la ejecuta service_role (las edge del bot): ni anon ni authenticated.
 --
--- ⚠ NO APLICADA hasta el "sí" de Pablo (CLAUDE.md › BD). Es sólo una función nueva: no cambia ni lee datos propios.
+-- APLICADA el 01/10/2026 al proyecto PaginaLK con el "sí" de Pablo (migración bot_buscar_productos_chef). Verificado: existe, sólo service_role
+-- la ejecuta; "colador" 5, "tijera" 0, "reposteria" = "repostería" 10, "pelapapas" (sinónimo) 4. Sólo es una función nueva: no cambia datos.
 
 create or replace function public.bot_buscar_productos_chef(p_query text, p_limit integer default 8)
 returns table(cod text, category text, subcategory text, description text, uxb integer)
