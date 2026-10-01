@@ -127,7 +127,7 @@ CUIT) y entre empresas se cruza por **CUIT**. Medido al 01/10: 905 CUIT sólo LK
    vinculación de clientes de Chef con revisión humana (sql/116). **Hecho.**
 2. Empresa por mensaje sin preguntar de más: cliente de una sola empresa → fija; mixto → la del dato del que habla
    (factura, pedido, aviso); sin dato → se deduce del texto o se pregunta una vez.
-3. Pagos completos para Chef: recibos, descuentos por factura (#8), reenvío, factura duplicada (isis_ch).
+3. Pagos completos para Chef: recibos, descuentos por factura (#8), reenvío, factura duplicada (isis_ch). **Hecho (01/10).**
 4. Catálogo y stock por empresa (12 códigos son un producto distinto en cada empresa).
 5. Marca: texto base del bot, plantillas y nombre visible en Meta.
 

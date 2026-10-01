@@ -8,7 +8,7 @@
 // ⚠ La empresa se define POR FACTURA, no por cliente, y el cruce con Chef es por CUIT, nunca por código:
 // medido el 01/10, el mismo cod_cliente es otro cliente en cada empresa (el 2444 es Relca en LK y Cencosud en Chef),
 // y 15 de los 28 deudores de Chef también son clientes de LK con otro código.
-import { getGestionClient, getSetting } from "./supabase.ts";
+import { getGestionClient, getSetting, supabase } from "./supabase.ts";
 
 export type Empresa = "lk" | "chef";
 export type DatosEmpresa = {
@@ -50,6 +50,42 @@ export function textoDatosPago(e: DatosEmpresa, conNombre: boolean): string | nu
   if (!e.alias && !e.cbu) return null;
   const cab = conNombre ? `Para las facturas de *${e.razon_social || e.nombre}*:\n` : "";
   return `${cab}*Alias:* ${e.alias || "—"}\n*CBU:* ${e.cbu || "—"}`;
+}
+
+/** Códigos de cliente de Chef de un CUIT (chef_padron vía bot_cuentas, sql/115): un CUIT puede tener más de una cuenta. */
+export async function codigosChef(cuit: unknown): Promise<string[]> {
+  const c = cuitNorm(cuit);
+  if (!c) return [];
+  const { data, error } = await supabase.from("bot_cuentas").select("cod_cliente").eq("empresa", "CH").eq("cuit", c);
+  if (error) console.error("codigosChef:", error.message);
+  return ((data ?? []) as Array<{ cod_cliente: string }>).map((r) => String(r.cod_cliente));
+}
+
+export type FacturaDoc = {
+  empresa: "lk" | "chef"; numero: string; punto_venta: string; letra: string | null; fecha: string; total: number;
+  storage_path: string | null;
+};
+
+/**
+ * Facturas de Chef de un CUIT (isis_ch.documentos de Gestión, PDF en el bucket isis-ch), más nueva primero. Sólo las
+ * emitidas a clientes (contraparte_tipo = 'cliente'): "FC Compra" son facturas de proveedores. null = no se pudo leer.
+ */
+export async function facturasChef(cuit: unknown, desde?: string): Promise<FacturaDoc[] | null> {
+  const c = cuitNorm(cuit);
+  if (!c) return [];
+  try {
+    const g = await getGestionClient("isis_ch");
+    let q = g.from("documentos").select("numero, punto_venta, letra, fecha, total, storage_path")
+      .in("contraparte_cuit", [c, `${c.slice(0, 2)}-${c.slice(2, 10)}-${c.slice(10)}`])
+      .eq("contraparte_tipo", "cliente").like("tipo", "FC%");
+    if (desde) q = q.gte("fecha", desde);
+    const { data, error } = await q.order("fecha", { ascending: false }).limit(60);
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as Array<Omit<FacturaDoc, "empresa">>).map((d) => ({ ...d, empresa: "chef" as const }));
+  } catch (e) {
+    console.error("facturasChef:", e instanceof Error ? e.message : e);
+    return null;
+  }
 }
 
 /** Facturas impagas de Chef de un cliente, cruzadas por CUIT (GV_Cobranza_Deuda_Viva). null = no se pudo leer. */

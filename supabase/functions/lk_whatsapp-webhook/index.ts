@@ -1049,6 +1049,15 @@ async function handleMessage(
     const reply = r.yaSaluda ? r.reply : await conSaludoSiCorresponde(r.reply, phone, chef.razon_social);
     await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", reply);
+    // Fase 3: reenvío de la factura de Chef (PDF del bucket isis-ch). Mismo camino que el de LK más abajo.
+    for (const d of r.documentos ?? []) {
+      try {
+        await sendDocument(cfg.waPhoneId, cfg.waToken, phone, d.url, d.filename);
+        await saveMessage(phone, "assistant", `[Documento] ${d.filename}`);
+      } catch (e) {
+        console.error(`[chef documento] Meta rechazó ${d.filename} a ${phone}:`, e instanceof Error ? e.message : e);
+      }
+    }
     return;
   }
 

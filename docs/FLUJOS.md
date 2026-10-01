@@ -37,10 +37,16 @@ Al cliente de Chef el bot le contesta sin IA y nunca con datos de Loekemeyer:
 |---|---|---|
 | saludo | qué puede consultar por acá | — |
 | gracias / ok / 👍 | "¡De nada!" | — |
-| cuánto debo, saldo, facturas pendientes | facturas de Chef sin pagar (`GV_Cobranza_Deuda_Viva`, por CUIT) + datos de pago de Chef | `pago` (una abierta por número) |
+| cuánto debo, saldo, facturas pendientes | facturas de Chef sin pagar (`GV_Cobranza_Deuda_Viva`, por CUIT), con el descuento de cada una si aplica, + datos de pago de Chef | `pago` (una abierta por número) |
 | alias, CBU, cómo pago | datos de pago de Chef (ficha Empresas); sin cargar → "Cobranzas te los pasa" | `pago` si no están cargados |
-| ya pagué, comprobante, ¿recibieron el pago? | "Le paso a Cobranzas" | `pago` |
+| ¿recibieron el pago? (fase 3) | busca el recibo en `gv_cobranza_recibos` (empresa chef, sus cuentas de Chef): si hay uno de los últimos 7 días lo confirma | `pago` si no figura |
+| ya pagué, te paso el comprobante | "Le paso a Cobranzas" | `pago` |
+| mandame la factura (fase 3) | el PDF de `isis_ch.documentos` (bucket isis-ch) del último día facturado o de la fecha/mes que nombre, con el saldo y el descuento de la factura y los datos de pago de Chef | `pago` si Chef no tiene alias cargado |
+| me facturaron dos veces (fase 3) | busca dos facturas de Chef del mismo importe en 15 días | `reclamo` siempre |
+| ¿qué descuento tengo? (fase 3) | cada factura de Chef abierta con su descuento (`dto_cond` hasta `vence`) | — |
 | cualquier otra cosa | "Te responde una persona del equipo" | `cliente_chef` (una cada 2 h; va a Planify) |
+
+Un cliente de LK que además le compra a Chef (mismo CUIT) recibe lo mismo en las respuestas de pagos de LK: pago recibido, reenvío, factura duplicada y descuentos (#8) miran también Chef, y cada factura sale con los datos de pago de SU empresa.
 
 Cliente molesto y adjuntos siguen el camino de siempre; la alerta lleva `empresa: CH`, el código de Chef y el CUIT.
 

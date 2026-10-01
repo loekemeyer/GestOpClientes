@@ -7,6 +7,9 @@
 //   · saludo y "gracias";
 //   · facturas de Chef sin pagar (GV_Cobranza_Deuda_Viva, empresa chef, por CUIT) y datos de pago de Chef (ficha
 //     Empresas; si Chef no tiene alias cargado, Cobranzas se los pasa: nunca el alias de Loekemeyer);
+//   · fase 3 (01/10): reenvío de la factura (isis_ch, bucket isis-ch), factura duplicada, "¿recibieron el pago?"
+//     (recibos de Chef) y descuentos de sus facturas — las mismas funciones de faq.ts que usa un cliente de LK, con
+//     codLk = null;
 // y todo lo demás lo pasa a una persona (alerta cliente_chef). Es el mismo principio que la llave de envío: un corte
 // en un solo lugar, que se levanta cuando cada consulta sepa de qué empresa es.
 //
@@ -17,7 +20,10 @@
 import { supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
-import { esSoloSaludo } from "./faq.ts";
+import {
+  bloqueFacturasChef, type CtxPagos, esSoloSaludo, facturaDuplicada, type FaqResult, lookupFacturaReenvio, pagoRegistrado,
+  RE_FACTURA_DUPLICADA, RE_PAGO_RECIBIDO, RE_PIDE_FACTURA,
+} from "./faq.ts";
 import { datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 
 export interface CuentaChef {
@@ -51,7 +57,8 @@ function esCortesia(text: string): boolean {
 }
 const RE_COMPROBANTE = /(comprobante|ya (te |les )?(pagu[eé]|transfer[ií]|deposit[eé])|(recibieron|les lleg[oó]|te lleg[oó]|vieron) (el |mi |la )?(pago|transferencia|dep[oó]sito)|te (paso|mando|env[ií]o) (el|la) (comprobante|transferencia))/i;
 const RE_DEUDA = /(cu[aá]nto (debo|te debo|les debo|tengo que pagar|hay que pagar|es lo que debo)|deuda|saldo|estado de cuenta|resumen de cuenta|facturas? (pendientes?|impagas?|vencidas?|a pagar|sin pagar|adeudadas?)|qu[eé] (debo|tengo (pendiente|para pagar|que pagar))|tengo algo (pendiente|para pagar|vencido))/i;
-const RE_DATOS_PAGO = /(\balias\b|\bcbu\b|\bcvu\b|transfer(encia|ir|irles|irte)\b|datos (de|para) (pago|pagar|transferir|la transferencia)|cuenta (bancaria|para (pagar|transferir|depositar))|d[oó]nde (les |te )?(pago|transfiero|deposito)|c[oó]mo (les |te )?pago)/i;
+const RE_DESCUENTO = /(descuento|bonificaci|cu[aá]nto (me )?(sale|queda|pago) si (pago|abono|transfiero))/i;
+const RE_DATOS_PAGO =/(\balias\b|\bcbu\b|\bcvu\b|transfer(encia|ir|irles|irte)\b|datos (de|para) (pago|pagar|transferir|la transferencia)|cuenta (bancaria|para (pagar|transferir|depositar))|d[oó]nde (les |te )?(pago|transfiero|deposito)|c[oó]mo (les |te )?pago)/i;
 
 const pesos = (n: unknown) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const fechaLarga = (f: unknown) => { const s = String(f ?? ""); return s.length >= 10 ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : ""; };
@@ -97,21 +104,39 @@ export async function atenderClienteChef(
   phone: string,
   text: string,
   cuenta: CuentaChef,
-): Promise<{ reply: string; via: string; yaSaluda?: boolean }> {
+): Promise<{ reply: string; via: string; yaSaluda?: boolean; documentos?: Array<{ url: string; filename: string }> }> {
   const t = text.trim();
+  const ctx: CtxPagos = { codLk: null, cuit: cuenta.cuit, codChef: cuenta.cod_cliente };
+  // Respuesta de faq.ts: la alerta (si la trae) sale con los datos de la cuenta de Chef; los PDF los manda el webhook.
+  const desdeFaq = async (r: FaqResult, via: string) => {
+    if (r.alerta) {
+      await notificarHumano({ tipo: "otro", phone, customerId: null, contexto: {
+        motivo: r.alerta.motivo, ...(r.alerta.urgente !== undefined ? { urgente: r.alerta.urgente } : {}),
+        detalle: r.alerta.detalle ?? null, ...contextoChef(cuenta, t) } });
+    }
+    return { reply: r.reply, via, ...(r.documentos?.length ? { documentos: r.documentos } : {}) };
+  };
 
   if (esCortesia(t)) return { reply: "¡De nada! 🙌", via: "chef_gracias" };
 
   if (esSoloSaludo(t)) {
     return {
       reply: `¡Hola${cuenta.razon_social ? ` ${cuenta.razon_social}` : ""}! 👋\n\n` +
-        `Por acá te puedo pasar tus facturas de Chef pendientes de pago y los datos para transferir. ` +
+        `Por acá te puedo pasar tus facturas de Chef (saldo, descuento y el PDF) y los datos para transferir. ` +
         `Para cualquier otra consulta te responde una persona del equipo. ¿En qué te ayudo?`,
       via: "chef_saludo", yaSaluda: true,
     };
   }
 
-  // "Te paso el comprobante", "ya pagué", "¿recibieron el pago?": los recibos de Chef todavía no se consultan → Cobranzas.
+  if (RE_FACTURA_DUPLICADA.test(t)) return await desdeFaq(await facturaDuplicada(ctx, t), "chef_factura_duplicada");
+  if (RE_PIDE_FACTURA.test(t)) {
+    const r = await lookupFacturaReenvio(ctx, t);
+    if (r) return await desdeFaq(r, "chef_factura_reenvio");
+  }
+  // "¿Recibieron el pago?": se mira en los recibos de Chef (gv_cobranza_recibos); si no figura, avisa a Cobranzas.
+  if (RE_PAGO_RECIBIDO.test(t) && !/comprobante/i.test(t)) return await desdeFaq(await pagoRegistrado(ctx, t), "chef_pago_recibido");
+
+  // "Te paso el comprobante", "ya pagué": lo registra Cobranzas.
   if (RE_COMPROBANTE.test(t)) {
     await avisarCobranzas(phone, cuenta, t, "Cliente de Chef: avisa un pago o manda comprobante por WhatsApp.");
     return {
@@ -119,6 +144,19 @@ export async function atenderClienteChef(
         "Si todavía no mandaste el comprobante, mandá la foto o el PDF por este chat. 🙏",
       via: "chef_pago_aviso",
     };
+  }
+
+  // "¿Qué descuento tengo si pago hoy?": el de cada factura de Chef abierta (lo trae la factura: dto_cond hasta vence).
+  if (RE_DESCUENTO.test(t)) {
+    const bloque = await bloqueFacturasChef(cuenta.cuit);
+    if (bloque === null) {
+      await avisarCobranzas(phone, cuenta, t, "Cliente de Chef consultó sus descuentos y Gestión no respondió: pasale el detalle.");
+      return { reply: "No pude consultar tus facturas en este momento. Le paso tu consulta a Cobranzas, que te responde por acá. 🙏", via: "chef_descuentos_error" };
+    }
+    if (!bloque) {
+      return { reply: "No tenés facturas de Chef abiertas. El descuento por pago depende de la condición de cada factura y figura en ella.", via: "chef_descuentos" };
+    }
+    return { reply: `${bloque}\n\nEl descuento se reconoce cuando pagás, hasta la fecha que figura en cada factura.`, via: "chef_descuentos" };
   }
 
   if (RE_DEUDA.test(t)) {
@@ -134,9 +172,13 @@ export async function atenderClienteChef(
     if (!facturas.length) return { reply: "No tenés facturas de Chef pendientes de pago. ✅", via: "chef_deuda" };
     const hoy = hoyAR();
     const lineas = facturas.slice(0, 15).map((f) => {
-      const vence = String(f.vence ?? "") || null;
+      const vence = String(f.vence ?? "").slice(0, 10) || null;
       const estado = vence ? (vence < hoy ? ` (vencida el ${ddmm(vence)})` : ` (vence el ${ddmm(vence)})`) : "";
-      return `• Factura ${f.comprobante ?? ""} del ${fechaLarga(f.fecha)}: ${pesos(f.pendiente)}${estado}`;
+      // Fase 3: el descuento lo trae la factura (dto_cond hasta vence, sin pagos parciales), igual que consultar_mis_facturas.
+      const pend = Number(f.pendiente || 0), dto = Number(f.dto_cond || 0);
+      const conDto = vence && vence >= hoy && dto > 0 && Math.abs(pend - Number(f.lista || 0)) < 1
+        ? ` → con ${Math.round(dto * 100)}% pagando hasta el ${ddmm(vence)}: ${pesos(pend * (1 - dto))}` : "";
+      return `• Factura ${f.comprobante ?? ""} del ${fechaLarga(f.fecha)}: ${pesos(f.pendiente)}${estado}${conDto}`;
     });
     if (facturas.length > 15) lineas.push(`• y ${facturas.length - 15} más`);
     const datos = await datosDePagoChef();

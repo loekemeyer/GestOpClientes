@@ -138,6 +138,8 @@ async function simularClienteChef(body: any): Promise<Response> {
       if (!reply) {
         const r = await atenderClienteChef(TEL_SIMULADO, text, cuenta);
         reply = r.reply; via = r.via;
+        // Reenvío de factura: en el simulador no se manda nada; se muestra qué PDF iría adjunto.
+        if (r.documentos?.length) reply += "\n\n" + r.documentos.map((d) => `📎 ${d.filename}`).join("\n");
       }
       const tareas: number[] = [];
       if (body.crear_tareas === true && SIM.alertas.length) {

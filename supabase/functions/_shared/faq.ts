@@ -12,7 +12,7 @@ import { getGestionClient, getIsisClient, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
-import { datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
+import { codigosChef, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -110,14 +110,17 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // Pablo, 30/09: agregar a un pedido, mandar un pedido, preguntar si llegó un pago, razón social equivocada o factura
   // duplicada van a la IA (ver las regex): antes una respuesta fija los atrapaba por una palabra suelta.
   // Pablo, 30/09 (4.4): "Me facturaron el mismo pedido dos veces" → se chequea en las facturas antes de derivar.
-  if (customer && RE_FACTURA_DUPLICADA.test(text)) return await facturaDuplicada(customer, text);
+  // Pablo, 01/10 (fase 3, D008): las cuatro respuestas de pagos miran también Chef, por CUIT (ctxPagosDeCliente).
+  if (customer && RE_FACTURA_DUPLICADA.test(text)) return await facturaDuplicada(await ctxPagosDeCliente(customer), text);
   // Pablo, 30/09 (4.5): "No me llegó la factura, ¿me la mandás por acá?" → el bot la reenvía (lookupFacturaReenvio).
   if (customer && RE_PIDE_FACTURA.test(text)) {
-    const r = await lookupFacturaReenvio(customer, text);
+    const r = await lookupFacturaReenvio(await ctxPagosDeCliente(customer), text);
     if (r) return r;
   }
   // Pablo, 30/09 (6.3): "¿Recibieron el pago?" → se mira si está registrado (recibos de Gestión); si no, aviso a Cobranzas.
-  if (customer && RE_PAGO_RECIBIDO.test(text) && !/comprobante/i.test(text)) return await pagoRegistrado(customer, text);
+  if (customer && RE_PAGO_RECIBIDO.test(text) && !/comprobante/i.test(text)) {
+    return await pagoRegistrado(await ctxPagosDeCliente(customer), text);
+  }
   if (customer && vaALaIA(text)) return null;
   // Pablo, 30/09 (3.3 y 3.4): horario del depósito, con el corte del almuerzo. "¿Cierran para almorzar?" contestaba "no tengo
   // ese dato"; "Estoy llegando, ¿me esperan?" preguntaba qué necesitaba.
@@ -289,7 +292,7 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       const r = await lookupPaymentData(top, customer);
       if (r) return { reply: r, intent: "payment_data", automation_level: "semi_auto", faq_id: top.faq_id, yaSaluda: yaSaluda(r) };
     } else if (customer && top.db_lookup_type === "factura_reenvio") {
-      const r = await lookupFacturaReenvio(customer, text);
+      const r = await lookupFacturaReenvio(await ctxPagosDeCliente(customer), text);
       if (r) return { ...r, faq_id: top.faq_id, yaSaluda: yaSaluda(r.reply) };
     } else if (customer) {
       const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top);
@@ -418,11 +421,11 @@ const RE_AGREGA_A_PEDIDO = /\b(agreg|sum[aá]|sumar|a[ñn]ad)\w*[^.?!]{0,60}\bpe
 // "Te paso el cotizador con el pedido" → #11 (lista de precios) por "cotizador": el cliente MANDA un pedido, no pide la lista.
 const RE_ENVIA_PEDIDO = /\b(te\s+|les\s+)?(paso|pasamos|env[ií]o|enviamos|mando|mandamos|adjunt\w*)(?![a-zñáéíóú])[^.?!]{0,40}\b(cotizador|pedido|orden\s+de\s+compra|planilla|excel)/i;
 // "¿Recibieron el pago?" → #15 (medios de pago) por "pago": pregunta si LLEGÓ un pago (lo ve Cobranzas).
-const RE_PAGO_RECIBIDO = /(recib\w*|lleg[oó]|acredit\w*|impact\w*|vieron|entr[oó])[^.?!]{0,30}\b(el\s+|mi\s+|la\s+)?(pago|transferencia|dep[oó]sito|e-?cheq|cheque)|\b(pago|transferencia|dep[oó]sito)[^.?!]{0,30}\b(recib|lleg[oó]|acredit|impact)/i;
+export const RE_PAGO_RECIBIDO = /(recib\w*|lleg[oó]|acredit\w*|impact\w*|vieron|entr[oó])[^.?!]{0,30}\b(el\s+|mi\s+|la\s+)?(pago|transferencia|dep[oó]sito|e-?cheq|cheque)|\b(pago|transferencia|dep[oó]sito)[^.?!]{0,30}\b(recib|lleg[oó]|acredit|impact)/i;
 // "El pedido me salió a nombre de mi otra razón social" → #1 (estado de pedidos). Hay que refacturar: lo deriva la IA.
 const RE_RAZON_SOCIAL_MAL = /(otra\s+raz[oó]n\s+social|raz[oó]n\s+social\s+(equivocad|incorrect|distint|mal)|a\s+nombre\s+de\s+(mi\s+)?(otra|otro)\b|otro\s+cuit)/i;
 // "Me facturaron el mismo pedido dos veces" → control de pedidos repetidos. Es una FACTURA duplicada: reclamo, lo deriva la IA.
-const RE_FACTURA_DUPLICADA = /(factur\w*[^.?!]{0,40}(dos veces|\b2 veces|duplicad|repetid|de m[aá]s)|(duplicad|repetid)\w*[^.?!]{0,20}factura)/i;
+export const RE_FACTURA_DUPLICADA = /(factur\w*[^.?!]{0,40}(dos veces|\b2 veces|duplicad|repetid|de m[aá]s)|(duplicad|repetid)\w*[^.?!]{0,20}factura)/i;
 // "Cargué todo por unidad y después lo edité por caja" → #21 por "unidad": cuenta un error de carga, no pregunta si venden por unidad.
 const RE_ERROR_CARGA = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|me\s+equivoqu[eé]|nos\s+equivocamos|puse|pusimos)(?![a-zñáéíóú])[^.?!]{0,60}\b(unidad|caja|pedido)/i;
 // "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" / "¿novedades del pedido?".
@@ -433,7 +436,7 @@ const RE_PLAZO_ENTREGA = /\b(per[ií]odo|plazo|tiempo)s?\b[^.?!]{0,50}\b(entrega
 const HORARIO_DEPOSITO = "Estamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (de 12 a 13 cerramos para almorzar).";
 const RE_ALMUERZO = /\b(almuerz\w*|almorz\w*|almuerc\w*|mediod[ií]a)/i;
 const RE_LLEGANDO = /\b(estoy|estamos)\s+(llegando|yendo|en\s+camino|a\s+\d+\s+(cuadras|minutos))\b|\bme\s+esperan\b|\bya\s+(voy|salgo)\s+para\s+(all[aá]|el\s+dep[oó]sito)/i;
-const RE_PIDE_FACTURA = /\b(mand[aá]me|pas[aá]me|envi[aá]me|reenvi[aá]\w*|me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*)\b[^.?!]{0,30}\bfacturas?\b|\bfacturas?\b[^.?!]{0,40}\b(me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*|mand[aá]me|pas[aá]me|reenvi\w*)|\bno\s+(me\s+)?lleg[oó]\s+(la\s+|las\s+)?factura/i;
+export const RE_PIDE_FACTURA = /\b(mand[aá]me|pas[aá]me|envi[aá]me|reenvi[aá]\w*|me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*)\b[^.?!]{0,30}\bfacturas?\b|\bfacturas?\b[^.?!]{0,40}\b(me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*|mand[aá]me|pas[aá]me|reenvi\w*)|\bno\s+(me\s+)?lleg[oó]\s+(la\s+|las\s+)?factura/i;
 // "Llegaron 59 aceiteras de 60, pido la NC" / "tengo un faltante en el remito" / "me faltó una caja".
 const RE_FALTANTE = /\bfalt(ante|aron|[oó]|an?)(?![a-záéíóúñ])[^?]{0,60}\b(cajas?|unidad\w*|art[ií]culos?|c[oó]d\w*|\d+)\b|\bfaltante\b|\blleg(aron|[oó])\s+\d+\s+de\s+\d+\b|\b(pido|necesito|quiero|hacen?|me\s+hacen)\s+(la\s+|una\s+)?(nc|nota\s+de\s+cr[eé]dito)\b/i;
 const RE_ETIQUETA = /(c[oó]digos?\s+de\s+barras?|\betiquet\w*|\bean\b)[^?]{0,60}\b(mism[oa]s?|mal|equivocad\w*|incorrect\w*|distint\w*|cambiad\w*|no\s+(los\s+|las\s+|lo\s+|la\s+)?(lee|leen|pasa|pasan|escanea\w*|coincide\w*))|\b(mism[oa]s?|mal|equivocad\w*|incorrect\w*|distint\w*)\b[^?]{0,40}(c[oó]digos?\s+de\s+barras?|\betiquet\w*)/i;
@@ -664,6 +667,10 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
   const pagoBlock = await pagoDiscountBlock();
   // Pablo, 30/09: si ya tiene facturas abiertas, fechas reales ("pagando hasta el mié 14/10 tenés 25%").
   const facturasBlock = await descuentosFacturasBlock(customer);
+  // Pablo, 01/10 (fase 3): si además tiene facturas de Chef abiertas (cruce por CUIT), van aparte con el descuento de cada
+  // factura de Chef. La tabla de descuentos de arriba es la de Loekemeyer.
+  const chefBlock = await bloqueFacturasChef((await ctxPagosDeCliente(customer)).cuit).catch(() => null);
+  const extraChef = chefBlock ? `\n\n${chefBlock}` : "";
   // Pablo, 30/09 (4.3): "En las últimas facturas no veo el descuento" recibía toda la tabla y todas las facturas abiertas
   // ("muy larga"). Si habla de facturas: sólo la última, por qué no ve el descuento en ella, y el resto si lo pide.
   if (/factur/i.test(message) && facturasBlock.startsWith("*Tus facturas abiertas:*\n")) {
@@ -671,7 +678,7 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
     const m = cuerpo.match(/\n\n(Tenés además [^\n]+)$/);
     const ultima = m ? cuerpo.slice(0, m.index) : cuerpo;
     return `${customer.business_name}, tu última factura:\n${ultima}\n\nTu descuento por volumen (${volumeDiscount}%) ya viene en los precios. ` +
-      `El de pago no figura en la factura: se te reconoce cuando pagás, según los días que pasaron.${m ? `\n\n${m[1]}` : ""}`;
+      `El de pago no figura en la factura: se te reconoce cuando pagás, según los días que pasaron.${m ? `\n\n${m[1]}` : ""}${extraChef}`;
   }
 
   // Plantilla editable desde el front: si trae {{descuento_volumen}} o {{descuentos_pago}}
@@ -685,11 +692,11 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
       descuentos_pago: pagoBlock,
       descuentos_facturas: facturasBlock,
     };
-    return renderTemplate(sinLineasSinDato(tpl, vars), vars);
+    return renderTemplate(sinLineasSinDato(tpl, vars), vars) + extraChef;
   }
   const pago = pagoBlock ? `\n💰 *Por pago*, contando desde la fecha de la factura:\n${pagoBlock}` : "";
   const fac = facturasBlock ? `\n\n${facturasBlock}` : "";
-  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}% (ya incluido en tus precios de la web)\n💻 *Por compra web*: 2% adicional${pago}${fac}\n\nLa factura sale con el total lleno: el descuento por pago se te reconoce cuando pagás, según los días que pasaron.`;
+  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}% (ya incluido en tus precios de la web)\n💻 *Por compra web*: 2% adicional${pago}${fac}\n\nLa factura sale con el total lleno: el descuento por pago se te reconoce cuando pagás, según los días que pasaron.${extraChef}`;
 }
 
 // Facturas abiertas del cliente con las fechas REALES de cada descuento (Pablo, 30/09: "si ya tiene una factura
@@ -757,7 +764,58 @@ async function contextoDescuentos() {
     if (!lineas.length) lineas.push(`Ya pasó el plazo de descuento por pago: el saldo es ${pesos(gr.saldo)}.`);
     return lineas;
   };
-  return { cfg, pesos, ddmm, lineasPago };
+  return { cfg, pesos, ddmm, conDia, hoy, lineasPago };
+}
+
+// Pablo, 01/10 (fase 3, D008): las respuestas de pagos sirven para las dos empresas. El contexto dice qué cuentas tiene
+// quien escribe: el código de Loekemeyer (si es cliente de LK) y el CUIT, que es lo que cruza con Chef (el número de
+// cliente es otro en cada empresa). Un cliente sólo de Chef llega desde _shared/chef.ts con codLk = null.
+// codChef: la cuenta de Chef desde la que escribe (un cliente sólo de Chef), por si el CUIT no está cargado.
+export type CtxPagos = { codLk: string | null; cuit: string | null; codChef?: string | null };
+
+async function ctxPagosDeCliente(customer: NonNullable<Customer>): Promise<CtxPagos> {
+  const { data } = await supabase.from("customers").select("cuit").eq("id", customer.id).maybeSingle();
+  return { codLk: String(customer.cod_cliente), cuit: data?.cuit ?? null };
+}
+
+// Una factura de Chef con saldo (GV_Cobranza_Deuda_Viva). En Chef el descuento por pago lo trae cada factura (dto_cond,
+// hasta `vence`, sólo sin pagos parciales: mismo criterio que consultar_mis_facturas); la tabla de LK no aplica.
+// deno-lint-ignore no-explicit-any
+function lineaFacturaChef(f: any, soloHoy: boolean, c: Awaited<ReturnType<typeof contextoDescuentos>>): string {
+  const { pesos, ddmm, conDia, hoy } = c;
+  const pend = Number(f.pendiente || 0), lista = Number(f.lista || 0), dto = Number(f.dto_cond || 0);
+  const vence = String(f.vence ?? "").slice(0, 10) || null;
+  if (vence && vence >= hoy && dto > 0 && Math.abs(pend - lista) < 1) {
+    return soloHoy
+      ? `💰 Si la pagás hasta el ${conDia(vence)} tenés *${Math.round(dto * 100)}% de descuento*: pagás *${pesos(pend * (1 - dto))}* en vez de ${pesos(pend)}.`
+      : `• Pagando hasta el ${conDia(vence)}: ${Math.round(dto * 100)}% → pagás ${pesos(pend * (1 - dto))}`;
+  }
+  if (vence && vence < hoy) return `${soloHoy ? "" : "• "}Saldo ${pesos(pend)} (venció el ${ddmm(vence)}).`;
+  return `${soloHoy ? "" : "• "}Saldo ${pesos(pend)}${vence ? ` (vence el ${ddmm(vence)})` : ""}.`;
+}
+
+/**
+ * Facturas de Chef abiertas de un CUIT con su descuento vigente (FAQ #8 y la consulta de descuentos de un cliente de Chef).
+ * "" = no tiene facturas de Chef con saldo; null = Gestión no respondió.
+ */
+export async function bloqueFacturasChef(cuit: unknown): Promise<string | null> {
+  const deuda = await deudaChefPorCuit(cuit);
+  if (deuda === null) return null;
+  if (!deuda.length) return "";
+  const c = await contextoDescuentos();
+  const { pesos, ddmm } = c;
+  const nuevas = [...deuda].sort((a, b) => String(b.fecha ?? "").localeCompare(String(a.fecha ?? "")));
+  const MAX = 3;
+  const bloques: string[] = [];
+  for (const f of nuevas.slice(0, MAX)) {
+    bloques.push(`🧾 *Factura ${f.comprobante ?? ""} del ${ddmm(String(f.fecha ?? ""))}* — saldo ${pesos(Number(f.pendiente))}\n  ${lineaFacturaChef(f, false, c)}`);
+  }
+  const resto = nuevas.slice(MAX);
+  if (resto.length) {
+    bloques.push(`Tenés además ${resto.length} factura${resto.length > 1 ? "s" : ""} de Chef abierta${resto.length > 1 ? "s" : ""} por ` +
+      `${pesos(resto.reduce((s, f) => s + Number(f.pendiente || 0), 0))}: si querés, te paso el detalle.`);
+  }
+  return "*Tus facturas abiertas de Chef:*\n" + bloques.join("\n\n");
 }
 
 // Deuda Viva del cliente agrupada por fecha + condición (varias facturas del mismo día = un pedido), más nuevo primero.
@@ -815,30 +873,46 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 // 6.3: último pago registrado del cliente (gv_cobranza_recibos de Gestión: un recibo por pago imputado). Si hay uno de
 // los últimos 7 días se le confirma; si no, se le dice que todavía no figura y se avisa a Cobranzas (nunca que no pagó).
-async function pagoRegistrado(customer: NonNullable<Customer>, text: string): Promise<FaqResult> {
+type Recibo = { recibo: string; fecha_primer_cobro: string; pagado: number; medio: string | null; empresa: "lk" | "chef" };
+
+/** Último recibo de esas cuentas en una empresa (gv_cobranza_recibos de Gestión). undefined = no hay; lanza si falla. */
+async function ultimoRecibo(empresa: "lk" | "chef", cods: string[]): Promise<Recibo | undefined> {
+  if (!cods.length) return undefined;
+  const g = await getGestionClient("public");
+  const r = await Promise.race([
+    g.from("gv_cobranza_recibos").select("recibo, fecha_primer_cobro, pagado, medio").eq("empresa", empresa)
+      .in("cod_cliente", cods).not("fecha_primer_cobro", "is", null)
+      .order("fecha_primer_cobro", { ascending: false }).limit(1),
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
+  ]);
+  if (r.error) throw new Error(r.error.message);
+  const u = (r.data ?? [])[0] as Omit<Recibo, "empresa"> | undefined;
+  return u ? { ...u, empresa } : undefined;
+}
+
+// Pablo, 01/10 (fase 3): también los recibos de Chef, de las cuentas de Chef del mismo CUIT. Si tiene cuenta en las dos
+// empresas, se dice a cuál fue el pago.
+export async function pagoRegistrado(ctx: CtxPagos, text: string): Promise<FaqResult> {
   const cobranzas = (reply: string, detalle: string): FaqResult => ({ reply, intent: "pago_recibido", automation_level: "needs_human",
     topic: "Pregunta si llegó su pago", alerta: { motivo: "pago", urgente: false, detalle } });
   try {
-    const g = await getGestionClient("public");
-    const r = await Promise.race([
-      g.from("gv_cobranza_recibos").select("recibo, fecha_primer_cobro, pagado, medio").eq("empresa", "lk")
-        .eq("cod_cliente", String(customer.cod_cliente)).not("fecha_primer_cobro", "is", null)
-        .order("fecha_primer_cobro", { ascending: false }).limit(1),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
-    ]);
-    if (r.error) throw new Error(r.error.message);
-    const u = (r.data ?? [])[0] as { recibo: string; fecha_primer_cobro: string; pagado: number; medio: string | null } | undefined;
+    const codsChef = [...new Set([...(await codigosChef(ctx.cuit)), ...(ctx.codChef ? [ctx.codChef] : [])])];
+    const [lk, ch] = await Promise.all([ultimoRecibo("lk", ctx.codLk ? [ctx.codLk] : []), ultimoRecibo("chef", codsChef)]);
+    const dos = !!ctx.codLk && codsChef.length > 0;
+    const u = [lk, ch].filter((x): x is Recibo => !!x)
+      .sort((a, b) => b.fecha_primer_cobro.localeCompare(a.fecha_primer_cobro))[0];
+    const a = (x: Recibo) => (dos ? (x.empresa === "chef" ? " a Chef" : " a Loekemeyer") : "");
     const pesos = (n: unknown) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
     const ddmm = (f: string) => `${f.slice(8, 10)}/${f.slice(5, 7)}`;
     const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
     const dias = u ? Math.round((Date.parse(hoy) - Date.parse(u.fecha_primer_cobro.slice(0, 10))) / 86400_000) : null;
     if (u && dias !== null && dias <= 7) {
-      return { reply: `Sí, tenemos registrado tu pago del ${ddmm(u.fecha_primer_cobro)} por ${pesos(u.pagado)}${u.medio ? ` (${u.medio})` : ""}. ¡Gracias! ` +
+      return { reply: `Sí, tenemos registrado tu pago${a(u)} del ${ddmm(u.fecha_primer_cobro)} por ${pesos(u.pagado)}${u.medio ? ` (${u.medio})` : ""}. ¡Gracias! ` +
         "Si te referís a otro pago, contame la fecha y el importe y le aviso a Cobranzas.", intent: "pago_recibido", automation_level: "semi_auto" };
     }
-    const ultimo = u ? ` (el último que tenemos es del ${ddmm(u.fecha_primer_cobro)} por ${pesos(u.pagado)})` : "";
+    const ultimo = u ? ` (el último que tenemos es del ${ddmm(u.fecha_primer_cobro)} por ${pesos(u.pagado)}${a(u)})` : "";
     return cobranzas(`Todavía no lo vemos registrado${ultimo}. Le aviso a Cobranzas para que lo revise y te confirme por acá. Si tenés el comprobante, mandalo por acá así lo agilizan. 🙏`,
-      `Pregunta si llegó su pago; no hay recibo de los últimos 7 días${u ? ` (último ${ddmm(u.fecha_primer_cobro)} ${pesos(u.pagado)})` : ""}. Escribió: ${text.slice(0, 150)}`);
+      `Pregunta si llegó su pago; no hay recibo de los últimos 7 días${u ? ` (último ${ddmm(u.fecha_primer_cobro)} ${pesos(u.pagado)}${a(u)})` : ""}. Escribió: ${text.slice(0, 150)}`);
   } catch (e) {
     console.warn("pagoRegistrado:", e instanceof Error ? e.message : e);
     return cobranzas("Le aviso a Cobranzas para que revise tu pago y te confirme por acá. 🙏", `Pregunta si llegó su pago. Escribió: ${text.slice(0, 150)}`);
@@ -847,22 +921,40 @@ async function pagoRegistrado(customer: NonNullable<Customer>, text: string): Pr
 
 // 4.4: busca en las facturas del cliente (isis_lk.documentos, las mismas que reenvía el bot) dos o más del mismo importe
 // en 15 días. Encuentre o no, lo revisa una persona: nunca se le dice al cliente que se equivocó.
-async function facturaDuplicada(customer: NonNullable<Customer>, text: string): Promise<FaqResult> {
+/**
+ * Facturas de Loekemeyer de un cliente (isis_lk.documentos), más nueva primero. Sólo las emitidas a clientes: hasta el
+ * 01/10 el filtro era sólo código + tipo "FC%", que también trae "FC Compra" (facturas de proveedores), y 37 códigos de
+ * proveedor coinciden con un código de cliente.
+ */
+async function facturasLk(cod: string, desde?: string): Promise<FacturaDoc[]> {
+  const isis = await getIsisClient();
+  let q = isis.from("documentos").select("numero, punto_venta, letra, fecha, total, storage_path")
+    .eq("contraparte_codigo", cod).eq("contraparte_tipo", "cliente").like("tipo", "FC%");
+  if (desde) q = q.gte("fecha", desde);
+  const { data, error } = await q.order("fecha", { ascending: false }).limit(60);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Array<Omit<FacturaDoc, "empresa">>).map((d) => ({ ...d, empresa: "lk" as const }));
+}
+
+/** Facturas de las dos empresas de quien escribe. Lanza si no se pudo leer ninguna de las que corresponde mirar. */
+async function facturasDe(ctx: CtxPagos, desde?: string): Promise<{ lk: FacturaDoc[]; ch: FacturaDoc[] }> {
+  const [lk, ch] = await Promise.all([ctx.codLk ? facturasLk(ctx.codLk, desde) : Promise.resolve([]), facturasChef(ctx.cuit, desde)]);
+  if (ch === null && !ctx.codLk) throw new Error("Gestión no respondió (isis_ch)");
+  return { lk, ch: ch ?? [] };
+}
+
+export async function facturaDuplicada(ctx: CtxPagos, text: string): Promise<FaqResult> {
   const res = (reply: string, detalle: string, urgente: boolean): FaqResult => ({
     reply, intent: "factura_duplicada", automation_level: "needs_human", topic: "Factura duplicada",
     alerta: { motivo: "reclamo", urgente, detalle } });
   try {
-    const isis = await getIsisClient();
-    const { data, error } = await isis.from("documentos").select("numero, punto_venta, letra, fecha, total")
-      .eq("contraparte_codigo", String(customer.cod_cliente)).like("tipo", "FC%")
-      .gte("fecha", new Date(Date.now() - 60 * 86400_000).toISOString().slice(0, 10))
-      .order("fecha", { ascending: false }).limit(60);
-    if (error) throw new Error(error.message);
-    const docs = (data ?? []) as Array<{ numero: string; punto_venta: string; letra: string | null; fecha: string; total: number }>;
-    const nro = (d: typeof docs[number]) => `FC${d.letra ?? ""} ${d.punto_venta}-${d.numero}`;
+    const { lk, ch } = await facturasDe(ctx, new Date(Date.now() - 60 * 86400_000).toISOString().slice(0, 10));
+    const dos = lk.length > 0 && ch.length > 0;
+    const nro = (d: FacturaDoc) => `FC${d.letra ?? ""} ${d.punto_venta}-${d.numero}${dos && d.empresa === "chef" ? " (Chef)" : ""}`;
     const ddmm = (f: string) => `${f.slice(8, 10)}/${f.slice(5, 7)}`;
-    for (const d of docs) {
-      const iguales = docs.filter((x) => Math.round(Number(x.total)) === Math.round(Number(d.total)) &&
+    // Duplicadas dentro de una misma empresa: una de LK y una de Chef por el mismo importe no son la misma factura.
+    for (const d of [...lk, ...ch]) {
+      const iguales = (d.empresa === "chef" ? ch : lk).filter((x) => Math.round(Number(x.total)) === Math.round(Number(d.total)) &&
         Math.abs(Date.parse(x.fecha.slice(0, 10)) - Date.parse(d.fecha.slice(0, 10))) <= 15 * 86400_000);
       if (iguales.length > 1) {
         const lista = iguales.map((x) => `${nro(x)} del ${ddmm(x.fecha)}`).join(" y ");
@@ -880,19 +972,22 @@ async function facturaDuplicada(customer: NonNullable<Customer>, text: string): 
   }
 }
 
-async function lookupFacturaReenvio(customer: NonNullable<Customer>, message: string): Promise<FaqResult | null> {
+// Pablo, 01/10 (fase 3): busca en las facturas de las dos empresas (LK por código, Chef por CUIT en isis_ch). Si nombra
+// una empresa ("la de Chef"), sólo esa. Cada factura sale de su bucket y con los datos de pago y el descuento de SU
+// empresa: nunca el alias de una para la factura de la otra.
+export async function lookupFacturaReenvio(ctx: CtxPagos, message: string): Promise<FaqResult | null> {
   const derivar = (motivo: string, texto: string): FaqResult => ({
     reply: texto, intent: "factura_reenvio", automation_level: "semi_auto",
     alerta: { motivo, urgente: false, detalle: `Pidió la factura: "${message.slice(0, 150)}"` },
   });
   try {
     const isis = await getIsisClient();
-    const { data: docs, error } = await isis.from("documentos")
-      .select("numero, punto_venta, letra, fecha, total, storage_path")
-      .eq("contraparte_codigo", String(customer.cod_cliente)).like("tipo", "FC%")
-      .order("fecha", { ascending: false }).limit(60);
-    if (error) throw new Error(error.message);
-    const lista = (docs ?? []) as Array<{ numero: string; punto_venta: string; letra: string; fecha: string; total: number; storage_path: string | null }>;
+    const { lk, ch } = await facturasDe(ctx);
+    const t0 = message.toLowerCase();
+    const dos = lk.length > 0 && ch.length > 0;
+    let lista = [...lk, ...ch].sort((a, b) => b.fecha.localeCompare(a.fecha));
+    if (/\bchef\b/.test(t0)) lista = lista.filter((d) => d.empresa === "chef");
+    else if (/loeke/.test(t0)) lista = lista.filter((d) => d.empresa === "lk");
     if (!lista.length) {
       return derivar("factura_no_encontrada", "No encuentro facturas a tu nombre. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏");
     }
@@ -913,25 +1008,52 @@ async function lookupFacturaReenvio(customer: NonNullable<Customer>, message: st
     const conPdf = elegidas.filter((d) => d.storage_path).slice(0, 5);
     const documentos: Array<{ url: string; filename: string }> = [];
     for (const d of conPdf) {
-      const { data: s } = await isis.storage.from("isis-lk").createSignedUrl(d.storage_path!, 3600);
-      if (s?.signedUrl) documentos.push({ url: s.signedUrl, filename: `Factura ${d.letra ?? ""} ${d.punto_venta}-${d.numero}.pdf`.replace(/\s+/g, " ") });
+      // Cada empresa tiene su bucket en Gestión (isis-lk / isis-ch).
+      const { data: s } = await isis.storage.from(d.empresa === "chef" ? "isis-ch" : "isis-lk").createSignedUrl(d.storage_path!, 3600);
+      if (s?.signedUrl) {
+        documentos.push({ url: s.signedUrl,
+          filename: `Factura ${d.letra ?? ""} ${d.punto_venta}-${d.numero}${dos && d.empresa === "chef" ? " Chef" : ""}.pdf`.replace(/\s+/g, " ") });
+      }
     }
     const { pesos, ddmm, lineasPago, cfg } = await contextoDescuentos();
     if (!documentos.length) {
       return derivar("factura_sin_pdf", `Tu factura del ${ddmm(fecha)} todavía no tiene el PDF cargado. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏`);
     }
     const total = elegidas.reduce((s, d) => s + Number(d.total || 0), 0);
-    const lineas = [`Te mando ${documentos.length > 1 ? `las ${documentos.length} facturas` : "la factura"} del ${ddmm(fecha)} (total ${pesos(total)}). 📄`];
-    // Descuento vigente hoy, con el saldo real de ese día (Deuda Viva).
-    const grupos = await deudaAgrupada(customer.cod_cliente);
-    const delDia = (grupos ?? []).filter((g) => g.fecha === fecha);
-    if (grupos && !delDia.length) lineas.push("✅ Ya figura pagada.");
-    for (const gr of delDia) lineas.push("", ...(await lineasPago(gr, true)));
-    if (delDia.length) {
-      const alias = cfg?.pago?.alias ?? PAGO_ALIAS_FALLBACK, cbu = cfg?.pago?.cbu ?? PAGO_CBU_FALLBACK;
-      lineas.push("", `Datos para el pago:\nAlias: ${alias}\nCBU: ${cbu}`, "", "Cuando pagues, mandanos el comprobante por acá. 🙏");
+    const empresasDia = new Set(elegidas.map((d) => d.empresa));
+    const deQuien = dos && empresasDia.size === 1 ? (empresasDia.has("chef") ? " de Chef" : " de Loekemeyer") : "";
+    const lineas = [`Te mando ${documentos.length > 1 ? `las ${documentos.length} facturas` : "la factura"}${deQuien} del ${ddmm(fecha)} (total ${pesos(total)}). 📄`];
+    let alerta: FaqResult["alerta"];
+    // Loekemeyer: descuento vigente hoy, con el saldo real de ese día (Deuda Viva) y la tabla de descuentos de LK.
+    if (empresasDia.has("lk") && ctx.codLk) {
+      if (empresasDia.size > 1) lineas.push("", "*Loekemeyer:*");
+      const grupos = await deudaAgrupada(ctx.codLk);
+      const delDia = (grupos ?? []).filter((g) => g.fecha === fecha);
+      if (grupos && !delDia.length) lineas.push("✅ Ya figura pagada.");
+      for (const gr of delDia) lineas.push("", ...(await lineasPago(gr, true)));
+      if (delDia.length) {
+        const alias = cfg?.pago?.alias ?? PAGO_ALIAS_FALLBACK, cbu = cfg?.pago?.cbu ?? PAGO_CBU_FALLBACK;
+        lineas.push("", `Datos para el pago:\nAlias: ${alias}\nCBU: ${cbu}`);
+      }
     }
-    return { reply: lineas.join("\n"), intent: "factura_reenvio", automation_level: "semi_auto", documentos };
+    // Chef: el saldo y el descuento de cada factura (Deuda Viva, por CUIT) y los datos de pago de Chef.
+    let hayChefConSaldo = false;
+    if (empresasDia.has("chef")) {
+      if (empresasDia.size > 1) lineas.push("", "*Chef:*");
+      const deuda = await deudaChefPorCuit(ctx.cuit);
+      const delDia = (deuda ?? []).filter((f) => String(f.fecha ?? "").slice(0, 10) === fecha);
+      if (deuda && !delDia.length) lineas.push("✅ Ya figura pagada.");
+      const c = await contextoDescuentos();
+      for (const f of delDia) lineas.push("", lineaFacturaChef(f, true, c));
+      if (delDia.length) {
+        hayChefConSaldo = true;
+        const datos = textoDatosPago((await datosEmpresas()).chef, false);
+        lineas.push("", datos ? `Datos para el pago:\n${datos}` : "Los datos para transferir a Chef te los pasa Cobranzas por acá.");
+        if (!datos) alerta = { motivo: "pago", urgente: false, detalle: "Se le reenvió una factura de Chef con saldo y la ficha Empresas no tiene el alias/CBU de Chef: pasale los datos para transferir." };
+      }
+    }
+    if (lineas.some((l) => l.startsWith("Datos para el pago")) || hayChefConSaldo) lineas.push("", "Cuando pagues, mandanos el comprobante por acá. 🙏");
+    return { reply: lineas.join("\n"), intent: "factura_reenvio", automation_level: "semi_auto", documentos, ...(alerta ? { alerta } : {}) };
   } catch (e) {
     console.warn("lookupFacturaReenvio:", e instanceof Error ? e.message : e);
     return derivar("factura_error", "No pude buscar tu factura en este momento. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏");
