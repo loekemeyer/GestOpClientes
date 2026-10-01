@@ -585,12 +585,15 @@ el killswitch, sin ningún consumidor de esa cola.
   - **Groq soportado (2026-10-01, Pablo, v0.26.5):** `bot-llm.ts` suma el proveedor `groq` (API compatible con
     OpenAI, tabla `OPENAI_COMPAT`: sumar otro compatible es una línea); `lk_agente-modelos` detecta keys `gsk_` y
     lista sus modelos de chat; el panel lo ofrece. Sin una fila en `wa_agente_modelos` con prioridad, no cambia
-    nada. **Sin probar contra la API real (falta la key).** ⚠ Límites del plan gratis (docs de Groq, 01/10):
-    30 rpm, 1.000 req/día, **8.000 TPM y 200.000 TPD** por modelo. El prompt del bot mide mediana 7.777 tokens de
-    entrada (p90 9.743, máx 11.735; 233 de 471 llamadas del simulador pasan 8.000, tokenizer de Claude) → con el
-    plan gratis casi seguro da 413/429 y cae al siguiente de la cadena. Si falla, es el límite, no el código.
-    ⚠ Al sincronizar modelos de la key, `is_free_tier` queda en `false`: ponerlo en `true` o el panel de gastos
-    suma un costo que no existe.
+    nada. **DESCARTADO el 01/10 (key cargada y probada contra la API real, sin prioridad en la cadena):**
+    ⚠ Límites del plan gratis (docs de Groq y headers de la key): 30 rpm, 1.000 req/día, **8.000 TPM y 200.000
+    TPD** por modelo. El prompt del bot mide mediana 7.777 tokens de entrada (p90 9.743, máx 11.735, **piso 4.125
+    con el historial vacío**; 233 de 471 llamadas del simulador pasan 8.000, tokenizer de Claude): entran menos de
+    2 llamadas por minuto y un turno con herramientas necesita 2 o más. Además `openai/gpt-oss-120b` rechazó con
+    400 `tool_use_failed` un parámetro opcional que mandó en `null` (habría que declarar los opcionales como
+    nullables al llamar a Groq). Tampoco sirve pagarlo sin ese ajuste. La key (`…FD5S`) y las 4 filas de modelos
+    siguen cargadas, sin prioridad. ⚠ Al sincronizar modelos de una key, `is_free_tier` queda en `false`: ponerlo
+    en `true` o el panel de gastos suma un costo que no existe.
   - ⚠ **Bug conocido, sin arreglar:** `resolveChain` descarta lo que no está en `estado='ok'` y nada vuelve a `ok`
     un modelo `caido` (el cooldown no alcanza). Un solo 503 lo saca para siempre: `gemini-3.5-flash-lite` (#1,
     free) está caído desde el 28/09 y todo el tráfico va a Sonnet.
@@ -599,6 +602,21 @@ el killswitch, sin ningún consumidor de esa cola.
     env); si falla, sigue con la cadena de siempre. El webhook nunca lo lee. Sin la clave nada cambia. Sirve para
     probar con Haiku 4.5 (1/3 del precio de Sonnet 4.6) sin tocar la cadena de producción. Las respuestas de
     prueba guardan el modelo en `wa_ia_puntajes.modelo_respuesta` y el gasto en `bot_token_usage.model`.
+    **Hoy vale `claude-haiku-4-5`** (`app_settings.llm_modelo_pruebas`).
+  - **Haiku vs Sonnet en las pruebas (2026-10-01, Pablo):** mismas 61 frases (un set armado, NO las 61 del estudio de
+    cobertura, que vienen del export del WhatsApp Business y no están en el repo), cada una en una charla nueva con
+    el cliente 4210, por `lk_bot-simular` con llamada interna (`x-lk-secret`), una corrida por modelo.
+    **Costo:** Haiku USD 0,386 (36 llamadas) · Sonnet USD 1,263 (42 llamadas): 3,3 veces. **34 de 61 no usan IA**
+    (FAQ y pedido de cambio): mismo camino y texto idéntico con ambos modelos. De las **27 con IA**: 17 empatan,
+    **Sonnet mejor en 6** (consultar pedidos, buscar productos, `derivar_a_persona` ×2, consultar facturas, y un falso
+    "no comparto detalles internos del sistema" de Haiku), **Haiku mejor en 2** ("¿pedido en Excel?": lo acepta,
+    Sonnet dijo que no y `pedido-archivo.ts` sí lee xlsx/csv; y "¿cómo me registro?" a un cliente ya registrado),
+    1 mal en ambos ("no tengo retiro" lo toman como alta de dirección). **Patrón:** Haiku usa menos herramientas y no
+    deriva; una vez dijo "acabo de revisar tus pedidos" sin llamar a la herramienta.
+    **Regla:** Haiku para iterar FAQ, ruteo, textos y flujos; **Sonnet para validar herramientas, derivaciones y la
+    regresión final** (`update app_settings set value='claude-sonnet-4-6' where key='llm_modelo_pruebas'`, ≈ USD 1,26
+    por corrida de 61; **volver a `claude-haiku-4-5` al terminar**). Límites: n=27 con IA, un evaluador, frases
+    propias. Con prompt caching (hoy no hay: 0 `cache_control`) el gasto bajaría 30 a 40 % [Probable].
 - **Cables creados sin enchufar (TODO, no conectados):**
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
