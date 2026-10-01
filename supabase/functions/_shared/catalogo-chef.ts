@@ -4,8 +4,9 @@
 // (bot_buscar_productos busca en `products`) y 100 de los 104 artículos activos de Chef no existen ahí. Este módulo busca en el
 // catálogo PROPIO de Chef (chef_ext.products, la base de Chef vía FDW) con la RPC bot_buscar_productos_chef (sql/121), sin IA:
 //   · código, descripción de Chef, unidades por caja y stock de Chef (stockArticulo con empresa "CH"; "hay", "limitado" o "sin");
-//   · SIN precio: el de Chef no se muestra porque no se sabe cómo se arma para cada cliente (paso B). Si lo pide, lo pasa una
-//     persona (alerta cliente_chef);
+//   · SIN precio — REGLA VIGENTE (Pablo, 01/10): hasta que Thommy confirme la fórmula (lista de Chef × unidades por caja ×
+//     (1 − descuento de clientes_dto) + IVA; consulta c-20261001-1557-1) el bot no muestra precios de Chef. Si lo pide, lo pasa una
+//     persona (alerta cliente_chef). No implementar precios acá sin esa respuesta (D008);
 //   · SIN foto: ningún artículo de Chef tiene imágenes cargadas (paso C).
 // Regla (Pablo, 01/10): el producto de un código dual (437E, 438E, 439E, 809E) es el mismo en las dos empresas pero el precio es
 // distinto: la descripción y el precio salen SIEMPRE del catálogo de la empresa que consulta, nunca del otro.

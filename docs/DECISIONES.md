@@ -176,8 +176,17 @@ cargue un pedido (lo cubre la ventana de 90 días).
 misma forma que `products`), 104 activos, los 104 con precio y unidades por caja y **ninguno con foto**. 100 de los 104 no existen en el
 catálogo de Loekemeyer, así que `bot_buscar_productos` (que sólo mira `products`) no los veía. Paso A: búsqueda sin IA y sin precio ni foto
 (`_shared/catalogo-chef.ts` + sql/121): código, descripción de Chef, unidades por caja y stock de Chef; el precio lo pasa una persona.
-Pasos pendientes: B (precios: no está definido cómo se arma el precio para un cliente de Chef; `chef_customers_cache` no trae descuento) y
-C (fotos y catálogo en PDF: no hay ninguno de Chef cargado).
+Pasos pendientes: B (precios) y C (fotos y catálogo en PDF: no hay ninguno de Chef cargado).
+**Paso B — REGLA VIGENTE (Pablo, 01/10: "consultalo con Thommy, y dejamos una regla en el bot, es algo que no manejo"): hasta que Thommy
+confirme, el bot NO muestra precios de Chef a nadie**; si un cliente de Chef pide un precio, "te lo pasa una persona" y queda la alerta
+`cliente_chef`. La consulta está en el artifact *Consultas para Thommy* (`c-20261001-1557-1`). Ninguna sesión implementa precios de Chef
+sin esa respuesta. Lo medido el 01/10 (retira "no hay de dónde sacar el descuento"): el descuento por cliente existe en Gestión
+(`clientes_dto`, empresa chef: 766 clientes, 435 con descuento, 0 a 22 %); en los 72 clientes de Chef con factura en 120 días coincide con el
+de la última factura; en 6 de 7 pedidos reales de la web de Chef el total es lista × cajas × unidades × (1 − descuento) × 0,98 (2 % web), sin
+IVA. Fórmula candidata: lista de Chef × unidades por caja × (1 − descuento por volumen), "+ IVA", sin descuentos por pago ni el 2 % web. Dos
+trampas: 3 CUIT tienen dos cuentas de Chef con descuentos distintos (1310/2311, 1589/1708, 2447/274) y `clientes_dto` se cargó por tandas
+(08/09 y 25/09: 765 de 766 filas con más de 14 días). Salvaguardas previstas: sólo con cuenta única, fila en `clientes_dto` y, si hay factura
+reciente, que su descuento coincida; el resto a una persona.
 **Códigos duales (Pablo, 01/10): "el producto es el mismo, pero el precio es diferente".** Medido: 437E, 438E y 439E cuestan 10,7 % a 11,3 %
 más en Chef que en Loekemeyer (precio de lista) y el 809E se describe distinto en cada web (Corta Queso en Chef, Corta Pizza en
 Loekemeyer) pero es el mismo producto. Regla para el bot: descripción y precio salen SIEMPRE del catálogo de la empresa que consulta.
