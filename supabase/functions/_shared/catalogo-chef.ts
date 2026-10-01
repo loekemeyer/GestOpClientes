@@ -104,10 +104,12 @@ export function textoProductosChef(
   const alertaPrecio = precio ? { motivo: "cliente_chef", detalle: `Cliente de Chef pide el precio de: ${prods.slice(0, 3).map((p) => `${p.description.trim()} (${p.cod})`).join("; ")}.` } : undefined;
   if (prods.length === 1) {
     const p = prods[0], s = stocks.get(p.cod);
+    // Si pregunta el precio no se le habla de stock: "stock limitado, te confirmo la cantidad" no era lo que pidió.
+    if (precio) return { reply: `${nombreProd(p)} está en el catálogo de Chef. Viene en ${cajaDe(p)}.${cierrePrecio}`, alerta: alertaPrecio };
     const cuerpo = s ? textoStock(String(p.description).trim(), p.cod, s) : `${nombreProd(p)} está en el catálogo de Chef.`;
     const alertaStock = s && stockNecesitaHumano(s)
       ? { motivo: "consulta_stock", detalle: `Consulta de stock de Chef: ${String(p.description).trim()} (${p.cod})` } : undefined;
-    return { reply: `${cuerpo} Viene en ${cajaDe(p)}.${cierrePrecio}`, alerta: alertaPrecio ?? alertaStock };
+    return { reply: `${cuerpo} Viene en ${cajaDe(p)}.`, alerta: alertaStock };
   }
   const lista = prods.slice(0, MAX_LISTA);
   const conStock = lista.length <= MAX_CON_STOCK;
