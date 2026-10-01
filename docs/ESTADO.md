@@ -608,8 +608,10 @@ el killswitch, sin ningún consumidor de esa cola.
     un modelo `caido` (el cooldown no alcanza). Un solo 503 lo saca para siempre: `gemini-3.5-flash-lite` (#1,
     free) está caído desde el 28/09 y todo el tráfico va a Sonnet.
   - **Modelo de pruebas separado (2026-10-01, Pablo):** `runConversation` lee `app_settings.llm_modelo_pruebas`
-    SÓLO cuando la fuente es `lk_bot-simular` o `lk_chat-test` y lo pone primero (con la key de Anthropic del
-    env); si falla, sigue con la cadena de siempre. El webhook nunca lo lee. Sin la clave nada cambia. Sirve para
+    SÓLO cuando la fuente es `lk_bot-simular` o `lk_chat-test` y la prueba usa **sólo ese modelo** (Anthropic con la
+    key del env, o de otro proveedor con key cargada en el panel si el `model_id` figura en `wa_agente_modelos`, ej.
+    `gemini-3.5-flash-lite`). **Si falla, la prueba falla (`llmError`) y NO cae a la cadena** (el 01/10 una prueba con
+    Gemini caída gastó USD 0,3753 en Sonnet sin que nadie lo notara). El webhook nunca lo lee. Sin la clave nada cambia. Sirve para
     probar con Haiku 4.5 (1/3 del precio de Sonnet 4.6) sin tocar la cadena de producción. Las respuestas de
     prueba guardan el modelo en `wa_ia_puntajes.modelo_respuesta` y el gasto en `bot_token_usage.model`.
     **Hoy vale `claude-haiku-4-5`** (`app_settings.llm_modelo_pruebas`).
