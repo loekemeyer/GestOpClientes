@@ -647,8 +647,27 @@ el killswitch, sin ningún consumidor de esa cola.
     pedidos, buscar productos, `derivar_a_persona` en rotura y razón social), **pero** dijo "somos fabricantes de
     artículos de cocina" (falso, son mayoristas), mandó a derivar un CV y los códigos de barras, y a "¿cómo me registro?"
     le contestó "entrá a la web y completá el formulario" a un cliente ya registrado. 34 de 61 no usan IA: idénticas.
-    **No se evaluó en producción**: el webhook ve la cadena (Gemini #1 hasta que se le saque la prioridad) y los datos
-    del cliente viajan al plan gratis de Google (lo usa para mejorar sus productos).
+    **No se evaluó en producción**: el webhook ve la cadena y los datos del cliente viajan al plan gratis de Google (lo
+    usa para mejorar sus productos). **Gemini salió de la cadena de producción el 01/10** (`wa_agente_modelos` id 29,
+    `prioridad = NULL`): la cadena es Sonnet #2 → Haiku #3; Gemini queda sólo como modelo de pruebas.
+  - **Dónde más falla el bot (01/10, 61 frases, un evaluador):** la capa FIJA (FAQ + `pedidoDeCambio`) falla más que la IA:
+    13 de 34 frases no salen bien (38 %), contra 5 o 6 de 27 con Sonnet o Gemini. Por consultas reales afectadas (volumen del
+    estudio de cobertura × fallas del set): entrega y retiro (190 consultas, 5 de 11 mal), lista de precios (67, 2 o 3 de 5),
+    pagos (101, 2 de 7), consumidores y fuera de alcance. **Pendientes, por impacto:** (2) FAQ #11 con las keywords "cuánto
+    sale" / "los precios" contesta la lista web a "¿cuánto sale la caja de abrelatas?"; (3) FAQ #42 con "transferencia" /
+    "transferir" devuelve el CBU a "te mando el comprobante de la transferencia"; (4) consumidor final ("lo compré en el
+    supermercado") sin regla: cae en rotura o en la lista (texto a confirmar con Thommy); (5) prompt del agente
+    (`agente-fijos.ts`): "no tengo retiro" lo toman mal los 3 modelos, "somos mayoristas, no fabricantes" (Gemini lo inventó) y
+    no mandar a registrarse a un cliente ya registrado.
+  - **Entrega y retiro — ARREGLADO el 01/10 (`a752dce`):** `pedidoDeCambio` (`respuesta-aviso.ts`) tomaba la fecha del PROPIO
+    pedido como día de retiro ("el pedido del 30/09 me lo entregan o lo paso a buscar?" iba a un asesor "para reprogramar")
+    y derivaba directo cualquier pedido de retiro antes de que el pedido esté listo. Ahora saca "pedido del 30/09" antes de
+    buscar el día, y si pide un día anterior al listo le contesta con la fecha real ("está programado: lo podés retirar
+    desde el lunes 05/10…") y deriva sólo si insiste. Probado en el simulador con Gemini (cliente 4210): la pregunta
+    entregan-o-busco sale por la FAQ #1 con el estado real; "¿puedo pasar a retirar mañana?" y "el jueves lo retiro" reciben
+    la fecha real sin alerta; si insiste ("igual quiero pasar a retirar mañana") deriva con alerta; "sacar un artículo",
+    "anulá el pedido", "me dijeron 30/09 y ahora 13/10" y "¿cuándo llega mi pedido?" no cambiaron. Frases mal o parciales de la
+    capa fija: de 13 a 10.
 - **Cables creados sin enchufar (TODO, no conectados):**
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
