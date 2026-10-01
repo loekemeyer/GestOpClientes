@@ -79,12 +79,20 @@ export async function resolveChain(): Promise<ResolvedModel[]> {
     if (!rows.length) return [];
 
     const now = Date.now();
+    const cooldownVencido = (r: { cooldown_hasta: string | null }) =>
+      !r.cooldown_hasta || new Date(r.cooldown_hasta).getTime() <= now;
+    // Un modelo `caido` con el cooldown vencido se vuelve a probar: antes quedaba afuera para siempre (un solo 503
+    // lo sacaba de la cadena). Si falla de nuevo, markModelDown lo marca otra vez con un cooldown nuevo.
     const usable = rows.filter((r) => {
+      if (r.estado === "caido") return !!r.cooldown_hasta && cooldownVencido(r);
       if (r.estado !== "ok") return false;
-      if (r.cooldown_hasta && new Date(r.cooldown_hasta).getTime() > now) return false;
-      return true;
+      return cooldownVencido(r);
     });
     if (!usable.length) return [];
+    const reactivar = usable.filter((r) => r.estado === "caido").map((r) => r.id);
+    if (reactivar.length) {
+      await supabase.from("wa_agente_modelos").update({ estado: "ok", cooldown_hasta: null }).in("id", reactivar);
+    }
 
     const keyIds = [...new Set(usable.map((r) => r.key_id).filter(Boolean))];
     const { data: keys } = await supabase
@@ -111,6 +119,34 @@ export async function resolveChain(): Promise<ResolvedModel[]> {
   } catch (e) {
     console.error("[bot-llm.resolveChain]", e);
     return [];
+  }
+}
+
+/** Un modelo puntual por su model_id, sin mirar prioridad ni estado: para el modelo de pruebas
+ *  (app_settings.llm_modelo_pruebas). Sólo proveedores con key propia en wa_agente_model_keys; anthropic usa la key del
+ *  env por otro camino. id 0: nunca se marca caído. null si no existe o no tiene credencial. */
+export async function resolveModelById(modelId: string): Promise<ResolvedModel | null> {
+  try {
+    const { data: rows } = await supabase
+      .from("wa_agente_modelos")
+      .select("proveedor, model_id, key_id, is_free_tier")
+      .eq("model_id", modelId)
+      .neq("proveedor", "anthropic")
+      .not("key_id", "is", null)
+      .limit(1);
+    const m = rows?.[0];
+    if (!m) return null;
+    const { data: k } = await supabase
+      .from("wa_agente_model_keys")
+      .select("key_source, secret_ref, api_key")
+      .eq("id", m.key_id)
+      .maybeSingle();
+    const key = k?.key_source === "env" ? (Deno.env.get(k?.secret_ref ?? "") ?? "") : (k?.api_key ?? "");
+    if (!key) return null;
+    return { id: 0, provider: m.proveedor, model: m.model_id, key, isFreeTier: !!m.is_free_tier };
+  } catch (e) {
+    console.error("[bot-llm.resolveModelById]", e);
+    return null;
   }
 }
 

@@ -18,6 +18,7 @@ import {
   type NormMsg,
   type ResolvedModel,
   resolveChain,
+  resolveModelById,
 } from "./bot-llm.ts";
 
 // ─── Tool definitions (mapean a RPCs bot_*) ────────────────────────
@@ -1265,7 +1266,12 @@ export async function runConversation(
   // app_settings.llm_modelo_pruebas todo sigue igual; si ese modelo falla, sigue con la cadena de siempre.
   if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
     const modeloPruebas = (await getSetting("llm_modelo_pruebas"))?.trim();
-    if (modeloPruebas) candidates.unshift({ id: 0, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false });
+    // Si el model_id es de otro proveedor con key cargada en el panel (ej. gemini-3.5-flash-lite) se usa ése; si no, es de Anthropic.
+    if (modeloPruebas) {
+      candidates.unshift(
+        (await resolveModelById(modeloPruebas)) ?? { id: 0, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false },
+      );
+    }
   }
   if (apiKey) {
     candidates.push({ id: 0, provider: "anthropic", model: "claude-sonnet-4-6", key: apiKey, isFreeTier: false });
