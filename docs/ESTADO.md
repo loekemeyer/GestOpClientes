@@ -11,7 +11,9 @@
 > la corrección (`lk_agente-modelos` eval_resultado / eval_corregir / eval_list, exigen admin). **Para pasar las
 > correcciones al bot:** `select clave, causa, pregunta, respuesta_bot, respuesta_corregida, nota_esperada from
 > wa_agente_evals where estado = 'corregida' order by orden;` y, ya aplicada, `estado = 'aplicada'` (con "sí").
-> sql/118: la tabla deja de leerse con la anon key (guarda respuestas simuladas con un cliente real). Reemplaza al Excel
+> sql/118 (aplicada 01/10 a mano en el editor SQL; el MCP se corta por tiempo en DROP/UPDATE): la tabla ya no se lee con
+> la clave pública (guarda respuestas simuladas con un cliente real); verificado: REST con la publishable da 401
+> `permission denied`, 0 políticas, RLS prendida, 88 filas. Sólo la lee `lk_agente-modelos`. Reemplaza al Excel
 > "Respuestas bot por causa" y al artifact del mismo nombre.
 >
 > **30/09 (Pablo):** recordatorio de descuento por vencer (`lk_recordatorio-descuento`, cron `bot-recordatorio-25`
