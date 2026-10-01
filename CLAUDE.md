@@ -434,6 +434,25 @@ Se escribe con `ArtifactData` (`url` del artifact), colección `consultas`, un d
 - Nunca borrar una consulta: si quedó mal, se corrige el texto. Es una anotación, no un pedido de trabajo: **no genera tarea de Planify**.
 - El artifact es privado. Para que Thommy cargue respuestas hay que compartírselo con nivel Contributor desde el menú Compartir.
 
+## ⚠ REGLA: todo gasto lo audita Pablo y necesita un estimativo + su "sí" ANTES (Pablo Olejavetzky, 01/10/2026)
+
+Pablo: *"todo gasto auditado por mí y antes tengo que tener un estimativo"* y, sobre el simulador, *"cada simulación gasta eso, no lo uses más,
+es mucho dinero"*. Origen: del 28/09 al 01/10 el simulador gastó **US$ 13,23** (562 llamadas, **US$ 0,0235** de promedio cada una; US$ 6,82 solo el
+30/09) y el crédito de Anthropic se agotó el 01/10: el agente de IA dejó de contestar hasta que se recargó. Fuente: `bot_token_usage`
+(estimación del código, no la factura de Anthropic).
+
+**Aplica a TODO lo que cobre**: el Simulador (`lk_bot-simular`), el chat de prueba (`lk_chat-test`), cualquier edge o script que llame a la API
+de Anthropic o a otro servicio pago. Hasta que Pablo diga otra cosa, **ninguna sesión los usa por su cuenta**, tampoco "solo para verificar".
+1. **Antes**: se le muestra un estimativo: cuántos turnos de IA, cuántas llamadas por turno (si no se sabe, decirlo y dar un tope), el costo por
+   llamada (referencia US$ 0,0235) y el total en US$.
+2. **Esperar su "sí" en ese momento.** Un "sí" anterior no cubre otra tanda. Sin "sí", no se corre.
+3. **Después**: se informa el gasto real leyendo `bot_token_usage` antes y después, y se compara con el estimativo.
+4. Para verificar lógica se prefieren pruebas locales sin red (funciones puras con `deno run`). Un mensaje de prueba que no matchea una respuesta
+   fija llega al agente y gasta: por eso la regla no distingue "pruebas baratas".
+
+`app_settings.llm_modelo_pruebas` hace que el simulador y el chat de prueba usen un modelo más barato (Haiku 4.5, un tercio del precio de Sonnet 4.6);
+el webhook nunca lo lee. Abarata, pero no reemplaza el estimativo ni el "sí".
+
 ## Testing
 
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
