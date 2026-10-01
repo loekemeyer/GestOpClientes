@@ -17,7 +17,9 @@ import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 const AVISOS = [...PLANTILLAS.map((p) => ({ name: p.name, disparo: p.disparo, body: p.body, ejemplos: p.ejemplos, factura: false,
     // la variable que lleva la razón social (si la plantilla la tiene): ahí va el nombre del cliente simulado.
     varCliente: p.variables.findIndex((v) => /raz[oó]n social/i.test(v)) })),
-  ...PLANTILLAS_FACTURA.map((p) => ({ ...p, factura: true }))];
+  // Las de Chef no van en la botonera: el simulador de un cliente de Chef todavía no arma avisos (su texto está en
+  // Configuración › Plantillas › Ver plan).
+  ...PLANTILLAS_FACTURA.filter((p) => p.empresa !== "chef").map((p) => ({ ...p, factura: true }))];
 const rellenar = (body: string, vals: string[]) => body.replace(/\{\{(\d+)\}\}/g, (m, n) => vals[Number(n) - 1] ?? m);
 
 // lk_bot-simular — simulador del bot: corre una charla completa con la MISMA lógica que el webhook

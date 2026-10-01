@@ -154,3 +154,8 @@ equivalencias de lo mismo": son 4 conceptos distintos y conviene dejarlos así.
 - `chef_item_remap` (PaginaLK, 9): remapeo de códigos de ventas de Chef.
 Regla para el bot: todo código viaja con su empresa (como `bot_stock_por_empresa`, 01/10); no se unifican las tablas
 de Gestión.
+
+**Plantillas por marca (Pablo, 01/10).** Chef no tiene alias y comparte el número con Loekemeyer: cada plantilla de factura
+tiene su versión de Chef (6 más, `_chef`), que nombra a Chef y no lleva alias. Titular y CUIT van fijos en el texto; el CBU es
+variable (cambiar de cuenta no necesita aprobación nueva de Meta). Mientras la de Chef no esté APPROVED, el aviso de factura de
+Chef queda retenido: la de Loekemeyer no sirve (lleva el alias de Loekemeyer).
