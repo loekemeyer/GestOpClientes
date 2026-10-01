@@ -1,4 +1,4 @@
--- 116 — Vinculación de teléfonos de clientes de Chef, con revisión humana (igual que LK desde sql/072)
+-- 116 — (APLICADA 01/10 con el sí de Pablo) Vinculación de teléfonos de clientes de Chef, con revisión humana (igual que LK desde sql/072)
 -- Pedido de Pablo Olejavetzky (01/10). Sigue a sql/115.
 --
 -- Antes: un cliente que sólo le compra a Chef (395 CUIT al 01/10) escribía su CUIT, bot_register_request_v2 lo buscaba

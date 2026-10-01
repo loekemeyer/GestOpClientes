@@ -1,4 +1,4 @@
--- 115 — Loekemeyer y Chef por un solo número: cuentas por empresa, teléfonos con empresa e identificación de Chef
+-- 115 — (APLICADA 01/10 con el sí de Pablo) Loekemeyer y Chef por un solo número: cuentas por empresa, teléfonos con empresa e identificación de Chef
 -- Pedido de Pablo Olejavetzky (01/10). Tarea de Planify: "Bot: Loekemeyer y Chef por el mismo número".
 --
 -- El bot atiende a las dos empresas por el mismo número de WhatsApp. El número de cliente NO identifica a nadie entre
@@ -21,8 +21,8 @@
 --   5. bot_identificar_chef(tel)  la cuenta de Chef de un teléfono, sólo si todo lo que hay para ese teléfono en las dos
 --                                 empresas es el mismo CUIT (mismo criterio que sql/073: no adivinar).
 --   6. wa_identify_customer       además mira los teléfonos de Chef: si el teléfono también es de un cliente de Chef con
---                                 OTRO CUIT, ya no identifica a nadie (antes elegía el de LK). Medido el 01/10: 22
---                                 teléfonos de clientes de Chef se reconocían como un cliente de LK con otro CUIT.
+--                                 OTRO CUIT, ya no identifica a nadie (antes elegía el de LK). Medido el 01/10: 21 de
+--                                 los 647 teléfonos que reconocía como un cliente de LK son de un cliente de Chef con otro CUIT.
 --                                 La vinculación aprobada (bot_customer_whatsapps) sigue mandando.
 --
 -- Nada de esto manda mensajes. Rollback: zz_backups.bkp_wa_identify_customer_20261001 + drop de lo nuevo.
