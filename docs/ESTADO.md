@@ -12,8 +12,8 @@
 > para entrenar). Candados: whitelist y blacklist se miran ANTES de bajar el audio; tope de 3 MB (~7 min); `.ogg`, `.mp3`, `.m4a`, `.wav`,
 > `.webm`, `.flac` (el `.amr` no se lee). Si falla, está apagado o pasa el límite: "No pudimos entender tu audio, escribinos" + alerta
 > `adjunto_recibido` a una persona. Queda un renglón por audio en `bot_token_usage` (motivo `audio_transcripcion` o `audio_fallo:<causa>`,
-> costo 0). ⚠ Limitaciones: la conversación guarda el texto transcripto como si el cliente lo hubiera escrito (no dice que fue un audio), y
-> no se probó contra Groq real (sin audios de prueba ni la llave prendida). Backend: la versión visible del dashboard no cambia.
+> costo 0). Antes de contestar manda el eco "🎤 Entendí: «…»" (`wa_audio_eco`, sin fila = prendido): el cliente y quien prueba ven qué escuchó
+> el bot, y la conversación queda marcada como audio. ⚠ No se probó contra Groq real (sin audios de prueba ni la llave prendida). Backend: la versión visible del dashboard no cambia.
 >
 > **01/10 (Pablo): comprobante de pago y consulta de pago → datos de Cobranzas.** Al llegar un comprobante (imagen/PDF que habla de
 > pago) el webhook contesta con el texto de la plantilla de la marca, con el dato de la ficha Empresas (`empresas.<lk|chef>.cobranzas`:
@@ -180,6 +180,7 @@ retiraron (2026-09-09, sin uso: 0 dep DB, 0 cron, 0 REST).** Backup restore-read
 | `wa_bot_solo_whitelist` | killswitch del bot de chat: `1` = solo responde a `wa_envio_contactos` | `1` |
 | `wa_comprobantes_activo` | flujo de comprobantes entrantes: `0` apagado / `1` on | `0` |
 | `wa_audio_activo` | transcribir audios de clientes con Groq Whisper y tratarlos como texto: `0` apagado / `1` on (sin fila = `0`) | `0` |
+| `wa_audio_eco` | antes de contestar un audio, el bot muestra "🎤 Entendí: «…»": `1` prendido / `0` apagado (sin fila = `1`) | — |
 | `wa_audio_modelo` | modelo de Whisper de Groq (sin fila = `whisper-large-v3`; `whisper-large-v3-turbo` es 3x más barato en plan pago) | — |
 
 **Secrets de edge function (no van en `app_settings`):** `META_APP_SECRET` (firma de Meta) y

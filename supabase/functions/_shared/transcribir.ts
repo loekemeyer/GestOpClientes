@@ -4,7 +4,8 @@
 // hubiera escrito: FAQ, agente, "ya pagué", pedidos. Claude no recibe audio (la API sólo acepta texto, imagen y PDF), por eso
 // hace falta otro servicio.
 //
-// ⚠ Apagado de fábrica: `app_settings.wa_audio_activo` = 1 lo prende (sin fila = 0). Con la llave apagada el bot contesta lo
+// ⚠ Apagado de fábrica: `app_settings.wa_audio_activo` = 1 lo prende (sin fila = 0). Con el eco prendido (`wa_audio_eco`, sin fila = 1)
+// el bot muestra "🎤 Entendí: «…»" antes de contestar. Con la llave apagada el bot contesta lo
 // de siempre ("no podemos escuchar audios"). Antes de prenderlo con audios REALES de clientes: activar Zero Data Retention en
 // el panel de Groq (la doc de Groq dice que por defecto no retiene datos de inferencia, pero no aclara si los usa para
 // entrenar; con ZDR no retiene nada).
@@ -30,6 +31,17 @@ export type ResultadoAudio = { ok: true; texto: string } | { ok: false; motivo: 
 
 export async function audioActivo(): Promise<boolean> {
   return Number((await getSetting("wa_audio_activo")) ?? "0") === 1;
+}
+
+/** Eco de lo que se entendió ("🎤 Entendí: «…»"): se manda antes de contestar. Sin fila = prendido; `wa_audio_eco` = 0 lo apaga.
+ *  Sirve para que el cliente (y quien prueba) vea qué escuchó el bot, y deja en la conversación que el mensaje fue un audio. */
+export async function audioEco(): Promise<boolean> {
+  return Number((await getSetting("wa_audio_eco")) ?? "1") === 1;
+}
+
+export function textoEco(texto: string): string {
+  const t = String(texto ?? "").replace(/\s+/g, " ").trim();
+  return `🎤 Entendí: «${t.length > 300 ? t.slice(0, 297) + "…" : t}»`;
 }
 
 /** Extensión que Groq acepta para ese mime (flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm). null = formato que no lee (ej. amr). */

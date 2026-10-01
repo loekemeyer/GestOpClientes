@@ -32,7 +32,7 @@ import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
 import { datosEmpresas, respuestaComprobante } from "../_shared/empresas.ts";
-import { audioActivo, transcribirAudio } from "../_shared/transcribir.ts";
+import { audioActivo, audioEco, textoEco, transcribirAudio } from "../_shared/transcribir.ts";
 import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
@@ -1409,6 +1409,14 @@ Deno.serve(async (req: Request) => {
         if (msg.type === "audio") {
           const a = await textoDeAudio(msg, cfg);
           if (a.texto) {
+            // Eco de lo que se entendió, antes de contestar (queda en la conversación: se ve que fue un audio y qué escuchó el bot).
+            if (await audioEco()) {
+              try {
+                const eco = textoEco(a.texto);
+                await enviarTexto(cfg, msg.from, eco);
+                await saveMessage(msg.from, "assistant", eco);
+              } catch (e) { console.error("[audio] eco falló:", e instanceof Error ? e.message : e); }
+            }
             await handleMessage(msg.from, a.texto, msg.msgId, msg.name, cfg);
             return new Response("OK", { status: 200 });
           }
