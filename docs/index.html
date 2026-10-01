@@ -74,6 +74,15 @@
     .ia-stat { flex: 1; min-width: 130px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.55rem 0.7rem; }
     .ia-stat-lbl { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .ia-stat-val { font-size: 1.1rem; font-weight: 600; margin-top: 0.15rem; }
+    .mn-form { border-top: 1px solid var(--border); margin-top: 0.8rem; padding-top: 0.8rem; }
+    .mn-form input[type="text"] { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; background: var(--card); color: var(--text); }
+    .mn-resultados { position: absolute; left: 10rem; right: 0; top: 100%; z-index: 20; background: var(--card); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.15); max-height: 220px; overflow-y: auto; }
+    .mn-resultados:empty { display: none; }
+    .mn-resultados div { padding: 0.4rem 0.6rem; cursor: pointer; font-size: 0.82rem; }
+    .mn-resultados div:hover { background: var(--bg); }
+    .mn-tabla { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+    .mn-tabla th, .mn-tabla td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; }
+    .mn-tabla td.num, .mn-tabla th.num { text-align: right; white-space: nowrap; }
     .ia-comp:empty { display: none; }
     .ia-comp { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem 0.3rem; margin-bottom: 0.9rem; }
     .ia-comp-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1.1rem; font-size: 0.8rem; color: var(--muted); }
@@ -1234,9 +1243,37 @@
               <input type="number" id="pwDupPct" min="10" max="100" step="5" style="width:4.5rem;"> % de los artículos iguales</span></div>
             <div class="config-row"><label style="min-width:12rem;">Mínimo (sólo aviso)</label>
               <span>envío $<input type="number" id="pwMinEnvio" min="0" step="1000" style="width:8rem;"> · retiro $<input type="number" id="pwMinRetiro" min="0" step="1000" style="width:8rem;"></span></div>
-            <p class="hint" style="display:block;margin:-0.3rem 0 0.7rem;">Vacío = no se controla (la web tampoco lo controla). Si se carga, el bot se lo avisa al cliente pero no lo frena.</p>
+            <p class="hint" style="display:block;margin:-0.3rem 0 0.7rem;">Vacío = no se controla (la web tampoco lo controla). Si se carga, el bot se lo avisa al cliente pero no lo frena. El mínimo que el bot <b>informa</b> cuando preguntan se carga abajo, en <b>Pedido mínimo</b>.</p>
             <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.6rem;">
               <button class="config-btn primary" onclick="pwGuardar()">Guardar</button><span id="pwStatus" class="hint"></span>
+            </div>
+          </div>
+
+          <!-- Pedido mínimo que informa el bot: general + excepciones por cliente (Pablo, 01/10; sql/120, lk_alertas minimo_*) -->
+          <div class="config-section" style="max-width:760px;margin-top:1rem;">
+            <h3>💰 Pedido mínimo</h3>
+            <p class="hint" style="display:block;line-height:1.45;margin:-0.2rem 0 0.9rem;">
+              Lo que el bot le dice al cliente cuando pregunta por el mínimo o por los envíos (respuestas #21 y #31): el de su
+              excepción si tiene una, si no el general. Es <b>informativo</b>: no frena pedidos. Si un cliente pide una excepción que
+              no está cargada, el bot no la promete: la pasa a un vendedor (motivo "Pide una excepción al pedido mínimo", en
+              <b>Derivaciones</b>).
+            </p>
+            <div class="config-row"><label style="min-width:9rem;">General</label>
+              <span>envío $<input type="number" id="mnEnvio" min="0" step="1000" style="width:8rem;"> · retiro $<input type="number" id="mnRetiro" min="0" step="1000" style="width:8rem;"></span>
+              <button class="config-btn small" onclick="mnGuardarGeneral()" style="margin-left:0.5rem;">Guardar</button></div>
+            <h4 style="margin:1rem 0 0.4rem;font-size:0.85rem;">Excepciones por cliente</h4>
+            <div id="mnLista" class="hint">Cargando…</div>
+            <div class="mn-form">
+              <div class="config-row" style="position:relative;"><label style="min-width:9rem;">Cliente</label>
+                <input type="text" id="mnBuscar" placeholder="Código o razón social" autocomplete="off" oninput="mnBuscar()" style="flex:1;min-width:12rem;">
+                <div id="mnResultados" class="mn-resultados"></div></div>
+              <div class="config-row"><label style="min-width:9rem;">Mínimo propio</label>
+                <span>envío $<input type="number" id="mnExcEnvio" min="0" step="1000" style="width:8rem;"> · retiro $<input type="number" id="mnExcRetiro" min="0" step="1000" style="width:8rem;"></span></div>
+              <div class="config-row"><label style="min-width:9rem;">Motivo</label><input type="text" id="mnExcNota" maxlength="300" placeholder="Ej.: cadena con condición especial" style="flex:1;"></div>
+              <p class="hint" style="display:block;margin:-0.2rem 0 0.5rem;">Vacío = el general · 0 = sin mínimo.</p>
+              <div style="display:flex;gap:0.5rem;align-items:center;">
+                <button class="config-btn primary" onclick="mnGuardarExc()">Guardar excepción</button><span id="mnStatus" class="hint"></span>
+              </div>
             </div>
           </div>
         </div>
@@ -2509,7 +2546,7 @@ function showAgenteTab(tab) {
   if (tab === "consultas") loadConsultas();
   if (tab === "eval") loadEvals();
   if (tab === "modelos") loadModelos();
-  if (tab === "pedidos") pwCargar();
+  if (tab === "pedidos") { pwCargar(); mnCargar(); }
 }
 
 // --- Pedidos por WhatsApp (app_settings.wa_pedidos_config vía lk_alertas, que valida admin) ---
@@ -2550,6 +2587,88 @@ async function pwGuardar() {
     if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
     st.textContent = "✅ Guardado. El bot lo toma en el próximo mensaje.";
   } catch (e) { st.textContent = "⚠️ " + e.message; }
+}
+
+// --- Pedido mínimo que informa el bot (sql/120; lk_alertas minimo_*, que valida admin) ---
+let _mnCliente = null, _mnBuscarT = null, _mnExc = [], _mnRes = [];
+const mnPesos = (n) => n == null ? "el general" : Number(n) === 0 ? "sin mínimo" : "$" + Math.round(Number(n)).toLocaleString("es-AR");
+async function mnCall(body) {
+  const { data, error } = await authedInvoke("lk_alertas", body);
+  if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
+  return data;
+}
+async function mnCargar() {
+  const box = document.getElementById("mnLista");
+  try {
+    const d = await mnCall({ action: "minimo_get" });
+    document.getElementById("mnEnvio").value = d.general?.envio ?? "";
+    document.getElementById("mnRetiro").value = d.general?.retiro ?? "";
+    const ex = _mnExc = d.excepciones || [];
+    box.innerHTML = !ex.length ? '<span class="hint">Ningún cliente tiene un mínimo propio.</span>'
+      : `<table class="mn-tabla"><thead><tr><th>Cliente</th><th class="num">Envío</th><th class="num">Retiro</th><th>Motivo</th><th></th></tr></thead><tbody>${ex.map((e, i) => `
+        <tr><td>${esc(e.business_name || "")} <span class="hint">(${esc(String(e.cod_cliente ?? ""))})</span></td>
+          <td class="num">${mnPesos(e.minimo_envio)}</td><td class="num">${mnPesos(e.minimo_retiro)}</td>
+          <td>${esc(e.nota || "")}<div class="hint">${esc(e.cargado_por || "")} · ${e.updated_at ? new Date(e.updated_at).toLocaleDateString("es-AR") : ""}</div></td>
+          <td style="white-space:nowrap;"><button class="config-btn small" onclick="mnEditar(${i})">Editar</button>
+            <button class="config-btn small" onclick="mnQuitar(${i})">Quitar</button></td></tr>`).join("")}</tbody></table>`;
+  } catch (e) { box.textContent = "⚠️ " + e.message; }
+}
+async function mnGuardarGeneral() {
+  const st = document.getElementById("mnStatus");
+  try {
+    await mnCall({ action: "minimo_general_save", envio: document.getElementById("mnEnvio").value, retiro: document.getElementById("mnRetiro").value });
+    st.textContent = "✅ Mínimo general guardado. El bot lo toma en el próximo mensaje.";
+  } catch (e) { st.textContent = "⚠️ " + e.message; }
+}
+function mnBuscar() {
+  clearTimeout(_mnBuscarT);
+  _mnCliente = null;
+  const q = document.getElementById("mnBuscar").value.trim(), res = document.getElementById("mnResultados");
+  if (q.length < 2) { res.innerHTML = ""; return; }
+  _mnBuscarT = setTimeout(async () => {
+    try {
+      const d = await convCall({ action: "buscar_cliente", q });
+      const cs = _mnRes = d.clientes || [];
+      res.innerHTML = cs.length ? cs.map((c, i) => `<div onclick="mnElegir(_mnRes[${i}])">${esc(c.business_name || "")} <span class="hint">(${c.cod_cliente}${c.localidad ? " · " + esc(c.localidad) : ""})</span></div>`).join("")
+        : '<div class="hint" style="cursor:default;">Sin resultados</div>';
+    } catch (e) { res.innerHTML = `<div class="hint" style="cursor:default;">⚠️ ${esc(e.message)}</div>`; }
+  }, 250);
+}
+function mnElegir(c) {
+  _mnCliente = { id: c.id, cod: c.cod_cliente, nombre: c.business_name };
+  document.getElementById("mnBuscar").value = `${c.business_name} (${c.cod_cliente})`;
+  document.getElementById("mnResultados").innerHTML = "";
+}
+function mnEditar(i) {
+  const e = _mnExc[i];
+  if (!e) return;
+  mnElegir({ id: e.customer_id, cod_cliente: e.cod_cliente, business_name: e.business_name });
+  document.getElementById("mnExcEnvio").value = e.minimo_envio ?? "";
+  document.getElementById("mnExcRetiro").value = e.minimo_retiro ?? "";
+  document.getElementById("mnExcNota").value = e.nota ?? "";
+  document.getElementById("mnBuscar").scrollIntoView({ block: "center", behavior: "smooth" });
+}
+async function mnGuardarExc() {
+  const st = document.getElementById("mnStatus");
+  if (!_mnCliente) { st.textContent = "⚠️ Elegí el cliente de la lista."; return; }
+  try {
+    await mnCall({ action: "minimo_excepcion_save", customer_id: _mnCliente.id,
+      envio: document.getElementById("mnExcEnvio").value, retiro: document.getElementById("mnExcRetiro").value,
+      nota: document.getElementById("mnExcNota").value.trim() });
+    st.textContent = `✅ Guardado: ${_mnCliente.nombre}.`;
+    _mnCliente = null;
+    for (const id of ["mnBuscar", "mnExcEnvio", "mnExcRetiro", "mnExcNota"]) document.getElementById(id).value = "";
+    mnCargar();
+  } catch (e) { st.textContent = "⚠️ " + e.message; }
+}
+async function mnQuitar(i) {
+  const e = _mnExc[i];
+  if (!e) return;
+  const id = e.customer_id, nombre = e.business_name || "este cliente";
+  if (!confirm(`¿Quitar el mínimo propio de ${nombre}? Vuelve a regir el general.`)) return;
+  const st = document.getElementById("mnStatus");
+  try { await mnCall({ action: "minimo_excepcion_del", customer_id: id }); st.textContent = `✅ Quitado: ${nombre}.`; mnCargar(); }
+  catch (e) { st.textContent = "⚠️ " + e.message; }
 }
 
 // Partes FIJAS del prompt (read-only). Vienen de la Edge Function `lk_agente-modelos`
@@ -4517,7 +4636,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.7</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.8</div>
 <script src="gestop2.js?v=0.26.4"></script>
 </body>
 </html>

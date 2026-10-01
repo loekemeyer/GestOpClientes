@@ -13,6 +13,7 @@ import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { codigosChef, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
+import { fmtMinimo, minimoCliente } from "./minimo.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -225,6 +226,9 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (customer && (top.category === "greeting_fallback" || top.category === "saludo") && !esSoloSaludo(text)) return null;
   // Pablo, 30/09: #21 (mínimo de compra / por unidad) contestaba "Cargué todo por unidad y después lo edité por caja".
   if (customer && top.category === "minimo_compra" && RE_ERROR_CARGA.test(text)) return null;
+  // Pablo, 01/10: pedir una excepción al mínimo ("¿me pueden hacer una excepción?", "¿puedo pedir menos del mínimo?") no se
+  // contesta con el mínimo: lo decide un vendedor. Va a la IA, que deriva (motivo excepcion_minimo).
+  if (customer && (top.category === "minimo_compra" || top.category === "logistica") && RE_EXCEPCION_MINIMO.test(text)) return null;
 
   // Escalación humana: preestablecida en la FAQ (categoría HUMANO)
   if (top.automation_level === "needs_human") {
@@ -291,6 +295,10 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     if (top.db_lookup_type === "payment_data") {
       const r = await lookupPaymentData(top, customer);
       if (r) return { reply: r, intent: "payment_data", automation_level: "semi_auto", faq_id: top.faq_id, yaSaluda: yaSaluda(r) };
+    } else if (top.db_lookup_type === "minimo_compra") {
+      // Mínimo del cliente (su excepción o el general, sql/120); a un no-cliente, el general.
+      const r = await lookupMinimo(top, customer);
+      if (r) return { reply: r, intent: "minimo_compra", automation_level: "semi_auto", faq_id: top.faq_id, yaSaluda: yaSaluda(r) };
     } else if (customer && top.db_lookup_type === "factura_reenvio") {
       const r = await lookupFacturaReenvio(await ctxPagosDeCliente(customer), text);
       if (r) return { ...r, faq_id: top.faq_id, yaSaluda: yaSaluda(r.reply) };
@@ -365,6 +373,24 @@ async function handleFaqLookup(
   }
 }
 
+// Pedido mínimo (FAQ #21 y #31, sql/120): {{minimo_envio}} / {{minimo_retiro}} del cliente y, si el de retiro es menor,
+// {{si_no_llega_al_minimo}} le ofrece prepararlo para retirar. Sirve a cliente y no-cliente.
+// deno-lint-ignore no-explicit-any
+async function lookupMinimo(faq: any, customer: Customer): Promise<string | null> {
+  const tpl = customer ? (faq.bot_response ?? faq.institutional_response) : (faq.institutional_response ?? faq.bot_response);
+  if (!tpl || !String(tpl).trim()) return null;
+  const m = await minimoCliente(customer ? { id: customer.id, cod: customer.cod_cliente } : null);
+  const vars = {
+    nombre_cliente: customer?.business_name,
+    minimo_envio: fmtMinimo(m.envio),
+    minimo_retiro: fmtMinimo(m.retiro),
+    si_no_llega_al_minimo: m.envio > 0 && m.retiro < m.envio
+      ? "Si tu pedido no llega al mínimo de envío, lo podemos preparar para que lo retires: confirmanos si querés."
+      : "",
+  };
+  return renderTemplate(sinLineasSinDato(String(tpl), vars), vars).trim();
+}
+
 // Datos para transferir (alias / CBU). SEMIAUTO editable: el texto se edita en
 // wa_faq (tokens {{alias}} {{cbu}}); los valores salen de app_settings.wa_descuentos_config
 // (pago.alias / pago.cbu), editables desde el Panel de Control. Sirve a cliente y no-cliente.
@@ -427,6 +453,8 @@ const RE_RAZON_SOCIAL_MAL = /(otra\s+raz[oó]n\s+social|raz[oó]n\s+social\s+(eq
 // "Me facturaron el mismo pedido dos veces" → control de pedidos repetidos. Es una FACTURA duplicada: reclamo, lo deriva la IA.
 export const RE_FACTURA_DUPLICADA = /(factur\w*[^.?!]{0,40}(dos veces|\b2 veces|duplicad|repetid|de m[aá]s)|(duplicad|repetid)\w*[^.?!]{0,20}factura)/i;
 // "Cargué todo por unidad y después lo edité por caja" → #21 por "unidad": cuenta un error de carga, no pregunta si venden por unidad.
+// "¿Me pueden hacer una excepción?" / "¿puedo pedir menos del mínimo?" / "¿me bajan el mínimo?" (sql/120: lo decide un vendedor).
+export const RE_EXCEPCION_MINIMO = /\bexcepci[oó]n|\b(por\s+debajo|menos)\s+(del|que\s+el)\s+m[ií]nimo\b|\b(sin|bajar(me)?|bajan|rebaj\w*|saltear|obviar)\s+(el\s+)?m[ií]nimo\b|\bm[ií]nimo\s+m[aá]s\s+bajo\b|\bno\s+llego\s+al\s+m[ií]nimo\b[^.?!]{0,40}\b(igual|aceptan|toman|pueden)\b/i;
 const RE_ERROR_CARGA = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|me\s+equivoqu[eé]|nos\s+equivocamos|puse|pusimos)(?![a-zñáéíóú])[^.?!]{0,60}\b(unidad|caja|pedido)/i;
 // "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" / "¿novedades del pedido?".
 // No "me llegó el pedido en mal estado" (reclamo: lo ve la IA).

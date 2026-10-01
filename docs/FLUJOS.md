@@ -225,6 +225,33 @@ BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el vier
 | 4.4 | "Me facturaron dos veces" | Busca en las facturas (isis_lk.documentos) dos del mismo importe en 15 días; las nombra si las hay. Deriva siempre. |
 | 4.5 | "No me llegó la factura, ¿me la mandás?" | Reenvía la factura en PDF (`lookupFacturaReenvio`). |
 
+### Pedido mínimo y envíos (Pablo, 01/10, `sql/120`, `_shared/minimo.ts`)
+
+- **"¿Cuál es el mínimo?" (#21) y "¿hacen envíos?" (#31)** son `semi_auto` (`db_lookup_type` `minimo_compra`): el bot
+  completa `{{minimo_envio}}` / `{{minimo_retiro}}` con el **mínimo del cliente**: su excepción
+  (`wa_minimo_excepciones`) o, si no tiene, el general (`app_settings.wa_minimo_compra`, $500.000 / $300.000). Un
+  no-cliente recibe el general. 0 = "sin mínimo". Se cargan en Configuración del agente › 🛒 Pedidos por WhatsApp ›
+  💰 Pedido mínimo.
+- **La #31 ya no promete plazo** (decía "7-15 días hábiles"): sólo a dónde se entrega. "¿Cuánto tarda?" lo contesta
+  `lookupOrderStatus` con plazo (`RE_PLAZO_ENTREGA`).
+- **"¿Me hacen una excepción?" / "¿puedo pedir menos del mínimo?"** (`RE_EXCEPCION_MINIMO`) no se contesta con el
+  mínimo: va a la IA, que no la promete ni la niega y deriva con motivo **`excepcion_minimo`** (lo decide un
+  vendedor; destino en Configuración › Derivaciones).
+- Es **informativo**: no frena pedidos. El aviso en pedidos por WhatsApp sigue siendo `wa_pedidos_config.minimo_*`
+  (vacío desde el 30/09).
+
+```
+CLIENTE: Cuál es el pedido mínimo?
+BOT: 💰 *Pedido mínimo*
+     • Con envío (CABA, GBA o expreso): $500.000
+     • Si lo retirás en el depósito: $300.000
+
+     Si tu pedido no llega al mínimo de envío, lo podemos preparar para que lo retires: confirmanos si querés.
+     Los retiros son en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30.
+CLIENTE: ¿Me pueden hacer una excepción?
+BOT: (agente, derivar_a_persona motivo excepcion_minimo) Lo consulto con tu vendedor y te escribe por acá.
+```
+
 IA (`agente-fijos.ts`): tono cordial sin muletillas (2.4); nunca asumir que el cliente se equivocó (1.9); código
 inactivo = "discontinuado" + parecidos con link de foto (2.5, `buscar_productos`); anular con el estado y motivo
 `anulacion_pedido`. El resumen del pedido por WhatsApp dice a nombre de qué razón social y CUIT va (2.12).

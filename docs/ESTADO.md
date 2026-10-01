@@ -4,6 +4,15 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-01.
 >
+> **01/10 (Pablo): pedido mínimo por cliente** (sql/120, `_shared/minimo.ts`, v0.26.8). El mínimo que informa el bot
+> sale de `app_settings.wa_minimo_compra` (general) y `wa_minimo_excepciones` (por cliente, Configuración del agente ›
+> 🛒 Pedidos por WhatsApp › 💰 Pedido mínimo, vía `lk_alertas` minimo_*). FAQ #21 y #31 pasan a `semi_auto`
+> (`minimo_compra`); la #31 ya no promete plazo. Pedir una excepción deriva con motivo `excepcion_minimo`. Informativo:
+> no toca `wa_pedidos_config.minimo_*`.
+>
+> **01/10 (Pablo): IA — gastos y uso** (v0.26.7): rangos en hora AR, semana entre meses, "Mes anterior" y gráfico de
+> gasto acumulado contra el mes anterior (`lk_chat-test` stats, paginado: antes cortaba en 1.000 filas).
+>
 > **01/10 (Pablo): revisión de respuestas del bot en el dashboard** (Configuración del agente › 🧪 Evaluación, v0.26.6).
 > Los ejemplos del estudio de consultas por WhatsApp (por causa y tipo, con cuántas consultas representa cada uno, y un
 > ejemplo por causa) son casos de `wa_agente_evals` (sql/117: `clave` m…/r…, `respuesta_bot` simulada, `obs_claude`,

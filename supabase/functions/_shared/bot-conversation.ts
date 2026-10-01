@@ -10,6 +10,7 @@ import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
+import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import {
   callModel,
   esCulpaDelRequest,
@@ -102,8 +103,8 @@ const BOT_TOOLS: ToolDef[] = [
       properties: {
         motivo: {
           type: "string",
-          enum: ["reclamo", "pago", "cambio_pedido", "anulacion_pedido", "pedido_no_encontrado", "entrega", "alta_cliente", "escalation"],
-          description: "reclamo = NC/faltante/rotura/factura; pago = importes, pagos, comprobantes; cambio_pedido = sacar o cambiar artículos; anulacion_pedido = anular un pedido entero (antes decile en qué estado está); pedido_no_encontrado = dice que pidió y no está; entrega = necesita fecha y el pedido no la tiene, no le llegó, o la fecha no coincide con la que le dijeron; alta_cliente = quiere ser cliente; escalation = cualquier otra cosa o pidió una persona.",
+          enum: ["reclamo", "pago", "cambio_pedido", "anulacion_pedido", "pedido_no_encontrado", "entrega", "excepcion_minimo", "alta_cliente", "escalation"],
+          description: "reclamo = NC/faltante/rotura/factura; pago = importes, pagos, comprobantes; cambio_pedido = sacar o cambiar artículos; anulacion_pedido = anular un pedido entero (antes decile en qué estado está); pedido_no_encontrado = dice que pidió y no está; entrega = necesita fecha y el pedido no la tiene, no le llegó, o la fecha no coincide con la que le dijeron; excepcion_minimo = pide comprar por debajo de su pedido mínimo o una excepción al mínimo; alta_cliente = quiere ser cliente; escalation = cualquier otra cosa o pidió una persona.",
         },
         resumen: { type: "string", description: "Qué pide el cliente en una o dos frases, con los datos que dio (fechas, códigos, cantidades)." },
         urgente: { type: "boolean", description: "true si está molesto, apurado o menciona un problema grave." },
@@ -410,11 +411,18 @@ async function buildSystemPrompt(
   // va el 2%; mínimo vacío = no se controla). Antes estaban fijos acá y el agente frenaba el pedido con un mínimo que la
   // configuración no pedía (Simulador, 30/09).
   const pedidosOn = await pedidosWaHabilitados();
-  let infoPedidos = "- Pedido mínimo: $500.000\n- Retiro mínimo en fábrica: $300.000\n- Descuento por pago web: 2%\n";
+  // Pablo, 01/10 (sql/120): el mínimo que se informa es el del cliente (su excepción o el general); una excepción nueva la
+  // decide un vendedor. Antes estaba fijo acá ($500.000 / $300.000).
+  const min = await minimoCliente({ cod: codCliente }).catch(() => null);
+  const lineaMinimo = min
+    ? `- Pedido mínimo de este cliente${min.excepcion ? " (tiene uno propio)" : ""}: con envío ${fmtMinimo(min.envio)}, si retira en el depósito ${fmtMinimo(min.retiro)}. Es un dato informativo si lo pregunta: no frena ni condiciona un pedido. Si pide comprar por debajo o una excepción al mínimo, no la prometas ni la niegues: derivá con derivar_a_persona (motivo excepcion_minimo).\n`
+    : "";
+  let infoPedidos = lineaMinimo + "- Descuento por pago web: 2%\n";
   if (pedidosOn) {
     const cfg = await configPedidosWa().catch(() => ({}));
     const $ = (n: unknown) => "$" + Math.round(Number(n)).toLocaleString("es-AR");
-    infoPedidos = (cfg?.minimo_envio != null ? `- Pedido mínimo con envío: ${$(cfg.minimo_envio)} (sólo avisarlo si armar_pedido lo marca)\n` : "")
+    infoPedidos = lineaMinimo
+      + (cfg?.minimo_envio != null ? `- Pedido mínimo con envío: ${$(cfg.minimo_envio)} (sólo avisarlo si armar_pedido lo marca)\n` : "")
       + (cfg?.minimo_retiro != null ? `- Retiro mínimo en fábrica: ${$(cfg.minimo_retiro)} (sólo avisarlo si armar_pedido lo marca)\n` : "")
       + "- Descuento web 2%: sólo en pedidos hechos en la web. Por WhatsApp no aplica.\n"
       + "- En pedidos por WhatsApp no inventes mínimos ni condiciones: lo único que frena un pedido son los errores de armar_pedido.\n";

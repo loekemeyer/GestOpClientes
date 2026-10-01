@@ -5,6 +5,7 @@ import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimiento
 import { derivaciones, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
 import { COD_CLIENTE_PRUEBA } from "../_shared/cliente-prueba.ts";
+import { minimoGeneral, SETTING_MINIMO } from "../_shared/minimo.ts";
 
 // Tarea creada desde el Simulador con un cliente real: se ve, pero no se aplica (no toca pedidos ni claves reales).
 // deno-lint-ignore no-explicit-any
@@ -552,6 +553,55 @@ serve(async (req) => {
       if (error) return json({ ok: false, error: error.message }, 200);
       console.log(`lk_alertas: wa_pedidos_config guardada por ${gate.email}:`, JSON.stringify(limpio));
       return json({ ok: true, config: limpio });
+    }
+
+    // Pedido mínimo que informa el bot (sql/120, _shared/minimo.ts): el general y las excepciones por cliente.
+    //   {action:"minimo_get"} → { general:{envio,retiro}, excepciones:[…] }
+    //   {action:"minimo_general_save", envio, retiro}
+    //   {action:"minimo_excepcion_save", customer_id, envio|null, retiro|null, nota}   null = usa el general · 0 = sin mínimo
+    //   {action:"minimo_excepcion_del", customer_id}
+    if (body.action === "minimo_get") {
+      const general = await minimoGeneral();
+      const { data, error } = await supabase.from("wa_minimo_excepciones")
+        .select("customer_id, cod_cliente, business_name, minimo_envio, minimo_retiro, nota, cargado_por, updated_at")
+        .order("business_name");
+      if (error) return json({ ok: false, error: error.message }, 200);
+      return json({ ok: true, general, excepciones: data ?? [] });
+    }
+    if (body.action === "minimo_general_save") {
+      const n = (v: unknown) => { const x = Number(v); return v !== null && v !== "" && Number.isFinite(x) && x >= 0 && x <= 1e9 ? Math.round(x) : NaN; };
+      const g = { envio: n(body.envio), retiro: n(body.retiro) };
+      if (Number.isNaN(g.envio) || Number.isNaN(g.retiro)) return json({ ok: false, error: "Cargá los dos mínimos en pesos (0 = sin mínimo)." }, 400);
+      const { error } = await supabase.from("app_settings").upsert({ key: SETTING_MINIMO, value: JSON.stringify(g) }, { onConflict: "key" });
+      if (error) return json({ ok: false, error: error.message }, 200);
+      console.log(`lk_alertas: mínimo general ${JSON.stringify(g)} por ${gate.email}`);
+      return json({ ok: true, general: g });
+    }
+    if (body.action === "minimo_excepcion_save") {
+      const id = String(body.customer_id ?? "");
+      const n = (v: unknown) => { if (v === null || v === "" || v === undefined) return null; const x = Number(v); return Number.isFinite(x) && x >= 0 && x <= 1e9 ? Math.round(x) : NaN; };
+      const envio = n(body.envio), retiro = n(body.retiro);
+      if (!id) return json({ ok: false, error: "Falta el cliente." }, 400);
+      if (Number.isNaN(envio) || Number.isNaN(retiro)) return json({ ok: false, error: "Los mínimos van en pesos (0 = sin mínimo, vacío = el general)." }, 400);
+      if (envio === null && retiro === null) return json({ ok: false, error: "Cargá al menos un mínimo distinto del general." }, 400);
+      const { data: c } = await supabase.from("customers").select("id, cod_cliente, business_name").eq("id", id).maybeSingle();
+      if (!c) return json({ ok: false, error: "Cliente no encontrado." }, 200);
+      const { error } = await supabase.from("wa_minimo_excepciones").upsert({
+        customer_id: c.id, cod_cliente: c.cod_cliente, business_name: c.business_name,
+        minimo_envio: envio, minimo_retiro: retiro, nota: body.nota ? String(body.nota).slice(0, 300) : null,
+        cargado_por: gate.email, updated_at: new Date().toISOString(),
+      }, { onConflict: "customer_id" });
+      if (error) return json({ ok: false, error: error.message }, 200);
+      console.log(`lk_alertas: excepción de mínimo ${c.business_name} (${c.cod_cliente}) envío ${envio} retiro ${retiro} por ${gate.email}`);
+      return json({ ok: true });
+    }
+    if (body.action === "minimo_excepcion_del") {
+      const id = String(body.customer_id ?? "");
+      if (!id) return json({ ok: false, error: "Falta el cliente." }, 400);
+      const { error } = await supabase.from("wa_minimo_excepciones").delete().eq("customer_id", id);
+      if (error) return json({ ok: false, error: error.message }, 200);
+      console.log(`lk_alertas: excepción de mínimo borrada (${id}) por ${gate.email}`);
+      return json({ ok: true });
     }
 
     // Pablo, 29/09: reseteo de clave con aprobación. Genera una clave temporal, la guarda en la cuenta de la web del
