@@ -21,6 +21,7 @@ const NUESTRAS = [
   "pedido_contado_s_chef", "pedido_contado_p_chef", "pedido_credito_s_chef", "pedido_credito_p_chef", "pedido_echeq_s_chef", "pedido_echeq_p_chef",
   "pedido_programado", "pedido_programado_expreso", "pedido_programado_retira", "pedido_reprogramado",
   "pedido_preparando", "pedido_en_viaje", "pedido_en_viaje_expreso", "pedido_listo_retirar",
+  "comprobante_recibido", "comprobante_recibido_chef",
 ];
 const H = { "Content-Type": "application/json" };
 

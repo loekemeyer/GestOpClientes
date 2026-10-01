@@ -40,7 +40,7 @@ Al cliente de Chef el bot le contesta sin IA y nunca con datos de Loekemeyer:
 | cuánto debo, saldo, facturas pendientes | facturas de Chef sin pagar (`GV_Cobranza_Deuda_Viva`, por CUIT), con el descuento de cada una si aplica, + datos de pago de Chef | `pago` (una abierta por número) |
 | alias, CBU, cómo pago | datos de pago de Chef (ficha Empresas); sin cargar → "Cobranzas te los pasa" | `pago` si no están cargados |
 | ¿recibieron el pago? (fase 3) | busca el recibo en `gv_cobranza_recibos` (empresa chef, sus cuentas de Chef): si hay uno de los últimos 7 días lo confirma | `pago` si no figura |
-| ya pagué, te paso el comprobante | "Le paso a Cobranzas" | `pago` |
+| ya pagué, te paso el comprobante | "Le paso a Cobranzas" + los datos de Cobranzas de Chef (ficha Empresas, 01/10) | `pago` |
 | mandame la factura (fase 3) | el PDF de `isis_ch.documentos` (bucket isis-ch) del último día facturado o de la fecha/mes que nombre, con el saldo y el descuento de la factura y los datos de pago de Chef | `pago` si Chef no tiene alias cargado |
 | me facturaron dos veces (fase 3) | busca dos facturas de Chef del mismo importe en 15 días | `reclamo` siempre |
 | ¿qué descuento tengo? (fase 3) | cada factura de Chef abierta con su descuento (`dto_cond` hasta `vence`) | — |
@@ -112,6 +112,20 @@ usan las ramas de pedido (un "no puedo" o "error" ahí es de un pago). `responde
 | Posterga | "pago el lunes", "el 20/10", "más adelante" | con fecha: el descuento que tendría ese día y el monto; sin fecha: las fechas que le quedan |
 | Agradece | "gracias", "ok" | "¡Gracias a vos! Cualquier consulta sobre tu factura del dd/mm, escribinos por acá." |
 | Otra cosa | | flujo normal (FAQ / agente) |
+
+**Comprobante de pago y consultas de pago → datos de Cobranzas (01/10, Pablo):** el cliente recibe cómo comunicarse con Cobranzas,
+del dato `cobranzas` de la ficha Empresas (WhatsApp o mail; Chef vacío no cae al de Loekemeyer: si falta, el mensaje sale como antes).
+
+| El cliente | Responde | Dónde |
+|---|---|---|
+| manda una imagen o PDF que habla de pago ("comprobante", "transferí") | texto de la plantilla `comprobante_recibido` (Loekemeyer) o `comprobante_recibido_chef` (cliente sólo de Chef) con el dato de Cobranzas; alerta `comprobante_recibido` | `handleAdjunto` (webhook) + `respuestaComprobante` (`empresas.ts`) |
+| "¿recibieron el pago?" y no figura en los últimos 7 días | el mensaje de siempre + "Para consultas sobre tus pagos podés comunicarte con Cobranzas: …" (las empresas en las que tiene cuenta) | `pagoRegistrado` (`faq.ts`) |
+| "ya pagué" (cliente de Chef) | "Le paso a Cobranzas…" + el dato de Cobranzas de Chef | `chef.ts` |
+| algo de pagos que va a una persona (IA, motivo `pago`) | la IA le pasa `datos_cobranzas` tal cual | `derivar_a_persona` (`bot-conversation.ts`) |
+
+Las plantillas están definidas en `plantillas-meta.ts` y **todavía no están subidas a Meta**: dentro de las 24 h el texto sale como
+mensaje libre; la plantilla es para mandarlo fuera de la ventana. Si el cliente tiene cuenta en las dos empresas, el comprobante
+recibe los datos de Loekemeyer (no se sabe a cuál va el pago).
 
 **Pedidos por WhatsApp apagados (28/09, Pablo):** el agente no toma ni ofrece pedidos; los deriva a la
 web loekemeyer.com → "Pedidos Mayorista". Sin la herramienta `enviar_pedido` (flag `PEDIDOS_POR_WHATSAPP`

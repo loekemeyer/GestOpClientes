@@ -4,6 +4,18 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-01.
 >
+> **01/10 (Pablo): comprobante de pago y consulta de pago → datos de Cobranzas.** Al llegar un comprobante (imagen/PDF que habla de
+> pago) el webhook contesta con el texto de la plantilla de la marca, con el dato de la ficha Empresas (`empresas.<lk|chef>.cobranzas`:
+> WhatsApp o mail): `respuestaComprobante` en `_shared/empresas.ts`. **Dos plantillas nuevas en `plantillas-meta.ts`:
+> `comprobante_recibido` (Loekemeyer) y `comprobante_recibido_chef` (cliente sólo de Chef); 1 variable = el dato de Cobranzas.
+> NO están subidas a Meta** (hay que subirlas desde Panel › Plantillas › Subir a Meta, con el sí de Pablo); mientras tanto el texto
+> sale como mensaje libre dentro de las 24 h. También llevan los datos de Cobranzas: "¿recibieron el pago?" sin recibo (`pagoRegistrado`),
+> "ya pagué" de un cliente de Chef (`chef.ts`) y `derivar_a_persona` con motivo `pago` (devuelve `datos_cobranzas`; única excepción a
+> "nunca des mails ni otros números"). **Loekemeyer no tiene `cobranzas` cargado en la ficha**: mientras tanto el código usa el WhatsApp
+> de la FAQ #15 (`LK_COBRANZAS`). Chef vacío NO cae al de LK (si falta, se manda el mensaje de siempre). Limitación: un cliente de LK
+> que además compra en Chef recibe sólo los datos de LK en el comprobante (no se sabe a qué empresa es el pago). Backend: la versión
+> visible del dashboard no cambia.
+>
 > **01/10 (Pablo): pedido mínimo por cliente** (sql/120 aplicada el 01/10: tabla, general y tokens por MCP; los
 > UPDATE de la #21/#31 los pegó Pablo en el editor porque el MCP se corta en UPDATE; `_shared/minimo.ts`, v0.26.8). El mínimo que informa el bot
 > sale de `app_settings.wa_minimo_compra` (general) y `wa_minimo_excepciones` (por cliente, Configuración del agente ›

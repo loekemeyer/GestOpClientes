@@ -26,7 +26,7 @@ import {
   RE_ESTADO_PEDIDO, RE_FACTURA_DUPLICADA, RE_PAGO_RECIBIDO, RE_PIDE_FACTURA, RE_PLAZO_ENTREGA,
 } from "./faq.ts";
 import { esConsultaEstado, pedidosChef, textoPedidosChef } from "./pedidos-marca.ts";
-import { datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
+import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 
 export interface CuentaChef {
   cod_cliente: string;
@@ -150,9 +150,12 @@ export async function atenderClienteChef(
   // "Te paso el comprobante", "ya pagué": lo registra Cobranzas.
   if (RE_COMPROBANTE.test(t)) {
     await avisarCobranzas(phone, cuenta, t, "Cliente de Chef: avisa un pago o manda comprobante por WhatsApp.");
+    // Pablo, 01/10: con los datos de Cobranzas de Chef (ficha Empresas), si están cargados.
+    const cob = datosCobranzas(await datosEmpresas(), { lk: false, chef: true });
     return {
       reply: "¡Gracias! Le paso a Cobranzas para que lo registre y te confirme por acá. " +
-        "Si todavía no mandaste el comprobante, mandá la foto o el PDF por este chat. 🙏",
+        "Si todavía no mandaste el comprobante, mandá la foto o el PDF por este chat. 🙏" +
+        (cob ? `\nPara consultas sobre tus pagos podés comunicarte con Cobranzas: ${cob}` : ""),
       via: "chef_pago_aviso",
     };
   }

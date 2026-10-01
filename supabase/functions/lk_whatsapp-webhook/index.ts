@@ -31,6 +31,7 @@ import { notificarHumano } from "../_shared/alertas.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
+import { datosEmpresas, respuestaComprobante } from "../_shared/empresas.ts";
 import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
@@ -507,7 +508,18 @@ async function ingestStatuses(body: any): Promise<void> {
 
 const MSG_ADJUNTO_RECIBIDO = "Recibimos tu archivo. 🙌\nUna persona lo revisa y te escribe por acá.";
 const MSG_ADJUNTO_RECLAMO = "Recibimos la foto. 🙌\nUna persona revisa el reclamo y te escribe por acá.";
+// Mensaje de respaldo: si no hay datos de Cobranzas cargados (ficha Empresas) el comprobante se confirma sin ellos.
 const MSG_ADJUNTO_PAGO = "Recibimos tu comprobante. 🙌\nUna persona lo revisa y te confirma por acá.";
+// Pablo, 01/10: el comprobante de pago recibe los datos de Cobranzas de la marca (plantillas comprobante_recibido y
+// comprobante_recibido_chef, _shared/plantillas-meta.ts). Un cliente sólo de Chef recibe los de Chef; el resto, los de Loekemeyer.
+async function respuestaPago(esChef: boolean): Promise<string> {
+  try {
+    return respuestaComprobante(await datosEmpresas(), { lk: !esChef, chef: esChef }) ?? MSG_ADJUNTO_PAGO;
+  } catch (e) {
+    console.error("[adjunto] datos de Cobranzas:", e instanceof Error ? e.message : e);
+    return MSG_ADJUNTO_PAGO;
+  }
+}
 const MSG_ADJUNTO_AUDIO =
   "Por ahora no podemos escuchar audios ni ver videos. 🙏\nEscribinos tu consulta en un mensaje y te respondemos.";
 
@@ -605,7 +617,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
     : "otro";
   const tipoAlerta = clase === "pago" ? "comprobante_recibido" : clase === "reclamo" ? "reclamo" : "adjunto_recibido";
   const motivo = clase === "reclamo" ? "reclamo" : clase === "pago" ? undefined : "adjunto_recibido";
-  const respuesta = clase === "reclamo" ? MSG_ADJUNTO_RECLAMO : clase === "pago" ? MSG_ADJUNTO_PAGO : MSG_ADJUNTO_RECIBIDO;
+  const respuesta = clase === "reclamo" ? MSG_ADJUNTO_RECLAMO : clase === "pago" ? await respuestaPago(!!chef) : MSG_ADJUNTO_RECIBIDO;
 
   // ── Guardar el archivo (si algo falla, la persona se lo pide de nuevo) ──
   const codCliente = customer?.cod_cliente ? String(customer.cod_cliente) : null;

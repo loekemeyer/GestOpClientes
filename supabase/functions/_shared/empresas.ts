@@ -9,6 +9,7 @@
 // medido el 01/10, el mismo cod_cliente es otro cliente en cada empresa (el 2444 es Relca en LK y Cencosud en Chef),
 // y 15 de los 28 deudores de Chef también son clientes de LK con otro código.
 import { getGestionClient, getSetting, supabase } from "./supabase.ts";
+import { renderPlantilla } from "./plantillas-meta.ts";
 
 export type Empresa = "lk" | "chef";
 export type DatosEmpresa = {
@@ -17,6 +18,8 @@ export type DatosEmpresa = {
 
 const LK_ALIAS = "loeke.srl";
 const LK_CBU = "1910027855002702387450";
+// Cobranzas de Loekemeyer, mientras la ficha Empresas no lo tenga cargado: es el WhatsApp que ya da la FAQ #15 (sql/062).
+const LK_COBRANZAS = "WhatsApp 11 6557-4113";
 
 // deno-lint-ignore no-explicit-any
 const txt = (v: any) => String(v ?? "").trim();
@@ -30,7 +33,7 @@ export async function datosEmpresas(): Promise<Record<Empresa, DatosEmpresa>> {
     lk: {
       nombre: "Loekemeyer", razon_social: txt(lk.razon_social), cuit: txt(lk.cuit),
       alias: txt(cfg?.pago?.alias) || LK_ALIAS, cbu: txt(cfg?.pago?.cbu) || LK_CBU,
-      web: txt(lk.web) || "loekemeyer.com", cobranzas: txt(lk.cobranzas),
+      web: txt(lk.web) || "loekemeyer.com", cobranzas: txt(lk.cobranzas) || LK_COBRANZAS,
     },
     chef: {
       nombre: "Chef", razon_social: txt(ch.razon_social), cuit: txt(ch.cuit),
@@ -61,6 +64,32 @@ export function textoDatosPago(e: DatosEmpresa, conNombre: boolean): string | nu
     ...(e.razon_social && e.cuit ? [`*Titular:* ${e.razon_social} (CUIT ${e.cuit.replace(/^(\d{2})(\d{8})(\d)$/, "$1-$2-$3")})`] : []),
   ];
   return cab + lineas.join("\n");
+}
+
+/** De qué empresas tiene cuenta el cliente (la empresa se define por factura, no por cliente: puede tener las dos). */
+export type CuentasEmpresa = { lk: boolean; chef: boolean };
+
+/**
+ * Cómo comunicarse con Cobranzas (Pablo, 01/10: al llegar un comprobante o una consulta de pago, el cliente recibe los datos
+ * de Cobranzas). Sólo el dato, para ir en una frase o en la variable {{1}} de la plantilla; con las dos empresas, cada
+ * una lleva su nombre. Como en textoDatosPago, un dato de Chef vacío NO cae al de Loekemeyer. null = no hay ninguno cargado.
+ */
+export function datosCobranzas(emp: Record<Empresa, DatosEmpresa>, tiene: CuentasEmpresa): string | null {
+  const dos = tiene.lk && tiene.chef;
+  const parte = (e: DatosEmpresa) => (e.cobranzas ? (dos ? `${e.nombre}: ${e.cobranzas}` : e.cobranzas) : null);
+  const partes = [tiene.lk ? parte(emp.lk) : null, tiene.chef ? parte(emp.chef) : null].filter((p): p is string => !!p);
+  return partes.length ? partes.join(" · ") : null;
+}
+
+/**
+ * Respuesta al comprobante de pago: el texto de la plantilla de la marca (`comprobante_recibido` de Loekemeyer o
+ * `comprobante_recibido_chef` si sólo tiene cuenta en Chef) con los datos de Cobranzas. Dentro de las 24 h sale como texto
+ * libre; el texto es el mismo que Meta aprueba, así lo que ve el equipo en Plantillas es lo que lee el cliente.
+ * null = no hay datos de Cobranzas cargados (el que llama usa su mensaje de siempre).
+ */
+export function respuestaComprobante(emp: Record<Empresa, DatosEmpresa>, tiene: CuentasEmpresa): string | null {
+  const datos = datosCobranzas(emp, tiene);
+  return datos ? renderPlantilla(tiene.chef && !tiene.lk ? "comprobante_recibido_chef" : "comprobante_recibido", { "1": datos }) : null;
 }
 
 /** Códigos de cliente de Chef de un CUIT (chef_padron vía bot_cuentas, sql/115): un CUIT puede tener más de una cuenta. */

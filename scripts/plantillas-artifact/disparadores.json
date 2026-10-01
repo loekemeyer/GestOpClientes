@@ -306,6 +306,20 @@
       "para": "Facturas con saldo (contado, crédito o sin decidir)",
       "sale": "Días hábiles 9:05: 2 días hábiles antes de que venza cada escalón de descuento por pago (25→20, 20→15, 15→10, 10→0), sólo si la factura sigue con saldo en Deuda Viva. Lo encola lk_recordatorio-descuento (cron bot-recordatorio-25, sql/111)."
     },
+    "comprobante_recibido": {
+      "grupo": "complementarias",
+      "orden": 2,
+      "estado": "prueba",
+      "para": "Loekemeyer · cliente que manda un comprobante de pago",
+      "sale": "Cuando el cliente manda una imagen o un PDF que habla de pago o transferencia. Dice que Cobranzas lo revisa y trae los datos de Cobranzas de la ficha Empresas. Hoy el bot lo manda como texto libre dentro de las 24 h (webhook, handleAdjunto); la plantilla es para mandarlo fuera de la ventana. Sin subir a Meta todavía."
+    },
+    "comprobante_recibido_chef": {
+      "grupo": "complementarias",
+      "orden": 3,
+      "estado": "prueba",
+      "para": "Chef · cliente que manda un comprobante de pago",
+      "sale": "Igual que comprobante_recibido, para el cliente que sólo tiene cuenta en Chef, con los datos de Cobranzas de Chef (ficha Empresas). Sin subir a Meta todavía."
+    },
     "pedido_contado_s_chef": {
       "grupo": "factura",
       "orden": 7,

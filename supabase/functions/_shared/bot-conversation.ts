@@ -9,7 +9,7 @@ import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
-import { datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
+import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import {
   callModel,
@@ -97,7 +97,7 @@ const BOT_TOOLS: ToolDef[] = [
     // otros WhatsApp. Esta herramienta crea la alerta (Centro de mensajes › Tareas + cartel de Planify).
     name: "derivar_a_persona",
     description:
-      "Pasa la conversación a una persona del equipo: queda como alerta en el Centro de mensajes y le llega a quien atiende. Usala SIEMPRE que haga falta alguien: reclamos (nota de crédito, faltante, mercadería rota, factura mal o duplicada, descuento que no se aplicó), pagos o importes que no coinciden, cambios o cancelaciones de pedido, un pedido que el cliente dice haber hecho y no aparece, alta de cliente, problemas con la web que no podés resolver, o cuando el cliente pide hablar con alguien. Después de usarla decile al cliente que una persona del equipo le escribe por acá. Nunca le des mails ni otros números para que se arregle solo.",
+      "Pasa la conversación a una persona del equipo: queda como alerta en el Centro de mensajes y le llega a quien atiende. Usala SIEMPRE que haga falta alguien: reclamos (nota de crédito, faltante, mercadería rota, factura mal o duplicada, descuento que no se aplicó), pagos o importes que no coinciden, cambios o cancelaciones de pedido, un pedido que el cliente dice haber hecho y no aparece, alta de cliente, problemas con la web que no podés resolver, o cuando el cliente pide hablar con alguien. Después de usarla decile al cliente que una persona del equipo le escribe por acá. Nunca le des mails ni otros números para que se arregle solo; la única excepción son los datos de Cobranzas que devuelve esta misma herramienta con el motivo pago (datos_cobranzas).",
     input_schema: {
       type: "object",
       properties: {
@@ -511,6 +511,17 @@ async function executeTool(
           ...(typeof input.urgente === "boolean" ? { urgente: input.urgente } : {}),
         },
       });
+      // Pablo, 01/10: una consulta de pago que va a Cobranzas lleva también cómo comunicarse con ellos (ficha Empresas).
+      // Es la única excepción a "nunca des mails ni otros números": el dato lo pone esta herramienta, no la IA.
+      if (motivo === "pago") {
+        try {
+          const datos = datosCobranzas(await datosEmpresas(), { lk: true, chef: false });
+          if (datos) {
+            return { data: { ok: true, mensaje: "Listo: quedó derivado a Cobranzas. Decile al cliente que Cobranzas le escribe por acá y, para consultas sobre sus pagos, pasale estos datos de Cobranzas tal cual (no agregues otros).",
+              datos_cobranzas: datos } };
+          }
+        } catch (e) { console.warn("derivar_a_persona: datos de Cobranzas:", e instanceof Error ? e.message : e); }
+      }
       return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por acá." } };
     }
 

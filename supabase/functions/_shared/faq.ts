@@ -12,7 +12,7 @@ import { getGestionClient, getIsisClient, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
-import { codigosChef, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
+import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -921,10 +921,20 @@ async function ultimoRecibo(empresa: "lk" | "chef", cods: string[]): Promise<Rec
 // Pablo, 01/10 (fase 3): también los recibos de Chef, de las cuentas de Chef del mismo CUIT. Si tiene cuenta en las dos
 // empresas, se dice a cuál fue el pago.
 export async function pagoRegistrado(ctx: CtxPagos, text: string): Promise<FaqResult> {
-  const cobranzas = (reply: string, detalle: string): FaqResult => ({ reply, intent: "pago_recibido", automation_level: "needs_human",
+  // Pablo, 01/10: cuando el pago no figura y se avisa a Cobranzas, el cliente recibe también cómo comunicarse con ellos
+  // (ficha Empresas, de la empresa o las empresas en las que tiene cuenta). Sin datos cargados, el mensaje sale como siempre.
+  let datos: string | null = null;
+  const cobranzas = (reply: string, detalle: string): FaqResult => ({
+    reply: datos ? `${reply}\nPara consultas sobre tus pagos podés comunicarte con Cobranzas: ${datos}` : reply,
+    intent: "pago_recibido", automation_level: "needs_human",
     topic: "Pregunta si llegó su pago", alerta: { motivo: "pago", urgente: false, detalle } });
+  const cargarDatos = async (tieneChef: boolean) => {
+    try { datos = datosCobranzas(await datosEmpresas(), { lk: !!ctx.codLk || !tieneChef, chef: tieneChef }); }
+    catch (e) { console.warn("pagoRegistrado: datos de Cobranzas:", e instanceof Error ? e.message : e); }
+  };
   try {
     const codsChef = [...new Set([...(await codigosChef(ctx.cuit)), ...(ctx.codChef ? [ctx.codChef] : [])])];
+    await cargarDatos(codsChef.length > 0);
     const [lk, ch] = await Promise.all([ultimoRecibo("lk", ctx.codLk ? [ctx.codLk] : []), ultimoRecibo("chef", codsChef)]);
     const dos = !!ctx.codLk && codsChef.length > 0;
     const u = [lk, ch].filter((x): x is Recibo => !!x)
@@ -943,6 +953,7 @@ export async function pagoRegistrado(ctx: CtxPagos, text: string): Promise<FaqRe
       `Pregunta si llegó su pago; no hay recibo de los últimos 7 días${u ? ` (último ${ddmm(u.fecha_primer_cobro)} ${pesos(u.pagado)}${a(u)})` : ""}. Escribió: ${text.slice(0, 150)}`);
   } catch (e) {
     console.warn("pagoRegistrado:", e instanceof Error ? e.message : e);
+    if (datos === null) await cargarDatos(!!ctx.codChef);
     return cobranzas("Le aviso a Cobranzas para que revise tu pago y te confirme por acá. 🙏", `Pregunta si llegó su pago. Escribió: ${text.slice(0, 150)}`);
   }
 }

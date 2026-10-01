@@ -174,6 +174,28 @@ export const PLANTILLAS: PlantillaMeta[] = [
     body: "Recordatorio de pago de tu compra facturada el {{1}}.\n\nImporte a abonar hasta el {{2}}, con la bonificación por pronto pago del {{3}}% ya aplicada: {{4}} (importe sin bonificación: {{5}}).\nA partir de esa fecha la bonificación pasa al {{6}}% y el importe aumenta {{7}}.\n\nDatos para el pago:\nAlias: {{8}}\nCBU: {{9}}\n\nSaludos.",
     ejemplos: ["28/09", "martes 13/10", "25", "$896.668", "$1.195.557", "20", "$59.778", "loeke.srl", "1910027855002702387450"],
   },
+
+  // Comprobante de pago (Pablo, 01/10): al llegar un comprobante, el cliente recibe los datos de Cobranzas. Una plantilla por
+  // marca, como las de factura (`_chef`). {{1}} = el dato de la ficha Empresas (wa_descuentos_config.empresas.<lk|chef>.cobranzas:
+  // WhatsApp o mail), así cambiarlo no obliga a re-aprobar la plantilla. Dentro de las 24 h el webhook contesta con este mismo
+  // texto como mensaje libre (`respuestaComprobante`, empresas.ts); la plantilla queda para mandarlo fuera de la ventana.
+  // Sin emojis ni saludo: aviso de operación sobre algo que el cliente mandó, para que Meta la tome como UTILITY.
+  {
+    name: "comprobante_recibido",
+    language: ES, category: UT,
+    disparo: "El cliente de Loekemeyer manda un comprobante de pago (imagen o PDF que habla de pago o transferencia). Pasa por el webhook (handleAdjunto): hoy sale como texto libre dentro de las 24 h.",
+    variables: ["datos de Cobranzas de Loekemeyer (ficha Empresas), ej. \"WhatsApp 11 6557-4113\""],
+    body: "Recibimos tu comprobante de pago de Loekemeyer.\nCobranzas lo revisa y te confirma por este medio.\nPara consultas sobre tus pagos podés comunicarte con Cobranzas: {{1}}\nGracias.",
+    ejemplos: ["WhatsApp 11 6557-4113"],
+  },
+  {
+    name: "comprobante_recibido_chef",
+    language: ES, category: UT,
+    disparo: "El cliente de Chef (sólo tiene cuenta en Chef) manda un comprobante de pago. Mismo flujo que comprobante_recibido, con los datos de Cobranzas de Chef.",
+    variables: ["datos de Cobranzas de Chef (ficha Empresas), ej. \"cobranzas@chefsrl.com\""],
+    body: "Recibimos tu comprobante de pago de Chef.\nCobranzas lo revisa y te confirma por este medio.\nPara consultas sobre tus pagos podés comunicarte con Cobranzas: {{1}}\nGracias.",
+    ejemplos: ["cobranzas@chefsrl.com"],
+  },
 ];
 
 /** Payload de `components` que espera Meta para crear/editar. */
