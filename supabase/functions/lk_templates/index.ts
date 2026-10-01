@@ -614,7 +614,9 @@ async function handleTemplatesPreview(body: Record<string, unknown>) {
   const sal = fechaLarga(salida) || "(sin fecha todavía)";
   const nueva = fechaLarga(masDias(salida, 2)) || "(nueva fecha)";
   const expreso = np.nombre_expreso ?? "";
-  const direccion = [np.direccion, np.localidad].filter(Boolean).join(", ");
+  // Igual que los avisos reales (sql/090 y 105 usan sólo sucursal_entrega): `direccion` ya trae la localidad ("Santa Fe 1837 - Mar del
+  // Plata"). Sumarle `localidad` la repetía ("… - Mar del Plata, Mar del Plata", Pablo 01/10). La localidad sola, sólo si no hay dirección.
+  const direccion = String(np.direccion ?? "").trim() || String(np.localidad ?? "").trim();
 
   const P = (etapa: string, name: string, params: string[], opcional = false) => {
     const def = PLANTILLAS.find((x) => x.name === name);
