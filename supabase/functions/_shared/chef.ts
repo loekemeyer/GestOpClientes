@@ -10,6 +10,7 @@
 //   · fase 3 (01/10): reenvío de la factura (isis_ch, bucket isis-ch), factura duplicada, "¿recibieron el pago?"
 //     (recibos de Chef) y descuentos de sus facturas — las mismas funciones de faq.ts que usa un cliente de LK, con
 //     codLk = null;
+//   · "¿cuándo llega mi pedido?": sus pedidos de Chef con estado y fecha de salida (pedidos-marca.ts);
 // y todo lo demás lo pasa a una persona (alerta cliente_chef). Es el mismo principio que la llave de envío: un corte
 // en un solo lugar, que se levanta cuando cada consulta sepa de qué empresa es.
 //
@@ -22,8 +23,9 @@ import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
 import {
   bloqueFacturasChef, type CtxPagos, esSoloSaludo, facturaDuplicada, type FaqResult, lookupFacturaReenvio, pagoRegistrado,
-  RE_FACTURA_DUPLICADA, RE_PAGO_RECIBIDO, RE_PIDE_FACTURA,
+  RE_ESTADO_PEDIDO, RE_FACTURA_DUPLICADA, RE_PAGO_RECIBIDO, RE_PIDE_FACTURA, RE_PLAZO_ENTREGA,
 } from "./faq.ts";
+import { esConsultaEstado, pedidosChef, textoPedidosChef } from "./pedidos-marca.ts";
 import { datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 
 export interface CuentaChef {
@@ -144,6 +146,19 @@ export async function atenderClienteChef(
         "Si todavía no mandaste el comprobante, mandá la foto o el PDF por este chat. 🙏",
       via: "chef_pago_aviso",
     };
+  }
+
+  // "¿Cuándo llega mi pedido?" (Pablo, 01/10): sus pedidos de Chef con estado y fecha de salida (pedidos-marca.ts). Si pregunta
+  // por el plazo general y no tiene nada pendiente, no hay qué listar: sigue a una persona.
+  if (esConsultaEstado(t)) {
+    const pedidos = await pedidosChef({ cuit: cuenta.cuit, codChef: cuenta.cod_cliente });
+    if (pedidos === null) {
+      await notificarHumano({ tipo: "otro", phone, customerId: null, contexto: {
+        motivo: "entrega", detalle: "Cliente de Chef pregunta por su pedido y Gestión no respondió: pasale el estado.", ...contextoChef(cuenta, t) } });
+      return { reply: "No pude consultar tus pedidos en este momento. Le paso tu consulta a una persona del equipo, que te responde por acá. 🙏", via: "chef_pedidos_error" };
+    }
+    const reply = textoPedidosChef(cuenta.razon_social || "Hola", pedidos, hoyAR(), { soloSiHay: RE_PLAZO_ENTREGA.test(t) && !RE_ESTADO_PEDIDO.test(t) });
+    if (reply) return { reply, via: "chef_pedidos" };
   }
 
   // "¿Qué descuento tengo si pago hoy?": el de cada factura de Chef abierta (lo trae la factura: dto_cond hasta vence).

@@ -159,3 +159,7 @@ de Gestión.
 tiene su versión de Chef (6 más, `_chef`), que nombra a Chef y no lleva alias. Titular y CUIT van fijos en el texto; el CBU es
 variable (cambiar de cuenta no necesita aprobación nueva de Meta). Mientras la de Chef no esté APPROVED, el aviso de factura de
 Chef queda retenido: la de Loekemeyer no sirve (lleva el alias de Loekemeyer).
+
+**Estado de pedidos por marca (Pablo, 01/10).** Un cliente que pregunta cuándo llega su pedido ve los de la marca que corresponde: sólo
+Chef → los de Chef; las dos marcas con pedidos en curso → se le pregunta de cuál es (no se mezclan en una lista sin marca); sin pedidos de
+Chef en curso → la respuesta de Loekemeyer de siempre. El cruce con Chef es por CUIT (nunca por código). Código: `_shared/pedidos-marca.ts`.

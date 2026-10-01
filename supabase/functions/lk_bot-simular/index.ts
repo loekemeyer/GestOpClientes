@@ -5,11 +5,12 @@ import { requireAdmin } from "../_shared/admin-gate.ts";
 import { SIM } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
-import { handleFaq } from "../_shared/faq.ts";
+import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START } from "../_shared/alta.ts";
 import { pedidoEnCurso, runConversation } from "../_shared/bot-conversation.ts";
 import { atenderClienteChef } from "../_shared/chef.ts";
+import { responderEstadoPedidos } from "../_shared/pedidos-marca.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 
@@ -270,6 +271,12 @@ serve(async (req) => {
       if (!reply) {
         reply = await pedidoDeCambio(TEL_SIMULADO, text, customer);
         if (reply) via = "pedido_de_cambio";
+      }
+      // 3e. estado de los pedidos por marca (Loekemeyer / Chef), mismo orden que el webhook
+      if (!reply && !esSoloSaludo(text) && !(await pedidoEnCurso(telSim))) {
+        const em = await responderEstadoPedidos(TEL_SIMULADO, text,
+          { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
+        if (em) { reply = em.reply; via = em.via; }
       }
       // 4. preguntas frecuentes
       if (!reply) {
