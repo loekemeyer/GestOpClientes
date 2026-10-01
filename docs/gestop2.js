@@ -661,7 +661,8 @@ async function tkCargar() {
     const vinc = (vi.pendientes || []).map((v) => ({
       key: "v" + v.id, tipo: "tel", id: v.id, phone: v.telefono, creado: v.creado_en, nivel: v.intentos_24h > 1 ? "amarillo" : "verde",
       motivo: v.tipo === "pedidos_access" ? "Pide ver pedidos" : "Pide vincular el número",
-      cliente: v.business_name ? `${v.business_name} (${v.cod_cliente})` : null, v,
+      // sql/116: el código de una solicitud de Chef es de Chef (otro cliente que el mismo número en Loekemeyer).
+      cliente: v.business_name ? `${v.business_name} (${v.empresa === "CH" ? "Chef " : ""}${v.cod_cliente})` : null, v,
     }));
     const alts = abiertas.map((a) => ({
       key: "a" + a.id, tipo: tipoDeAlerta(a), id: a.id, phone: a.phone, creado: a.created_at, nivel: a.nivel || "verde",

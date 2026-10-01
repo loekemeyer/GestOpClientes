@@ -30,6 +30,7 @@ import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
+import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START, tryRegister } from "../_shared/alta.ts";
@@ -561,12 +562,17 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config): Promise<void> {
     } catch (e) { console.error("adjunto: respuesta falló", e); }
   };
   const customer = await getCustomerContext(phone);
+  // Cliente sólo de Chef (sql/115): la alerta dice de qué cuenta de Chef es. Su código NO va a wa_comprobantes.cod_cliente
+  // (ese campo es un código de Loekemeyer: el mismo número es otro cliente en cada empresa).
+  const chef = customer ? null : await cuentaChef(phone);
   const alerta = async (tipo: string, contexto: Record<string, unknown>) => {
     try {
       await supabase.from("wa_alertas_humano").insert({
         tipo, phone, customer_id: customer?.customer_id ?? null,
         contexto: { wamid: msg.msgId, tipo_adjunto: msg.type, contact_name: msg.name ?? null,
-          caption: msg.caption ?? null, texto: msg.caption ?? null, ...contexto },
+          caption: msg.caption ?? null, texto: msg.caption ?? null,
+          ...(chef ? { empresa: "CH", cod_cliente_chef: chef.cod_cliente, cuit: chef.cuit, razon_social: chef.razon_social } : {}),
+          ...contexto },
       });
     } catch { /* fire-and-forget */ }
   };
@@ -985,10 +991,16 @@ async function handleMessage(
   // 3. Identificar cliente por teléfono
   const customer = await getCustomerContext(phone);
 
+  // 3a. Cliente sólo de Chef (Pablo, 01/10, sql/115 + _shared/chef.ts). Sólo se busca si no es cliente de Loekemeyer.
+  //     Las herramientas del bot buscan en Loekemeyer por número de cliente, y ese número es otro cliente en cada
+  //     empresa: a un cliente de Chef se le contesta sólo saludo, facturas de Chef y datos de pago de Chef (por CUIT);
+  //     lo demás va a una persona. Antes caía como no-cliente y el bot le arrancaba el alta.
+  const chef = customer ? null : await cuentaChef(phone);
+
   // 3b. Alta en curso (no-cliente): si ya arrancó la toma de datos, cada
   //     mensaje es la respuesta al campo que toca. La interceptamos ACÁ, antes
   //     del FAQ, para que un saludo/keyword no le robe la respuesta al alta.
-  if (!customer) {
+  if (!customer && !chef) {
     const lead = await getPendingLead(phone);
     if (lead) {
       await saveMessage(phone, "user", text);
@@ -1004,7 +1016,8 @@ async function handleMessage(
   // 3b'. Cliente molesto (insultos, quejas fuertes, gritos) → a una persona, antes que cualquier
   //      respuesta automática. Alerta urgente (cliente_molesto → tarea en Planify). _shared/humor.ts
   {
-    const replyMolesto = await atenderMalHumor(phone, text, customer);
+    const replyMolesto = await atenderMalHumor(phone, text,
+      customer ?? (chef ? { customer_id: null, business_name: chef.razon_social, empresa: "CH" } : null));
     if (replyMolesto) {
       await saveMessage(phone, "user", text);
       await enviarTexto(cfg, phone, replyMolesto);
@@ -1027,6 +1040,16 @@ async function handleMessage(
       // No se guarda en el historial: quedaría DESPUÉS de la consulta (el otro mensaje ya se guardó) y no aporta.
       if ((count ?? 0) > 0) return;
     }
+  }
+
+  // 3a'. Cliente sólo de Chef: no sigue a avisos, FAQ ni agente (todos leen datos de Loekemeyer). Ver 3a.
+  if (chef) {
+    await saveMessage(phone, "user", text);
+    const r = await atenderClienteChef(phone, text, chef);
+    const reply = r.yaSaluda ? r.reply : await conSaludoSiCorresponde(r.reply, phone, chef.razon_social);
+    await enviarTexto(cfg, phone, reply);
+    await saveMessage(phone, "assistant", reply);
+    return;
   }
 
   // 3b-bis. Pedido en varios mensajes (Pablo, 30/09): "4 cajas del 501" / "y 6 del 504" / "sumale 2 del 506" mandados en

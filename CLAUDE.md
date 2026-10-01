@@ -148,6 +148,15 @@ ese dato no se puede agrupar ni parseando.
 El precedente de que un trailer fijo funciona es `Claude-Session:`, presente en **238 de 309
 commits (77%)**.
 
+### ⚠ En ESTE repo (el bot), "Pablo" es Pablo Olejavetzky — employee_id 64, NO Pablo Martos (6)
+
+Pablo Olejavetzky, 01/10/2026: *"Todos los cambios en el bot son de Pablo Olejavetzky, grabate eso"*. Trailer:
+`Hecho-por: Pablo Olejavetzky (employee_id 64)`, y la tarea va a su Planify (64). Pablo Martos (6) existe en
+`planify.employees` y una sesión que sólo oye "Pablo" lo puede elegir mal: pasó el 01/10 con **`2beff74`** y
+**`4b83a3e`** (cadenas con lista propia), firmados `Pablo Martos (employee_id 6)` cuando los hizo Pablo
+Olejavetzky. No se reescribe el historial de `main`: esta nota es la corrección. Sus tareas de Planify sí
+quedaron en el 64.
+
 ## 🟥🟥🟥 PRINCIPIO RECTOR (Luis, 2026-09-25): VASECTOMÍA — todo funciona, se corta sólo la SALIDA
 
 > ## **"Miralo como una vasectomía. Todo el sistema funciona, pero con el corte en el lugar

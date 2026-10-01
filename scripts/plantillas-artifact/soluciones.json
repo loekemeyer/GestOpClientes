@@ -62,7 +62,7 @@
           "como": "Al facturar le llega la factura con el importe, el importe con descuento y hasta cuándo, y el alias y CBU (6 plantillas según contado, crédito o e-cheq, y 1 o varias facturas)."
         }
       ],
-      "bot": "'¿Cuánto debo?' o 'el importe con el 25 %': le pasa cada factura impaga con importe, estado y descuento, y el saldo total, y avisa a Cobranzas. Alias y CBU: respuesta fija. Da también el total con descuento. '¿Recibieron el pago?': lo busca en los recibos de Gestión y, si no figura, avisa a Cobranzas.",
+      "bot": "'¿Cuánto debo?' o 'el importe con el 25 %': le pasa cada factura impaga con importe, estado y descuento, y el saldo total, y avisa a Cobranzas. Alias y CBU: respuesta fija. Da también el total con descuento. '¿Recibieron el pago?': lo busca en los recibos de Gestión y, si no figura, avisa a Cobranzas. Cliente que sólo le compra a Chef (01/10): '¿cuánto debo?' le pasa sus facturas de Chef sin pagar (por CUIT) y los datos de pago de Chef; si Chef no tiene el alias cargado, lo deriva a Cobranzas. Nunca le da el alias de Loekemeyer.",
       "deriva": "Motivo 'pago' si dice que ya pagó y no le figura; un comprobante adjunto se guarda y crea la tarea 'Comprobante recibido' con el archivo.",
       "falta": "Confirmar con Cobranzas si una factura vencida pierde el descuento.",
       "ejemplo": "«Pasame el importe con el 25 % de contado»",
@@ -124,7 +124,7 @@
       "consultas": 64,
       "estado": "hecho",
       "previene": [],
-      "bot": "Toma los 10 datos paso a paso (CUIT verificado, condición de IVA, dirección de entrega completa, expreso si es del interior) y crea la solicitud; mínimo de compra con la respuesta fija. 'Tengo un comercio y quiero comprar por mayor' y 'somos distribuidora' arrancan el alta igual que 'quiero ser cliente'.",
+      "bot": "Toma los 10 datos paso a paso (CUIT verificado, condición de IVA, dirección de entrega completa, expreso si es del interior) y crea la solicitud; mínimo de compra con la respuesta fija. 'Tengo un comercio y quiero comprar por mayor' y 'somos distribuidora' arrancan el alta igual que 'quiero ser cliente'. Si el CUIT es de un cliente de Chef (y no de Loekemeyer), no arranca el alta: pide la vinculación y una persona la aprueba en Vinculaciones (01/10).",
       "deriva": "Tarea de alta: Ventas carga código, vendedor y descuento y, al guardar, se crea el cliente en la web con acceso (usuario = CUIT, clave temporal) y le llega la bienvenida por WhatsApp.",
       "falta": "Validar con Ventas el texto de bienvenida.",
       "ejemplo": "«Distribuidora de Villa María, queremos abrir cuenta»",

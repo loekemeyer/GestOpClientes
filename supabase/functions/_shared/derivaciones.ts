@@ -42,6 +42,7 @@ export const ORIGEN: Record<string, string> = {
   blacklist: "Escribió un número bloqueado",
   faq_no_match: "Pregunta que el bot no supo responder",
   consulta_stock: "Artículo sin stock",
+  cliente_chef: "Un cliente de Chef pregunta algo que no es saldo ni datos de pago",
   otro: "Cualquier otra alerta",
   ...Object.fromEntries(MOTIVOS_IA.map((k) => [k, "La IA deriva: " + CUANDO_IA[k]])),
 };
@@ -57,7 +58,9 @@ export type Derivaciones = {
 };
 
 const num = (v: unknown) => (Number(v) > 0 ? Number(v) : null);
-const SIEMPRE_DEF = new Set(MOTIVOS_IA);
+// Van a Planify si nadie lo cambió en Configuración › Derivaciones. cliente_chef (sql/115): el bot no le contesta nada
+// más que saldo y datos de pago, así que si queda sólo en Tareas nadie lo ve a tiempo.
+const SIEMPRE_DEF = new Set([...MOTIVOS_IA, "cliente_chef"]);
 
 let cache: { hasta: number; d: Derivaciones } | null = null;
 

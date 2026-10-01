@@ -24,6 +24,30 @@ BOT: Hola Comercial Ejemplo S.R.L, te escribimos de Loekemeyer.
      Ya vinculamos este número a tu cuenta: podés consultar tus pedidos, descuentos y fechas de entrega.
 ```
 
+## Flujo 1c: Cliente que sólo le compra a Chef (01/10, sql/115-116, `_shared/chef.ts`)
+
+Un solo número para Loekemeyer y Chef (D008). Si `wa_identify_customer` no encuentra un cliente de LK, el webhook
+pregunta `bot_identificar_chef`: vinculación aprobada (`bot_chef_whatsapps`) o padrón de teléfonos de Gestión con
+empresa (`bot_telefonos_empresa`), sólo si todo lo que hay para ese teléfono en las dos empresas es el mismo CUIT.
+Un teléfono que es de un cliente de LK y de uno de Chef con otro CUIT no se reconoce: va a vinculación.
+
+Al cliente de Chef el bot le contesta sin IA y nunca con datos de Loekemeyer:
+
+| escribe | contesta | alerta |
+|---|---|---|
+| saludo | qué puede consultar por acá | — |
+| gracias / ok / 👍 | "¡De nada!" | — |
+| cuánto debo, saldo, facturas pendientes | facturas de Chef sin pagar (`GV_Cobranza_Deuda_Viva`, por CUIT) + datos de pago de Chef | `pago` (una abierta por número) |
+| alias, CBU, cómo pago | datos de pago de Chef (ficha Empresas); sin cargar → "Cobranzas te los pasa" | `pago` si no están cargados |
+| ya pagué, comprobante, ¿recibieron el pago? | "Le paso a Cobranzas" | `pago` |
+| cualquier otra cosa | "Te responde una persona del equipo" | `cliente_chef` (una cada 2 h; va a Planify) |
+
+Cliente molesto y adjuntos siguen el camino de siempre; la alerta lleva `empresa: CH`, el código de Chef y el CUIT.
+
+**Vinculación:** si el CUIT no es de LK pero sí de Chef, queda una solicitud de Chef pendiente (antes arrancaba el
+alta). Al aprobarla se carga en `bot_chef_whatsapps`, nunca en `bot_customer_whatsapps` (D008). En Vinculaciones y
+en Tareas se ve "Chef" al lado del código.
+
 ## Flujo 1b: El cliente contesta un aviso automático (28/09)
 
 Cada aviso (pedido recibido, programado, en viaje…) queda en el historial como

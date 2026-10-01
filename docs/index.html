@@ -524,6 +524,10 @@
                fila, con ancho para 6 dígitos y los colores del tema. -->
           <label for="simCod" class="toggle-desc" style="display:block;margin-bottom:0.25rem;">N° de cliente</label>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
+            <!-- Pablo, 01/10 (sql/115): el mismo número es otro cliente en cada empresa; Chef corre la atención de Chef. -->
+            <select id="simEmpresa" title="Empresa del cliente" style="padding:0.4rem 0.3rem;border: 1px solid var(--border);border-radius:6px;font-size:0.9rem;background: var(--card);color: var(--text);">
+              <option value="LK">Loekemeyer</option><option value="CH">Chef</option>
+            </select>
             <input type="number" id="simCod" value="4210" placeholder="4210" onkeydown="if(event.key==='Enter')simReset(this.value)" style="width:9ch;padding:0.4rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.9rem;background: var(--card);color: var(--text);">
             <button class="config-btn small" onclick="simReset(document.getElementById('simCod').value)">Usar</button>
             <button class="config-btn small" title="Alguien que todavía no es cliente: prueba el alta" onclick="simReset('nuevo')">📱 Número nuevo</button>
@@ -1780,15 +1784,20 @@ async function simInit() {
 function simReset(cod) {
   // "nuevo" = alguien que todavía no es cliente (prueba el alta paso a paso, lk_bot-simular numero_nuevo).
   if (cod === "nuevo") _sim.nuevo = true;
-  else if (cod) { _sim.nuevo = false; _sim.cod = Number(cod) || 4210; }
+  else if (cod) {
+    _sim.nuevo = false; _sim.cod = Number(cod) || 4210;
+    _sim.empresa = document.getElementById("simEmpresa")?.value === "CH" ? "CH" : "LK";
+  }
   _sim.historial = [];
   document.getElementById("simMessages").innerHTML = "";
-  document.getElementById("simTitle").textContent = _sim.nuevo ? "Número nuevo (no cliente)" : "Cliente " + _sim.cod;
+  document.getElementById("simTitle").textContent = _sim.nuevo ? "Número nuevo (no cliente)"
+    : (_sim.empresa === "CH" ? "Cliente de Chef " : "Cliente ") + _sim.cod;
   simAgregar("system", "Charla nueva · escribí o tocá un aviso");
 }
 
 async function simLlamar(pasos) {
   const { data, error } = await authedInvoke("lk_bot-simular", { cod_cliente: _sim.cod, numero_nuevo: !!_sim.nuevo, historial: _sim.historial, pasos,
+    ...(_sim.empresa === "CH" && !_sim.nuevo ? { empresa: "CH" } : {}),
     crear_tareas: !!document.getElementById("simTareas")?.checked });
   if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
   if (data.cliente) document.getElementById("simTitle").textContent = data.cliente;
@@ -1798,6 +1807,7 @@ async function simLlamar(pasos) {
 async function simAviso(name, factura) {
   if (_sim.ocupado) return;
   if (_sim.nuevo) { simAgregar("system", "Los avisos son para clientes: elegí un número de cliente y tocá Usar."); return; }
+  if (_sim.empresa === "CH") { simAgregar("system", "Los avisos de pedidos son de Loekemeyer: con un cliente de Chef todavía no salen."); return; }
   _sim.ocupado = true;
   try {
     const r = await simLlamar([{ aviso: name }]);
@@ -3483,7 +3493,7 @@ async function loadVinculos() {
       ${rows.map((r) => `<tr style="border-top: 1px solid var(--border);">
         <td style="padding:4px 10px 4px 0;white-space:nowrap;">${esc(new Date(r.creado_en).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td>
         <td style="padding:4px 10px 4px 0;white-space:nowrap;"><code>${esc(r.telefono)}</code>${r.tipo === "pedidos_access" ? '<br><span class="hint">acceso a pedidos</span>' : ""}</td>
-        <td style="padding:4px 10px 4px 0;">${esc(r.business_name || "")}<br><span class="hint">cód. ${esc(String(r.cod_cliente ?? ""))} · CUIT ${esc(r.cuit_normalizado || "")}</span>${r.cadena ? `<br><span style="color: var(--danger);font-weight:600;">⚠ ${esc(r.cadena.aviso)}</span>` : ""}</td>
+        <td style="padding:4px 10px 4px 0;">${esc(r.business_name || "")}${r.empresa === "CH" ? ' <span class="cat-pill">Chef</span>' : ""}<br><span class="hint">${r.empresa === "CH" ? "cód. Chef" : "cód."} ${esc(String(r.cod_cliente ?? ""))} · CUIT ${esc(r.cuit_normalizado || "")}</span>${r.cadena ? `<br><span style="color: var(--danger);font-weight:600;">⚠ ${esc(r.cadena.aviso)}</span>` : ""}</td>
         <td style="padding:4px 10px 4px 0;">${(r.telefonos_erp || []).map((t) => `<code>${esc(t)}</code>`).join("<br>") || '<span class="hint">sin teléfonos</span>'}</td>
         <td style="padding:4px 10px 4px 0;">${r.principal_actual ? `<code>${esc(telCorto(r.principal_actual))}</code>` : '<span class="hint">ninguno</span>'}</td>
         <td style="padding:4px 10px 4px 0;${(r.intentos_24h || 0) > 1 ? "color: var(--danger);font-weight:600;" : ""}">${r.intentos_24h ?? 0}</td>
@@ -4209,7 +4219,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.3</div>
-<script src="gestop2.js?v=0.26.3"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.4</div>
+<script src="gestop2.js?v=0.26.4"></script>
 </body>
 </html>

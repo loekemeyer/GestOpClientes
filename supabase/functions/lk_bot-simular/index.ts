@@ -9,6 +9,7 @@ import { handleFaq } from "../_shared/faq.ts";
 import { leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START } from "../_shared/alta.ts";
 import { pedidoEnCurso, runConversation } from "../_shared/bot-conversation.ts";
+import { atenderClienteChef } from "../_shared/chef.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 
@@ -74,9 +75,13 @@ async function simularNumeroNuevo(body: any): Promise<Response> {
           const cuit = extractCuit(text);
           if (cuit) {
             const { data: ya } = await supabase.from("customers").select("business_name").eq("cuit", cuit).limit(1);
-            if (ya?.length) {
-              respuestas.push(`Encontré la cuenta de *${ya[0].business_name}*. 👍\n\nPor seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. (Simulador: no se pide la vinculación.)`);
-              via = "registro por CUIT";
+            // sql/116: si no es de Loekemeyer pero sí de Chef, también va a vinculación (antes arrancaba el alta).
+            const { data: yaCh } = ya?.length ? { data: [] } : await supabase.from("bot_cuentas").select("razon_social")
+              .eq("empresa", "CH").eq("cuit", cuit.replace(/\D/g, "")).limit(1);
+            if (ya?.length || yaCh?.length) {
+              const nombre = ya?.length ? ya[0].business_name : yaCh![0].razon_social;
+              respuestas.push(`Encontré la cuenta de *${nombre}*. 👍\n\nPor seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. (Simulador: no se pide la vinculación.)`);
+              via = ya?.length ? "registro por CUIT" : "registro por CUIT (cliente de Chef)";
             } else {
               await crearLead(TEL_NUEVO, text, cuit);
               respuestas.push("No te encontré como cliente con ese CUIT. 🤔\n\nSi querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. Te pregunto de a uno (para cortar, escribí *cancelar*):\n\n📋 ¿Cuál es tu *razón social*?");
@@ -111,6 +116,49 @@ async function simularNumeroNuevo(body: any): Promise<Response> {
 }
 
 
+// sql/115 (Pablo, 01/10): cliente sólo de Chef — { empresa: "CH", cod_cliente: <código de Chef>, pasos }. Corre lo mismo
+// que el webhook para ese cliente (_shared/chef.ts: saludo, facturas y datos de pago de Chef; lo demás a una persona).
+// El teléfono es el simulado: las alertas se juntan en SIM.alertas (con "Crear tareas de prueba", van a Tareas 🧪).
+// deno-lint-ignore no-explicit-any
+async function simularClienteChef(body: any): Promise<Response> {
+  const { data: cta } = await supabase.from("bot_cuentas").select("cod_cliente, razon_social, cuit")
+    .eq("empresa", "CH").eq("cod_cliente", String(body.cod_cliente ?? "").trim()).maybeSingle();
+  if (!cta) return json({ error: "cliente de Chef no encontrado" }, 400);
+  const cuenta = { cod_cliente: String(cta.cod_cliente), razon_social: String(cta.razon_social ?? ""), cuit: cta.cuit ?? null, fuente: "simulador" };
+  SIM.activo = true;
+  SIM.historial = [];
+  try {
+    const salida: Array<Record<string, unknown>> = [];
+    for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
+      const text = String(paso.cliente ?? "").trim();
+      if (!text) continue;
+      SIM.alertas = [];
+      let reply = await atenderMalHumor(TEL_SIMULADO, text, { customer_id: null, business_name: cuenta.razon_social, empresa: "CH" });
+      let via = "cliente_molesto";
+      if (!reply) {
+        const r = await atenderClienteChef(TEL_SIMULADO, text, cuenta);
+        reply = r.reply; via = r.via;
+      }
+      const tareas: number[] = [];
+      if (body.crear_tareas === true && SIM.alertas.length) {
+        const { data: tp } = await supabase.from("wa_envio_contactos").select("phone").order("created_at").limit(1).maybeSingle();
+        for (const al of SIM.alertas) {
+          const { tipo, ...ctx } = al as Record<string, unknown>;
+          const { data: ins } = await supabase.from("wa_alertas_humano").insert({
+            tipo: String(tipo ?? "otro"), phone: tp?.phone ?? null, customer_id: null,
+            contexto: { ...ctx, texto_recibido: text.slice(0, 300), simulador: true },
+          }).select("id").maybeSingle();
+          if (ins?.id) tareas.push(ins.id);
+        }
+      }
+      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [], tareas });
+    }
+    return json({ ok: true, cliente: `${cuenta.razon_social} (Chef ${cuenta.cod_cliente})`, charla: salida });
+  } finally {
+    SIM.activo = false;
+  }
+}
+
 async function esLlamadaInterna(req: Request): Promise<boolean> {
   const recibido = req.headers.get("x-lk-secret") ?? "";
   if (!recibido) return false;
@@ -139,6 +187,7 @@ serve(async (req) => {
     // con un número falso. El estado del alta vive en wa_prospect_leads (filas de ese número falso); una charla nueva
     // cancela el alta anterior. La alerta de alta sólo se crea de verdad con "Crear tareas de prueba" (🧪).
     if (body.numero_nuevo === true) return await simularNumeroNuevo(body);
+    if (body.empresa === "CH") return await simularClienteChef(body);
     // Pablo, 29/09: probar la lectura de un pedido por archivo sin WhatsApp: {action:"leer_archivo", base64, mime, nombre}.
     // Devuelve lo que leyó la IA, cómo lo cruzó con el catálogo y el mensaje que le mandaría al cliente. No crea nada.
     if (body.action === "leer_archivo") {

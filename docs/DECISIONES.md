@@ -113,3 +113,30 @@ Las 5 que vivían sólo en el proyecto quedaron versionadas acá.
 `lk_factura-check` también (25/09): lo deployado v33 era el HEAD del repo (deploy 04/09 13:17, commit
 62db211 13:13); la sospecha de que diferían fue un error de conteo.
 
+
+## D008 — Loekemeyer y Chef por un solo número: la empresa viaja con cada dato (2026-10-01)
+
+**Pablo Olejavetzky:** por el momento hay **un solo número** para las dos empresas.
+
+**Decisión:** no se le pregunta "¿Loekemeyer o Chef?" a nadie al empezar. La empresa no es de la charla sino de
+cada dato: el número de cliente sólo vale junto con su empresa (315 códigos existen en las dos y en 297 son otro
+CUIT) y entre empresas se cruza por **CUIT**. Medido al 01/10: 905 CUIT sólo LK, 357 en las dos, 395 sólo Chef.
+
+**Fases** (orden por gravedad):
+1. Identidad: `bot_cuentas`, `bot_telefonos_empresa`, `bot_chef_whatsapps`, `bot_identificar_chef` (sql/115) y
+   vinculación de clientes de Chef con revisión humana (sql/116). **Hecho.**
+2. Empresa por mensaje sin preguntar de más: cliente de una sola empresa → fija; mixto → la del dato del que habla
+   (factura, pedido, aviso); sin dato → se deduce del texto o se pregunta una vez.
+3. Pagos completos para Chef: recibos, descuentos por factura (#8), reenvío, factura duplicada (isis_ch).
+4. Catálogo y stock por empresa (12 códigos son un producto distinto en cada empresa).
+5. Marca: texto base del bot, plantillas y nombre visible en Meta.
+
+**Corte mientras tanto (sí de Pablo, 01/10):** a un cliente sólo de Chef el bot le contesta saludo, facturas de
+Chef y datos de pago de Chef (todo por CUIT); lo demás va a una persona (alerta `cliente_chef`). Las herramientas del
+bot (pedidos, estado, facturas de isis_lk, stock, catálogo) buscan en Loekemeyer por número de cliente y le
+mostrarían a Cencosud (2444 en Chef) los pedidos de Relca (2444 en LK). Se levanta cuando cada consulta sepa de qué
+empresa es. Código: `_shared/chef.ts`.
+
+**Por qué los vínculos de Chef van en otra tabla:** `bot_encolar_recordatorios_25` y `trg_notify_despacho` cruzan
+`bot_customer_whatsapps` por `cod_cliente` sin mirar la empresa (la columna `empresa` existe pero nadie la filtra).
+Un teléfono de Chef cargado ahí recibiría los avisos del cliente de LK con el mismo número.

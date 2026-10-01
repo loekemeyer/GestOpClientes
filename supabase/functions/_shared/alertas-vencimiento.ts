@@ -26,6 +26,8 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   reseteo_clave:          { label: "Pide clave nueva para la web", min: 60 },
   acceso_web:             { label: "Problema con la web (acceso o sucursal)", min: 120 },
   adjunto_recibido:       { label: "Mandó un archivo (Excel, foto, PDF o audio)", min: 120 },
+  // sql/115 (Pablo, 01/10): cliente sólo de Chef con una consulta que el bot todavía no responde (_shared/chef.ts).
+  cliente_chef:           { label: "Cliente de Chef: consulta para una persona", min: 120 },
   // Motivos que elige la IA al derivar (herramienta derivar_a_persona, 29/09).
   reclamo:                { label: "Reclamo: NC, faltante, rotura o factura", min: 120 },
   pago:                   { label: "Pago o importe", min: 120 },

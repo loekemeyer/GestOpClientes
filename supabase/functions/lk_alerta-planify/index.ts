@@ -58,6 +58,7 @@ const CORTO: Record<string, string> = {
   cambio_datos: "Dirección nueva",
   pedido_archivo: "Pedido por archivo",
   pedido_whatsapp: "Pedido por WhatsApp",
+  cliente_chef: "Cliente de Chef",
 };
 
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);
@@ -82,7 +83,9 @@ async function crear(alertaId: number) {
   if (ctx.planify_task_id) return { ok: true, creada: false, motivo: "ya tenía tarea" };
 
   let cliente = String(ctx.razon_social ?? "");
-  if (a.customer_id) {
+  // Cliente de Chef (sql/115): sin customer_id; el código es de Chef y se aclara para no confundirlo con uno de LK.
+  if (ctx.empresa === "CH") cliente = `${cliente || "sin razón social"} (Chef ${String(ctx.cod_cliente_chef ?? "")})`.trim();
+  else if (a.customer_id) {
     const { data: c } = await supabase.from("customers").select("cod_cliente, business_name").eq("id", a.customer_id).maybeSingle();
     if (c) cliente = `${c.business_name} (${c.cod_cliente})`;
   }
