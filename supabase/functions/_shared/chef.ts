@@ -156,7 +156,15 @@ export async function atenderClienteChef(
     if (!bloque) {
       return { reply: "No tenés facturas de Chef abiertas. El descuento por pago depende de la condición de cada factura y figura en ella.", via: "chef_descuentos" };
     }
-    return { reply: `${bloque}\n\nEl descuento se reconoce cuando pagás, hasta la fecha que figura en cada factura.`, via: "chef_descuentos" };
+    // Sólo hay descuento si alguna factura trae uno vigente (lineaFacturaChef escribe "Pagando hasta el …: X%"): las de condición
+    // "30 FF", "Sin Cotizador" o ya vencidas se pagan por el saldo.
+    const hayDto = /Pagando hasta el/.test(bloque);
+    return {
+      reply: `${bloque}\n\n` + (hayDto
+        ? "El descuento se reconoce cuando pagás, hasta la fecha que figura en cada factura."
+        : "Ninguna de estas facturas tiene descuento por pago: se pagan por el saldo hasta su vencimiento."),
+      via: "chef_descuentos",
+    };
   }
 
   if (RE_DEUDA.test(t)) {
