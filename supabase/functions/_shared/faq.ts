@@ -398,9 +398,9 @@ async function lookupPaymentData(faq: any, customer: Customer): Promise<string |
     (textoDatosPago(emp.chef, true) ?? "Para las facturas de Chef, Cobranzas te pasa los datos de pago por acá.");
 }
 
-const RE_NO_LLEGO = /\b(no (me )?(lleg[oó]|vino|entregaron|trajeron)|nunca lleg|todav[ií]a no (lleg|vino|me)|ten[ií]a que (llegar|venir|haber llegado)|deb[ií]a (llegar|venir)|sigo esperando|no lleg[oó] nada)/i;
+export const RE_NO_LLEGO = /\b(no (me )?(lleg[oó]|vino|entregaron|trajeron)|nunca lleg|todav[ií]a no (lleg|vino|me)|ten[ií]a que (llegar|venir|haber llegado)|deb[ií]a (llegar|venir)|sigo esperando|no lleg[oó] nada)/i;
 const RE_DETALLE_PEDIDO = /(qu[eé]\s+(incluye|tiene|trae|lleva|contiene|ped[ií]|hab[ií]a|va)\b[^?]{0,40}pedido|pedido[^?]{0,30}\b(incluye|contiene|trae|tiene)\b|detalle\s+(de(l)?\s+)?(mi\s+|el\s+)?pedido|(art[ií]culos|productos|[ií]tems|cosas)\s+(de(l)?|en)\s+(mi\s+|el\s+)?pedido)/i;
-const RE_INGRESO = /\bcu[aá]ndo\s+(ingres|entra|vuelve|repon|hay\b|habr|llega(n)?\s+(el|la|los|las|un|una)\s+(art|prod|import|nuev|novedad))/i;
+export const RE_INGRESO = /\bcu[aá]ndo\s+(ingres|entra|vuelve|repon|hay\b|habr|llega(n)?\s+(el|la|los|las|un|una)\s+(art|prod|import|nuev|novedad))/i;
 const RE_RECLAMO = /(\brot[oa]s?\b|\bromp|fallad|defectuos|mal estado|da[ñn]ad|cobr\S*\s+(de\s+m[aá]s|mal|distinto|otro)|precio\s+(viejo|distinto|equivocado|mal)|no\s+(me\s+)?(aplic|respet|hicieron\s+el\s+descuento)|est[aá]\s+mal\b|vino\s+mal|lleg\w*\s+(mal|\d+\s+de\s+\d+)|llegaron\s+\d+|\bme\s+falt|\bfalt(a|an|aron)\s+\d|incorrect|equivocad|reclam)/i;
 const RE_YA_PAGUE = /\b(ya (les |te )?(pagu[eé]|transfer[ií]|deposit[eé]|abon[eé]|cancel[eé])|(les |te )?(transfer[ií]|pagu[eé]|deposit[eé]) (ayer|hoy|el)|sigue figurando|me sigue (apareciendo|saliendo)|no (se )?(me )?(acredit|impact|figura (el|mi) pago))/i;
 const RE_RETIRO = /\b(retir(o|ar|arlo|arla|amos|a)|pas(ar|o|amos) a buscar|buscarlo|ir a buscar|lo busco|voy a buscar)\b/i;
@@ -430,9 +430,9 @@ export const RE_FACTURA_DUPLICADA = /(factur\w*[^.?!]{0,40}(dos veces|\b2 veces|
 const RE_ERROR_CARGA = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|me\s+equivoqu[eé]|nos\s+equivocamos|puse|pusimos)(?![a-zñáéíóú])[^.?!]{0,60}\b(unidad|caja|pedido)/i;
 // "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" / "¿novedades del pedido?".
 // No "me llegó el pedido en mal estado" (reclamo: lo ve la IA).
-const RE_ESTADO_PEDIDO = /\bpedido\b[^.?!]{0,60}\b((?<!mal\s)(?<!buen\s)estado|confirmad[oa]|novedad(es)?)\b|\b(estado|confirmad[oa]|novedad(es)?)\b[^.?!]{0,40}\bpedido\b/i;
+export const RE_ESTADO_PEDIDO = /\bpedido\b[^.?!]{0,60}\b((?<!mal\s)(?<!buen\s)estado|confirmad[oa]|novedad(es)?)\b|\b(estado|confirmad[oa]|novedad(es)?)\b[^.?!]{0,40}\bpedido\b/i;
 // "Qué período de tiempo están contemplando para entregas" / "¿cuánto tarda la entrega?" / "¿qué plazo de entrega tienen?".
-const RE_PLAZO_ENTREGA = /\b(per[ií]odo|plazo|tiempo)s?\b[^.?!]{0,50}\b(entrega|entregas|entregar|env[ií]os?)\b|\bcu[aá]nt[oa]s?\s+(d[ií]as\s+)?(tarda|tardan|demora|demoran)\b[^.?!]{0,30}\b(entrega|entregar|env[ií]o|llegar|pedido)/i;
+export const RE_PLAZO_ENTREGA = /\b(per[ií]odo|plazo|tiempo)s?\b[^.?!]{0,50}\b(entrega|entregas|entregar|env[ií]os?)\b|\bcu[aá]nt[oa]s?\s+(d[ií]as\s+)?(tarda|tardan|demora|demoran)\b[^.?!]{0,30}\b(entrega|entregar|env[ií]o|llegar|pedido)/i;
 const HORARIO_DEPOSITO = "Estamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (de 12 a 13 cerramos para almorzar).";
 const RE_ALMUERZO = /\b(almuerz\w*|almorz\w*|almuerc\w*|mediod[ií]a)/i;
 const RE_LLEGANDO = /\b(estoy|estamos)\s+(llegando|yendo|en\s+camino|a\s+\d+\s+(cuadras|minutos))\b|\bme\s+esperan\b|\bya\s+(voy|salgo)\s+para\s+(all[aá]|el\s+dep[oó]sito)/i;
@@ -541,7 +541,7 @@ async function pedidoExpresoAbierto(customer: NonNullable<Customer>): Promise<{ 
 // estimada que calculó la confirmación del pedido (wa_fecha_estimada, sql/082) y, si no hay pedidos por entregar, devuelve
 // null para que conteste el plazo general (IA). No se le pregunta si recibió la confirmación: con la llave en "prueba"
 // hoy no le llega a ningún cliente.
-async function lookupOrderStatus(customer: NonNullable<Customer>, opts: { plazo?: boolean } = {}): Promise<string | null> {
+export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: { plazo?: boolean } = {}): Promise<string | null> {
   const { data: crudos } = await supabase
     .from("orders")
     .select("id, created_at, total, status")
@@ -773,7 +773,7 @@ async function contextoDescuentos() {
 // codChef: la cuenta de Chef desde la que escribe (un cliente sólo de Chef), por si el CUIT no está cargado.
 export type CtxPagos = { codLk: string | null; cuit: string | null; codChef?: string | null };
 
-async function ctxPagosDeCliente(customer: NonNullable<Customer>): Promise<CtxPagos> {
+export async function ctxPagosDeCliente(customer: NonNullable<Customer>): Promise<CtxPagos> {
   const { data } = await supabase.from("customers").select("cuit").eq("id", customer.id).maybeSingle();
   return { codLk: String(customer.cod_cliente), cuit: data?.cuit ?? null };
 }

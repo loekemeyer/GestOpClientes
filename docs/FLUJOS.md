@@ -44,6 +44,7 @@ Al cliente de Chef el bot le contesta sin IA y nunca con datos de Loekemeyer:
 | mandame la factura (fase 3) | el PDF de `isis_ch.documentos` (bucket isis-ch) del último día facturado o de la fecha/mes que nombre, con el saldo y el descuento de la factura y los datos de pago de Chef | `pago` si Chef no tiene alias cargado |
 | me facturaron dos veces (fase 3) | busca dos facturas de Chef del mismo importe en 15 días | `reclamo` siempre |
 | ¿qué descuento tengo? (fase 3) | cada factura de Chef abierta con su descuento (`dto_cond` hasta `vence`) | — |
+| ¿cuándo llega mi pedido? (01/10) | sus pedidos de Chef de los últimos 30 días con estado y fecha de salida (`pedidos-marca.ts`, vista `gv_pedido_web_estado_pagina` empresa chef); sin pedidos → "no veo pedidos de Chef en los últimos 30 días"; Gestión no responde → "le paso a una persona" | `entrega` si Gestión no respondió |
 | cualquier otra cosa | "Te responde una persona del equipo" | `cliente_chef` (una cada 2 h; va a Planify) |
 
 Un cliente de LK que además le compra a Chef (mismo CUIT) recibe lo mismo en las respuestas de pagos de LK: pago recibido, reenvío, factura duplicada y descuentos (#8) miran también Chef, y cada factura sale con los datos de pago de SU empresa.
@@ -148,6 +149,23 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 > llegó la confirmación (con la llave en "prueba" no le llega a ningún cliente).
 > "Figura el 30/09 pero en el detalle dice 13/10" (`RE_FECHAS_NO_COINCIDEN`) → "una persona revisa las fechas y te
 > confirma" + alerta `entrega`. Regla fija de la IA: nunca asumir que el cliente se equivocó.
+
+> **01/10 (Pablo Olejavetzky) — pedidos por marca (`_shared/pedidos-marca.ts`):** "cuando un cliente de Chef pregunta por la
+> llegada de su pedido, podríamos ver los pedidos que tiene cargados; si tiene de ambos, preguntarle de qué marca es".
+> - **Cliente sólo de Chef:** se le muestran sus pedidos de Chef (`chef_orders_cache` unido por CUIT o por su código de Chef) con el estado
+>   de la vista `gv_pedido_web_estado_pagina` (empresa chef): programado → "sale el martes 06/10", armado/pickeado → "en preparación",
+>   facturado, entregado (sólo si fue en los últimos 3 días). Un pedido que todavía no figura en Gestión y tiene hasta 7 días → "recibido,
+>   todavía sin fecha de salida"; con más de 7 días se da por entregado. Si el pedido trae `reingreso_desde` en el futuro (artículos que
+>   todavía no ingresaron) no se promete la fecha de la vista: "una persona del equipo te confirma la fecha de salida".
+> - **Cliente de Loekemeyer que también compra en Chef (mismo CUIT):** sin pedidos de Chef en curso → la respuesta de siempre; con pedidos
+>   en curso sólo en Chef → esos, titulados "de Chef"; **con pedidos en curso en las dos marcas** → *"tenés pedidos en curso de las dos
+>   marcas. ¿De qué marca es el pedido que consultás: Loekemeyer o Chef? (o escribí los dos)"*. La respuesta ("Chef", "Loeke", "los
+>   dos") se reconoce porque lo último del historial es esa pregunta (menos de 30 min). Si ya nombra la marca en la pregunta no se le pregunta.
+> - Preguntas que cubre `esConsultaEstado`: `RE_ESTADO_PEDIDO`, `RE_PLAZO_ENTREGA` y "¿cuándo llega?", "¿dónde está mi pedido?", "¿ya salió?".
+>   No cubre reclamos ("no me llegó": `RE_NO_LLEGO`) ni "cuándo ingresa el artículo" (`RE_INGRESO`). Con fecha explícita ("el del 17/9") un cliente de
+>   LK sigue por la IA, como siempre.
+> - **Límite conocido:** los pedidos que Chef carga directo en Gestión (order_id ≥ 1.000.000) no pasan por la web y no tienen cliente asociado:
+>   el bot no los ve.
 
 ```
 CLIENTE: ¿Sabés cuándo me entregan el pedido?

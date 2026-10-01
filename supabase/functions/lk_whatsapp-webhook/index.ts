@@ -31,6 +31,7 @@ import { notificarHumano } from "../_shared/alertas.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
+import { responderEstadoPedidos } from "../_shared/pedidos-marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START, tryRegister } from "../_shared/alta.ts";
@@ -1126,8 +1127,26 @@ async function handleMessage(
     }
   }
   // Pedido por WhatsApp a medio armar: lo que conteste va al agente, no a una respuesta fija (pedidoEnCurso).
+  const enCurso = customer ? await pedidoEnCurso(phone) : false;
+  // Pablo, 01/10: "¿cuándo llega mi pedido?" de quien compra también en Chef: si tiene pedidos en curso en las dos marcas se
+  // le pregunta de cuál es (y acá se resuelve lo que conteste); si sólo tiene en Chef, se le muestran esos. Sin pedidos de
+  // Chef en curso devuelve null y sigue la respuesta de siempre. Ver _shared/pedidos-marca.ts.
+  if (faqCustomer && !soloSaludo && !enCurso) {
+    // Si algo falla acá, sigue el flujo de siempre (FAQ / agente): no puede tumbar la respuesta al cliente.
+    const em = await responderEstadoPedidos(phone, text, faqCustomer).catch((e) => {
+      console.error("responderEstadoPedidos:", e instanceof Error ? e.message : e);
+      return null;
+    });
+    if (em) {
+      await saveMessage(phone, "user", text);
+      const reply = await conSaludoSiCorresponde(em.reply, phone, faqCustomer.business_name);
+      await enviarTexto(cfg, phone, reply);
+      await saveMessage(phone, "assistant", reply);
+      return;
+    }
+  }
   const faq = !customer && RE_ALTA_START.test(text) ? null
-    : customer && await pedidoEnCurso(phone) ? null
+    : enCurso ? null
     : await handleFaq(text, faqCustomer);
   if (faq) {
     await saveMessage(phone, "user", text);
