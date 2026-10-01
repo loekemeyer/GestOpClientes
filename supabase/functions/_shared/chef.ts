@@ -51,7 +51,7 @@ export async function cuentaChef(phone: string): Promise<CuentaChef | null> {
 // "gracias", "ok gracias", "dale, perfecto", "👍": sólo palabras de cortesía (mismo criterio que esSoloSaludo).
 const PALABRAS_CORTESIA = new Set(["gracias", "graciass", "muchas", "mil", "ok", "oka", "okey", "okk", "dale", "perfecto",
   "genial", "listo", "barbaro", "joya", "buenisimo", "de", "acuerdo", "entendido", "bueno", "igualmente", "saludos"]);
-function esCortesia(text: string): boolean {
+export function esCortesia(text: string): boolean {
   const palabras = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
   if (!palabras.length) return /^[\s\p{Extended_Pictographic}‍️]+$/u.test(text);   // sólo emojis (👍, 🙏)
@@ -61,6 +61,15 @@ const RE_COMPROBANTE = /(comprobante|ya (te |les )?(pagu[eé]|transfer[ií]|depo
 const RE_DEUDA = /(cu[aá]nto (debo|te debo|les debo|tengo que pagar|hay que pagar|es lo que debo)|deuda|saldo|estado de cuenta|resumen de cuenta|facturas? (pendientes?|impagas?|vencidas?|a pagar|sin pagar|adeudadas?)|qu[eé] (debo|tengo (pendiente|para pagar|que pagar))|tengo algo (pendiente|para pagar|vencido))/i;
 const RE_DESCUENTO = /(descuento|bonificaci|cu[aá]nto (me )?(sale|queda|pago) si (pago|abono|transfiero))/i;
 const RE_DATOS_PAGO =/(\balias\b|\bcbu\b|\bcvu\b|transfer(encia|ir|irles|irte)\b|datos (de|para) (pago|pagar|transferir|la transferencia)|cuenta (bancaria|para (pagar|transferir|depositar))|d[oó]nde (les |te )?(pago|transfiero|deposito)|c[oó]mo (les |te )?pago)/i;
+
+/**
+ * Consultas de plata (facturas, saldo, pagos, comprobantes, descuentos, datos para transferir): un cliente de las dos marcas
+ * las recibe con las dos empresas separadas (faq.ts y consultar_mis_facturas), así que la puerta de marca no las pregunta.
+ */
+export function esConsultaDePagos(t: string): boolean {
+  return RE_FACTURA_DUPLICADA.test(t) || RE_PIDE_FACTURA.test(t) || RE_PAGO_RECIBIDO.test(t) || RE_COMPROBANTE.test(t) ||
+    RE_DESCUENTO.test(t) || RE_DEUDA.test(t) || RE_DATOS_PAGO.test(t);
+}
 
 const pesos = (n: unknown) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const fechaLarga = (f: unknown) => { const s = String(f ?? ""); return s.length >= 10 ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : ""; };

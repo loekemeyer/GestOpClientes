@@ -4,12 +4,9 @@
 // cargados. Si tiene de ambos, deberíamos consultarle de qué 'marca' es el pedido".
 //
 // Reglas (D008: la empresa viaja con cada dato, nunca se adivina):
-//   · cliente sólo de Chef → sus pedidos de Chef con estado y fecha, directo (chef.ts);
-//   · cliente de Loekemeyer sin pedidos de Chef en curso → sigue el flujo de siempre (faq.ts, lookupOrderStatus);
-//   · cliente de Loekemeyer con pedidos en curso en las DOS marcas → se le pregunta de cuál es, y lo que conteste
-//     ("Chef", "Loeke", "los dos") se resuelve acá;
-//   · cliente de Loekemeyer con pedidos en curso sólo en Chef → se le muestran los de Chef, con el nombre de la marca.
-//   · si dice la marca en la pregunta ("¿cuándo llega mi pedido de Chef?") no se le pregunta nada.
+//   · cliente sólo de Chef → sus pedidos de Chef con estado y fecha de salida, directo (chef.ts);
+//   · cliente de las dos marcas → la pregunta "¿de qué marca es tu consulta?" la hace la puerta de marca (marca.ts), y con
+//     la respuesta se llama a esta lista (Chef) o a la de siempre (faq.ts, lookupOrderStatus).
 //
 // De dónde sale cada dato (medido el 01/10):
 //   · los pedidos de Chef: chef_orders_cache (PaginaLK; id 145–241), unidos a chef_customers_cache por CUIT (un cliente de
@@ -21,12 +18,9 @@
 // cliente asociado: el bot no los ve. Un pedido de Chef que no figura en la vista y tiene más de 7 días se da por entregado
 // (mismo criterio que lookupOrderStatus con los trabados): si el cliente dice que no le llegó, es reclamo (RE_NO_LLEGO).
 import { getGestionClient, supabase } from "./supabase.ts";
-import { SIM } from "./simulacion.ts";
 import { pedidosAnulados } from "./pedidos-anulados.ts";
 import { cuitNorm } from "./empresas.ts";
-import {
-  ctxPagosDeCliente, type Customer, lookupOrderStatus, RE_ESTADO_PEDIDO, RE_INGRESO, RE_NO_LLEGO, RE_PLAZO_ENTREGA,
-} from "./faq.ts";
+import { RE_ESTADO_PEDIDO, RE_INGRESO, RE_NO_LLEGO, RE_PLAZO_ENTREGA } from "./faq.ts";
 
 export type Marca = "lk" | "chef" | "ambas";
 
@@ -40,10 +34,6 @@ export type PedidoChef = {
   sucursal: string | null;
 };
 
-/** Marca de la pregunta al cliente. Se busca en el historial para reconocer la respuesta ("Chef"). */
-export const PREGUNTA_MARCA = "¿De qué marca es el pedido";
-const VENTANA_MIN = 30;
-
 const RE_CHEF = /\bche+f/i;
 const RE_LK = /\b(lo[eé]?[kq]u?e\w*|loeck\w*|lk)\b/i;
 const RE_AMBAS = /\b(los\s+dos|las\s+dos|ambos|ambas|los\s+2|todos|todas)\b/i;
@@ -55,13 +45,21 @@ export function marcaEnTexto(text: string): Marca | null {
   return ch ? "chef" : lk ? "lk" : null;
 }
 
+/**
+ * Marca nombrada en un mensaje NUEVO ("el pedido de Chef", "la factura de Loeke"). Más estricta que marcaEnTexto, que se usa
+ * para la respuesta corta a la pregunta de marca: "cuchillo chef" es un producto, no la empresa.
+ */
+export function marcaNombrada(text: string): Marca | null {
+  const ch = /\b(de|del|en|por|con|para|marca|empresa|lado|parte)\s+(la\s+|el\s+)?che+f/i.test(text);
+  const lk = /\b(de|del|en|por|con|para|marca|empresa|lado|parte)\s+(la\s+|el\s+)?(lo[eé]?[kq]u?e\w*|loeck\w*|lk)\b/i.test(text);
+  if (ch && lk) return "ambas";
+  return ch ? "chef" : lk ? "lk" : null;
+}
+
 // "¿Cuándo llega mi pedido?", "¿dónde está mi pedido?", "¿ya salió?": preguntas por la llegada, que RE_ESTADO_PEDIDO y
 // RE_PLAZO_ENTREGA (faq.ts) no cubren.
 const RE_CUANDO_LLEGA = /\b(cu[aá]ndo|qu[eé]\s+d[ií]a|a\s+qu[eé]\s+hora)\b[^.?!]{0,40}\b(llega\w*|entreg\w*|sale\w*|despach\w*|viene\w*|traen|mandan|env[ií]an|reciben)\b|\bd[oó]nde\s+(est[aá]|anda|viene|qued[oó])(?![a-zñáéíóú])[^.?!]{0,30}\b(pedido|mercader[ií]a|compra)\b|\b(ya\s+)?(sali[oó]|despacharon|enviaron|mandaron)(?![a-zñáéíóú])[^.?!]{0,30}\b(pedido|mercader[ií]a)\b/i;
 const RE_PEDIDO_PALABRA = /\b(pedidos?|mercader[ií]a|compra|orden|entregas?|env[ií]os?)\b/i;
-// "el pedido del 17/9": con fecha explícita el pedido lo busca la IA (mismo criterio que faq.ts).
-const RE_FECHA = /\b\d{1,2}\s*[/-]\s*\d{1,2}\b|\b\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i;
-
 /** ¿Pregunta por el estado o la llegada de su pedido? (no un reclamo "no me llegó" ni "cuándo ingresa el artículo"). */
 export function esConsultaEstado(text: string): boolean {
   const t = text.trim();
@@ -78,7 +76,7 @@ const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const conDia = (iso: string) => `${DIAS[new Date(`${iso.slice(0, 10)}T12:00:00Z`).getUTCDay()]} ${ddmm(iso)}`;
 const diaAR = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso));
-const hoyAR = () => diaAR(new Date().toISOString());
+export const hoyAR = () => diaAR(new Date().toISOString());
 const diasEntre = (hasta: string, desde: string) => Math.round((Date.parse(hasta.slice(0, 10)) - Date.parse(desde.slice(0, 10))) / 86400_000);
 
 const ESTADO_TXT: Record<string, string> = {
@@ -210,63 +208,4 @@ export async function pedidosChef(c: { cuit?: string | null; codChef?: string | 
     console.error("pedidosChef:", e instanceof Error ? e.message : e);
     return null;
   }
-}
-
-async function preguntaPendiente(phone: string): Promise<boolean> {
-  const { data } = SIM.activo
-    ? { data: SIM.historial.slice(-1) }
-    : await supabase.from("bot_historial_chat").select("rol, contenido, creado_en")
-      .eq("telefono", phone).order("creado_en", { ascending: false }).limit(1);
-  const ult = data?.[0];
-  if (!ult || ult.rol !== "assistant" || !String(ult.contenido ?? "").includes(PREGUNTA_MARCA)) return false;
-  return Date.now() - new Date(ult.creado_en).getTime() <= VENTANA_MIN * 60_000;
-}
-
-// lookupOrderStatus (faq.ts) titula "…que falta(n) entregar" o "…en curso" cuando hay algo pendiente.
-const lkTienePendientes = (t: string | null) => !!t && /\b(falta|faltan) entregar|\ben curso\b/.test(t);
-
-/**
- * Cliente de Loekemeyer que consulta por su pedido (el flujo de un cliente sólo de Chef está en chef.ts). Devuelve la
- * respuesta o null si no corresponde (otro tema, o sin pedidos de Chef en curso: sigue el flujo de Loekemeyer de siempre).
- */
-export async function responderEstadoPedidos(
-  phone: string, text: string, customer: NonNullable<Customer>,
-): Promise<{ reply: string; via: string } | null> {
-  const nombre = customer.business_name;
-  const hoy = hoyAR();
-  const porMarca = async (marca: Marca, chef: PedidoChef[] | null) => {
-    if (marca === "lk") return (await lookupOrderStatus(customer)) ?? "";
-    if (chef === null) return null;
-    if (marca === "chef") return textoPedidosChef(nombre, chef, hoy)!;
-    const lk = (await lookupOrderStatus(customer)) ?? "";
-    return `*Loekemeyer*\n${lk}\n\n*Chef*\n${textoPedidosChef(nombre, chef, hoy, { cierre: false, sinNombre: true })!}`;
-  };
-
-  // 1) Contesta la pregunta de marca que le hicimos (se mira el historial sólo si el mensaje nombra una marca).
-  const respuesta = marcaEnTexto(text);
-  if (respuesta && await preguntaPendiente(phone)) {
-    const chef = respuesta === "lk" ? [] : await pedidosChef({ cuit: (await ctxPagosDeCliente(customer)).cuit });
-    const reply = await porMarca(respuesta, chef);
-    if (reply) return { reply, via: `estado_pedidos (${respuesta})` };
-  }
-
-  // 2) Pregunta por su pedido.
-  if (!esConsultaEstado(text) || RE_FECHA.test(text)) return null;
-  const nombrada = marcaEnTexto(text);
-  if (nombrada === "lk") return null;            // dijo Loekemeyer: el flujo de siempre
-  const chef = await pedidosChef({ cuit: (await ctxPagosDeCliente(customer)).cuit });
-  if (!chef) return null;                        // Gestión no respondió: no se afirma nada de Chef
-  if (nombrada) {
-    const reply = await porMarca(nombrada, chef);
-    return reply ? { reply, via: `estado_pedidos (${nombrada})` } : null;
-  }
-  const chefPend = textoPedidosChef(nombre, chef, hoy, { soloSiHay: true });
-  if (!chefPend) return null;                    // sin pedidos de Chef en curso: Loekemeyer como siempre
-  if (!lkTienePendientes(await lookupOrderStatus(customer))) {
-    return { reply: chefPend, via: "estado_pedidos (chef)" };
-  }
-  return {
-    reply: `${nombre}, tenés pedidos en curso de las dos marcas. ${PREGUNTA_MARCA} que consultás: *Loekemeyer* o *Chef*? (o escribí *los dos*)`,
-    via: "estado_pedidos (pregunta la marca)",
-  };
 }

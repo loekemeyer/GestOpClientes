@@ -160,6 +160,11 @@ tiene su versión de Chef (6 más, `_chef`), que nombra a Chef y no lleva alias.
 variable (cambiar de cuenta no necesita aprobación nueva de Meta). Mientras la de Chef no esté APPROVED, el aviso de factura de
 Chef queda retenido: la de Loekemeyer no sirve (lleva el alias de Loekemeyer).
 
-**Estado de pedidos por marca (Pablo, 01/10).** Un cliente que pregunta cuándo llega su pedido ve los de la marca que corresponde: sólo
-Chef → los de Chef; las dos marcas con pedidos en curso → se le pregunta de cuál es (no se mezclan en una lista sin marca); sin pedidos de
-Chef en curso → la respuesta de Loekemeyer de siempre. El cruce con Chef es por CUIT (nunca por código). Código: `_shared/pedidos-marca.ts`.
+**Puerta de marca (Pablo, 01/10).** D008 dice que no se pregunta "¿Loekemeyer o Chef?" al empezar; eso sigue igual. Lo que se agrega: a
+un cliente de las dos marcas se le pregunta de qué marca es CADA consulta, también los pedidos ("es el doble de trabajo de flow, pero es
+la única que va a quedar bien y sin errores"). Se probó un atajo —no preguntar si solo una marca tiene pedidos en curso— y se descartó:
+contesta mal cuando el cliente habla de un pedido ya entregado de la otra marca. Quedan fuera de la pregunta el saludo, la cortesía y las
+consultas de plata, que ya separan las dos empresas. La marca elegida se recuerda 15 minutos leyendo la etiqueta de las respuestas del
+historial (sin tablas). Con Chef contesta `atenderClienteChef`; con Loekemeyer, el flujo de siempre. Código: `_shared/marca.ts`.
+Sin medir todavía: cuántos de los 357 CUIT que están en las dos empresas compraron en Chef en el último año; los que no, igual reciben la
+pregunta.

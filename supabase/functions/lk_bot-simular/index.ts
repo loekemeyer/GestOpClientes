@@ -10,7 +10,7 @@ import { leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_sha
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START } from "../_shared/alta.ts";
 import { pedidoEnCurso, runConversation } from "../_shared/bot-conversation.ts";
 import { atenderClienteChef } from "../_shared/chef.ts";
-import { responderEstadoPedidos } from "../_shared/pedidos-marca.ts";
+import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 
@@ -251,11 +251,12 @@ serve(async (req) => {
         salida.push({ aviso: nombre, texto });
         continue;
       }
-      const text = String(paso.cliente ?? "").trim();
+      let text = String(paso.cliente ?? "").trim();
       if (!text) continue;
       SIM.alertas = [];
       SIM.herramientas = [];
       let puntuar = false;
+      let marcaLk = false;
 
       let reply: string | null = null;
       let via = "";
@@ -272,18 +273,21 @@ serve(async (req) => {
         reply = await pedidoDeCambio(TEL_SIMULADO, text, customer);
         if (reply) via = "pedido_de_cambio";
       }
-      // 3e. estado de los pedidos por marca (Loekemeyer / Chef), mismo orden que el webhook
+      // 3e. puerta de marca (cliente de Loekemeyer y de Chef), mismo orden que el webhook
       if (!reply && !esSoloSaludo(text) && !(await pedidoEnCurso(telSim))) {
-        const em = await responderEstadoPedidos(TEL_SIMULADO, text,
+        const g = await puertaMarca(TEL_SIMULADO, text,
           { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
-        if (em) { reply = em.reply; via = em.via; }
+        if (g?.tipo === "responder") {
+          reply = g.reply; via = g.via;
+          if (g.documentos?.length) reply += "\n\n" + g.documentos.map((d) => `📎 ${d.filename}`).join("\n");
+        } else if (g?.tipo === "seguir") { text = g.texto; marcaLk = true; via = g.via; }
       }
       // 4. preguntas frecuentes
       if (!reply) {
         const faq = await pedidoEnCurso(telSim) ? null
           : await handleFaq(text, { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
         if (faq) {
-          reply = faq.reply; via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`;
+          reply = marcaLk ? conEtiqueta("lk", faq.reply) : faq.reply; via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`;
           // Reenvío de factura: en el simulador no se manda nada; se muestra qué PDF iría adjunto.
           if (faq.documentos?.length) reply += "\n\n" + faq.documentos.map((d) => `📎 ${d.filename}`).join("\n");
           // Mismo contexto que arma el webhook, así la tarea de prueba es igual a la real.
@@ -299,7 +303,7 @@ serve(async (req) => {
       if (!reply) {
         const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular");
         via = r.timeout ? "agente (timeout: en producción no se contesta nada)" : r.llmError ? "agente (error: en producción no se contesta nada)" : "agente IA";
-        reply = r.reply;
+        reply = marcaLk && r.reply ? conEtiqueta("lk", r.reply) : r.reply;
         // Con "Crear tareas de prueba", la respuesta de la IA también queda para puntuar (🧪, fuera de los promedios).
         if (body.crear_tareas === true && !r.timeout && !r.llmError) {
           const { error: eP } = await supabase.from("wa_ia_puntajes").insert({

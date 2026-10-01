@@ -55,6 +55,32 @@ Cliente molesto y adjuntos siguen el camino de siempre; la alerta lleva `empresa
 alta). Al aprobarla se carga en `bot_chef_whatsapps`, nunca en `bot_customer_whatsapps` (D008). En Vinculaciones y
 en Tareas se ve "Chef" al lado del código.
 
+## Flujo 1d: Cliente de las dos marcas — puerta de marca (01/10, `_shared/marca.ts`)
+
+Pedido de Pablo Olejavetzky: *"cuando se le hace una consulta algún cliente que tenga ambas marcas, deberíamos consultarle a cuál se
+refiere, también con los pedidos; es el doble de trabajo de flow, pero es la única que va a quedar bien y sin errores"*.
+
+Un cliente de Loekemeyer cuyo CUIT también es cliente de Chef (`bot_cuentas`, empresa CH) es de "las dos marcas". Antes del FAQ y del
+agente (después de las respuestas a avisos y de pedido en curso):
+
+| el mensaje es | el bot |
+|---|---|
+| saludo, "gracias", o una consulta de plata (facturas, saldo, pagos, comprobante, descuentos, datos para transferir) | no pregunta: esas respuestas ya separan las dos empresas |
+| nombra la marca ("el pedido de Chef", "la factura de Loeke") | la usa, sin preguntar |
+| de hace menos de 15 min hay una respuesta con etiqueta *Chef* / *Loekemeyer* | sigue con esa marca |
+| cualquier otra cosa | *"¿De qué marca es tu consulta: Loekemeyer o Chef?"* (en consultas de pedido suma "o escribí los dos") |
+
+Con la respuesta se contesta la consulta original (el último mensaje suyo que no es una respuesta de marca):
+- **Chef** → `atenderClienteChef` (lo que Chef ya contesta: pedidos, facturas, pagos; lo demás, una persona con la alerta marcada Chef).
+- **Loekemeyer** → el flujo de siempre (FAQ y agente).
+- **Los dos** → solo para pedidos (las dos listas, cada una con su marca); para otro tema pide ir de a una marca.
+
+**La etiqueta es la memoria:** cada respuesta de marca arranca con `*Chef*` o `*Loekemeyer*` y la marca elegida se lee del historial
+(`bot_historial_chat`), sin tablas nuevas. A los 15 minutos se vuelve a preguntar: ante la duda, se pregunta. Cuando Chef sume una
+herramienta, entra en `atenderClienteChef` y la puerta no cambia.
+
+Fuera de la puerta: un cliente de una sola marca no recibe la pregunta, y si `puertaMarca` falla el webhook sigue por el flujo de siempre.
+
 ## Flujo 1b: El cliente contesta un aviso automático (28/09)
 
 Cada aviso (pedido recibido, programado, en viaje…) queda en el historial como
@@ -157,10 +183,10 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 >   facturado, entregado (sólo si fue en los últimos 3 días). Un pedido que todavía no figura en Gestión y tiene hasta 7 días → "recibido,
 >   todavía sin fecha de salida"; con más de 7 días se da por entregado. Si el pedido trae `reingreso_desde` en el futuro (artículos que
 >   todavía no ingresaron) no se promete la fecha de la vista: "una persona del equipo te confirma la fecha de salida".
-> - **Cliente de Loekemeyer que también compra en Chef (mismo CUIT):** sin pedidos de Chef en curso → la respuesta de siempre; con pedidos
->   en curso sólo en Chef → esos, titulados "de Chef"; **con pedidos en curso en las dos marcas** → *"tenés pedidos en curso de las dos
->   marcas. ¿De qué marca es el pedido que consultás: Loekemeyer o Chef? (o escribí los dos)"*. La respuesta ("Chef", "Loeke", "los
->   dos") se reconoce porque lo último del historial es esa pregunta (menos de 30 min). Si ya nombra la marca en la pregunta no se le pregunta.
+> - **Cliente de Loekemeyer que también compra en Chef (mismo CUIT):** siempre se le pregunta de qué marca es la consulta (puerta de
+>   marca, Flujo 1d), tenga o no pedidos en curso en cada una: un atajo "si solo uno tiene pedidos, no pregunto" contestaba mal
+>   cuando el cliente se refería a un pedido ya entregado de la otra marca. Con "Chef" ve la lista de Chef; con "Loekemeyer", la de
+>   siempre; con "los dos", las dos listas con su marca.
 > - Preguntas que cubre `esConsultaEstado`: `RE_ESTADO_PEDIDO`, `RE_PLAZO_ENTREGA` y "¿cuándo llega?", "¿dónde está mi pedido?", "¿ya salió?".
 >   No cubre reclamos ("no me llegó": `RE_NO_LLEGO`) ni "cuándo ingresa el artículo" (`RE_INGRESO`). Con fecha explícita ("el del 17/9") un cliente de
 >   LK sigue por la IA, como siempre.

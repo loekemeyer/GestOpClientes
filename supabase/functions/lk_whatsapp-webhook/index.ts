@@ -31,7 +31,7 @@ import { notificarHumano } from "../_shared/alertas.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
-import { responderEstadoPedidos } from "../_shared/pedidos-marca.ts";
+import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START, tryRegister } from "../_shared/alta.ts";
@@ -1128,22 +1128,32 @@ async function handleMessage(
   }
   // Pedido por WhatsApp a medio armar: lo que conteste va al agente, no a una respuesta fija (pedidoEnCurso).
   const enCurso = customer ? await pedidoEnCurso(phone) : false;
-  // Pablo, 01/10: "¿cuándo llega mi pedido?" de quien compra también en Chef: si tiene pedidos en curso en las dos marcas se
-  // le pregunta de cuál es (y acá se resuelve lo que conteste); si sólo tiene en Chef, se le muestran esos. Sin pedidos de
-  // Chef en curso devuelve null y sigue la respuesta de siempre. Ver _shared/pedidos-marca.ts.
+  // Pablo, 01/10 (D008): quien compra en Loekemeyer Y en Chef elige de qué marca es cada consulta (_shared/marca.ts). Se le
+  // pregunta salvo saludo, cortesía y consultas de plata (esas ya separan las dos empresas); con Chef contesta lo que Chef
+  // sabe o una persona; con Loekemeyer sigue el flujo de siempre, con la respuesta etiquetada. Si algo falla acá, sigue el
+  // flujo de siempre: la puerta no puede tumbar la respuesta al cliente.
+  let marcaLk = false;
   if (faqCustomer && !soloSaludo && !enCurso) {
-    // Si algo falla acá, sigue el flujo de siempre (FAQ / agente): no puede tumbar la respuesta al cliente.
-    const em = await responderEstadoPedidos(phone, text, faqCustomer).catch((e) => {
-      console.error("responderEstadoPedidos:", e instanceof Error ? e.message : e);
+    const g = await puertaMarca(phone, text, faqCustomer).catch((e) => {
+      console.error("puertaMarca:", e instanceof Error ? e.message : e);
       return null;
     });
-    if (em) {
+    if (g?.tipo === "responder") {
       await saveMessage(phone, "user", text);
-      const reply = await conSaludoSiCorresponde(em.reply, phone, faqCustomer.business_name);
+      const reply = await conSaludoSiCorresponde(g.reply, phone, faqCustomer.business_name);
       await enviarTexto(cfg, phone, reply);
       await saveMessage(phone, "assistant", reply);
+      for (const d of g.documentos ?? []) {
+        try {
+          await sendDocument(cfg.waPhoneId, cfg.waToken, phone, d.url, d.filename);
+          await saveMessage(phone, "assistant", `[Documento] ${d.filename}`);
+        } catch (e) {
+          console.error(`[marca documento] Meta rechazó ${d.filename} a ${phone}:`, e instanceof Error ? e.message : e);
+        }
+      }
       return;
     }
+    if (g?.tipo === "seguir") { text = g.texto; marcaLk = true; }
   }
   const faq = !customer && RE_ALTA_START.test(text) ? null
     : enCurso ? null
@@ -1152,9 +1162,10 @@ async function handleMessage(
     await saveMessage(phone, "user", text);
     // `faq.yaSaluda` = la respuesta ya arranca con "Hola…" (la FAQ del saludo inicial).
     // Sin ese chequeo el cliente recibía el saludo dos veces seguidas.
+    const cuerpo = marcaLk ? conEtiqueta("lk", faq.reply) : faq.reply;
     const reply = customer && !faq.yaSaluda
-      ? await conSaludoSiCorresponde(faq.reply, phone, customer.business_name)
-      : faq.reply;
+      ? await conSaludoSiCorresponde(cuerpo, phone, customer.business_name)
+      : cuerpo;
     await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", reply);
     // Pablo, 30/09: reenvío de factura. PDF suelto (el cliente acaba de escribir: dentro de las 24 h). Pasa por wa-guard.
@@ -1247,7 +1258,7 @@ async function handleMessage(
   }
 
   // 8. Enviar respuesta de texto (con saludo si es primer contacto)
-  const reply = await conSaludoSiCorresponde(result.reply, phone, customer.business_name);
+  const reply = await conSaludoSiCorresponde(marcaLk ? conEtiqueta("lk", result.reply) : result.reply, phone, customer.business_name);
   await enviarTexto(cfg, phone, reply);
 
   // 9. Guardar respuesta en historial
