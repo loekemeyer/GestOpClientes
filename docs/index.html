@@ -564,7 +564,7 @@
           <label for="simCod" class="toggle-desc" style="display:block;margin-bottom:0.25rem;">N° de cliente</label>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
             <!-- Pablo, 01/10 (sql/115): el mismo número es otro cliente en cada empresa; Chef corre la atención de Chef. -->
-            <select id="simEmpresa" title="Empresa del cliente" style="padding:0.4rem 0.3rem;border: 1px solid var(--border);border-radius:6px;font-size:0.9rem;background: var(--card);color: var(--text);">
+            <select id="simEmpresa" title="Empresa del cliente" onchange="simCambioEmpresa()" style="padding:0.4rem 0.3rem;border: 1px solid var(--border);border-radius:6px;font-size:0.9rem;background: var(--card);color: var(--text);">
               <option value="LK">Loekemeyer</option><option value="CH">Chef</option>
             </select>
             <input type="number" id="simCod" value="4210" placeholder="4210" onkeydown="if(event.key==='Enter')simReset(this.value)" style="width:9ch;padding:0.4rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.9rem;background: var(--card);color: var(--text);">
@@ -1837,7 +1837,7 @@ function tplChatAll() {
 }
 
 // --- Simulador: escribir como cliente + botonera de avisos (lk_bot-simular) ---
-var _sim = { cod: 4210, historial: [], avisos: null, ocupado: false };
+var _sim = { cod: 4210, historial: [], avisosPor: {}, iniciado: false, ocupado: false };
 // Nombres de botón que no salen bien del nombre de la plantilla (Pablo, 29/09).
 const SIM_ETIQUETA = { pedido_programado: "programado envío", pedido_recordatorio_descuento: "💰 recordatorio descuento" };
 
@@ -1848,18 +1848,44 @@ function simAgregar(cls, html) {
 }
 const simHora = () => new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 
-async function simInit() {
-  if (_sim.avisos) return;
+// Empresa elegida en el desplegable (todavía sin "Usar") y empresa del cliente cargado en el chat.
+const simEmpresaElegida = () => (document.getElementById("simEmpresa")?.value === "CH" ? "CH" : "LK");
+const simEmpresaActual = () => _sim.empresa || "LK";
+
+// Pablo, 01/10: la botonera cambia con el tipo de cliente (Loekemeyer: seguimiento + 6 de factura; Chef: sus 6 de factura).
+async function simPintarAvisos() {
+  const emp = simEmpresaElegida();
   const cont = document.getElementById("simAvisos");
   try {
-    const { data, error } = await authedInvoke("lk_bot-simular", { action: "avisos" });
-    if (error || !data?.ok) { cont.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
-    _sim.avisos = data.avisos;
-    cont.innerHTML = data.avisos.map((a) =>
-      `<button class="config-btn small sim-aviso" title="${esc(a.cuando || "")}" onclick="simAviso('${esc(a.name)}', ${a.factura ? "true" : "false"})">${a.factura ? "🧾 " : ""}${esc(SIM_ETIQUETA[a.name] || a.name.replace(/^pedido_/, "").replace(/_s$/, " (1 fc)").replace(/_p$/, " (varias)").replace(/_/g, " "))}</button>`).join("");
-    simReset();
+    if (!_sim.avisosPor[emp]) {
+      cont.innerHTML = '<div class="toggle-desc">Cargando…</div>';
+      const { data, error } = await authedInvoke("lk_bot-simular", { action: "avisos", empresa: emp });
+      if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
+      _sim.avisosPor[emp] = data.avisos;
+    }
+    if (simEmpresaElegida() !== emp) return;   // cambió de empresa mientras cargaba: ya se está pintando la otra
+    cont.innerHTML = _sim.avisosPor[emp].map((a) =>
+      `<button class="config-btn small sim-aviso" title="${esc(a.cuando || "")}" onclick="simAviso('${esc(a.name)}', ${a.factura ? "true" : "false"})">${a.factura ? "🧾 " : ""}${esc(SIM_ETIQUETA[a.name] || a.name.replace(/^pedido_/, "").replace(/_chef$/, "").replace(/_s$/, " (1 fc)").replace(/_p$/, " (varias)").replace(/_/g, " "))}</button>`).join("");
   } catch (e) {
     cont.innerHTML = '<div class="toggle-desc">⚠️ ' + esc(e.message) + "</div>";
+    throw e;
+  }
+}
+
+async function simInit() {
+  if (_sim.iniciado) return;
+  try {
+    await simPintarAvisos();
+    _sim.iniciado = true;
+    simReset();
+  } catch (_e) { /* ya quedó el aviso de error en la botonera: se reintenta al volver a abrir la pestaña */ }
+}
+
+// Al cambiar Loekemeyer ↔ Chef en el desplegable: cambian las plantillas. El chat sigue con el cliente cargado hasta tocar "Usar".
+function simCambioEmpresa() {
+  simPintarAvisos().catch(() => {});
+  if (!_sim.nuevo && simEmpresaElegida() !== simEmpresaActual()) {
+    simAgregar("system", `Cambiaste a ${simEmpresaElegida() === "CH" ? "Chef" : "Loekemeyer"}: poné el número de cliente y tocá Usar para empezar esa charla.`);
   }
 }
 
@@ -1898,7 +1924,8 @@ async function simLlamar(pasos) {
 async function simAviso(name, factura) {
   if (_sim.ocupado) return;
   if (_sim.nuevo) { simAgregar("system", "Los avisos son para clientes: elegí un número de cliente y tocá Usar."); return; }
-  if (_sim.empresa === "CH") { simAgregar("system", "Los avisos de pedidos son de Loekemeyer: con un cliente de Chef todavía no salen."); return; }
+  // Los botones son los del tipo de cliente elegido en el desplegable; el chat sigue con otro hasta tocar "Usar".
+  if (simEmpresaElegida() !== simEmpresaActual()) { simAgregar("system", "Cambiaste el tipo de cliente: poné el número y tocá Usar antes de mandar un aviso."); return; }
   _sim.ocupado = true;
   try {
     const r = await simLlamar([{ aviso: name }]);
@@ -4645,7 +4672,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.9</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.10</div>
 <script src="gestop2.js?v=0.26.4"></script>
 </body>
 </html>

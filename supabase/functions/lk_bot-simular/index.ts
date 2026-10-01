@@ -15,13 +15,26 @@ import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 
 // Botonera del Simulador: avisos de seguimiento + las 6 de factura (con el PDF de la factura en el mensaje).
-const AVISOS = [...PLANTILLAS.map((p) => ({ name: p.name, disparo: p.disparo, body: p.body, ejemplos: p.ejemplos, factura: false,
+// Pablo, 01/10: la botonera cambia con el tipo de cliente. Loekemeyer: seguimiento + 6 de factura; Chef: sus 6 de factura
+// (el seguimiento de pedidos —recibido, programado, retiro…— es sólo de Loekemeyer).
+type Aviso = { name: string; disparo: string; body: string; ejemplos: string[]; factura: boolean; varCliente: number; empresa: "LK" | "CH" };
+const AVISOS: Aviso[] = [...PLANTILLAS.map((p) => ({ name: p.name, disparo: p.disparo, body: p.body, ejemplos: p.ejemplos, factura: false,
     // la variable que lleva la razón social (si la plantilla la tiene): ahí va el nombre del cliente simulado.
-    varCliente: p.variables.findIndex((v) => /raz[oó]n social/i.test(v)) })),
-  // Las de Chef no van en la botonera: el simulador de un cliente de Chef todavía no arma avisos (su texto está en
-  // Configuración › Plantillas › Ver plan).
-  ...PLANTILLAS_FACTURA.filter((p) => p.empresa !== "chef").map((p) => ({ ...p, factura: true }))];
+    varCliente: p.variables.findIndex((v) => /raz[oó]n social/i.test(v)),
+    // comprobante_recibido_chef es de Chef (las demás de seguimiento, de Loekemeyer): se reconoce por el sufijo, como las de factura.
+    empresa: (p.name.endsWith("_chef") ? "CH" : "LK") as "LK" | "CH" })),
+  ...PLANTILLAS_FACTURA.map((p) => ({ name: p.name, disparo: p.disparo, body: p.body, ejemplos: p.ejemplos, factura: true, varCliente: -1,
+    empresa: (p.empresa === "chef" ? "CH" : "LK") as "LK" | "CH" }))];
 const rellenar = (body: string, vals: string[]) => body.replace(/\{\{(\d+)\}\}/g, (m, n) => vals[Number(n) - 1] ?? m);
+
+/** La charla previa que manda el dashboard (se carga sin volver a correrla): sólo user/assistant, las últimas 40, 4.000 caracteres c/u. */
+// deno-lint-ignore no-explicit-any
+function historialDe(body: any): Array<{ rol: "user" | "assistant"; contenido: string; creado_en: string }> {
+  if (!Array.isArray(body.historial)) return [];
+  return (body.historial as Array<{ rol?: string; contenido?: string }>).slice(-40)
+    .filter((h) => (h.rol === "user" || h.rol === "assistant") && typeof h.contenido === "string")
+    .map((h) => ({ rol: h.rol as "user" | "assistant", contenido: String(h.contenido).slice(0, 4000), creado_en: new Date().toISOString() }));
+}
 
 // lk_bot-simular — simulador del bot: corre una charla completa con la MISMA lógica que el webhook
 // (3c respuesta a aviso → 4 preguntas frecuentes → 6 agente IA) como si escribiera un cliente, sin
@@ -129,10 +142,22 @@ async function simularClienteChef(body: any): Promise<Response> {
   if (!cta) return json({ error: "cliente de Chef no encontrado" }, 400);
   const cuenta = { cod_cliente: String(cta.cod_cliente), razon_social: String(cta.razon_social ?? ""), cuit: cta.cuit ?? null, fuente: "simulador" };
   SIM.activo = true;
-  SIM.historial = [];
+  // Pablo, 01/10: antes arrancaba siempre con la charla vacía; así "elegir foto → el código", la puerta de marca y la respuesta a
+  // un aviso tienen la memoria de lo anterior, igual que el webhook.
+  SIM.historial = historialDe(body);
   try {
     const salida: Array<Record<string, unknown>> = [];
     for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
+      // Aviso de Chef (las 6 de factura): el texto con los valores de ejemplo, como si ya le hubiera llegado al cliente.
+      if (paso.aviso) {
+        const nombre = String(paso.aviso);
+        const def = AVISOS.find((x) => x.name === nombre && x.empresa === "CH");
+        if (!def) return json({ error: `aviso de Chef desconocido: ${nombre}` }, 400);
+        const texto = rellenar(def.body, def.ejemplos);
+        SIM.historial.push({ rol: "assistant", creado_en: new Date().toISOString(), contenido: `[Aviso automático ${nombre}]\n${texto}` });
+        salida.push({ aviso: nombre, texto });
+        continue;
+      }
       const text = String(paso.cliente ?? "").trim();
       if (!text) continue;
       SIM.alertas = [];
@@ -188,7 +213,10 @@ serve(async (req) => {
     }
 
     if (body.action === "avisos") {
-      return json({ ok: true, avisos: AVISOS.map((p) => ({ name: p.name, cuando: p.disparo, factura: p.factura, texto: rellenar(p.body, p.ejemplos) })) });
+      // { action: "avisos", empresa: "CH" } → los de Chef; sin empresa (o "LK") → los de Loekemeyer.
+      const emp = body.empresa === "CH" ? "CH" : "LK";
+      return json({ ok: true, empresa: emp, avisos: AVISOS.filter((p) => p.empresa === emp)
+        .map((p) => ({ name: p.name, cuando: p.disparo, factura: p.factura, texto: rellenar(p.body, p.ejemplos) })) });
     }
 
     // Pablo, 29/09: modo "número nuevo" (alguien que todavía no es cliente): corre el alta real paso a paso (_shared/alta.ts)
@@ -233,21 +261,17 @@ serve(async (req) => {
       telSim ||= TEL_SIMULADO;
     }
     SIM.activo = true;
-    SIM.historial = Array.isArray(body.historial)
-      ? (body.historial as Array<{ rol?: string; contenido?: string }>).slice(-40)
-        .filter((h) => (h.rol === "user" || h.rol === "assistant") && typeof h.contenido === "string")
-        .map((h) => ({ rol: h.rol as "user" | "assistant", contenido: String(h.contenido).slice(0, 4000), creado_en: new Date().toISOString() }))
-      : [];
+    SIM.historial = historialDe(body);
     const salida: Array<Record<string, unknown>> = [];
     const ahora = () => new Date().toISOString();
 
     for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
       if (paso.aviso) {
         const nombre = String(paso.aviso);
-        const def = AVISOS.find((x) => x.name === nombre);
+        const def = AVISOS.find((x) => x.name === nombre && x.empresa === "LK");
         // Sin params: los valores de ejemplo; en la variable de razón social (si la plantilla la tiene), el nombre del cliente.
         const vals = paso.params ? Object.values(paso.params as Record<string, unknown>).map(String)
-          : def ? def.ejemplos.map((v, i) => (i === (def as { varCliente?: number }).varCliente ? c.business_name : v)) : [];
+          : def ? def.ejemplos.map((v, i) => (i === def.varCliente ? c.business_name : v)) : [];
         const texto = def ? rellenar(def.body, vals) : (renderPlantilla(nombre, null) ?? "");
         SIM.historial.push({ rol: "assistant", creado_en: ahora(),
           contenido: `[Aviso automático ${nombre}${paso.pedido ? ` · pedido ${paso.pedido}` : ""}]\n${texto}` });
