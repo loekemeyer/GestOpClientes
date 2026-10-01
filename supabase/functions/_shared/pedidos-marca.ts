@@ -209,3 +209,21 @@ export async function pedidosChef(c: { cuit?: string | null; codChef?: string | 
     return null;
   }
 }
+
+/**
+ * ¿Hay pedidos de Chef cargados en la web en los últimos `dias` días para este CUIT? (sin mirar su estado: sólo si compró hace
+ * poco). null = no se pudo leer.
+ */
+export async function hayPedidosChefRecientes(cuit: unknown, dias = 90): Promise<boolean | null> {
+  const c = cuitNorm(cuit);
+  if (!c) return false;
+  const { data: cli, error: e1 } = await supabase.from("chef_customers_cache").select("id")
+    .or(`cuit.eq.${c},cuit.eq.${c.slice(0, 2)}-${c.slice(2, 10)}-${c.slice(10)}`);
+  if (e1) { console.error("hayPedidosChefRecientes:", e1.message); return null; }
+  const ids = (cli ?? []).map((r: { id: string }) => r.id);
+  if (!ids.length) return false;
+  const { count, error: e2 } = await supabase.from("chef_orders_cache").select("id", { count: "exact", head: true })
+    .in("customer_id", ids).gte("created_at", new Date(Date.now() - dias * 86400_000).toISOString());
+  if (e2) { console.error("hayPedidosChefRecientes:", e2.message); return null; }
+  return (count ?? 0) > 0;
+}

@@ -166,5 +166,8 @@ la única que va a quedar bien y sin errores"). Se probó un atajo —no pregunt
 contesta mal cuando el cliente habla de un pedido ya entregado de la otra marca. Quedan fuera de la pregunta el saludo, la cortesía y las
 consultas de plata, que ya separan las dos empresas. La marca elegida se recuerda 15 minutos leyendo la etiqueta de las respuestas del
 historial (sin tablas). Con Chef contesta `atenderClienteChef`; con Loekemeyer, el flujo de siempre. Código: `_shared/marca.ts`.
-Sin medir todavía: cuántos de los 357 CUIT que están en las dos empresas compraron en Chef en el último año; los que no, igual reciben la
-pregunta.
+Medido el 01/10: de los 357 clientes de Loekemeyer que están en las dos empresas, sólo 64 (17,9 %) tienen una factura de Chef en los
+últimos 12 meses. Pablo: "limitalo a 12 meses" — la pregunta se hace sólo a clientes con factura de Chef en 12 meses o pedido de Chef
+en 90 días (cubre al que recién empieza a comprar y todavía no tiene factura); los otros 293 (82,1 %) siguen por el flujo de siempre.
+Si Gestión no responde, se pregunta. Un cliente que vuelva a comprar en Chef después de más de 12 meses queda sin la pregunta hasta que
+cargue un pedido (lo cubre la ventana de 90 días).

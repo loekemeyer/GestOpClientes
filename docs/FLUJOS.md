@@ -60,8 +60,11 @@ en Tareas se ve "Chef" al lado del código.
 Pedido de Pablo Olejavetzky: *"cuando se le hace una consulta algún cliente que tenga ambas marcas, deberíamos consultarle a cuál se
 refiere, también con los pedidos; es el doble de trabajo de flow, pero es la única que va a quedar bien y sin errores"*.
 
-Un cliente de Loekemeyer cuyo CUIT también es cliente de Chef (`bot_cuentas`, empresa CH) es de "las dos marcas". Antes del FAQ y del
-agente (después de las respuestas a avisos y de pedido en curso):
+Es de "las dos marcas" un cliente de Loekemeyer cuyo CUIT también es cliente de Chef (`bot_cuentas`, empresa CH) **y le compró a Chef
+hace poco**: una factura de Chef en los últimos 12 meses (`isis_ch.documentos`) o un pedido en los últimos 90 días (`chef_orders_cache`).
+Medido el 01/10: de 357 clientes que están en las dos empresas, 64 (17,9 %) tienen factura de Chef en 12 meses; a los otros 293 (82,1 %)
+no se les pregunta. Si Gestión no responde, se pregunta (ante la duda, se pregunta). Antes del FAQ y del agente (después de las
+respuestas a avisos y de pedido en curso):
 
 | el mensaje es | el bot |
 |---|---|

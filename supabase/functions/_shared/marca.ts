@@ -4,7 +4,10 @@
 // refiere, también con los pedidos; es el doble de trabajo de flow, pero es la única que va a quedar bien y sin errores".
 //
 // Cómo funciona (un solo lugar, delante del FAQ y del agente; no toca a quien compra en una sola marca):
-//   1. Un cliente de Loekemeyer cuyo CUIT también es cliente de Chef (bot_cuentas, empresa CH) es de "las dos marcas".
+//   1. Es de "las dos marcas" un cliente de Loekemeyer cuyo CUIT también es cliente de Chef (bot_cuentas, empresa CH) Y le compró a
+//      Chef hace poco: una factura de Chef en los últimos 12 meses (isis_ch.documentos) o un pedido en los últimos 90 días
+//      (chef_orders_cache). Medido el 01/10: de 357 clientes que están en las dos empresas, sólo 64 (17,9 %) tienen una factura de
+//      Chef en 12 meses; preguntarle la marca a los otros 293 (82,1 %) era ruido. Ante la duda (Gestión no responde), se pregunta.
 //   2. Su consulta se pregunta ("¿De qué marca es tu consulta: Loekemeyer o Chef?") salvo que:
 //        · sea saludo, cortesía o una consulta de plata (facturas, saldo, pagos, descuentos): esas ya contestan las dos
 //          empresas por separado (faq.ts, consultar_mis_facturas) y preguntar sólo sumaría un paso;
@@ -21,9 +24,11 @@
 import { supabase } from "./supabase.ts";
 import { SIM } from "./simulacion.ts";
 import { type Customer, ctxPagosDeCliente, esSoloSaludo, lookupOrderStatus } from "./faq.ts";
-import { cuitNorm } from "./empresas.ts";
+import { cuitNorm, facturasChef } from "./empresas.ts";
 import { atenderClienteChef, type CuentaChef, esConsultaDePagos, esCortesia } from "./chef.ts";
-import { esConsultaEstado, hoyAR, marcaEnTexto, marcaNombrada, pedidosChef, textoPedidosChef } from "./pedidos-marca.ts";
+import {
+  esConsultaEstado, hayPedidosChefRecientes, hoyAR, marcaEnTexto, marcaNombrada, pedidosChef, textoPedidosChef,
+} from "./pedidos-marca.ts";
 
 export type MarcaUna = "lk" | "chef";
 
@@ -84,19 +89,37 @@ async function filasRecientes(phone: string): Promise<FilaHistorial[]> {
 // ── la cuenta de Chef de un cliente de Loekemeyer (por CUIT, nunca por código) ──────────────────
 const cacheCuentas = new Map<string, { hasta: number; cuenta: CuentaChef | null }>();
 
+/**
+ * ¿Compró en Chef hace poco? `facturas12m` = cantidad de facturas de Chef en los últimos 12 meses y `pedidos90d` = si tiene pedidos
+ * de Chef cargados en los últimos 90 días; null = no se pudo leer. "dudoso" se trata como activo: ante la duda, se pregunta.
+ */
+export function decidirActividadChef(facturas12m: number | null, pedidos90d: boolean | null): "activo" | "inactivo" | "dudoso" {
+  if ((facturas12m ?? 0) > 0 || pedidos90d === true) return "activo";
+  if (facturas12m === null || pedidos90d === null) return "dudoso";
+  return "inactivo";
+}
+
+/** La cuenta de Chef del cliente SI es de las dos marcas (CUIT en Chef + compra en los últimos 12 meses); si no, null. */
 export async function cuentaChefDeCliente(customer: NonNullable<Customer>): Promise<CuentaChef | null> {
   const hit = cacheCuentas.get(customer.id);
   if (hit && hit.hasta > Date.now()) return hit.cuenta;
   const cuit = cuitNorm((await ctxPagosDeCliente(customer)).cuit);
   let cuenta: CuentaChef | null = null;
+  let cachear = true;
   if (cuit) {
     const { data, error } = await supabase.from("bot_cuentas").select("cod_cliente, razon_social")
       .eq("empresa", "CH").eq("cuit", cuit).order("cod_cliente").limit(1);
     if (error) { console.error("cuentaChefDeCliente:", error.message); return null; }   // ante la falla no se cachea
     const r = data?.[0];
-    if (r) cuenta = { cod_cliente: String(r.cod_cliente), razon_social: String(r.razon_social ?? ""), cuit, fuente: "cuit" };
+    if (r) {
+      const desde = new Date(Date.now() - 365 * 86400_000).toISOString().slice(0, 10);
+      const [facs, pedidos] = await Promise.all([facturasChef(cuit, desde), hayPedidosChefRecientes(cuit, 90)]);
+      const act = decidirActividadChef(facs === null ? null : facs.length, pedidos);
+      if (act !== "inactivo") cuenta = { cod_cliente: String(r.cod_cliente), razon_social: String(r.razon_social ?? ""), cuit, fuente: "cuit" };
+      if (act === "dudoso") cachear = false;                                              // la próxima vez se vuelve a mirar
+    }
   }
-  cacheCuentas.set(customer.id, { hasta: Date.now() + 10 * 60_000, cuenta });
+  if (cachear) cacheCuentas.set(customer.id, { hasta: Date.now() + 10 * 60_000, cuenta });
   return cuenta;
 }
 
