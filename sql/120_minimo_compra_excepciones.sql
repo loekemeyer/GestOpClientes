@@ -11,7 +11,7 @@
 -- Es sólo informativo: NO cambia wa_pedidos_config.minimo_envio/_retiro (el aviso en pedidos por WhatsApp, vacío a
 -- propósito desde el 30/09) ni frena ningún pedido.
 -- La #31 deja de prometer plazo ("7-15 días hábiles"): "¿cuánto tarda?" lo contesta lookupOrderStatus (faq.ts, plazo).
--- Idempotente.
+-- Idempotente. Aplicada el 01/10/2026 (verificado: tabla con RLS, general 500.000/300.000, 3 tokens, #21 y #31 semi_auto).
 
 create table if not exists public.wa_minimo_excepciones (
   customer_id   uuid primary key references public.customers(id) on delete cascade,

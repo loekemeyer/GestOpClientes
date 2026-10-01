@@ -4,7 +4,8 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-01.
 >
-> **01/10 (Pablo): pedido mínimo por cliente** (sql/120, `_shared/minimo.ts`, v0.26.8). El mínimo que informa el bot
+> **01/10 (Pablo): pedido mínimo por cliente** (sql/120 aplicada el 01/10: tabla, general y tokens por MCP; los
+> UPDATE de la #21/#31 los pegó Pablo en el editor porque el MCP se corta en UPDATE; `_shared/minimo.ts`, v0.26.8). El mínimo que informa el bot
 > sale de `app_settings.wa_minimo_compra` (general) y `wa_minimo_excepciones` (por cliente, Configuración del agente ›
 > 🛒 Pedidos por WhatsApp › 💰 Pedido mínimo, vía `lk_alertas` minimo_*). FAQ #21 y #31 pasan a `semi_auto`
 > (`minimo_compra`); la #31 ya no promete plazo. Pedir una excepción deriva con motivo `excepcion_minimo`. Informativo:
