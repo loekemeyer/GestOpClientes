@@ -45,11 +45,20 @@ export function cuitNorm(c: unknown): string {
   return d.length === 11 && !d.startsWith("55000000") ? d : "";
 }
 
-/** Texto con los datos para transferir a una empresa; si Chef no tiene alias/CBU cargados, no inventa ni usa los de LK. */
+/**
+ * Texto con los datos para transferir a una empresa; si Chef no tiene alias/CBU cargados, no inventa ni usa los de LK.
+ * Pablo, 01/10: Chef no tiene alias (Cobranzas de Chef pasa CBU, titular y CUIT): la línea que falta no se muestra, y con
+ * la razón social y el CUIT cargados va el titular, que es lo que el cliente valida al transferir por CBU.
+ */
 export function textoDatosPago(e: DatosEmpresa, conNombre: boolean): string | null {
   if (!e.alias && !e.cbu) return null;
   const cab = conNombre ? `Para las facturas de *${e.razon_social || e.nombre}*:\n` : "";
-  return `${cab}*Alias:* ${e.alias || "—"}\n*CBU:* ${e.cbu || "—"}`;
+  const lineas = [
+    ...(e.alias ? [`*Alias:* ${e.alias}`] : []),
+    ...(e.cbu ? [`*CBU:* ${e.cbu}`] : []),
+    ...(e.razon_social && e.cuit ? [`*Titular:* ${e.razon_social} (CUIT ${e.cuit.replace(/^(\d{2})(\d{8})(\d)$/, "$1-$2-$3")})`] : []),
+  ];
+  return cab + lineas.join("\n");
 }
 
 /** Códigos de cliente de Chef de un CUIT (chef_padron vía bot_cuentas, sql/115): un CUIT puede tener más de una cuenta. */

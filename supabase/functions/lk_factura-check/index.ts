@@ -267,8 +267,10 @@ interface DtoCfg {
   excCuit: Record<string, string>; excRazon: Record<string, string>;
   // Datos de pago editables (alias/CBU), se completan como variables en el pie.
   alias: string; cbu: string;
-  // Pablo, 01/10: Chef sin alias/CBU cargado en la ficha Empresas → el aviso se retiene (nunca el alias de Loekemeyer).
+  // Pablo, 01/10: Chef sin CBU cargado en la ficha Empresas → el aviso se retiene (nunca el alias de Loekemeyer).
   sinDatosPago: boolean;
+  // Factura de Chef: con la plantilla vieja (v1) el pie de pago es fijo y es el de Loekemeyer → también se retiene.
+  esChef: boolean;
   // Formato de plantilla: 'v1' = estructura vieja (sin %/alias/CBU variables, footer fijo);
   // 'v2' = nueva (% y alias/CBU como variables). Debe coincidir con lo cargado en Meta.
   formato: string;
@@ -299,11 +301,13 @@ async function loadDtoCfg(empresa = "lk"): Promise<DtoCfg> {
       else { const d = String(it.valor).replace(/\D/g, ""); if (d) excCuit[d] = bandKey; }
     }
   }
-  const alias = esChef ? String(chef.alias ?? "").trim() : (String(cfg?.pago?.alias ?? PAGO_ALIAS_DEFAULT).trim() || PAGO_ALIAS_DEFAULT);
+  // Pablo, 01/10: Chef no tiene alias (sólo CBU, Santander): la plantilla lleva "Alias: {{n}}" y Meta no acepta una
+  // variable vacía, así que va "—". Sin CBU de Chef, el aviso se retiene.
+  const alias = esChef ? (String(chef.alias ?? "").trim() || "—") : (String(cfg?.pago?.alias ?? PAGO_ALIAS_DEFAULT).trim() || PAGO_ALIAS_DEFAULT);
   const cbu = esChef ? String(chef.cbu ?? "").trim() : (String(cfg?.pago?.cbu ?? PAGO_CBU_DEFAULT).trim() || PAGO_CBU_DEFAULT);
   const formato = ((await getSetting("wa_plantilla_formato")) || "auto").trim();
   return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map, excCuit, excRazon, alias, cbu,
-    sinDatosPago: esChef && (!alias || !cbu), formato };
+    sinDatosPago: esChef && !cbu, esChef, formato };
 }
 function dtoDeMetodo(metodo: string, cfg: DtoCfg): { dto: number; label: string } {
   const e = cfg.map[metodo];
@@ -567,7 +571,7 @@ async function handleGrupo(body: any) {
     let estado = "delivered";
     // deno-lint-ignore no-explicit-any
     const mensaje: any = await armarMensaje(sub.metodo, sub.facturas, String(body.dia ?? hoy), cfg);
-    if (cfg.sinDatosPago) estado = "held_sin_datos_pago_chef";
+    if (cfg.sinDatosPago || (cfg.esChef && mensaje.formato !== "v2")) estado = "held_sin_datos_pago_chef";
     const st = await tplStatus(mensaje.template_meta ?? mensaje.template);
     mensaje.tpl_status = st;
     if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
@@ -647,7 +651,8 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
       const st = await tplStatus(base.template_meta ?? base.template);
       base.tpl_status = st;
       if (st && st !== "APPROVED") estado0 = "held_tpl_no_aprobada";
-      if (cfg.sinDatosPago) estado0 = "held_sin_datos_pago_chef";
+      // Chef: sin CBU, o con la plantilla vieja (v1, pie de pago fijo con el alias de Loekemeyer) → se retiene.
+      if (cfg.sinDatosPago || (cfg.esChef && base.formato !== "v2")) estado0 = "held_sin_datos_pago_chef";
       base.real_group = { cuit, empresa: gr.empresa, destino, cod_cliente: gr.cod_cliente ?? null, razon_social: gr.razon_social ?? null, comprobantes: sub_comprob };
       if (multiMetodo) base.split_metodo = { metodo: sub.metodo, n_sub: subgrupos.length };
       // PDF combinado: SÓLO las facturas de este sub-grupo (un PDF por método).
@@ -774,7 +779,7 @@ serve(async (req) => {
       const st = await tplStatus(mensaje.template_meta ?? mensaje.template);
       mensaje.tpl_status = st;
       if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
-      if (cfg.sinDatosPago) estado = "held_sin_datos_pago_chef";
+      if (cfg.sinDatosPago || (cfg.esChef && mensaje.formato !== "v2")) estado = "held_sin_datos_pago_chef";
       if (multiMetodo) mensaje.split_metodo = { metodo: sub.metodo, de_grupo: grupoKey, n_sub: subgrupos.length };
 
       // PDF combinado: SÓLO las facturas de este sub-grupo (un PDF por método).
