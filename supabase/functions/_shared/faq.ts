@@ -475,9 +475,17 @@ const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 const RE_FECHAS_NO_COINCIDEN = /\b\d{1,2}\s*\/\s*\d{1,2}\b[^?!]{0,80}\b(pero|y|mientras|en\s+cambio)\b[^?!]{0,40}\b(dice|figura|aparece|pone|sale|muestra)\b[^?!]{0,30}\b\d{1,2}\s*\/\s*\d{1,2}\b|\bfechas?\b[^.?!]{0,30}\bno\s+(coincide|coinciden|es\s+la\s+misma|son\s+las\s+mismas)\b|\bno\s+coincide[n]?\b[^.?!]{0,30}\bfechas?\b/i;
 // "el pedido del 17/9", "del 31/08", "del 18 de marzo".
 const RE_FECHA_EXPLICITA = /\b\d{1,2}\s*[/-]\s*\d{1,2}\b|\b\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i;
+// Pablo, 01/10 (Simulador, cliente 4210): "¿Me podés pasar la foto del art 437?" salía con la respuesta fija #11 (lista de precios), por
+// parecerse a "me podes pasar la lista". La foto de un producto la manda la IA (enviar_fotos_producto). No cuenta la foto de otra cosa:
+// rotura, comprobante, factura, remito, etiqueta (esas siguen en sus respuestas fijas y reclamos).
+const RE_PIDE_FOTO = /\b(fotos?|fotito|fotitos|im[aá]gen(es)?)\b/i;
+const RE_FOTO_DE_OTRA_COSA = /\b(comprobantes?|transferencias?|factur\w*|pagos?|reclamos?|remitos?|etiquet\w*|c[oó]digos?\s+de\s+barras?)\b/i;
+export function pideFotoProducto(text: string): boolean {
+  return RE_PIDE_FOTO.test(text) && !RE_FOTO_DE_OTRA_COSA.test(text) && !RE_ROTURA.test(text);
+}
 function vaALaIA(text: string): boolean {
   return RE_AGREGA_A_PEDIDO.test(text) || RE_PAGO_RECIBIDO.test(text) || RE_RAZON_SOCIAL_MAL.test(text) ||
-    RE_FACTURA_DUPLICADA.test(text) ||
+    RE_FACTURA_DUPLICADA.test(text) || pideFotoProducto(text) ||
     // "Te paso el comprobante del pedido" sigue en la respuesta fija del comprobante (#20).
     (RE_ENVIA_PEDIDO.test(text) && !/comprobante|\bpag[oó]|transfer/i.test(text));
 }
