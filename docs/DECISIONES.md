@@ -113,3 +113,58 @@ Las 5 que vivían sólo en el proyecto quedaron versionadas acá.
 `lk_factura-check` también (25/09): lo deployado v33 era el HEAD del repo (deploy 04/09 13:17, commit
 62db211 13:13); la sospecha de que diferían fue un error de conteo.
 
+
+## D008 — Loekemeyer y Chef por un solo número: la empresa viaja con cada dato (2026-10-01)
+
+**Pablo Olejavetzky:** por el momento hay **un solo número** para las dos empresas.
+
+**Decisión:** no se le pregunta "¿Loekemeyer o Chef?" a nadie al empezar. La empresa no es de la charla sino de
+cada dato: el número de cliente sólo vale junto con su empresa (315 códigos existen en las dos y en 297 son otro
+CUIT) y entre empresas se cruza por **CUIT**. Medido al 01/10: 905 CUIT sólo LK, 357 en las dos, 395 sólo Chef.
+
+**Fases** (orden por gravedad):
+1. Identidad: `bot_cuentas`, `bot_telefonos_empresa`, `bot_chef_whatsapps`, `bot_identificar_chef` (sql/115) y
+   vinculación de clientes de Chef con revisión humana (sql/116). **Hecho.**
+2. Empresa por mensaje sin preguntar de más: cliente de una sola empresa → fija; mixto → la del dato del que habla
+   (factura, pedido, aviso); sin dato → se deduce del texto o se pregunta una vez.
+3. Pagos completos para Chef: recibos, descuentos por factura (#8), reenvío, factura duplicada (isis_ch). **Hecho (01/10).**
+4. Catálogo y stock por empresa (12 códigos son un producto distinto en cada empresa).
+5. Marca: texto base del bot, plantillas y nombre visible en Meta.
+
+**Corte mientras tanto (sí de Pablo, 01/10):** a un cliente sólo de Chef el bot le contesta saludo, facturas de
+Chef y datos de pago de Chef (todo por CUIT); lo demás va a una persona (alerta `cliente_chef`). Las herramientas del
+bot (pedidos, estado, facturas de isis_lk, stock, catálogo) buscan en Loekemeyer por número de cliente y le
+mostrarían a Cencosud (2444 en Chef) los pedidos de Relca (2444 en LK). Se levanta cuando cada consulta sepa de qué
+empresa es. Código: `_shared/chef.ts`.
+
+**Por qué los vínculos de Chef van en otra tabla:** `bot_encolar_recordatorios_25` y `trg_notify_despacho` cruzan
+`bot_customer_whatsapps` por `cod_cliente` sin mirar la empresa (la columna `empresa` existe pero nadie la filtra).
+Un teléfono de Chef cargado ahí recibiría los avisos del cliente de LK con el mismo número.
+
+**Códigos de artículo entre empresas (medido el 01/10, para la fase 4).** Gestión no tiene "5 tablas de
+equivalencias de lo mismo": son 4 conceptos distintos y conviene dejarlos así.
+- `codigos_duales` (4: 437E, 438E, 439E, 809E): el MISMO producto lo venden las dos y cada una tiene su stock. Es la
+  pieza central: la usan 17 funciones y 8 vistas de Gestión (stock, recepción de importados, NC Loeke-Chef).
+- `GV_Cod_Dos_Productos` (12): el mismo código es un producto DISTINTO en cada empresa. Sólo documenta (y la UxB se
+  resuelve por empresa en `GV_UxB`). Hoy ninguno está activo en las dos webs: 026, 034, 658 y 659 sólo en la de LK;
+  043 sólo en la de Chef; el resto en ninguna. Las descripciones de LK de 658 y 659 ya no coinciden con la web.
+- `Equivalencias_Codigos` (11): alias de un código de pedido al código real.
+- `gv_articulo_empresa` (vista + `GV_Articulo_Empresa_Cache`): empresa de cada código, derivada de las listas de
+  precios. Para 043 dice LK mientras `gv_empresa_de_articulo('043')` devuelve CH.
+- `chef_item_remap` (PaginaLK, 9): remapeo de códigos de ventas de Chef.
+Regla para el bot: todo código viaja con su empresa (como `bot_stock_por_empresa`, 01/10); no se unifican las tablas
+de Gestión.
+
+**Plantillas por marca (Pablo, 01/10).** Chef no tiene alias y comparte el número con Loekemeyer: cada plantilla de factura
+tiene su versión de Chef (6 más, `_chef`), que nombra a Chef y no lleva alias. Titular y CUIT van fijos en el texto; el CBU es
+variable (cambiar de cuenta no necesita aprobación nueva de Meta). Mientras la de Chef no esté APPROVED, el aviso de factura de
+Chef queda retenido: la de Loekemeyer no sirve (lleva el alias de Loekemeyer).
+
+**Puerta de marca (Pablo, 01/10).** D008 dice que no se pregunta "¿Loekemeyer o Chef?" al empezar; eso sigue igual. Lo que se agrega: a
+un cliente de las dos marcas se le pregunta de qué marca es CADA consulta, también los pedidos ("es el doble de trabajo de flow, pero es
+la única que va a quedar bien y sin errores"). Se probó un atajo —no preguntar si solo una marca tiene pedidos en curso— y se descartó:
+contesta mal cuando el cliente habla de un pedido ya entregado de la otra marca. Quedan fuera de la pregunta el saludo, la cortesía y las
+consultas de plata, que ya separan las dos empresas. La marca elegida se recuerda 15 minutos leyendo la etiqueta de las respuestas del
+historial (sin tablas). Con Chef contesta `atenderClienteChef`; con Loekemeyer, el flujo de siempre. Código: `_shared/marca.ts`.
+Sin medir todavía: cuántos de los 357 CUIT que están en las dos empresas compraron en Chef en el último año; los que no, igual reciben la
+pregunta.

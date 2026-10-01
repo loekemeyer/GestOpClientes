@@ -21,7 +21,15 @@ const CORS = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-function avisoAlSolicitante(decision: string, tipo: string, negocio: string, motivo: string): string {
+function avisoAlSolicitante(decision: string, tipo: string, negocio: string, motivo: string, empresa = "LK"): string {
+  // sql/116: cuenta de Chef. El bot todavía le contesta sólo facturas y datos de pago (_shared/chef.ts): no se le
+  // promete ver pedidos ni descuentos.
+  if (empresa === "CH") {
+    return decision === "approve"
+      ? `Hola ${negocio}, te escribimos de Chef.\nYa vinculamos este número a tu cuenta: por acá podés consultar tus facturas pendientes y los datos de pago, y para todo lo demás te responde una persona del equipo.`
+      : "Hola, te escribimos de Chef.\nNo pudimos confirmar la vinculación de este número" + (motivo ? ` (${motivo})` : "") +
+        ".\nSi creés que es un error, respondé este mensaje y lo revisamos.";
+  }
   if (decision === "approve") {
     return tipo === "pedidos_access"
       ? "Hola, te escribimos de Loekemeyer.\nYa habilitamos tu número para consultar tus pedidos."
@@ -45,12 +53,14 @@ serve(async (req) => {
       // Texto EXACTO del aviso que se encola al decidir (Centro de mensajes › Tareas lo muestra en el
       // modal de confirmación). En el rechazo, {{motivo}} lo completa el front con lo que escribe la persona.
       // cadena: si el cliente es una cadena con lista propia, el front avisa antes de aprobar (Pablo, 01/10).
-      const cadenas = await cadenasListaPropia((data ?? []).map((r: Record<string, unknown>) => r.cod_cliente));
+      const cadenas = await cadenasListaPropia((data ?? []).filter((r: Record<string, unknown>) => r.empresa !== "CH")
+        .map((r: Record<string, unknown>) => r.cod_cliente));
       const pendientes = (data ?? []).map((r: Record<string, unknown>) => ({
         ...r,
-        aviso_aprobar: avisoAlSolicitante("approve", String(r.tipo ?? "registro"), String(r.business_name ?? ""), ""),
-        aviso_rechazar: avisoAlSolicitante("reject", String(r.tipo ?? "registro"), "", "{{motivo}}"),
-        cadena: cadenas.get(Number(r.cod_cliente)) ?? null,
+        aviso_aprobar: avisoAlSolicitante("approve", String(r.tipo ?? "registro"), String(r.business_name ?? ""), "", String(r.empresa ?? "LK")),
+        aviso_rechazar: avisoAlSolicitante("reject", String(r.tipo ?? "registro"), "", "{{motivo}}", String(r.empresa ?? "LK")),
+        // sql/114 sólo conoce códigos de LK: en una solicitud de Chef el mismo número es otro cliente.
+        cadena: r.empresa === "CH" ? null : cadenas.get(Number(r.cod_cliente)) ?? null,
       }));
       return json({ ok: true, pendientes });
     }
@@ -72,9 +82,10 @@ serve(async (req) => {
       if (!row?.ok) return json({ ok: false, error: `No se pudo decidir (estado: ${row?.status ?? "error"}).` }, 200);
 
       if (row.telefono) {
+        const { data: req } = await supabase.from("bot_registration_requests").select("empresa").eq("id", requestId).maybeSingle();
         const { error: eOut } = await supabase.from("wa_outbox").insert({
           phone: row.telefono,
-          body: avisoAlSolicitante(decision, String(row.tipo ?? "registro"), String(row.business_name ?? ""), motivo),
+          body: avisoAlSolicitante(decision, String(row.tipo ?? "registro"), String(row.business_name ?? ""), motivo, String(req?.empresa ?? "LK")),
           context: decision === "approve" ? "vinculacion_aprobada" : "vinculacion_rechazada",
           ref_id: String(requestId),
         });

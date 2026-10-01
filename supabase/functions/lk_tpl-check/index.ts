@@ -15,9 +15,10 @@ async function getSetting(k: string): Promise<string> {
   const { data } = await sb.from("app_settings").select("value").eq("key", k).maybeSingle();
   return data?.value ?? "";
 }
-// Factura (6) + seguimiento de pedido (8, lk_templates/plantillas-meta.ts).
+// Factura (6 de Loekemeyer + 6 de Chef, _chef) + seguimiento de pedido (8, lk_templates/plantillas-meta.ts).
 const NUESTRAS = [
   "pedido_contado_s", "pedido_contado_p", "pedido_credito_s", "pedido_credito_p", "pedido_echeq_s", "pedido_echeq_p",
+  "pedido_contado_s_chef", "pedido_contado_p_chef", "pedido_credito_s_chef", "pedido_credito_p_chef", "pedido_echeq_s_chef", "pedido_echeq_p_chef",
   "pedido_programado", "pedido_programado_expreso", "pedido_programado_retira", "pedido_reprogramado",
   "pedido_preparando", "pedido_en_viaje", "pedido_en_viaje_expreso", "pedido_listo_retirar",
 ];

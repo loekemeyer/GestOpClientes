@@ -452,7 +452,9 @@ async function handleTemplatesPromover(body: Record<string, unknown>, quien: str
   return json({ ok: true, promovidas, pendientes: siguen });
 }
 
-// ── factura_sync: edita en Meta las 6 plantillas de factura con el texto de _shared/plantillas-factura.ts ──
+// ── factura_sync: edita en Meta las plantillas de factura (6 de Loekemeyer + 6 de Chef, pedido_*_chef) con el texto de
+// _shared/plantillas-factura.ts. Las de Chef que todavía no existen en Meta se CREAN (acción "crear", 01/10); a las de
+// Loekemeyer que no existen sólo se les avisa ("no_existe") ──
 // (Pablo, 30/09: "¿no podés cambiarlo vos en WhatsApp Manager?"). Tienen encabezado Documento y Meta pide un PDF de
 // muestra al editar: se genera uno de ejemplo, se sube con la API de subidas (app del token) y se manda su handle.
 // Simulacro por defecto; `aplicar: true` aplica. `solo: [...]` limita. Crea SIEMPRE versión nueva (base_vN, Pablo 30/09):
@@ -487,15 +489,15 @@ async function handleFacturaSync(body: Record<string, unknown>, quien: string) {
     const actual = comp(t, "BODY")?.text ?? null;
     const tNueva = nueva ? enMeta.get(nueva) : null;
     let accion: string, destino = activa;
-    if (!t) accion = "no_existe";
+    if (!t) accion = p.empresa === "chef" ? "crear" : "no_existe";
     else if (actual === p.body) accion = "igual";
     else if (nueva) { destino = nueva; accion = comp(tNueva, "BODY")?.text === p.body ? "igual_nueva_en_revision" : "nueva_con_otro_texto"; }
     else if (enLugar) accion = "editar";
     else { destino = siguienteNombre(p.name, versiones, nombresMeta); accion = "crear_version"; }
     // deno-lint-ignore no-explicit-any
     const fila: Record<string, any> = { name: p.name, activa, nombre_meta: destino, accion, estado_meta: (destino === activa ? t : tNueva)?.status ?? "NO_EXISTE",
-      ...(accion === "editar" || accion === "crear_version" || accion === "nueva_con_otro_texto" ? { texto_meta: actual, texto_nuevo: p.body } : {}) };
-    if (aplicar && (accion === "editar" || accion === "crear_version")) {
+      ...(accion === "editar" || accion === "crear" || accion === "crear_version" || accion === "nueva_con_otro_texto" ? { texto_meta: actual, texto_nuevo: p.body } : {}) };
+    if (aplicar && (accion === "editar" || accion === "crear" || accion === "crear_version")) {
       try {
         handle ??= await subirPdfMuestra(token);
         const pie = comp(t, "FOOTER");
@@ -508,11 +510,11 @@ async function handleFacturaSync(body: Record<string, unknown>, quien: string) {
           ? await fetch(`${META_API}/${t.id}`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
               body: JSON.stringify({ components }) })
           : await fetch(`${META_API}/${wabaId}/message_templates`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ name: destino, language: t.language ?? "es_AR", category: "UTILITY", components }) });
+              body: JSON.stringify({ name: destino, language: t?.language ?? "es_AR", category: "UTILITY", components }) });
         const out = await r.json();
         fila.resultado = out.error
           ? { ok: false, error: `Meta (#${out.error.code ?? "?"}${out.error.error_subcode ? "/" + out.error.error_subcode : ""}): ${out.error.error_user_msg ?? out.error.message ?? ""}` }
-          : { ok: true, id: out.id ?? t.id, status: out.status ?? "PENDING" };
+          : { ok: true, id: out.id ?? t?.id, status: out.status ?? "PENDING" };
       } catch (e) { fila.resultado = { ok: false, error: e instanceof Error ? e.message : String(e) }; }
       console.log(`factura_sync ${accion} ${destino} por ${quien}:`, JSON.stringify(fila.resultado));
       if (fila.resultado.ok) {

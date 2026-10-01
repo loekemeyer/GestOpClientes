@@ -1,7 +1,7 @@
 // Claude API — Tool-use conversacional para bot WhatsApp Loekemeyer
 // Usa RPCs bot_* existentes como herramientas de Claude
 
-import { getGestionClient, supabase } from "./supabase.ts";
+import { getGestionClient, getSetting, supabase } from "./supabase.ts";
 import { derivaciones, motivosIA } from "./derivaciones.ts";
 import { notificarHumano } from "./alertas.ts";
 import { ingresoEstimado, proximosIngresos, stockArticulo, stockNecesitaHumano, textoIngreso, textoStock } from "./stock.ts";
@@ -18,6 +18,7 @@ import {
   type NormMsg,
   type ResolvedModel,
   resolveChain,
+  resolveModelById,
 } from "./bot-llm.ts";
 
 // ─── Tool definitions (mapean a RPCs bot_*) ────────────────────────
@@ -1261,7 +1262,22 @@ export async function runConversation(
   // Cadena de modelos (prioridad ASC) + fallback duro al env ANTHROPIC_API_KEY con
   // Sonnet, para que el bot siga contestando aunque la cadena esté vacía o toda caída.
   const candidates: ResolvedModel[] = await resolveChain();
-  if (apiKey) {
+  // Pruebas (simulador y chat de test): un modelo propio, más barato, para no gastar el de producción. Sin la clave
+  // app_settings.llm_modelo_pruebas todo sigue igual. Con la clave, la prueba usa SÓLO ese modelo: si falla, la prueba
+  // falla (llmError) y NO cae a la cadena, para que una caída no se pague en otro modelo sin que nadie se entere (Pablo, 01/10).
+  let soloPruebas = false;
+  if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
+    const modeloPruebas = (await getSetting("llm_modelo_pruebas"))?.trim();
+    // Si el model_id es de otro proveedor con key cargada en el panel (ej. gemini-3.5-flash-lite) se usa ése; si no, es de Anthropic.
+    if (modeloPruebas) {
+      candidates.length = 0;
+      candidates.push(
+        (await resolveModelById(modeloPruebas)) ?? { id: -1, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false },
+      );
+      soloPruebas = true;
+    }
+  }
+  if (apiKey && !soloPruebas) {
     candidates.push({ id: 0, provider: "anthropic", model: "claude-sonnet-4-6", key: apiKey, isFreeTier: false });
   }
   if (!candidates.length) {

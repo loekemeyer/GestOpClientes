@@ -30,6 +30,7 @@ function detectProvider(key: string): string | null {
   if (key.startsWith("sk-ant-")) return "anthropic";
   if (key.startsWith("AIza")) return "google";
   if (key.startsWith("sk-")) return "openai";
+  if (key.startsWith("gsk_")) return "groq";
   return null;
 }
 
@@ -71,6 +72,20 @@ async function listModels(
       // deno-lint-ignore no-explicit-any
       return { ok: true, models: (d.data ?? []).map((m: any) => m.id).sort() };
     }
+    if (provider === "groq") {
+      const r = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!r.ok) return { ok: false, error: `Groq HTTP ${r.status}: ${await bodyErr(r)}` };
+      const d = await r.json();
+      const models = (d.data ?? [])
+        // deno-lint-ignore no-explicit-any
+        .map((m: any) => String(m.id))
+        // Sólo chat con herramientas: fuera audio (whisper/orpheus) y modelos de moderación (guard).
+        .filter((id: string) => !/whisper|orpheus|guard|tts/i.test(id))
+        .sort();
+      return { ok: true, models };
+    }
     if (provider === "google") {
       const r = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=200`,
@@ -84,7 +99,7 @@ async function listModels(
         .map((m: any) => String(m.name).replace(/^models\//, ""));
       return { ok: true, models };
     }
-    return { ok: false, error: "Proveedor no soportado (anthropic / openai / google)" };
+    return { ok: false, error: "Proveedor no soportado (anthropic / openai / google / groq)" };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -309,6 +324,47 @@ serve(async (req) => {
       const { error } = await sb.from("wa_agente_evals").delete().eq("id", body.id);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
+    }
+
+    // Pablo, 01/10 (sql/117-118): los casos del estudio de WhatsApp con la respuesta del bot y su corrección. El panel
+    // los lee por acá (la tabla ya no se lee con la anon key: guarda respuestas simuladas con un cliente real).
+    if (action === "eval_list") {
+      const { data, error } = await sb.from("wa_agente_evals").select("*")
+        .order("orden", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, evals: data ?? [] });
+    }
+
+    // La última respuesta del bot, simulada desde el panel (lk_bot-simular).
+    if (action === "eval_resultado") {
+      if (!body.id) return json({ error: "id requerido" }, 400);
+      const { error } = await sb.from("wa_agente_evals").update({
+        respuesta_bot: String(body.respuesta_bot ?? ""),
+        respuesta_via: body.respuesta_via ? String(body.respuesta_via) : null,
+        respuesta_deriva: body.respuesta_deriva ? String(body.respuesta_deriva) : null,
+        simulado_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", body.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    // Lo que debería contestar el bot. Sin respuesta ni nota vuelve a 'pendiente'; 'aplicada' la marca quien lo pasa al bot.
+    if (action === "eval_corregir") {
+      if (!body.id) return json({ error: "id requerido" }, 400);
+      const corregida = String(body.respuesta_corregida ?? "").trim() || null;
+      const nota = String(body.nota_esperada ?? "").trim() || null;
+      const ahora = new Date().toISOString();
+      const { error } = await sb.from("wa_agente_evals").update({
+        respuesta_corregida: corregida,
+        nota_esperada: nota,
+        estado: corregida || nota ? "corregida" : "pendiente",
+        corregido_por: corregida || nota ? gate.email : null,
+        corregido_at: corregida || nota ? ahora : null,
+        updated_at: ahora,
+      }).eq("id", body.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, por: gate.email, at: ahora });
     }
 
     // — Orden de la cadena de modelos. Llega la lista entera ya ordenada: se numera 1..N y a

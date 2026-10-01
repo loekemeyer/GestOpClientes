@@ -9,17 +9,19 @@
 // fallidos de la web (ej. cliente 4210, 14/09: 4 intentos sin enviar + el pedido real).
 import { getGestionClient, supabase } from "./supabase.ts";
 
-let cache: { hasta: number; ids: Set<number> } | null = null;
+const cachePorEmpresa = new Map<string, { hasta: number; ids: Set<number> }>();
 
-export async function pedidosAnulados(): Promise<Set<number>> {
+// `empresa` (01/10): "lk" (por defecto) o "chef" — las anulaciones de Chef son otras filas (GV_Pedidos_Anulados.empresa).
+export async function pedidosAnulados(empresa: "lk" | "chef" = "lk"): Promise<Set<number>> {
+  const cache = cachePorEmpresa.get(empresa);
   if (cache && cache.hasta > Date.now()) return cache.ids;
   try {
     const g = await getGestionClient("public");
     const tope = <T>(p: PromiseLike<T>) =>
       Promise.race([p, new Promise<never>((_, r) => setTimeout(() => r(new Error("timeout")), 3000))]);
     const [an, pr] = await Promise.all([
-      tope(g.from("GV_Pedidos_Anulados").select("order_id").eq("empresa", "lk").not("order_id", "is", null)),
-      tope(g.from("GV_Pedidos_Prueba_Historial").select("order_id").eq("empresa", "lk").not("order_id", "is", null)),
+      tope(g.from("GV_Pedidos_Anulados").select("order_id").eq("empresa", empresa).not("order_id", "is", null)),
+      tope(g.from("GV_Pedidos_Prueba_Historial").select("order_id").eq("empresa", empresa).not("order_id", "is", null)),
     ]);
     const ids = new Set<number>();
     for (const r of [...(an.data ?? []), ...(pr.data ?? [])]) {
@@ -27,7 +29,7 @@ export async function pedidosAnulados(): Promise<Set<number>> {
       if (n > 0) ids.add(n);
     }
     if (an.error || pr.error) console.error("pedidosAnulados:", an.error?.message ?? pr.error?.message);
-    cache = { hasta: Date.now() + 60_000, ids };
+    cachePorEmpresa.set(empresa, { hasta: Date.now() + 60_000, ids });
     return ids;
   } catch (e) {
     console.error("pedidosAnulados: Gestión no respondió, no se excluye nada", e);

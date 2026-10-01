@@ -148,6 +148,15 @@ ese dato no se puede agrupar ni parseando.
 El precedente de que un trailer fijo funciona es `Claude-Session:`, presente en **238 de 309
 commits (77%)**.
 
+### ⚠ En ESTE repo (el bot), "Pablo" es Pablo Olejavetzky — employee_id 64, NO Pablo Martos (6)
+
+Pablo Olejavetzky, 01/10/2026: *"Todos los cambios en el bot son de Pablo Olejavetzky, grabate eso"*. Trailer:
+`Hecho-por: Pablo Olejavetzky (employee_id 64)`, y la tarea va a su Planify (64). Pablo Martos (6) existe en
+`planify.employees` y una sesión que sólo oye "Pablo" lo puede elegir mal: pasó el 01/10 con **`2beff74`** y
+**`4b83a3e`** (cadenas con lista propia), firmados `Pablo Martos (employee_id 6)` cuando los hizo Pablo
+Olejavetzky. No se reescribe el historial de `main`: esta nota es la corrección. Sus tareas de Planify sí
+quedaron en el 64.
+
 ## 🟥🟥🟥 PRINCIPIO RECTOR (Luis, 2026-09-25): VASECTOMÍA — todo funciona, se corta sólo la SALIDA
 
 > ## **"Miralo como una vasectomía. Todo el sistema funciona, pero con el corte en el lugar
@@ -412,6 +421,19 @@ cambio se regeneran y se republican los dos artifacts (con `scripts/.../generar.
 - **Plantillas de WhatsApp** — `scripts/plantillas-artifact/` → https://claude.ai/artifact/NxCBLWhQA9yghVk2mJ1Mcu
 - **Recorrido de un pedido web** — `scripts/flujo-pedido-artifact/` → https://claude.ai/artifact/1C6GyTJ3YYKPf9E3uC9kej
 Si el cambio todavía no está aprobado en Meta, el artifact muestra el texto del sistema (plantillas-meta.ts) y lo aclara.
+
+## Consultas para Thommy: se anotan en el artifact (Pablo, 01/10/2026)
+
+Pedido de Pablo: cada vez que deja una anotación para hacerle una consulta a Thommy, Claude la anota en el artifact
+**Consultas para Thommy** → https://claude.ai/artifact/G6tNC8j1DG7HZUaWo7cR5S. Sirve de wiki: la consulta queda con su respuesta.
+
+Se escribe con `ArtifactData` (`url` del artifact), colección `consultas`, un documento por consulta:
+- `doc_id`: `c-AAAAMMDD-HHMM-<n>` (fecha y hora de Argentina; `n` si hay varias en el mismo minuto).
+- Campos: `pregunta` (texto de Pablo, sin reescribir), `tema` (opcional), `contexto` (opcional: archivo, tabla o caso que dispara la duda),
+  `estado: "pendiente"`, `respuesta: ""`, `creada` (ISO, ahora).
+- Cuando Thommy responde: `update` con `estado: "respondida"`, `respuesta` y `respondidaEn` (ISO). La página también lo permite a mano.
+- Nunca borrar una consulta: si quedó mal, se corrige el texto. Es una anotación, no un pedido de trabajo: **no genera tarea de Planify**.
+- El artifact es privado. Para que Thommy cargue respuestas hay que compartírselo con nivel Contributor desde el menú Compartir.
 
 ## Testing
 

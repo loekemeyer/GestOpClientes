@@ -3,7 +3,9 @@
 // Las MANDA lk_factura-check, que ordena las variables según el texto de la versión activa (mapearPorTexto).
 // Pablo, 30/09 (auditoría): abren con "Te adjuntamos la factura de tu pedido." (antes "estará con vos a la brevedad",
 // falso para quien retira).
-export const PLANTILLAS_FACTURA: Array<{ name: string; disparo: string; body: string; ejemplos: string[] }> = [
+export type PlantillaFactura = { name: string; disparo: string; body: string; ejemplos: string[]; empresa?: "chef" };
+
+const PLANTILLAS_FACTURA_LK: PlantillaFactura[] = [
   {
     "name": "pedido_contado_s",
     "disparo": "Se factura el pedido y el cliente paga contado (una factura). Sale con la factura en PDF (lk_factura-check).",
@@ -63,3 +65,29 @@ export const PLANTILLAS_FACTURA: Array<{ name: string; disparo: string; body: st
     "ejemplos": ["27/12", "5", "$475.000", "12/10", "$100.000", "$375.000", "$153.355 / $200.100 / $146.545", "$500.000", "3", "loeke.srl", "1910027855002702387450"]
   }
 ];
+
+// Chef (Pablo, 01/10): Chef no tiene alias (Cobranzas de Chef pasa CBU, titular y CUIT) y comparte el número de WhatsApp con
+// Loekemeyer, así que cada una de las 6 tiene su versión de Chef: nombra a Chef, NO lleva la línea de alias y el pie es
+//   Titular: CHEF S.R.L. (CUIT …)   ← texto fijo: lk_factura-check reconoce cada variable por la línea que la rodea
+//   CBU: {{n}}                       ← variable: cambiar de cuenta no necesita una aprobación nueva de Meta
+// Se derivan de las de Loekemeyer para que la estructura (orden de variables, descuentos, fechas) sea la misma; si cambia el
+// texto de una de LK hay que subir también su versión de Chef (factura_sync las lista juntas).
+export const CHEF_TITULAR = "CHEF S.R.L. (CUIT 30-68575625-7)";
+const CHEF_CBU_EJEMPLO = "0720058820000000488554";
+
+function paraChef(p: PlantillaFactura): PlantillaFactura {
+  const pie = p.body.match(/Alias: \{\{(\d+)\}\}\nCBU: \{\{(\d+)\}\}/);
+  if (!pie) throw new Error(`plantilla ${p.name}: no encontré el pie de pago (Alias/CBU)`);
+  if (!p.body.includes("la factura de tu pedido.")) throw new Error(`plantilla ${p.name}: no encontré el saludo`);
+  return {
+    name: `${p.name}_chef`,
+    empresa: "chef",
+    disparo: p.disparo.replace("Se factura el pedido", "Se factura un pedido de Chef"),
+    // El CBU toma el número que tenía el alias (eran las dos últimas variables).
+    body: p.body.replace("la factura de tu pedido.", "la factura de tu pedido de Chef.")
+      .replace(pie[0], `Titular: ${CHEF_TITULAR}\nCBU: {{${pie[1]}}}`),
+    ejemplos: [...p.ejemplos.slice(0, -2), CHEF_CBU_EJEMPLO],
+  };
+}
+
+export const PLANTILLAS_FACTURA: PlantillaFactura[] = [...PLANTILLAS_FACTURA_LK, ...PLANTILLAS_FACTURA_LK.map(paraChef)];
