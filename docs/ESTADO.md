@@ -606,9 +606,15 @@ el killswitch, sin ningún consumidor de esa cola.
     nullables al llamar a Groq). Tampoco sirve pagarlo sin ese ajuste. La key (`…FD5S`) y las 4 filas de modelos
     siguen cargadas, sin prioridad. ⚠ Al sincronizar modelos de una key, `is_free_tier` queda en `false`: ponerlo
     en `true` o el panel de gastos suma un costo que no existe.
-  - ⚠ **Bug conocido, sin arreglar:** `resolveChain` descarta lo que no está en `estado='ok'` y nada vuelve a `ok`
-    un modelo `caido` (el cooldown no alcanza). Un solo 503 lo saca para siempre: `gemini-3.5-flash-lite` (#1,
-    free) está caído desde el 28/09 y todo el tráfico va a Sonnet.
+  - **Reactivación de modelos caídos — CORREGIDO el 01/10 (`97dcb9b`):** `resolveChain` descartaba lo que no estaba en
+    `estado='ok'` y nada volvía a `ok` un modelo `caido`: un solo 503 lo sacaba para siempre (`gemini-3.5-flash-lite`,
+    #1 free, estuvo caído del 28/09 al 01/10 y todo iba a Sonnet). Ahora un `caido` con el cooldown vencido se vuelve a
+    probar y pasa a `ok`; si falla de nuevo, `markModelDown` lo marca con otro cooldown. Un `caido` sin fecha no se
+    reactiva solo.
+  - **Gemini no aceptaba las herramientas — CORREGIDO el 01/10 (`36cd8ba`):** `condicion_code` es un integer con `enum`
+    [8, 9, 10, 11, 12, 13, 18] y Gemini sólo admite `enum` en strings: devolvía 400 por TODO el pedido, así que nunca
+    contestaba y cada turno caía a la cadena. `toGeminiSchema` pasa los valores válidos por la descripción en los enum
+    que no son string.
   - **Modelo de pruebas separado (2026-10-01, Pablo):** `runConversation` lee `app_settings.llm_modelo_pruebas`
     SÓLO cuando la fuente es `lk_bot-simular` o `lk_chat-test` y la prueba usa **sólo ese modelo** (Anthropic con la
     key del env, o de otro proveedor con key cargada en el panel si el `model_id` figura en `wa_agente_modelos`, ej.
@@ -616,7 +622,7 @@ el killswitch, sin ningún consumidor de esa cola.
     Gemini caída gastó USD 0,3753 en Sonnet sin que nadie lo notara). El webhook nunca lo lee. Sin la clave nada cambia. Sirve para
     probar con Haiku 4.5 (1/3 del precio de Sonnet 4.6) sin tocar la cadena de producción. Las respuestas de
     prueba guardan el modelo en `wa_ia_puntajes.modelo_respuesta` y el gasto en `bot_token_usage.model`.
-    **Hoy vale `claude-haiku-4-5`** (`app_settings.llm_modelo_pruebas`).
+    **Hoy vale `gemini-3.5-flash-lite`** (`app_settings.llm_modelo_pruebas`, desde el 01/10; antes `claude-haiku-4-5`).
   - **Haiku vs Sonnet en las pruebas (2026-10-01, Pablo):** mismas 61 frases (un set armado, NO las 61 del estudio de
     cobertura, que vienen del export del WhatsApp Business y no están en el repo), cada una en una charla nueva con
     el cliente 4210, por `lk_bot-simular` con llamada interna (`x-lk-secret`), una corrida por modelo.
@@ -631,6 +637,18 @@ el killswitch, sin ningún consumidor de esa cola.
     regresión final** (`update app_settings set value='claude-sonnet-4-6' where key='llm_modelo_pruebas'`, ≈ USD 1,26
     por corrida de 61; **volver a `claude-haiku-4-5` al terminar**). Límites: n=27 con IA, un evaluador, frases
     propias. Con prompt caching (hoy no hay: 0 `cache_control`) el gasto bajaría 30 a 40 % [Probable].
+  - **Gemini 3.5 Flash-Lite en las mismas 61 frases (2026-10-01, Pablo):** plan gratis (USD 0), modo estricto (sin
+    fallback). 53 llamadas, entrada promedio 7.516 tokens (tokenizer de Google). **Primera pasada: 5 de las 27 con IA
+    fallaron** (3 con 429 de cuota y 2 con timeout de 30 s) al mandarle ~20 turnos en un minuto (18 llamadas buenas/min
+    ya dieron 429, ~10.000 tokens cada una); **al repetirlas de a 5 contestaron todas en menos de 7 s**: el techo es la
+    ráfaga, no el modelo. Con IA (27): **21 bien, 4 parciales, 2 mal** con el mismo criterio que Sonnet 22 / 3 / 2 y
+    Haiku 17 / 7 / 3 (Haiku era 18 / 7 / 2 en el primer conteo: "¿me confirman el pedido de hoy?" pasó a mal al verlo
+    contestar sin llamar a la herramienta). Gemini usa las herramientas y deriva como Sonnet (consultar facturas,
+    pedidos, buscar productos, `derivar_a_persona` en rotura y razón social), **pero** dijo "somos fabricantes de
+    artículos de cocina" (falso, son mayoristas), mandó a derivar un CV y los códigos de barras, y a "¿cómo me registro?"
+    le contestó "entrá a la web y completá el formulario" a un cliente ya registrado. 34 de 61 no usan IA: idénticas.
+    **No se evaluó en producción**: el webhook ve la cadena (Gemini #1 hasta que se le saque la prioridad) y los datos
+    del cliente viajan al plan gratis de Google (lo usa para mejorar sus productos).
 - **Cables creados sin enchufar (TODO, no conectados):**
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
