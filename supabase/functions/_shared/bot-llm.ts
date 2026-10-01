@@ -328,20 +328,29 @@ function toOpenAIMessages(system: string, history: NormMsg[]): any[] {
   return msgs;
 }
 
+// Proveedores con API compatible con OpenAI (mismo formato de mensajes y tools): sólo cambia la URL.
+const OPENAI_COMPAT: Record<string, { label: string; url: string }> = {
+  openai: { label: "OpenAI", url: "https://api.openai.com/v1/chat/completions" },
+  groq: { label: "Groq", url: "https://api.groq.com/openai/v1/chat/completions" },
+};
+
 async function callOpenAI(
-  key: string, model: string, system: string, tools: ToolDef[], history: NormMsg[], timeoutMs: number,
+  provider: string, key: string, model: string, system: string, tools: ToolDef[], history: NormMsg[], timeoutMs: number,
 ): Promise<ModelResult> {
-  const body = {
+  const ep = OPENAI_COMPAT[provider];
+  const body: Record<string, unknown> = {
     model, max_tokens: 1024, temperature: 0,
     messages: toOpenAIMessages(system, history),
     tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
   };
-  const r = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+  // gpt-oss razona y esos tokens salen del max_tokens: en "low" no se come el presupuesto de la respuesta.
+  if (provider === "groq" && model.startsWith("openai/gpt-oss")) body.reasoning_effort = "low";
+  const r = await fetchWithTimeout(ep.url, {
     method: "POST",
     headers: { "content-type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify(body),
   }, timeoutMs);
-  if (!r.ok) throw httpError("OpenAI", r.status, await r.text());
+  if (!r.ok) throw httpError(ep.label, r.status, await r.text());
   const d = await r.json();
   const msg = d.choices?.[0]?.message ?? {};
   // deno-lint-ignore no-explicit-any
@@ -355,7 +364,7 @@ async function callOpenAI(
     toolCalls,
     inputTokens: d.usage?.prompt_tokens ?? 0,
     outputTokens: d.usage?.completion_tokens ?? 0,
-    provider: "openai", model,
+    provider, model,
   };
 }
 
@@ -365,7 +374,7 @@ export async function callModel(
 ): Promise<ModelResult> {
   if (m.provider === "anthropic") return callAnthropic(m.key, m.model, system, tools, history, timeoutMs);
   if (m.provider === "google") return callGoogle(m.key, m.model, system, tools, history, timeoutMs);
-  if (m.provider === "openai") return callOpenAI(m.key, m.model, system, tools, history, timeoutMs);
+  if (OPENAI_COMPAT[m.provider]) return callOpenAI(m.provider, m.key, m.model, system, tools, history, timeoutMs);
   throw new Error(`Proveedor no soportado: ${m.provider}`);
 }
 

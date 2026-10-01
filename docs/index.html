@@ -636,6 +636,7 @@
                 <option value="anthropic">Anthropic</option>
                 <option value="openai">OpenAI</option>
                 <option value="google">Google</option>
+                <option value="groq">Groq</option>
               </select>
               <label style="font-size:0.78rem;color: var(--muted);margin-left:0.6rem;">Tier:</label>
               <select id="iaTier" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
@@ -1219,6 +1220,7 @@
                   <option value="anthropic">Anthropic</option>
                   <option value="openai">OpenAI</option>
                   <option value="google">Google (Gemini)</option>
+                  <option value="groq">Groq</option>
                 </select>
                 <input type="password" id="modKey" placeholder="Pegá la API key" autocomplete="off" style="flex:1;min-width:200px;padding:0.4rem 0.6rem;border: 1px solid var(--border);border-radius:6px;font-size:0.84rem;font-family:ui-monospace,monospace;">
                 <button class="config-btn primary small" id="modAddKeyBtn" onclick="addKey()">+ Agregar key</button>
@@ -2964,7 +2966,7 @@ async function deleteEval(id) {
 }
 
 // --- Modelos ---
-const PROV_LABEL = { anthropic: "Anthropic", openai: "OpenAI", google: "Google", otro: "Otro" };
+const PROV_LABEL = { anthropic: "Anthropic", openai: "OpenAI", google: "Google", groq: "Groq", otro: "Otro" };
 let _modRows = [];
 const escM = s => (s || "").replace(/</g, "&lt;");
 
@@ -4219,7 +4221,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.5</div>
 <script src="gestop2.js?v=0.26.4"></script>
 </body>
 </html>

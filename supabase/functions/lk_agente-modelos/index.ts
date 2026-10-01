@@ -30,6 +30,7 @@ function detectProvider(key: string): string | null {
   if (key.startsWith("sk-ant-")) return "anthropic";
   if (key.startsWith("AIza")) return "google";
   if (key.startsWith("sk-")) return "openai";
+  if (key.startsWith("gsk_")) return "groq";
   return null;
 }
 
@@ -71,6 +72,20 @@ async function listModels(
       // deno-lint-ignore no-explicit-any
       return { ok: true, models: (d.data ?? []).map((m: any) => m.id).sort() };
     }
+    if (provider === "groq") {
+      const r = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!r.ok) return { ok: false, error: `Groq HTTP ${r.status}: ${await bodyErr(r)}` };
+      const d = await r.json();
+      const models = (d.data ?? [])
+        // deno-lint-ignore no-explicit-any
+        .map((m: any) => String(m.id))
+        // Sólo chat con herramientas: fuera audio (whisper/orpheus) y modelos de moderación (guard).
+        .filter((id: string) => !/whisper|orpheus|guard|tts/i.test(id))
+        .sort();
+      return { ok: true, models };
+    }
     if (provider === "google") {
       const r = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=200`,
@@ -84,7 +99,7 @@ async function listModels(
         .map((m: any) => String(m.name).replace(/^models\//, ""));
       return { ok: true, models };
     }
-    return { ok: false, error: "Proveedor no soportado (anthropic / openai / google)" };
+    return { ok: false, error: "Proveedor no soportado (anthropic / openai / google / groq)" };
   } catch (e) {
     return { ok: false, error: String(e) };
   }

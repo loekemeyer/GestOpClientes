@@ -413,6 +413,19 @@ cambio se regeneran y se republican los dos artifacts (con `scripts/.../generar.
 - **Recorrido de un pedido web** — `scripts/flujo-pedido-artifact/` → https://claude.ai/artifact/1C6GyTJ3YYKPf9E3uC9kej
 Si el cambio todavía no está aprobado en Meta, el artifact muestra el texto del sistema (plantillas-meta.ts) y lo aclara.
 
+## Consultas para Thommy: se anotan en el artifact (Pablo, 01/10/2026)
+
+Pedido de Pablo: cada vez que deja una anotación para hacerle una consulta a Thommy, Claude la anota en el artifact
+**Consultas para Thommy** → https://claude.ai/artifact/G6tNC8j1DG7HZUaWo7cR5S. Sirve de wiki: la consulta queda con su respuesta.
+
+Se escribe con `ArtifactData` (`url` del artifact), colección `consultas`, un documento por consulta:
+- `doc_id`: `c-AAAAMMDD-HHMM-<n>` (fecha y hora de Argentina; `n` si hay varias en el mismo minuto).
+- Campos: `pregunta` (texto de Pablo, sin reescribir), `tema` (opcional), `contexto` (opcional: archivo, tabla o caso que dispara la duda),
+  `estado: "pendiente"`, `respuesta: ""`, `creada` (ISO, ahora).
+- Cuando Thommy responde: `update` con `estado: "respondida"`, `respuesta` y `respondidaEn` (ISO). La página también lo permite a mano.
+- Nunca borrar una consulta: si quedó mal, se corrige el texto. Es una anotación, no un pedido de trabajo: **no genera tarea de Planify**.
+- El artifact es privado. Para que Thommy cargue respuestas hay que compartírselo con nivel Contributor desde el menú Compartir.
+
 ## Testing
 
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
