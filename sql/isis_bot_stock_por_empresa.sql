@@ -1,4 +1,4 @@
--- isis_bot_stock_por_empresa — stock libre de un artículo POR EMPRESA, para el bot (Pablo Olejavetzky, 01/10).
+-- isis_bot_stock_por_empresa — (APLICADA en Gestión 01/10 con el sí de Pablo) stock libre de un artículo POR EMPRESA, para el bot (Pablo Olejavetzky, 01/10).
 -- Proyecto Gestión / ISIS (hrxfctzncixxqmpfhskv), NO PaginaLK. Sólo lectura. La llama _shared/stock.ts con
 -- getGestionClient (service key).
 --

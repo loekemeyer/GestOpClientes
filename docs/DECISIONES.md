@@ -140,3 +140,17 @@ empresa es. Código: `_shared/chef.ts`.
 **Por qué los vínculos de Chef van en otra tabla:** `bot_encolar_recordatorios_25` y `trg_notify_despacho` cruzan
 `bot_customer_whatsapps` por `cod_cliente` sin mirar la empresa (la columna `empresa` existe pero nadie la filtra).
 Un teléfono de Chef cargado ahí recibiría los avisos del cliente de LK con el mismo número.
+
+**Códigos de artículo entre empresas (medido el 01/10, para la fase 4).** Gestión no tiene "5 tablas de
+equivalencias de lo mismo": son 4 conceptos distintos y conviene dejarlos así.
+- `codigos_duales` (4: 437E, 438E, 439E, 809E): el MISMO producto lo venden las dos y cada una tiene su stock. Es la
+  pieza central: la usan 17 funciones y 8 vistas de Gestión (stock, recepción de importados, NC Loeke-Chef).
+- `GV_Cod_Dos_Productos` (12): el mismo código es un producto DISTINTO en cada empresa. Sólo documenta (y la UxB se
+  resuelve por empresa en `GV_UxB`). Hoy ninguno está activo en las dos webs: 026, 034, 658 y 659 sólo en la de LK;
+  043 sólo en la de Chef; el resto en ninguna. Las descripciones de LK de 658 y 659 ya no coinciden con la web.
+- `Equivalencias_Codigos` (11): alias de un código de pedido al código real.
+- `gv_articulo_empresa` (vista + `GV_Articulo_Empresa_Cache`): empresa de cada código, derivada de las listas de
+  precios. Para 043 dice LK mientras `gv_empresa_de_articulo('043')` devuelve CH.
+- `chef_item_remap` (PaginaLK, 9): remapeo de códigos de ventas de Chef.
+Regla para el bot: todo código viaja con su empresa (como `bot_stock_por_empresa`, 01/10); no se unifican las tablas
+de Gestión.
