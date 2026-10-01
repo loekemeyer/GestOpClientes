@@ -138,13 +138,14 @@ async function simularClienteChef(body: any): Promise<Response> {
       SIM.alertas = [];
       let reply = await atenderMalHumor(TEL_SIMULADO, text, { customer_id: null, business_name: cuenta.razon_social, empresa: "CH" });
       let via = "cliente_molesto";
+      let imagenes: Array<{ url: string; caption: string }> = [];
       if (!reply) {
         const r = await atenderClienteChef(TEL_SIMULADO, text, cuenta);
         reply = r.reply; via = r.via;
         // Reenvío de factura: en el simulador no se manda nada; se muestra qué PDF iría adjunto.
         if (r.documentos?.length) reply += "\n\n" + r.documentos.map((d) => `📎 ${d.filename}`).join("\n");
-        // Foto de producto de Chef: en el simulador no se manda nada; se muestra cuál iría.
-        if (r.imagenes?.length) reply += "\n\n" + r.imagenes.map((i) => `🖼️ ${i.caption}\n${i.url}`).join("\n");
+        // Foto de producto de Chef: en el simulador no se manda nada; va en `imagenes` y el front la dibuja.
+        imagenes = r.imagenes ?? [];
       }
       const tareas: number[] = [];
       if (body.crear_tareas === true && SIM.alertas.length) {
@@ -158,7 +159,7 @@ async function simularClienteChef(body: any): Promise<Response> {
           if (ins?.id) tareas.push(ins.id);
         }
       }
-      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [], tareas });
+      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [], tareas, ...(imagenes.length ? { imagenes } : {}) });
     }
     return json({ ok: true, cliente: `${cuenta.razon_social} (Chef ${cuenta.cod_cliente})`, charla: salida });
   } finally {
@@ -262,6 +263,7 @@ serve(async (req) => {
 
       let reply: string | null = null;
       let via = "";
+      let imagenes: Array<{ url: string; caption: string }> = [];
       // 3b'. cliente molesto
       reply = await atenderMalHumor(TEL_SIMULADO, text, customer);
       if (reply) via = "cliente_molesto";
@@ -282,7 +284,7 @@ serve(async (req) => {
         if (g?.tipo === "responder") {
           reply = g.reply; via = g.via;
           if (g.documentos?.length) reply += "\n\n" + g.documentos.map((d) => `📎 ${d.filename}`).join("\n");
-          if (g.imagenes?.length) reply += "\n\n" + g.imagenes.map((i) => `🖼️ ${i.caption}\n${i.url}`).join("\n");
+          imagenes = g.imagenes ?? [];
         } else if (g?.tipo === "seguir") { text = g.texto; marcaLk = true; via = g.via; }
       }
       // 4. preguntas frecuentes
@@ -332,7 +334,7 @@ serve(async (req) => {
           if (ins?.id) tareas.push(ins.id);
         }
       }
-      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [...SIM.herramientas], tareas, puntuar });
+      salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [...SIM.herramientas], tareas, puntuar, ...(imagenes.length ? { imagenes } : {}) });
     }
     SIM.activo = false;
     return json({ ok: true, cliente: `${c.business_name} (${c.cod_cliente})`, charla: salida });

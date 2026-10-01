@@ -1877,6 +1877,15 @@ function simReset(cod) {
   simAgregar("system", "Charla nueva · escribí o tocá un aviso");
 }
 
+// Imágenes que mandaría el bot (lk_bot-simular devuelve `imagenes: [{url, caption}]`): una foto con su pie. Sólo https; si no carga, avisa.
+function simImagenesHtml(imgs) {
+  // esc() no escapa comillas: dentro de un atributo (src / alt) una descripción con " rompería el HTML.
+  const attr = (v) => esc(String(v ?? "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  return (imgs || []).filter((i) => /^https:\/\//.test(String(i?.url || ""))).map((i) =>
+    `<div style="margin-top:0.45rem;"><img src="${attr(i.url)}" alt="${attr(i.caption || "foto")}" loading="lazy" referrerpolicy="no-referrer" style="display:block;max-width:220px;width:100%;border-radius:8px;background:#fff;" onerror="this.replaceWith(document.createTextNode('⚠️ No se pudo cargar la imagen'))">` +
+    `<div style="font-size:0.78rem;margin-top:0.2rem;">🖼️ ${esc(i.caption || "")}</div></div>`).join("");
+}
+
 async function simLlamar(pasos) {
   const { data, error } = await authedInvoke("lk_bot-simular", { cod_cliente: _sim.cod, numero_nuevo: !!_sim.nuevo, historial: _sim.historial, pasos,
     ...(_sim.empresa === "CH" && !_sim.nuevo ? { empresa: "CH" } : {}),
@@ -1912,7 +1921,7 @@ async function simSend() {
     document.querySelector("#simMessages .typing-sim")?.remove();
     const meta = [`vía ${r.via}`, (r.herramientas || []).length ? "herramientas: " + r.herramientas.map((h) => h.nombre).join(", ") : "", (r.tareas || []).length ? `🧪 tareas creadas: ${r.tareas.length} (ver Tareas)` : (r.alertas || []).length ? `alertas que crearía: ${r.alertas.length}` : "",
       r.puntuar ? "🎯 guardada para puntuar (Dashboard › IA — puntaje)" : ""].filter(Boolean).join(" · ");
-    simAgregar("in", `<div style="white-space:pre-wrap;">${esc(r.bot || "(sin respuesta)")}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(meta)}</div><span class="time">${simHora()}</span>`);
+    simAgregar("in", `<div style="white-space:pre-wrap;">${esc(r.bot || "(sin respuesta)")}</div>${simImagenesHtml(r.imagenes)}<div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(meta)}</div><span class="time">${simHora()}</span>`);
     _sim.historial.push({ rol: "user", contenido: txt }, { rol: "assistant", contenido: r.bot || "" });
   } catch (e) {
     document.querySelector("#simMessages .typing-sim")?.remove();
@@ -4636,7 +4645,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.8</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.9</div>
 <script src="gestop2.js?v=0.26.4"></script>
 </body>
 </html>
