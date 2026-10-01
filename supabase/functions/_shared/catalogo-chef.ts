@@ -7,7 +7,9 @@
 //   · SIN precio — REGLA VIGENTE (Pablo, 01/10): hasta que Thommy confirme la fórmula (lista de Chef × unidades por caja ×
 //     (1 − descuento de clientes_dto) + IVA; consulta c-20261001-1557-1) el bot no muestra precios de Chef. Si lo pide, lo pasa una
 //     persona (alerta cliente_chef). No implementar precios acá sin esa respuesta (D008);
-//   · SIN foto: ningún artículo de Chef tiene imágenes cargadas (paso C).
+//   · SIN foto (todavía, paso C): la columna images de Chef está vacía pero las fotos EXISTEN: 104 de 104 artículos activos tienen un
+//     JPEG por código (<cod>.jpg) en el bucket público products-images de la base de Chef. No consultarlo en ráfaga: ~100 pedidos
+//     seguidos dan 429 too_many_connections (01/10).
 // Regla (Pablo, 01/10): el producto de un código dual (437E, 438E, 439E, 809E) es el mismo en las dos empresas pero el precio es
 // distinto: la descripción y el precio salen SIEMPRE del catálogo de la empresa que consulta, nunca del otro.
 //

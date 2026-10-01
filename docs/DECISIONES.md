@@ -173,10 +173,15 @@ Si Gestión no responde, se pregunta. Un cliente que vuelva a comprar en Chef de
 cargue un pedido (lo cubre la ventana de 90 días).
 
 **Fase 4 — catálogo de Chef, paso A (Pablo, 01/10).** Medido: Chef tiene 156 artículos en `chef_ext.products` (base propia de Chef vía FDW,
-misma forma que `products`), 104 activos, los 104 con precio y unidades por caja y **ninguno con foto**. 100 de los 104 no existen en el
+misma forma que `products`), 104 activos, los 104 con precio y unidades por caja y **con la columna `images` vacía** (las fotos existen igual: ver paso C). 100 de los 104 no existen en el
 catálogo de Loekemeyer, así que `bot_buscar_productos` (que sólo mira `products`) no los veía. Paso A: búsqueda sin IA y sin precio ni foto
 (`_shared/catalogo-chef.ts` + sql/121): código, descripción de Chef, unidades por caja y stock de Chef; el precio lo pasa una persona.
-Pasos pendientes: B (precios) y C (fotos y catálogo en PDF: no hay ninguno de Chef cargado).
+Pasos pendientes: B (precios) y C (fotos y catálogo en PDF).
+**Paso C — corrección (01/10): SÍ hay fotos de Chef.** Retira lo que decía este párrafo ("ninguno con foto"), que salía de mirar la columna `images`
+vacía y no el bucket: los 104 artículos activos de Chef tienen un JPEG (`<código>.jpg`, 65 a 88 KB en la muestra, fotos reales de producto) en el
+bucket público `products-images` de la base de Chef (el host del servidor `chef_db`), el mismo esquema que Loekemeyer. Faltan mandarlas; el catálogo
+en PDF de Chef no se encontró (consulta `c-20261001-1603-1`). ⚠ No consultar ese almacenamiento en ráfaga: a unos 100 pedidos seguidos responde
+`429 too_many_connections` (pasó el 01/10 por la medición de cobertura). Probar de a pocos.
 **Paso B — REGLA VIGENTE (Pablo, 01/10: "consultalo con Thommy, y dejamos una regla en el bot, es algo que no manejo"): hasta que Thommy
 confirme, el bot NO muestra precios de Chef a nadie**; si un cliente de Chef pide un precio, "te lo pasa una persona" y queda la alerta
 `cliente_chef`. La consulta está en el artifact *Consultas para Thommy* (`c-20261001-1557-1`). Ninguna sesión implementa precios de Chef
