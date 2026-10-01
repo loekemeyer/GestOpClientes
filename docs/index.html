@@ -3460,6 +3460,7 @@ async function saveDerivaciones() {
 
 // --- Vinculaciones: aprobación humana de teléfonos nuevos (lk_vinculaciones, sql/072) ---
 const telCorto = (t) => (t ? "…" + String(t).slice(-4) : "—");
+const vincCadenas = {}; // id de solicitud → aviso de cadena con lista propia (sql/114, Pablo 01/10)
 async function loadVinculos() {
   const box = document.getElementById("vincList");
   const st = document.getElementById("vincStatus");
@@ -3469,6 +3470,7 @@ async function loadVinculos() {
     const { data, error } = await authedInvoke("lk_vinculaciones", { action: "list" });
     if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
     const rows = data.pendientes || [];
+    rows.forEach((r) => { vincCadenas[r.id] = r.cadena ? r.cadena.aviso : null; });
     st.textContent = rows.length ? `${rows.length} pendiente(s)` : "";
     badge.style.display = rows.length ? "" : "none";
     badge.textContent = rows.length;
@@ -3481,7 +3483,7 @@ async function loadVinculos() {
       ${rows.map((r) => `<tr style="border-top: 1px solid var(--border);">
         <td style="padding:4px 10px 4px 0;white-space:nowrap;">${esc(new Date(r.creado_en).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td>
         <td style="padding:4px 10px 4px 0;white-space:nowrap;"><code>${esc(r.telefono)}</code>${r.tipo === "pedidos_access" ? '<br><span class="hint">acceso a pedidos</span>' : ""}</td>
-        <td style="padding:4px 10px 4px 0;">${esc(r.business_name || "")}<br><span class="hint">cód. ${esc(String(r.cod_cliente ?? ""))} · CUIT ${esc(r.cuit_normalizado || "")}</span></td>
+        <td style="padding:4px 10px 4px 0;">${esc(r.business_name || "")}<br><span class="hint">cód. ${esc(String(r.cod_cliente ?? ""))} · CUIT ${esc(r.cuit_normalizado || "")}</span>${r.cadena ? `<br><span style="color: var(--danger);font-weight:600;">⚠ ${esc(r.cadena.aviso)}</span>` : ""}</td>
         <td style="padding:4px 10px 4px 0;">${(r.telefonos_erp || []).map((t) => `<code>${esc(t)}</code>`).join("<br>") || '<span class="hint">sin teléfonos</span>'}</td>
         <td style="padding:4px 10px 4px 0;">${r.principal_actual ? `<code>${esc(telCorto(r.principal_actual))}</code>` : '<span class="hint">ninguno</span>'}</td>
         <td style="padding:4px 10px 4px 0;${(r.intentos_24h || 0) > 1 ? "color: var(--danger);font-weight:600;" : ""}">${r.intentos_24h ?? 0}</td>
@@ -3498,7 +3500,8 @@ async function loadVinculos() {
 async function decideVinculo(id, decision) {
   let motivo = "";
   if (decision === "approve") {
-    if (!confirm("¿Confirmaste que este número es de la empresa? Al aprobar, el número puede ver pedidos y datos de ese cliente.")) return;
+    const cadena = vincCadenas[id] ? `⚠ ${vincCadenas[id]}\n\n` : "";
+    if (!confirm(cadena + "¿Confirmaste que este número es de la empresa? Al aprobar, el número puede ver pedidos y datos de ese cliente.")) return;
   } else {
     motivo = (prompt("Motivo del rechazo (se le informa al número):") || "").trim();
     if (!motivo) return;
@@ -4206,7 +4209,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.2</div>
-<script src="gestop2.js?v=0.25.18"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.3</div>
+<script src="gestop2.js?v=0.26.3"></script>
 </body>
 </html>

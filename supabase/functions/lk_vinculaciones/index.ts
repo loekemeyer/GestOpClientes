@@ -1,11 +1,13 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
+import { cadenasListaPropia } from "../_shared/cadenas.ts";
 
 // lk_vinculaciones — revisión humana de teléfonos nuevos que dicen ser un cliente (sql/072).
 // La usa el dashboard (Panel de Control → Vinculaciones). Sólo admins (requireAdmin).
 //
-//   {action:"list"}                                         → solicitudes pendientes (bot_register_pending)
+//   {action:"list"}                                         → solicitudes pendientes (bot_register_pending),
+//                                                             con `cadena` si es una cadena con lista propia (sql/114)
 //   {action:"decide", request_id, decision, motivo?}        → aprueba/rechaza (bot_register_decide)
 //
 // El aviso al que pidió la vinculación NO se manda desde acá: se ENCOLA en wa_outbox y lo despacha
@@ -42,10 +44,13 @@ serve(async (req) => {
       if (error) return json({ ok: false, error: error.message }, 200);
       // Texto EXACTO del aviso que se encola al decidir (Centro de mensajes › Tareas lo muestra en el
       // modal de confirmación). En el rechazo, {{motivo}} lo completa el front con lo que escribe la persona.
+      // cadena: si el cliente es una cadena con lista propia, el front avisa antes de aprobar (Pablo, 01/10).
+      const cadenas = await cadenasListaPropia((data ?? []).map((r: Record<string, unknown>) => r.cod_cliente));
       const pendientes = (data ?? []).map((r: Record<string, unknown>) => ({
         ...r,
         aviso_aprobar: avisoAlSolicitante("approve", String(r.tipo ?? "registro"), String(r.business_name ?? ""), ""),
         aviso_rechazar: avisoAlSolicitante("reject", String(r.tipo ?? "registro"), "", "{{motivo}}"),
+        cadena: cadenas.get(Number(r.cod_cliente)) ?? null,
       }));
       return json({ ok: true, pendientes });
     }
