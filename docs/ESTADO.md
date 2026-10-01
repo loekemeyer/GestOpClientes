@@ -581,6 +581,18 @@ el killswitch, sin ningún consumidor de esa cola.
     `wa_inbound_seen` evita que un reintento de Meta (>20s) reprocese → no duplica pedidos.
   - `_shared/llm.ts` (chain SOLO-texto, sin tools) + `_shared/claude.ts` quedaron como **código muerto**
     (nadie los importa); el bot usa `bot-llm.ts`. Se pueden borrar en una limpieza.
+  - **Groq soportado (2026-10-01, Pablo, v0.26.5):** `bot-llm.ts` suma el proveedor `groq` (API compatible con
+    OpenAI, tabla `OPENAI_COMPAT`: sumar otro compatible es una línea); `lk_agente-modelos` detecta keys `gsk_` y
+    lista sus modelos de chat; el panel lo ofrece. Sin una fila en `wa_agente_modelos` con prioridad, no cambia
+    nada. **Sin probar contra la API real (falta la key).** ⚠ Límites del plan gratis (docs de Groq, 01/10):
+    30 rpm, 1.000 req/día, **8.000 TPM y 200.000 TPD** por modelo. El prompt del bot mide mediana 7.777 tokens de
+    entrada (p90 9.743, máx 11.735; 233 de 471 llamadas del simulador pasan 8.000, tokenizer de Claude) → con el
+    plan gratis casi seguro da 413/429 y cae al siguiente de la cadena. Si falla, es el límite, no el código.
+    ⚠ Al sincronizar modelos de la key, `is_free_tier` queda en `false`: ponerlo en `true` o el panel de gastos
+    suma un costo que no existe.
+  - ⚠ **Bug conocido, sin arreglar:** `resolveChain` descarta lo que no está en `estado='ok'` y nada vuelve a `ok`
+    un modelo `caido` (el cooldown no alcanza). Un solo 503 lo saca para siempre: `gemini-3.5-flash-lite` (#1,
+    free) está caído desde el 28/09 y todo el tráfico va a Sonnet.
 - **Cables creados sin enchufar (TODO, no conectados):**
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,
