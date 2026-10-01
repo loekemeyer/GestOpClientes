@@ -18,6 +18,7 @@ import {
   type NormMsg,
   type ResolvedModel,
   resolveChain,
+  resolveModelById,
 } from "./bot-llm.ts";
 
 // ─── Tool definitions (mapean a RPCs bot_*) ────────────────────────
@@ -1262,12 +1263,21 @@ export async function runConversation(
   // Sonnet, para que el bot siga contestando aunque la cadena esté vacía o toda caída.
   const candidates: ResolvedModel[] = await resolveChain();
   // Pruebas (simulador y chat de test): un modelo propio, más barato, para no gastar el de producción. Sin la clave
-  // app_settings.llm_modelo_pruebas todo sigue igual; si ese modelo falla, sigue con la cadena de siempre.
+  // app_settings.llm_modelo_pruebas todo sigue igual. Con la clave, la prueba usa SÓLO ese modelo: si falla, la prueba
+  // falla (llmError) y NO cae a la cadena, para que una caída no se pague en otro modelo sin que nadie se entere (Pablo, 01/10).
+  let soloPruebas = false;
   if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
     const modeloPruebas = (await getSetting("llm_modelo_pruebas"))?.trim();
-    if (modeloPruebas) candidates.unshift({ id: 0, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false });
+    // Si el model_id es de otro proveedor con key cargada en el panel (ej. gemini-3.5-flash-lite) se usa ése; si no, es de Anthropic.
+    if (modeloPruebas) {
+      candidates.length = 0;
+      candidates.push(
+        (await resolveModelById(modeloPruebas)) ?? { id: -1, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false },
+      );
+      soloPruebas = true;
+    }
   }
-  if (apiKey) {
+  if (apiKey && !soloPruebas) {
     candidates.push({ id: 0, provider: "anthropic", model: "claude-sonnet-4-6", key: apiKey, isFreeTier: false });
   }
   if (!candidates.length) {

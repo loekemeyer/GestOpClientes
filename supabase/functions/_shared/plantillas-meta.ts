@@ -168,7 +168,10 @@ export const PLANTILLAS: PlantillaMeta[] = [
       "alias", "CBU"],
     // Pablo, 30/09: formato "más prolijo" (fecha sola en la primera línea); alias y CBU de la configuración (Panel);
     // "pasás a pagar $X más" (v3). La v1/v2 (8 variables, sin la diferencia) las arma lk_recordatorio-descuento aparte.
-    body: "Te recordamos el pago de tu compra facturada el {{1}}\n\nSi la pagás hasta el {{2}} tenés *{{3}}% de descuento* y abonás *{{4}}* en vez de {{5}}.\nDespués de esa fecha el descuento pasa a ser del {{6}}% y pasás a pagar {{7}} más.\n\nDatos para el pago:\nAlias: {{8}}\nCBU: {{9}}\n\nSaludos.",
+    // Pablo, 01/10 (v5): Meta clasificó la v3 y la v4 como MARKETING ("tenés *25% de descuento*" se lee como incentivo).
+    // Redactado como aviso de pago de una compra ya facturada: importe primero, "bonificación por pronto pago", sin
+    // negritas. Mismas 9 variables en el mismo orden: lk_recordatorio-descuento no cambia.
+    body: "Recordatorio de pago de tu compra facturada el {{1}}.\n\nImporte a abonar hasta el {{2}}, con la bonificación por pronto pago del {{3}}% ya aplicada: {{4}} (importe sin bonificación: {{5}}).\nA partir de esa fecha la bonificación pasa al {{6}}% y el importe aumenta {{7}}.\n\nDatos para el pago:\nAlias: {{8}}\nCBU: {{9}}\n\nSaludos.",
     ejemplos: ["28/09", "martes 13/10", "25", "$896.668", "$1.195.557", "20", "$59.778", "loeke.srl", "1910027855002702387450"],
   },
 ];

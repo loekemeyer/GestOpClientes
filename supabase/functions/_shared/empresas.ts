@@ -39,10 +39,12 @@ export async function datosEmpresas(): Promise<Record<Empresa, DatosEmpresa>> {
   };
 }
 
-/** CUIT en 11 dígitos, o "" si no sirve para cruzar (vacío, mal formado o genérico de exterior 55000000xxx). */
+/** CUIT en 11 dígitos, o "" si no sirve para cruzar: vacío, mal formado o "CUIT país" del exterior (50…/55…), que es
+ *  genérico y lo comparten todos los clientes de ese país (01/10: Bequisa de Brasil 55000000050, Yangjiang de China
+ *  55000003106). Sólo se cruzan los prefijos de un CUIT argentino. */
 export function cuitNorm(c: unknown): string {
   const d = String(c ?? "").replace(/\D/g, "");
-  return d.length === 11 && !d.startsWith("55000000") ? d : "";
+  return d.length === 11 && /^(20|23|24|27|30|33|34)/.test(d) ? d : "";
 }
 
 /**

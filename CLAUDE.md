@@ -211,6 +211,12 @@ hacer sin figurar en la agenda de alguien.
 
 1. **Al empezar la sesión, preguntar quién está hablando** (antes de hacer nada):
    *"¿Quién sos? (Thomas, Marianela, Luis, Gastón, …)"*. Si el mensaje ya lo dice, no repreguntar.
+   ⚠ **SÓLO EN ESTE REPO (GestOpClientes) NO se pregunta: se asume Pablo Olejavetzky,
+   `employee_id` 64** (Pablo O., 01/10/2026: *"asumí siempre que es Pablo Olejavetzky cuando sea este
+   repo"*). Si el mensaje dice que habla otra persona, manda el mensaje. Motivo: 51 de 53 commits con
+   `Hecho-por` desde el 28/09 son suyos. Trailer, Planify y por qué no es Pablo Martos (6): sección
+   *"En ESTE repo (el bot), 'Pablo' es Pablo Olejavetzky"* más arriba. Al copiar este bloque a otro
+   repo, esta excepción NO se copia.
 2. **Cada pedido de trabajo se registra como tarea en el Planify de esa persona**, apenas se
    empieza, con nombre MUY resumido (≤ 60 caracteres) y una nota de 1–3 líneas con el
    contexto. Queda `done=false` hasta que se cierre (punto 4). Si la sesión termina sin
@@ -226,8 +232,10 @@ hacer sin figurar en la agenda de alguien.
 Empleados activos con Planify (`planify.employees`): Marianela Becker **38**, Luis Rial Otero
 **52**, Gastón Dalponte **61**, Tomás Beviglia **20**, Gonzalez Tomas 16, Elías Irace 1,
 Nazareno Rodríguez 27, Angely Asuaje 22, Viviana Gauna 4, Alan Gonzalez 5, Diego Mollo 44,
-Nora Heredia 33, Juan Cruz Karaygan 51, Pablo Martos 6, Martín Cornejo 34, Martín Pregelj 15,
-Romina Maturano 55, Iván Meta 58, Jhonny Cartaya 46. Si el nombre no está, buscar:
+Nora Heredia 33, Juan Cruz Karaygan 51, Pablo Martos 6, **Pablo Olejavetzky 64**, Martín Cornejo 34,
+Martín Pregelj 15, Romina Maturano 55, Iván Meta 58, Jhonny Cartaya 46. ⚠ **"Pablo" solo es
+ambiguo** (hay dos activos: 6 y 64): preguntar el apellido, salvo la excepción de este repo.
+Si el nombre no está, buscar:
 `select id, nombre from planify.employees where activo and nombre ilike '%<apellido>%'`.
 
 ```sql

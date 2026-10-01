@@ -123,6 +123,17 @@ export async function avisoReciente(phone: string): Promise<AvisoReciente | null
   return { plantilla: m[1], pedido: m[2] ? Number(m[2]) : null, texto: m[3] ?? "" };
 }
 
+// Último mensaje del historial si lo escribió el bot ("" si no): para saber si el cliente insiste con lo mismo.
+const MARCA_RETIRO_INFORMADO = "Si necesitás que sea otro día, decime cuál y se lo paso a un asesor.";
+async function ultimoMensajeBot(phone: string): Promise<string> {
+  const { data } = SIM.activo
+    ? { data: SIM.historial.slice(-1) }
+    : await supabase.from("bot_historial_chat").select("rol, contenido").eq("telefono", phone)
+      .order("creado_en", { ascending: false }).limit(1);
+  const ult = data?.[0];
+  return ult && ult.rol === "assistant" ? String(ult.contenido ?? "") : "";
+}
+
 const fechaCorta = (iso?: string | null) => {
   if (!iso) return "";
   const d = new Date(new Date(iso).toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
@@ -187,7 +198,10 @@ export async function pedidoDeCambio(
 ): Promise<string | null> {
   if (!customer) return null;
   const t = text.trim();
-  const retiroDia = RE_RETIRO_DIA.test(t);
+  // La fecha del PROPIO pedido ("el pedido del 30/09 me lo entregan o lo paso a buscar?") no es un día de retiro: se saca
+  // antes de buscar el día pedido (Pablo, 01/10; antes eso se derivaba a un asesor "para reprogramar el retiro").
+  const tDia = t.replace(/\b(pedidos?|ordenes|orden|compras?|facturas?)\s+(?:del?|de\s+la(?:\s+fecha)?|(?:con|de)\s+fecha)\s+(?:el\s+)?(?:d[ií]a\s+)?\d{1,2}\s*\/\s*\d{1,2}(?:\s*\/\s*\d{2,4})?/gi, "$1");
+  const retiroDia = RE_RETIRO_DIA.test(tDia);
   if (retiroDia && pideFinDeSemana(t)) {
     return `Los retiros son ${HORARIO_RETIRO}; los fines de semana el depósito está cerrado. Podemos reprogramar tu retiro para otro día hábil: ¿qué día te queda bien?`;
   }
@@ -228,7 +242,7 @@ export async function pedidoDeCambio(
   // Pablo, 30/09 (3.1): "el jueves lo retiro" con dos pedidos abiertos tomaba el más nuevo (listo recién el 05/10) y lo
   // derivaba, aunque el del 25/09 ya está listo. Se prefiere el pedido de retiro que ya esté listo para el día pedido.
   if (retiroDia) {
-    const pedida0 = fechaPedida(t);
+    const pedida0 = fechaPedida(tDia);
     const abiertosIds = ordsVivos.filter((o) => abiertos.has(Number(o.id))).map((o) => o.id);
     const { data: vs } = await supabase.from("v_pedidos_web").select("order_id, zona_expreso").in("order_id", abiertosIds).eq("linea_rn", 1);
     const esRet = new Set((vs ?? []).filter((v: { zona_expreso: string | null }) => /^retira/i.test(String(v.zona_expreso ?? "")))
@@ -246,7 +260,7 @@ export async function pedidoDeCambio(
   if (retiroDia) {
     const e = (est ?? []).find((x: { order_id: number }) => Number(x.order_id) === Number(ped.id)) as
       { fecha_entrega?: string | null } | undefined;
-    const pedida = fechaPedida(t);
+    const pedida = fechaPedida(tDia);
     const { data: v } = await supabase.from("v_pedidos_web").select("zona_expreso, nombre_expreso")
       .eq("order_id", ped.id).eq("linea_rn", 1).limit(1).maybeSingle();
     const esRetiro = /^retira/i.test(String(v?.zona_expreso ?? ""));
@@ -261,6 +275,12 @@ export async function pedidoDeCambio(
     const hoyCerrado = pedida === ahoraAR.toISOString().slice(0, 10) && ahoraAR.getUTCHours() * 60 + ahoraAR.getUTCMinutes() >= 16 * 60 + 30;
     if (esRetiro && pedida && lista && pedida >= lista && !hoyCerrado) {
       return `Sí, podés retirar tu pedido del ${fechaCorta(ped.created_at)} el ${conDia(pedida)}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅`;
+    }
+    // Pablo, 01/10: pide un día ANTERIOR al que el pedido está listo: se le contesta con la fecha real (antes iba directo a un
+    // asesor "para reprogramar", aunque sólo preguntaba). Si insiste (el último mensaje del bot ya fue éste), recién ahí deriva.
+    const hoyYmd = ahoraAR.toISOString().slice(0, 10);
+    if (esRetiro && pedida && lista && pedida < lista && pedida >= hoyYmd && !(await ultimoMensajeBot(phone)).includes(MARCA_RETIRO_INFORMADO)) {
+      return `Tu pedido del ${fechaCorta(ped.created_at)} está programado: lo podés retirar desde el ${conDia(lista)}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ${MARCA_RETIRO_INFORMADO}`;
     }
   }
 

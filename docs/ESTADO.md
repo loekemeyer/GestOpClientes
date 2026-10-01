@@ -4,6 +4,18 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-01.
 >
+> **01/10 (Pablo): revisión de respuestas del bot en el dashboard** (Configuración del agente › 🧪 Evaluación, v0.26.6).
+> Los ejemplos del estudio de consultas por WhatsApp (por causa y tipo, con cuántas consultas representa cada uno, y un
+> ejemplo por causa) son casos de `wa_agente_evals` (sql/117: `clave` m…/r…, `respuesta_bot` simulada, `obs_claude`,
+> `respuesta_corregida`, `estado` pendiente→corregida→aplicada). El admin los vuelve a simular (`lk_bot-simular`) y guarda
+> la corrección (`lk_agente-modelos` eval_resultado / eval_corregir / eval_list, exigen admin). **Para pasar las
+> correcciones al bot:** `select clave, causa, pregunta, respuesta_bot, respuesta_corregida, nota_esperada from
+> wa_agente_evals where estado = 'corregida' order by orden;` y, ya aplicada, `estado = 'aplicada'` (con "sí").
+> sql/118 (aplicada 01/10 a mano en el editor SQL; el MCP se corta por tiempo en DROP/UPDATE): la tabla ya no se lee con
+> la clave pública (guarda respuestas simuladas con un cliente real); verificado: REST con la publishable da 401
+> `permission denied`, 0 políticas, RLS prendida, 88 filas. Sólo la lee `lk_agente-modelos`. Reemplaza al Excel
+> "Respuestas bot por causa" y al artifact del mismo nombre.
+>
 > **30/09 (Pablo):** recordatorio de descuento por vencer (`lk_recordatorio-descuento`, cron `bot-recordatorio-25`
 > días hábiles 9:05, sql/111, plantilla `pedido_recordatorio_descuento` en revisión); FAQ #8 descuentos con las
 > facturas abiertas y fechas reales, y FAQ #10 reenvía el PDF de la factura (`_shared/faq.ts`). Fuente de "¿está
@@ -585,20 +597,77 @@ el killswitch, sin ningún consumidor de esa cola.
   - **Groq soportado (2026-10-01, Pablo, v0.26.5):** `bot-llm.ts` suma el proveedor `groq` (API compatible con
     OpenAI, tabla `OPENAI_COMPAT`: sumar otro compatible es una línea); `lk_agente-modelos` detecta keys `gsk_` y
     lista sus modelos de chat; el panel lo ofrece. Sin una fila en `wa_agente_modelos` con prioridad, no cambia
-    nada. **Sin probar contra la API real (falta la key).** ⚠ Límites del plan gratis (docs de Groq, 01/10):
-    30 rpm, 1.000 req/día, **8.000 TPM y 200.000 TPD** por modelo. El prompt del bot mide mediana 7.777 tokens de
-    entrada (p90 9.743, máx 11.735; 233 de 471 llamadas del simulador pasan 8.000, tokenizer de Claude) → con el
-    plan gratis casi seguro da 413/429 y cae al siguiente de la cadena. Si falla, es el límite, no el código.
-    ⚠ Al sincronizar modelos de la key, `is_free_tier` queda en `false`: ponerlo en `true` o el panel de gastos
-    suma un costo que no existe.
-  - ⚠ **Bug conocido, sin arreglar:** `resolveChain` descarta lo que no está en `estado='ok'` y nada vuelve a `ok`
-    un modelo `caido` (el cooldown no alcanza). Un solo 503 lo saca para siempre: `gemini-3.5-flash-lite` (#1,
-    free) está caído desde el 28/09 y todo el tráfico va a Sonnet.
+    nada. **DESCARTADO el 01/10 (key cargada y probada contra la API real, sin prioridad en la cadena):**
+    ⚠ Límites del plan gratis (docs de Groq y headers de la key): 30 rpm, 1.000 req/día, **8.000 TPM y 200.000
+    TPD** por modelo. El prompt del bot mide mediana 7.777 tokens de entrada (p90 9.743, máx 11.735, **piso 4.125
+    con el historial vacío**; 233 de 471 llamadas del simulador pasan 8.000, tokenizer de Claude): entran menos de
+    2 llamadas por minuto y un turno con herramientas necesita 2 o más. Además `openai/gpt-oss-120b` rechazó con
+    400 `tool_use_failed` un parámetro opcional que mandó en `null` (habría que declarar los opcionales como
+    nullables al llamar a Groq). Tampoco sirve pagarlo sin ese ajuste. La key (`…FD5S`) y las 4 filas de modelos
+    siguen cargadas, sin prioridad. ⚠ Al sincronizar modelos de una key, `is_free_tier` queda en `false`: ponerlo
+    en `true` o el panel de gastos suma un costo que no existe.
+  - **Reactivación de modelos caídos — CORREGIDO el 01/10 (`97dcb9b`):** `resolveChain` descartaba lo que no estaba en
+    `estado='ok'` y nada volvía a `ok` un modelo `caido`: un solo 503 lo sacaba para siempre (`gemini-3.5-flash-lite`,
+    #1 free, estuvo caído del 28/09 al 01/10 y todo iba a Sonnet). Ahora un `caido` con el cooldown vencido se vuelve a
+    probar y pasa a `ok`; si falla de nuevo, `markModelDown` lo marca con otro cooldown. Un `caido` sin fecha no se
+    reactiva solo.
+  - **Gemini no aceptaba las herramientas — CORREGIDO el 01/10 (`36cd8ba`):** `condicion_code` es un integer con `enum`
+    [8, 9, 10, 11, 12, 13, 18] y Gemini sólo admite `enum` en strings: devolvía 400 por TODO el pedido, así que nunca
+    contestaba y cada turno caía a la cadena. `toGeminiSchema` pasa los valores válidos por la descripción en los enum
+    que no son string.
   - **Modelo de pruebas separado (2026-10-01, Pablo):** `runConversation` lee `app_settings.llm_modelo_pruebas`
-    SÓLO cuando la fuente es `lk_bot-simular` o `lk_chat-test` y lo pone primero (con la key de Anthropic del
-    env); si falla, sigue con la cadena de siempre. El webhook nunca lo lee. Sin la clave nada cambia. Sirve para
+    SÓLO cuando la fuente es `lk_bot-simular` o `lk_chat-test` y la prueba usa **sólo ese modelo** (Anthropic con la
+    key del env, o de otro proveedor con key cargada en el panel si el `model_id` figura en `wa_agente_modelos`, ej.
+    `gemini-3.5-flash-lite`). **Si falla, la prueba falla (`llmError`) y NO cae a la cadena** (el 01/10 una prueba con
+    Gemini caída gastó USD 0,3753 en Sonnet sin que nadie lo notara). El webhook nunca lo lee. Sin la clave nada cambia. Sirve para
     probar con Haiku 4.5 (1/3 del precio de Sonnet 4.6) sin tocar la cadena de producción. Las respuestas de
     prueba guardan el modelo en `wa_ia_puntajes.modelo_respuesta` y el gasto en `bot_token_usage.model`.
+    **Hoy vale `gemini-3.5-flash-lite`** (`app_settings.llm_modelo_pruebas`, desde el 01/10; antes `claude-haiku-4-5`).
+  - **Haiku vs Sonnet en las pruebas (2026-10-01, Pablo):** mismas 61 frases (un set armado, NO las 61 del estudio de
+    cobertura, que vienen del export del WhatsApp Business y no están en el repo), cada una en una charla nueva con
+    el cliente 4210, por `lk_bot-simular` con llamada interna (`x-lk-secret`), una corrida por modelo.
+    **Costo:** Haiku USD 0,386 (36 llamadas) · Sonnet USD 1,263 (42 llamadas): 3,3 veces. **34 de 61 no usan IA**
+    (FAQ y pedido de cambio): mismo camino y texto idéntico con ambos modelos. De las **27 con IA**: 17 empatan,
+    **Sonnet mejor en 6** (consultar pedidos, buscar productos, `derivar_a_persona` ×2, consultar facturas, y un falso
+    "no comparto detalles internos del sistema" de Haiku), **Haiku mejor en 2** ("¿pedido en Excel?": lo acepta,
+    Sonnet dijo que no y `pedido-archivo.ts` sí lee xlsx/csv; y "¿cómo me registro?" a un cliente ya registrado),
+    1 mal en ambos ("no tengo retiro" lo toman como alta de dirección). **Patrón:** Haiku usa menos herramientas y no
+    deriva; una vez dijo "acabo de revisar tus pedidos" sin llamar a la herramienta.
+    **Regla:** Haiku para iterar FAQ, ruteo, textos y flujos; **Sonnet para validar herramientas, derivaciones y la
+    regresión final** (`update app_settings set value='claude-sonnet-4-6' where key='llm_modelo_pruebas'`, ≈ USD 1,26
+    por corrida de 61; **volver a `claude-haiku-4-5` al terminar**). Límites: n=27 con IA, un evaluador, frases
+    propias. Con prompt caching (hoy no hay: 0 `cache_control`) el gasto bajaría 30 a 40 % [Probable].
+  - **Gemini 3.5 Flash-Lite en las mismas 61 frases (2026-10-01, Pablo):** plan gratis (USD 0), modo estricto (sin
+    fallback). 53 llamadas, entrada promedio 7.516 tokens (tokenizer de Google). **Primera pasada: 5 de las 27 con IA
+    fallaron** (3 con 429 de cuota y 2 con timeout de 30 s) al mandarle ~20 turnos en un minuto (18 llamadas buenas/min
+    ya dieron 429, ~10.000 tokens cada una); **al repetirlas de a 5 contestaron todas en menos de 7 s**: el techo es la
+    ráfaga, no el modelo. Con IA (27): **21 bien, 4 parciales, 2 mal** con el mismo criterio que Sonnet 22 / 3 / 2 y
+    Haiku 17 / 7 / 3 (Haiku era 18 / 7 / 2 en el primer conteo: "¿me confirman el pedido de hoy?" pasó a mal al verlo
+    contestar sin llamar a la herramienta). Gemini usa las herramientas y deriva como Sonnet (consultar facturas,
+    pedidos, buscar productos, `derivar_a_persona` en rotura y razón social), **pero** dijo "somos fabricantes de
+    artículos de cocina" (falso, son mayoristas), mandó a derivar un CV y los códigos de barras, y a "¿cómo me registro?"
+    le contestó "entrá a la web y completá el formulario" a un cliente ya registrado. 34 de 61 no usan IA: idénticas.
+    **No se evaluó en producción**: el webhook ve la cadena y los datos del cliente viajan al plan gratis de Google (lo
+    usa para mejorar sus productos). **Gemini salió de la cadena de producción el 01/10** (`wa_agente_modelos` id 29,
+    `prioridad = NULL`): la cadena es Sonnet #2 → Haiku #3; Gemini queda sólo como modelo de pruebas.
+  - **Dónde más falla el bot (01/10, 61 frases, un evaluador):** la capa FIJA (FAQ + `pedidoDeCambio`) falla más que la IA:
+    13 de 34 frases no salen bien (38 %), contra 5 o 6 de 27 con Sonnet o Gemini. Por consultas reales afectadas (volumen del
+    estudio de cobertura × fallas del set): entrega y retiro (190 consultas, 5 de 11 mal), lista de precios (67, 2 o 3 de 5),
+    pagos (101, 2 de 7), consumidores y fuera de alcance. **Pendientes, por impacto:** (2) FAQ #11 con las keywords "cuánto
+    sale" / "los precios" contesta la lista web a "¿cuánto sale la caja de abrelatas?"; (3) FAQ #42 con "transferencia" /
+    "transferir" devuelve el CBU a "te mando el comprobante de la transferencia"; (4) consumidor final ("lo compré en el
+    supermercado") sin regla: cae en rotura o en la lista (texto a confirmar con Thommy); (5) prompt del agente
+    (`agente-fijos.ts`): "no tengo retiro" lo toman mal los 3 modelos, "somos mayoristas, no fabricantes" (Gemini lo inventó) y
+    no mandar a registrarse a un cliente ya registrado.
+  - **Entrega y retiro — ARREGLADO el 01/10 (`a752dce`):** `pedidoDeCambio` (`respuesta-aviso.ts`) tomaba la fecha del PROPIO
+    pedido como día de retiro ("el pedido del 30/09 me lo entregan o lo paso a buscar?" iba a un asesor "para reprogramar")
+    y derivaba directo cualquier pedido de retiro antes de que el pedido esté listo. Ahora saca "pedido del 30/09" antes de
+    buscar el día, y si pide un día anterior al listo le contesta con la fecha real ("está programado: lo podés retirar
+    desde el lunes 05/10…") y deriva sólo si insiste. Probado en el simulador con Gemini (cliente 4210): la pregunta
+    entregan-o-busco sale por la FAQ #1 con el estado real; "¿puedo pasar a retirar mañana?" y "el jueves lo retiro" reciben
+    la fecha real sin alerta; si insiste ("igual quiero pasar a retirar mañana") deriva con alerta; "sacar un artículo",
+    "anulá el pedido", "me dijeron 30/09 y ahora 13/10" y "¿cuándo llega mi pedido?" no cambiaron. Frases mal o parciales de la
+    capa fija: de 13 a 10.
 - **Cables creados sin enchufar (TODO, no conectados):**
   - Escalación a humano: `notificarHumano({tipo:"escalation"})` existe pero no hay call-site que lo dispare.
   - Cierre por inactividad: bajar el vencimiento de modo humano (hoy 8h en `lk_conversaciones`) a ~30-40 min,

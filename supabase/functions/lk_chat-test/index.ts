@@ -440,20 +440,37 @@ async function handleWhitelistRemove(id?: string) {
 
 // ── Stats handler ──
 
+// Pablo, 01/10: los rangos van en hora de Argentina (UTC-3, sin horario de verano) y se cargan desde el
+// inicio del mes anterior. Antes la semana se filtraba sobre las filas del mes actual: el 01/10 (jueves)
+// "Semana" perdía lunes a miércoles. Además el select sin rango cortaba en las 1.000 filas de PostgREST.
+const AR_MS = 3 * 3600 * 1000;
+const arInicioDia = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d) + AR_MS).getTime();
+
 async function handleStats(since?: string) {
-  const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const ar = new Date(Date.now() - AR_MS);              // reloj de pared de Argentina en campos UTC
+  const y = ar.getUTCFullYear(), m = ar.getUTCMonth(), d = ar.getUTCDate();
+  const monthStart = arInicioDia(y, m, 1);
+  const prevMonthStart = arInicioDia(y, m - 1, 1);
+  // Semana empieza el lunes (puede caer en el mes anterior)
+  const dow = ar.getUTCDay();
+  const weekStart = arInicioDia(y, m, d - (dow === 0 ? 6 : dow - 1));
+  const sinceMs = since ? Date.parse(since) : NaN;
+  const desde = Math.min(prevMonthStart, weekStart, Number.isFinite(sinceMs) ? sinceMs : Infinity);
 
-  // Semana empieza el lunes
-  const day = now.getUTCDay();
-  const mondayOffset = day === 0 ? 6 : day - 1;
-  const ws = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - mondayOffset));
-  const weekStart = ws.toISOString();
-
-  const { data: monthRows } = await supabase
-    .from("bot_token_usage")
-    .select("model, input_tokens, output_tokens, estimated_cost_usd, created_at")
-    .gte("created_at", monthStart);
+  // deno-lint-ignore no-explicit-any
+  const allRows: any[] = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await supabase
+      .from("bot_token_usage")
+      .select("model, input_tokens, output_tokens, estimated_cost_usd, created_at")
+      .gte("created_at", new Date(desde).toISOString())
+      .order("created_at", { ascending: true })
+      .range(off, off + 999);
+    if (error) return json({ error: error.message }, 500);
+    allRows.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  for (const r of allRows) r.t = Date.parse(r.created_at);
 
   // Cargamos el flag is_free_tier por modelo para renderizar el badge en
   // el dashboard aunque no haya llamadas registradas todavía.
@@ -495,18 +512,42 @@ async function handleStats(since?: string) {
       .sort((a, b) => b.cost - a.cost || b.calls - a.calls);
   };
 
-  const allMonth = monthRows ?? [];
-  const weekRows = allMonth.filter(r => r.created_at >= weekStart);
-  const sessionRows = since ? allMonth.filter(r => r.created_at >= since) : null;
+  const allMonth = allRows.filter(r => r.t >= monthStart);
+  const prevMonth = allRows.filter(r => r.t >= prevMonthStart && r.t < monthStart);
+  const weekRows = allRows.filter(r => r.t >= weekStart);
+  const sessionRows = Number.isFinite(sinceMs) ? allRows.filter(r => r.t >= sinceMs) : null;
+
+  // Gasto por día del mes (hora AR) y por modelo, para el gráfico mes actual vs anterior: el panel suma
+  // los modelos que pasan sus filtros de proveedor y tier.
+  // deno-lint-ignore no-explicit-any
+  const diario = (rows: any[], inicio: number, dias: number) => {
+    const out: Record<string, number[]> = {};
+    for (const r of rows) {
+      const i = Math.floor((r.t - inicio) / 86400000);
+      if (i < 0 || i >= dias) continue;
+      (out[r.model ?? "desconocido"] ||= new Array(dias).fill(0))[i] += Number(r.estimated_cost_usd) || 0;
+    }
+    return out;
+  };
+  const diasMes = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const diasPrev = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
   return json({
     month: aggregate(allMonth),
     week: aggregate(weekRows),
+    prev_month: aggregate(prevMonth),
     session: sessionRows ? aggregate(sessionRows) : { cost: 0, input_tokens: 0, output_tokens: 0, calls: 0 },
     by_model: {
-      month:   aggregateByModel(allMonth),
-      week:    aggregateByModel(weekRows),
-      session: sessionRows ? aggregateByModel(sessionRows) : [],
+      month:      aggregateByModel(allMonth),
+      week:       aggregateByModel(weekRows),
+      prev_month: aggregateByModel(prevMonth),
+      session:    sessionRows ? aggregateByModel(sessionRows) : [],
+    },
+    comparacion: {
+      hoy: d,
+      mes: { nombre: MESES[m], dias: diasMes, por_modelo: diario(allMonth, monthStart, diasMes) },
+      mes_anterior: { nombre: MESES[(m + 11) % 12], dias: diasPrev, por_modelo: diario(prevMonth, prevMonthStart, diasPrev) },
     },
   });
 }
