@@ -134,6 +134,11 @@ tiene un pedido abierto (no entregado según Gestión) y pide cambiar la fecha /
 ("reprogramar", "otro día", "recién el 4/10", o "no puedo / no llego" + fecha, día o retiro), el
 webhook deriva antes de las FAQ: "Le paso tu pedido del dd/mm a un asesor para que coordine el cambio…"
 + alerta `respuesta_aviso_cambio` (→ tarea en Planify). `pedidoDeCambio` en `_shared/respuesta-aviso.ts`.
+**Retiro (01/10, Pablo):** (1) la fecha del PROPIO pedido ("el pedido del 30/09 me lo entregan o lo paso a buscar?") ya no se
+toma como día de retiro: antes iba a un asesor "para reprogramar" y ahora sigue a las FAQ / el agente, que contestan con el
+estado real. (2) Si pide retirar un día anterior al que el pedido está listo ("¿puedo pasar a retirar mañana?"), se le dice
+la fecha real ("está programado: lo podés retirar desde el lunes 05/10…") y se le ofrece pasarlo a un asesor si necesita otro
+día; si insiste, recién ahí deriva. Si pide un día igual o posterior, se le confirma directo (como desde el 29/09).
 
 **Descuentos con fechas reales (30/09, Pablo):** la FAQ de descuentos (#8, `customer_discount`) suma el token
 `{{descuentos_facturas}}`: las facturas abiertas del cliente (`GV_Cobranza_Deuda_Viva` de Gestión, agrupadas por
