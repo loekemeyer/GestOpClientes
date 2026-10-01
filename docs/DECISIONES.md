@@ -171,3 +171,13 @@ Medido el 01/10: de los 357 clientes de Loekemeyer que están en las dos empresa
 en 90 días (cubre al que recién empieza a comprar y todavía no tiene factura); los otros 293 (82,1 %) siguen por el flujo de siempre.
 Si Gestión no responde, se pregunta. Un cliente que vuelva a comprar en Chef después de más de 12 meses queda sin la pregunta hasta que
 cargue un pedido (lo cubre la ventana de 90 días).
+
+**Fase 4 — catálogo de Chef, paso A (Pablo, 01/10).** Medido: Chef tiene 156 artículos en `chef_ext.products` (base propia de Chef vía FDW,
+misma forma que `products`), 104 activos, los 104 con precio y unidades por caja y **ninguno con foto**. 100 de los 104 no existen en el
+catálogo de Loekemeyer, así que `bot_buscar_productos` (que sólo mira `products`) no los veía. Paso A: búsqueda sin IA y sin precio ni foto
+(`_shared/catalogo-chef.ts` + sql/121): código, descripción de Chef, unidades por caja y stock de Chef; el precio lo pasa una persona.
+Pasos pendientes: B (precios: no está definido cómo se arma el precio para un cliente de Chef; `chef_customers_cache` no trae descuento) y
+C (fotos y catálogo en PDF: no hay ninguno de Chef cargado).
+**Códigos duales (Pablo, 01/10): "el producto es el mismo, pero el precio es diferente".** Medido: 437E, 438E y 439E cuestan 10,7 % a 11,3 %
+más en Chef que en Loekemeyer (precio de lista) y el 809E se describe distinto en cada web (Corta Queso en Chef, Corta Pizza en
+Loekemeyer) pero es el mismo producto. Regla para el bot: descripción y precio salen SIEMPRE del catálogo de la empresa que consulta.

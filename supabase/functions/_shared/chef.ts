@@ -11,6 +11,8 @@
 //     (recibos de Chef) y descuentos de sus facturas — las mismas funciones de faq.ts que usa un cliente de LK, con
 //     codLk = null;
 //   · "¿cuándo llega mi pedido?": sus pedidos de Chef con estado y fecha de salida (pedidos-marca.ts);
+//   · "¿tienen X?" (fase 4, paso A): productos del catálogo de Chef con código, unidades por caja y stock, sin precio ni foto
+//     (catalogo-chef.ts);
 // y todo lo demás lo pasa a una persona (alerta cliente_chef). Es el mismo principio que la llave de envío: un corte
 // en un solo lugar, que se levanta cuando cada consulta sepa de qué empresa es.
 //
@@ -26,6 +28,7 @@ import {
   RE_ESTADO_PEDIDO, RE_FACTURA_DUPLICADA, RE_PAGO_RECIBIDO, RE_PIDE_FACTURA, RE_PLAZO_ENTREGA,
 } from "./faq.ts";
 import { esConsultaEstado, pedidosChef, textoPedidosChef } from "./pedidos-marca.ts";
+import { responderProductosChef } from "./catalogo-chef.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 
 export interface CuentaChef {
@@ -233,6 +236,17 @@ export async function atenderClienteChef(
       return { reply: "Los datos para transferir a Chef te los pasa Cobranzas por acá en un rato. 🙏", via: "chef_datos_pago_sin_cargar" };
     }
     return { reply: `${datos}\n\nCuando pagues, mandanos el comprobante por acá. 🙏`, via: "chef_datos_pago" };
+  }
+
+  // "¿Tienen coladores?" (fase 4, paso A): busca en el catálogo de Chef. Sin precio (lo pasa una persona) ni foto. Si no es una
+  // pregunta de producto clara o algo falla, devuelve null y sigue a una persona.
+  const prod = await responderProductosChef(t);
+  if (prod) {
+    if (prod.alerta && !(await alertaAbierta(phone, prod.alerta.motivo, 2))) {
+      await notificarHumano({ tipo: "otro", phone, customerId: null, contexto: {
+        motivo: prod.alerta.motivo, detalle: prod.alerta.detalle, ...contextoChef(cuenta, t) } });
+    }
+    return { reply: prod.reply, via: prod.via };
   }
 
   // Todo lo demás: a una persona. Una alerta por número cada 2 h; los mensajes siguientes quedan en la charla.
