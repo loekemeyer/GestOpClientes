@@ -124,7 +124,7 @@ export async function resolveChain(): Promise<ResolvedModel[]> {
 
 /** Un modelo puntual por su model_id, sin mirar prioridad ni estado: para el modelo de pruebas
  *  (app_settings.llm_modelo_pruebas). Sólo proveedores con key propia en wa_agente_model_keys; anthropic usa la key del
- *  env por otro camino. id 0: nunca se marca caído. null si no existe o no tiene credencial. */
+ *  env por otro camino. id -1 (distinto del 0 del fallback de env): nunca se marca caído. null si no existe o no tiene credencial. */
 export async function resolveModelById(modelId: string): Promise<ResolvedModel | null> {
   try {
     const { data: rows } = await supabase
@@ -143,7 +143,7 @@ export async function resolveModelById(modelId: string): Promise<ResolvedModel |
       .maybeSingle();
     const key = k?.key_source === "env" ? (Deno.env.get(k?.secret_ref ?? "") ?? "") : (k?.api_key ?? "");
     if (!key) return null;
-    return { id: 0, provider: m.proveedor, model: m.model_id, key, isFreeTier: !!m.is_free_tier };
+    return { id: -1, provider: m.proveedor, model: m.model_id, key, isFreeTier: !!m.is_free_tier };
   } catch (e) {
     console.error("[bot-llm.resolveModelById]", e);
     return null;
@@ -151,7 +151,7 @@ export async function resolveModelById(modelId: string): Promise<ResolvedModel |
 }
 
 export async function markModelDown(id: number, msg: string) {
-  if (!id) return; // 0 = fallback de env, no existe fila
+  if (!id || id < 0) return; // 0 = fallback de env, -1 = modelo de pruebas: no existe fila
   try {
     await supabase.from("wa_agente_modelos").update({
       estado: "caido",
@@ -248,7 +248,12 @@ function toGeminiSchema(js: any): any {
   const out: any = {};
   if (js.type) out.type = String(js.type).toUpperCase(); // STRING / INTEGER / OBJECT / ARRAY…
   if (js.description) out.description = js.description;
-  if (Array.isArray(js.enum)) out.enum = js.enum;
+  if (Array.isArray(js.enum)) {
+    // Gemini sólo acepta `enum` en campos string (con valores string): rechaza con 400 un integer con enum [8, 9, …]
+    // (condicion_code de las herramientas de pedido). En ese caso pasamos los valores válidos por la descripción.
+    if (String(js.type ?? "string").toLowerCase() === "string") out.enum = js.enum.map(String);
+    else out.description = `${out.description ? out.description + " " : ""}Valores válidos: ${js.enum.join(", ")}.`;
+  }
   if (js.items) out.items = toGeminiSchema(js.items);
   if (js.properties && typeof js.properties === "object") {
     // deno-lint-ignore no-explicit-any

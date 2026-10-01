@@ -1269,7 +1269,7 @@ export async function runConversation(
     // Si el model_id es de otro proveedor con key cargada en el panel (ej. gemini-3.5-flash-lite) se usa ése; si no, es de Anthropic.
     if (modeloPruebas) {
       candidates.unshift(
-        (await resolveModelById(modeloPruebas)) ?? { id: 0, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false },
+        (await resolveModelById(modeloPruebas)) ?? { id: -1, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false },
       );
     }
   }
