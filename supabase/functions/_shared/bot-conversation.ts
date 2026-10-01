@@ -1,7 +1,7 @@
 // Claude API — Tool-use conversacional para bot WhatsApp Loekemeyer
 // Usa RPCs bot_* existentes como herramientas de Claude
 
-import { getGestionClient, supabase } from "./supabase.ts";
+import { getGestionClient, getSetting, supabase } from "./supabase.ts";
 import { derivaciones, motivosIA } from "./derivaciones.ts";
 import { notificarHumano } from "./alertas.ts";
 import { ingresoEstimado, proximosIngresos, stockArticulo, stockNecesitaHumano, textoIngreso, textoStock } from "./stock.ts";
@@ -1261,6 +1261,12 @@ export async function runConversation(
   // Cadena de modelos (prioridad ASC) + fallback duro al env ANTHROPIC_API_KEY con
   // Sonnet, para que el bot siga contestando aunque la cadena esté vacía o toda caída.
   const candidates: ResolvedModel[] = await resolveChain();
+  // Pruebas (simulador y chat de test): un modelo propio, más barato, para no gastar el de producción. Sin la clave
+  // app_settings.llm_modelo_pruebas todo sigue igual; si ese modelo falla, sigue con la cadena de siempre.
+  if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
+    const modeloPruebas = (await getSetting("llm_modelo_pruebas"))?.trim();
+    if (modeloPruebas) candidates.unshift({ id: 0, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false });
+  }
   if (apiKey) {
     candidates.push({ id: 0, provider: "anthropic", model: "claude-sonnet-4-6", key: apiKey, isFreeTier: false });
   }
