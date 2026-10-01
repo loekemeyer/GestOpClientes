@@ -21,7 +21,8 @@ export { esUrgente, estaMolesto } from "./humor-reglas.ts";
 export async function atenderMalHumor(
   phone: string,
   text: string,
-  customer: { customer_id: string; business_name: string } | null,
+  // Cliente de Chef (sql/115): customer_id null y empresa "CH", así la alerta dice de qué empresa es.
+  customer: { customer_id: string | null; business_name: string; empresa?: string } | null,
 ): Promise<string | null> {
   if (!estaMolesto(text)) return null;
   let yaAvisado = false;
@@ -38,7 +39,7 @@ export async function atenderMalHumor(
   await notificarHumano({
     tipo: "escalation", phone, customerId: customer?.customer_id ?? null,
     contexto: { motivo: "cliente_molesto", urgente: true, texto_recibido: text.trim().slice(0, 300),
-      razon_social: customer?.business_name ?? null },
+      razon_social: customer?.business_name ?? null, ...(customer?.empresa ? { empresa: customer.empresa } : {}) },
   });
   return "Perdón por las molestias. Ya le paso tu mensaje a una persona del equipo para que te responda cuanto antes por acá. 🙏";
 }

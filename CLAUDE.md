@@ -148,6 +148,15 @@ ese dato no se puede agrupar ni parseando.
 El precedente de que un trailer fijo funciona es `Claude-Session:`, presente en **238 de 309
 commits (77%)**.
 
+### ⚠ En ESTE repo (el bot), "Pablo" es Pablo Olejavetzky — employee_id 64, NO Pablo Martos (6)
+
+Pablo Olejavetzky, 01/10/2026: *"Todos los cambios en el bot son de Pablo Olejavetzky, grabate eso"*. Trailer:
+`Hecho-por: Pablo Olejavetzky (employee_id 64)`, y la tarea va a su Planify (64). Pablo Martos (6) existe en
+`planify.employees` y una sesión que sólo oye "Pablo" lo puede elegir mal: pasó el 01/10 con **`2beff74`** y
+**`4b83a3e`** (cadenas con lista propia), firmados `Pablo Martos (employee_id 6)` cuando los hizo Pablo
+Olejavetzky. No se reescribe el historial de `main`: esta nota es la corrección. Sus tareas de Planify sí
+quedaron en el 64.
+
 ## 🟥🟥🟥 PRINCIPIO RECTOR (Luis, 2026-09-25): VASECTOMÍA — todo funciona, se corta sólo la SALIDA
 
 > ## **"Miralo como una vasectomía. Todo el sistema funciona, pero con el corte en el lugar
@@ -202,6 +211,12 @@ hacer sin figurar en la agenda de alguien.
 
 1. **Al empezar la sesión, preguntar quién está hablando** (antes de hacer nada):
    *"¿Quién sos? (Thomas, Marianela, Luis, Gastón, …)"*. Si el mensaje ya lo dice, no repreguntar.
+   ⚠ **SÓLO EN ESTE REPO (GestOpClientes) NO se pregunta: se asume Pablo Olejavetzky,
+   `employee_id` 64** (Pablo O., 01/10/2026: *"asumí siempre que es Pablo Olejavetzky cuando sea este
+   repo"*). Si el mensaje dice que habla otra persona, manda el mensaje. Motivo: 51 de 53 commits con
+   `Hecho-por` desde el 28/09 son suyos. Trailer, Planify y por qué no es Pablo Martos (6): sección
+   *"En ESTE repo (el bot), 'Pablo' es Pablo Olejavetzky"* más arriba. Al copiar este bloque a otro
+   repo, esta excepción NO se copia.
 2. **Cada pedido de trabajo se registra como tarea en el Planify de esa persona**, apenas se
    empieza, con nombre MUY resumido (≤ 60 caracteres) y una nota de 1–3 líneas con el
    contexto. Queda `done=false` hasta que se cierre (punto 4). Si la sesión termina sin
@@ -217,8 +232,10 @@ hacer sin figurar en la agenda de alguien.
 Empleados activos con Planify (`planify.employees`): Marianela Becker **38**, Luis Rial Otero
 **52**, Gastón Dalponte **61**, Tomás Beviglia **20**, Gonzalez Tomas 16, Elías Irace 1,
 Nazareno Rodríguez 27, Angely Asuaje 22, Viviana Gauna 4, Alan Gonzalez 5, Diego Mollo 44,
-Nora Heredia 33, Juan Cruz Karaygan 51, Pablo Martos 6, Martín Cornejo 34, Martín Pregelj 15,
-Romina Maturano 55, Iván Meta 58, Jhonny Cartaya 46. Si el nombre no está, buscar:
+Nora Heredia 33, Juan Cruz Karaygan 51, Pablo Martos 6, **Pablo Olejavetzky 64**, Martín Cornejo 34,
+Martín Pregelj 15, Romina Maturano 55, Iván Meta 58, Jhonny Cartaya 46. ⚠ **"Pablo" solo es
+ambiguo** (hay dos activos: 6 y 64): preguntar el apellido, salvo la excepción de este repo.
+Si el nombre no está, buscar:
 `select id, nombre from planify.employees where activo and nombre ilike '%<apellido>%'`.
 
 ```sql
@@ -403,6 +420,19 @@ cambio se regeneran y se republican los dos artifacts (con `scripts/.../generar.
 - **Plantillas de WhatsApp** — `scripts/plantillas-artifact/` → https://claude.ai/artifact/NxCBLWhQA9yghVk2mJ1Mcu
 - **Recorrido de un pedido web** — `scripts/flujo-pedido-artifact/` → https://claude.ai/artifact/1C6GyTJ3YYKPf9E3uC9kej
 Si el cambio todavía no está aprobado en Meta, el artifact muestra el texto del sistema (plantillas-meta.ts) y lo aclara.
+
+## Consultas para Thommy: se anotan en el artifact (Pablo, 01/10/2026)
+
+Pedido de Pablo: cada vez que deja una anotación para hacerle una consulta a Thommy, Claude la anota en el artifact
+**Consultas para Thommy** → https://claude.ai/artifact/G6tNC8j1DG7HZUaWo7cR5S. Sirve de wiki: la consulta queda con su respuesta.
+
+Se escribe con `ArtifactData` (`url` del artifact), colección `consultas`, un documento por consulta:
+- `doc_id`: `c-AAAAMMDD-HHMM-<n>` (fecha y hora de Argentina; `n` si hay varias en el mismo minuto).
+- Campos: `pregunta` (texto de Pablo, sin reescribir), `tema` (opcional), `contexto` (opcional: archivo, tabla o caso que dispara la duda),
+  `estado: "pendiente"`, `respuesta: ""`, `creada` (ISO, ahora).
+- Cuando Thommy responde: `update` con `estado: "respondida"`, `respuesta` y `respondidaEn` (ISO). La página también lo permite a mano.
+- Nunca borrar una consulta: si quedó mal, se corrige el texto. Es una anotación, no un pedido de trabajo: **no genera tarea de Planify**.
+- El artifact es privado. Para que Thommy cargue respuestas hay que compartírselo con nivel Contributor desde el menú Compartir.
 
 ## Testing
 

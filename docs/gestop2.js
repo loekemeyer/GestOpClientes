@@ -491,10 +491,12 @@ async function cmCargarFicha() {
       return;
     }
     const c = d.cliente || {};
+    if (d.cadena && c.id) agCadenas[c.id] = d.cadena.aviso;
     const EP = { entregado: "ok", facturado: "ok", programado: "bot", "en preparacion": "humano", recibido: "gris" };
     f.innerHTML = `<section>${cerrar}<h4>Ficha del cliente</h4><div class="rs">${gesc(c.business_name)}</div><div style="color:var(--g-muted)">Código ${gesc(c.cod_cliente)}</div>
         <div class="kv"><span>CUIT</span><span>${gesc(c.cuit || "—")}</span><span>Teléfono</span><span>+${gesc(d.phone)}</span><span>Localidad</span><span>${gesc(c.localidad || "—")}</span>
-        <span>Vendedor</span><span>${gesc(c.vend || "—")}</span><span>Entrega</span><span>${d.entrega ? `<b>${gesc(d.entrega.modo)}</b>${d.entrega.detalle ? " · " + gesc(d.entrega.detalle) : ""}` : "—"}</span></div></section>
+        <span>Vendedor</span><span>${gesc(c.vend || "—")}</span><span>Entrega</span><span>${d.entrega ? `<b>${gesc(d.entrega.modo)}</b>${d.entrega.detalle ? " · " + gesc(d.entrega.detalle) : ""}` : "—"}</span></div>
+        ${d.cadena ? `<div class="aviso-ambar" style="margin-top:8px">⚠ ${gesc(d.cadena.aviso)}</div>` : ""}</section>
       ${d.agendado ? "" : `<section class="agendar"><b>Sin agendar</b><p>Lo reconoce el teléfono del ERP, pero no está agendado: la IA todavía no ve sus pedidos ni descuentos.</p>
         <button class="g-btn prim" onclick="agAgendar('${gesc(c.id)}', this)">Agendar a ${gesc(c.business_name)}</button></section>`}
       <section><h4>Pedidos recientes</h4>${(d.pedidos || []).length ? d.pedidos.map((p) =>
@@ -504,7 +506,9 @@ async function cmCargarFicha() {
   } catch (e) { f.innerHTML = `<section><h4>Ficha del cliente</h4><div style="color:var(--g-muted)">No se pudo cargar: ${gesc(e.message)}</div></section>`; }
 }
 // Agendar con un click (Pablo, 29/09): vincula el teléfono de la charla al cliente (bot_customer_whatsapps).
+// Si el cliente es una cadena con lista propia (sql/114), avisa y pide confirmar antes de agendar (Pablo, 01/10).
 let agT = null;
+const agCadenas = {};
 function agBuscar() {
   clearTimeout(agT);
   agT = setTimeout(async () => {
@@ -513,12 +517,14 @@ function agBuscar() {
     if (q.length < 2) { box.innerHTML = ""; return; }
     try {
       const r = await conv({ action: "buscar_cliente", q });
-      box.innerHTML = (r.clientes || []).length ? r.clientes.map((c) => `<div class="it"><span>${gesc(c.business_name)}<br><span style="color:var(--g-muted)">Cód. ${gesc(c.cod_cliente)}${c.localidad ? " · " + gesc(c.localidad) : ""}</span></span>
+      (r.clientes || []).forEach((c) => { if (c.cadena) agCadenas[c.id] = c.cadena.aviso; });
+      box.innerHTML = (r.clientes || []).length ? r.clientes.map((c) => `<div class="it"><span>${gesc(c.business_name)}<br><span style="color:var(--g-muted)">Cód. ${gesc(c.cod_cliente)}${c.localidad ? " · " + gesc(c.localidad) : ""}</span>${c.cadena ? `<br><span class="est esperando">Cadena · lista propia</span>` : ""}</span>
         <button class="g-btn" onclick="agAgendar('${gesc(c.id)}', this)">Agendar</button></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Sin resultados.</div>`;
     } catch (e) { box.textContent = "No se pudo buscar: " + e.message; }
   }, 300);
 }
 async function agAgendar(customerId, b) {
+  if (agCadenas[customerId] && !confirm(`${agCadenas[customerId]}\n\n¿Agendar igual?`)) return;
   b.disabled = true; b.textContent = "Agendando…";
   try {
     const r = await conv({ action: "agendar", phone: G.convSel, customer_id: customerId });
@@ -655,7 +661,8 @@ async function tkCargar() {
     const vinc = (vi.pendientes || []).map((v) => ({
       key: "v" + v.id, tipo: "tel", id: v.id, phone: v.telefono, creado: v.creado_en, nivel: v.intentos_24h > 1 ? "amarillo" : "verde",
       motivo: v.tipo === "pedidos_access" ? "Pide ver pedidos" : "Pide vincular el número",
-      cliente: v.business_name ? `${v.business_name} (${v.cod_cliente})` : null, v,
+      // sql/116: el código de una solicitud de Chef es de Chef (otro cliente que el mismo número en Loekemeyer).
+      cliente: v.business_name ? `${v.business_name} (${v.empresa === "CH" ? "Chef " : ""}${v.cod_cliente})` : null, v,
     }));
     const alts = abiertas.map((a) => ({
       key: "a" + a.id, tipo: tipoDeAlerta(a), id: a.id, phone: a.phone, creado: a.created_at, nivel: a.nivel || "verde",
@@ -689,7 +696,7 @@ function tkPintarLista() {
     return `<div class="cm-fila tk-fila${G.tareaSel === t.key ? " sel" : ""}" onclick="tkAbrir('${t.key}')">
       <div class="l1"><b><span class="tk-dot ${t.nivel}"></span>${gesc(t.motivo)}</b><span class="${edad(min)}">${dur(min)}</span></div>
       <div class="l2">${t.cliente ? gesc(t.cliente) : `<i>No identificado</i> · +${gesc(t.phone)}`}</div>
-      <div class="l3"><span class="est ${TIPO_TK[t.tipo].clase}">${TIPO_TK[t.tipo].nombre}</span>${t.a?.tomada_por ? `<span class="meta">→ ${gesc(t.a.tomada_por)}</span>` : ""}<span class="canal">WA</span></div>
+      <div class="l3"><span class="est ${TIPO_TK[t.tipo].clase}">${TIPO_TK[t.tipo].nombre}</span>${t.v?.cadena ? `<span class="est esperando">Cadena · lista propia</span>` : ""}${t.a?.tomada_por ? `<span class="meta">→ ${gesc(t.a.tomada_por)}</span>` : ""}<span class="canal">WA</span></div>
     </div>`;
   }).join("") : `<div class="cm-vacio">${ts.length ? "No hay tareas de este tipo." : "No hay nada esperando a una persona."}</div>`;
 }
@@ -720,6 +727,7 @@ function tkPintarDetalle() {
         ["Número principal hoy", v.principal_actual ? `+${gesc(v.principal_actual)} (se le avisa si aprobás)` : "Ninguno: este queda como principal"],
         v.was_timeout ? ["Nota", "El bot no pudo verificarlo solo y lo pasó a revisión"] : ["", ""]])}
       ${v.intentos_24h > 1 ? `<div class="alerta">Probó ${v.intentos_24h} CUIT distintos en 24 h antes de acertar · revisar con cuidado</div>` : ""}
+      ${v.cadena ? `<div class="aviso-ambar">⚠ ${gesc(v.cadena.aviso)}</div>` : ""}
       <h4>Teléfonos del cliente en el ERP</h4>
       <div class="tk-tels">${tels.length ? tels.map((n) => `<div class="it"><span>+${gesc(n)}</span><a href="tel:+${gesc(String(n).replace(/\D/g, ""))}">Llamar</a></div>`).join("") : `<div style="color:var(--g-muted)">El ERP no tiene teléfonos cargados para este cliente.</div>`}</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalVinculo('approve')">Aprobar teléfono…</button><button class="g-btn" onclick="tkModalVinculo('reject')">Rechazar…</button>${verConv}</div>
@@ -928,6 +936,7 @@ function tkModalVinculo(decision) {
   modal(`<h3>${aprobar ? "Aprobar teléfono" : "Rechazar teléfono"}</h3>
     <div class="kv"><span>Número</span><span>+${gesc(v.telefono)}</span><span>Cliente</span><span>${gesc(v.business_name || "—")} · Cód. ${gesc(v.cod_cliente ?? "—")}</span></div>
     <div>${efecto}</div>
+    ${aprobar && v.cadena ? `<div class="aviso-ambar">⚠ ${gesc(v.cadena.aviso)}</div>` : ""}
     ${aprobar ? "" : `<label style="font-size:12px;color:var(--g-muted)">Motivo (va en el mensaje al cliente)</label><textarea id="tkMotivo" oninput="tkPrevRechazo()" placeholder="ej. el CUIT no coincide con el titular"></textarea>`}
     <div style="font-size:12px;color:var(--g-muted)">Mensaje que se le manda a +${gesc(v.telefono)}:</div>
     <div class="texto" id="tkAvisoTxt">${gesc(aprobar ? v.aviso_aprobar : v.aviso_rechazar.replace(" ({{motivo}})", ""))}</div>${notaLlaveCola()}

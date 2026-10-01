@@ -1,8 +1,10 @@
 // stock — disponibilidad real de un artículo para el bot (pedido de Pablo Olejavetzky, 28/09).
 //
 // disponible (cajas) = stock libre en Gestión − cajas de pedidos web que todavía no salieron del depósito.
-//   Stock libre: vista_stock_vs_pedidos de Gestión (proyecto Gestión/ISIS, schema public) =
-//     terminado + excedente + racks + racks_ch + a_guardar + para_envasar.
+//   Stock libre: bot_stock_por_empresa() de Gestión (proyecto Gestión/ISIS, sql/isis_bot_stock_por_empresa.sql, 01/10),
+//     una fila por empresa desde vista_saldos_stock = terminado + excedente + racks + racks_ch + a_guardar + para_envasar.
+//     Antes se leía vista_stock_vs_pedidos, que junta las dos empresas en cada código y guarda el código sin el cero
+//     ("31"): los 17 artículos de la web con cero adelante ("031") daban siempre "sin stock".
 //     NO suma separar_pedidos ni a_facturar: eso ya está separado para pedidos (el picking lo sacó del
 //     terminado), así que no se resta dos veces.
 //   Pedidos web: bot_stock_web_comprometido (sql/077) — sin programar o programados sin pickear.
@@ -23,29 +25,41 @@ export interface StockArticulo {
   comprometido: number; // cajas de pedidos web que todavía no salieron
   disponible: number;
   nivel: "hay" | "limitado" | "sin";
+  /** Código de dos empresas con stock cargado como "Mixto" (no se sabe de cuál es): lo confirma una persona. */
+  incierto?: boolean;
 }
 
-export async function stockArticulo(cod: string): Promise<StockArticulo | null> {
+export async function stockArticulo(cod: string, empresa: "LK" | "CH" = "LK"): Promise<StockArticulo | null> {
   const c = String(cod ?? "").trim().toUpperCase();
   if (!c) return null;
-  const canon = /^\d+$/.test(c) ? c.replace(/^0+(?=.)/, "").padStart(3, "0") : c;
   const gestion = await getGestionClient("public");
-  const { data: filas, error } = await gestion.from("vista_stock_vs_pedidos")
-    .select("cod, terminado, excedente, racks, racks_ch, a_guardar, para_envasar")
-    .in("cod", [...new Set([c, canon, `${canon} LK`])]);
+  // El código se normaliza en Gestión con gv_cod_stock (la misma regla que usa Gestión: "031" de la web = "31").
+  const { data: filas, error } = await gestion.rpc("bot_stock_por_empresa", { p_cod: c });
   if (error) throw new Error(`stock Gestión: ${error.message}`);
-  // Código dual (existe en LK y en Chef): se usa la parte de LK.
-  const f = (filas ?? []).find((x: { cod: string }) => x.cod.endsWith(" LK")) ?? (filas ?? [])[0];
+  const rows = (filas ?? []) as Array<Record<string, unknown>>;
   const n = (v: unknown) => Number(v) || 0;
-  const libre = f ? n(f.terminado) + n(f.excedente) + n(f.racks) + n(f.racks_ch) + n(f.a_guardar) + n(f.para_envasar) : 0;
+  const libreDe = (f: Record<string, unknown>) =>
+    n(f.terminado) + n(f.excedente) + n(f.racks) + n(f.racks_ch) + n(f.a_guardar) + n(f.para_envasar);
+  // Código de dos productos (026 = Colador N°8 en LK y Pinza de fideos en Chef, GV_Cod_Dos_Productos) o dual (437E lo
+  // venden las dos y cada una tiene su stock, codigos_duales): cuenta sólo el de la empresa que pregunta. El resto de los
+  // códigos suma todas las filas, igual que vista_stock_vs_pedidos. Lo cargado como "Mixto" no se sabe de quién es.
+  const separa = rows.some((f) => f.dos_productos === true || f.dual === true);
+  const propias = separa ? rows.filter((f) => f.empresa === empresa) : rows;
+  const incierto = separa && rows.some((f) => f.empresa === "Mixto" && libreDe(f) > 0);
+  const libre = propias.reduce((a, f) => a + libreDe(f), 0);
 
-  const { data: w, error: ew } = await supabase.rpc("bot_stock_web_comprometido", { p_cods: [String(cod).trim()] });
-  if (ew) throw new Error(`stock web: ${ew.message}`);
-  const comprometido = n(w?.[0]?.cajas);
+  // Los pedidos web de este proyecto son de Loekemeyer: a Chef no se le restan.
+  let comprometido = 0;
+  if (empresa === "LK") {
+    const { data: w, error: ew } = await supabase.rpc("bot_stock_web_comprometido", { p_cods: [String(cod).trim()] });
+    if (ew) throw new Error(`stock web: ${ew.message}`);
+    comprometido = n(w?.[0]?.cajas);
+  }
   const disponible = Math.floor(libre - comprometido);
   return {
-    cod: c, libre, comprometido, disponible,
-    nivel: disponible >= MINIMO_HAY ? "hay" : disponible > 0 ? "limitado" : "sin",
+    cod: c, libre, comprometido, disponible, ...(incierto ? { incierto } : {}),
+    // Con stock "Mixto" lo propio es un piso: si no llega a "hay", lo confirma una persona en vez de decir "sin stock".
+    nivel: disponible >= MINIMO_HAY ? "hay" : disponible > 0 || incierto ? "limitado" : "sin",
   };
 }
 

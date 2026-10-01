@@ -74,6 +74,15 @@
     .ia-stat { flex: 1; min-width: 130px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.55rem 0.7rem; }
     .ia-stat-lbl { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .ia-stat-val { font-size: 1.1rem; font-weight: 600; margin-top: 0.15rem; }
+    .ia-comp:empty { display: none; }
+    .ia-comp { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem 0.3rem; margin-bottom: 0.9rem; }
+    .ia-comp-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1.1rem; font-size: 0.8rem; color: var(--muted); }
+    .ia-comp-head b { color: var(--text); font-weight: 600; }
+    .ia-comp-ley { display: flex; gap: 1rem; font-size: 0.75rem; color: var(--muted); margin: 0.35rem 0 0.2rem; }
+    .ia-comp-ley i { display: inline-block; width: 18px; border-top: 2px solid; vertical-align: middle; margin-right: 0.35rem; }
+    .ia-comp-graf { position: relative; }
+    .ia-comp-graf svg { display: block; width: 100%; height: 190px; overflow: visible; }
+    .ia-comp-tip { position: absolute; top: 4px; pointer-events: none; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem 0.5rem; font-size: 0.75rem; line-height: 1.35; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.18); display: none; }
 
     /* Chat */
     .chat-container { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -273,6 +282,27 @@
     .consulta-form textarea { width: 100%; min-height: 60px; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.84rem; font-family: inherit; resize: vertical; }
     .consulta-form .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
     .consulta-form select { padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.84rem; }
+    /* Evaluación: casos del estudio de WhatsApp por causa y tipo (Pablo, 01/10; sql/117) */
+    .ev-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 1rem; }
+    .ev-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .ev-seg button { border: 0; background: var(--card); color: var(--muted); padding: 0.35rem 0.7rem; font-size: 0.8rem; cursor: pointer; }
+    .ev-seg button.on { background: var(--primary); color: #fff; }
+    #evBuscar { flex: 1 1 220px; min-width: 0; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.84rem; background: var(--card); color: var(--text); }
+    .ev-sec { margin: 1.4rem 0 0.2rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    .ev-causa { margin: 1.2rem 0 0.3rem; font-size: 1rem; display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; }
+    .ev-tipo { margin: 0.9rem 0 0.4rem; font-size: 0.88rem; font-weight: 600; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .ev-causa small, .ev-tipo small { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+    .ev-met { font-size: 0.68rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 20px; border: 1px solid currentColor; }
+    .ev-met.plantilla { color: var(--primary); } .ev-met.agente { color: var(--warning); } .ev-met.mixto { color: #8b5cf6; }
+    .ev-head { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .ev-head b { color: var(--text); font-variant-numeric: tabular-nums; }
+    .ev-chat { display: grid; gap: 0.4rem; background: var(--wa-bg); border-radius: 8px; padding: 0.6rem; }
+    .ev-b { max-width: min(620px, 92%); padding: 0.45rem 0.6rem; border-radius: 8px; font-size: 0.84rem; line-height: 1.4; overflow-wrap: anywhere; color: var(--text); }
+    .ev-b.in { background: var(--wa-in); justify-self: start; }
+    .ev-b.out { background: var(--wa-out); justify-self: end; }
+    .ev-meta { font-size: 0.74rem; color: var(--muted); text-align: right; }
+    .ev-obs { font-size: 0.8rem; padding: 0.45rem 0.6rem; border-radius: 6px; background: var(--bg); margin-top: 0.5rem; }
+    .ev-obs.mal { background: var(--bad-bg); }
     .chain-row { transition: box-shadow 0.12s, border-color 0.12s; }
     .chain-row:active { cursor: grabbing; }
     .chain-row.drag-over { border-color: var(--primary); box-shadow: 0 -2px 0 0 var(--primary) inset; }
@@ -524,6 +554,10 @@
                fila, con ancho para 6 dígitos y los colores del tema. -->
           <label for="simCod" class="toggle-desc" style="display:block;margin-bottom:0.25rem;">N° de cliente</label>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
+            <!-- Pablo, 01/10 (sql/115): el mismo número es otro cliente en cada empresa; Chef corre la atención de Chef. -->
+            <select id="simEmpresa" title="Empresa del cliente" style="padding:0.4rem 0.3rem;border: 1px solid var(--border);border-radius:6px;font-size:0.9rem;background: var(--card);color: var(--text);">
+              <option value="LK">Loekemeyer</option><option value="CH">Chef</option>
+            </select>
             <input type="number" id="simCod" value="4210" placeholder="4210" onkeydown="if(event.key==='Enter')simReset(this.value)" style="width:9ch;padding:0.4rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.9rem;background: var(--card);color: var(--text);">
             <button class="config-btn small" onclick="simReset(document.getElementById('simCod').value)">Usar</button>
             <button class="config-btn small" title="Alguien que todavía no es cliente: prueba el alta" onclick="simReset('nuevo')">📱 Número nuevo</button>
@@ -612,7 +646,7 @@
         </details>
 
         <!-- ── Subcategoría: IA — detalle de gastos ── -->
-        <details class="dash-section">
+        <details class="dash-section" ontoggle="if (this.open && typeof _iaLastData !== 'undefined' && _iaLastData) renderIaTable()">
           <summary>
             <span class="dash-sec-title">🤖 IA — gastos y uso</span>
             <span class="dash-sec-hint">Por modelo</span>
@@ -623,8 +657,9 @@
               <label style="font-size:0.78rem;color: var(--muted);">Rango:</label>
               <select id="iaRange" onchange="loadIaDash()" style="padding:0.3rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
                 <option value="session">Sesión</option>
-                <option value="week">Semana</option>
+                <option value="week">Semana (desde el lunes)</option>
                 <option value="month" selected>Mes actual</option>
+                <option value="prev_month">Mes anterior</option>
               </select>
               <label style="font-size:0.78rem;color: var(--muted);margin-left:0.6rem;">Proveedor:</label>
               <select id="iaProvider" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
@@ -632,6 +667,7 @@
                 <option value="anthropic">Anthropic</option>
                 <option value="openai">OpenAI</option>
                 <option value="google">Google</option>
+                <option value="groq">Groq</option>
               </select>
               <label style="font-size:0.78rem;color: var(--muted);margin-left:0.6rem;">Tier:</label>
               <select id="iaTier" onchange="renderIaTable()" style="padding:0.3rem 0.5rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;">
@@ -648,6 +684,9 @@
               <div class="ia-stat"><div class="ia-stat-lbl">Costo</div><div class="ia-stat-val" id="iaTotalCost">—</div></div>
               <div class="ia-stat"><div class="ia-stat-lbl">Gratis (calls)</div><div class="ia-stat-val" id="iaFreeCalls">—</div></div>
             </div>
+
+            <!-- Gasto acumulado mes actual vs mes anterior (respeta Proveedor y Tier; no depende de Rango) -->
+            <div class="ia-comp" id="iaComp"></div>
 
             <div style="overflow-x:auto;">
               <table id="iaTable" style="border-collapse:collapse;width:100%;font-size:0.82rem;">
@@ -1141,20 +1180,29 @@
           <div class="config-section" style="max-width:none;">
             <h3>🧪 Preguntas de evaluación</h3>
             <p style="font-size:0.8rem;color: var(--muted);margin-bottom:1rem;">
-              Batería de casos para probar el comportamiento del agente después de
-              editar el documento rector. Cada caso: la <b>pregunta</b> del cliente y
-              la <b>nota esperada</b> (qué debería hacer el agente).
+              Batería de casos para probar el comportamiento del agente. Los del <b>estudio de consultas por WhatsApp</b>
+              (clientes con código, 01/01–09/06/2026) vienen agrupados por causa y tipo de mensaje, con cuántas consultas
+              reales representa cada uno. <b>🔁 Simular de nuevo</b> le pregunta al bot de hoy (no manda WhatsApp ni crea
+              tareas) y en <b>Respuesta corregida</b> va lo que debería contestar.
             </p>
-            <div class="consulta-form" style="margin-bottom:1.2rem;border: 1px dashed var(--border);border-radius:8px;padding:0.9rem;">
-              <div class="md-col-label">Nueva pregunta</div>
-              <textarea id="evalNewPregunta" placeholder="Pregunta / mensaje del cliente..."></textarea>
-              <textarea id="evalNewNota" placeholder="Nota esperada: qué debería hacer el agente..."></textarea>
-              <div class="row">
-                <button class="config-btn primary small" onclick="addEval()">+ Agregar caso</button>
-                <span class="config-status" id="evalAddStatus"></span>
-              </div>
+            <div class="ev-toolbar">
+              <div class="ev-seg" id="evFiltros"></div>
+              <input id="evBuscar" type="search" placeholder="Buscar en preguntas, respuestas y correcciones" oninput="evBuscar(this.value)">
+              <span class="hint" id="evResumen"></span>
             </div>
             <div id="evalContainer"><div class="bl-empty">Cargando...</div></div>
+            <details style="margin-top:1.2rem;">
+              <summary style="cursor:pointer;font-size:0.84rem;color: var(--muted);">+ Agregar un caso a mano</summary>
+              <div class="consulta-form" style="margin-top:0.6rem;border: 1px dashed var(--border);border-radius:8px;padding:0.9rem;">
+                <div class="md-col-label">Nueva pregunta</div>
+                <textarea id="evalNewPregunta" placeholder="Pregunta / mensaje del cliente..."></textarea>
+                <textarea id="evalNewNota" placeholder="Nota esperada: qué debería hacer el agente..."></textarea>
+                <div class="row">
+                  <button class="config-btn primary small" onclick="addEval()">+ Agregar caso</button>
+                  <span class="config-status" id="evalAddStatus"></span>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -1215,6 +1263,7 @@
                   <option value="anthropic">Anthropic</option>
                   <option value="openai">OpenAI</option>
                   <option value="google">Google (Gemini)</option>
+                  <option value="groq">Groq</option>
                 </select>
                 <input type="password" id="modKey" placeholder="Pegá la API key" autocomplete="off" style="flex:1;min-width:200px;padding:0.4rem 0.6rem;border: 1px solid var(--border);border-radius:6px;font-size:0.84rem;font-family:ui-monospace,monospace;">
                 <button class="config-btn primary small" id="modAddKeyBtn" onclick="addKey()">+ Agregar key</button>
@@ -1780,15 +1829,20 @@ async function simInit() {
 function simReset(cod) {
   // "nuevo" = alguien que todavía no es cliente (prueba el alta paso a paso, lk_bot-simular numero_nuevo).
   if (cod === "nuevo") _sim.nuevo = true;
-  else if (cod) { _sim.nuevo = false; _sim.cod = Number(cod) || 4210; }
+  else if (cod) {
+    _sim.nuevo = false; _sim.cod = Number(cod) || 4210;
+    _sim.empresa = document.getElementById("simEmpresa")?.value === "CH" ? "CH" : "LK";
+  }
   _sim.historial = [];
   document.getElementById("simMessages").innerHTML = "";
-  document.getElementById("simTitle").textContent = _sim.nuevo ? "Número nuevo (no cliente)" : "Cliente " + _sim.cod;
+  document.getElementById("simTitle").textContent = _sim.nuevo ? "Número nuevo (no cliente)"
+    : (_sim.empresa === "CH" ? "Cliente de Chef " : "Cliente ") + _sim.cod;
   simAgregar("system", "Charla nueva · escribí o tocá un aviso");
 }
 
 async function simLlamar(pasos) {
   const { data, error } = await authedInvoke("lk_bot-simular", { cod_cliente: _sim.cod, numero_nuevo: !!_sim.nuevo, historial: _sim.historial, pasos,
+    ...(_sim.empresa === "CH" && !_sim.nuevo ? { empresa: "CH" } : {}),
     crear_tareas: !!document.getElementById("simTareas")?.checked });
   if (error || !data?.ok) throw new Error(data?.error || error?.message || "Error");
   if (data.cliente) document.getElementById("simTitle").textContent = data.cliente;
@@ -1798,6 +1852,7 @@ async function simLlamar(pasos) {
 async function simAviso(name, factura) {
   if (_sim.ocupado) return;
   if (_sim.nuevo) { simAgregar("system", "Los avisos son para clientes: elegí un número de cliente y tocá Usar."); return; }
+  if (_sim.empresa === "CH") { simAgregar("system", "Los avisos de pedidos son de Loekemeyer: con un cliente de Chef todavía no salen."); return; }
   _sim.ocupado = true;
   try {
     const r = await simLlamar([{ aviso: name }]);
@@ -2877,19 +2932,183 @@ async function deleteConsulta(id) {
 }
 
 // --- Evaluación ---
+// Pablo, 01/10 (sql/117-118): los casos se leen por lk_agente-modelos (eval_list, exige admin): desde sql/117 guardan
+// la respuesta del bot simulada con un cliente real, así que la tabla ya no se lee con la anon key.
+// Los del estudio de WhatsApp (clave 'm…' por tipo de mensaje, 'r…' un ejemplo por causa) van agrupados por causa y
+// tipo; los cargados a mano (sin clave) siguen con su editor de siempre.
+let _evals = [], _evFiltro = "todos", _evBusca = "";
+const EV_FILTROS = [["todos", "Todos"], ["pendiente", "Sin corregir"], ["corregida", "Corregidos"], ["aplicada", "Aplicados"], ["mal", "Contesta mal"]];
+const evEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// Los *asteriscos* son negrita de WhatsApp: se muestran como la ve el cliente.
+const evWa = (s) => evEsc(s).replace(/\*([^*\n]+)\*/g, "<b>$1</b>").replace(/\n/g, "<br>");
+const evMet = (m) => m === "Plantilla" ? "plantilla" : m === "Agente" ? "agente" : "mixto";
+const evMal = (e) => /^(MAL|Sigue mal|Empeoró)/.test(e.obs_claude || "");
+const evNum = (n) => Number(n || 0).toLocaleString("es-AR");
+const evFecha = (t) => t ? new Date(t).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+const EV_VIA = { "agente IA": "IA", "pedido_de_cambio": "Regla fija (sin IA)", "no cliente": "No cliente (regla fija, sin IA)" };
+function evVia(v) {
+  v = String(v || ""); if (EV_VIA[v]) return EV_VIA[v];
+  const n = (v.match(/#(\d+)/) || [])[1], s = n ? " #" + n : "";
+  if (/full_auto/.test(v)) return "Respuesta fija" + s;
+  if (/semi_auto/.test(v)) return "Respuesta fija con datos" + s;
+  if (/needs_human/.test(v)) return "Respuesta fija que deriva" + s;
+  return v;
+}
+const EV_MOTIVO = { pago: "aviso a Cobranzas", reseteo_clave: "reseteo de clave", acceso_web: "acceso web", pedido_no_encontrado: "pedido no encontrado",
+  anulacion_pedido: "anulación", respuesta_aviso_cambio: "reprogramar retiro", cambio_pedido: "cambio de pedido" };
+function evMetaTxt(e) {
+  const p = [];
+  if (e.respuesta_via) p.push("Cómo contestó: <b>" + evEsc(e.respuesta_via) + "</b>");
+  if (e.respuesta_deriva) p.push("Deriva: <b>" + evEsc(e.respuesta_deriva) + "</b>");
+  if (e.simulado_at) p.push("simulada " + evFecha(e.simulado_at));
+  if ((e.simulacion || {}).no_simular) p.push(evEsc(e.simulacion.no_simular));
+  return p.join(" · ");
+}
+function evEstadoTxt(e) {
+  return e.corregido_at ? "Corregida por " + evEsc(e.corregido_por || "") + " · " + evFecha(e.corregido_at) : "";
+}
+
 async function loadEvals() {
   const cont = document.getElementById("evalContainer");
   cont.innerHTML = '<div class="bl-empty">Cargando...</div>';
+  document.getElementById("evFiltros").innerHTML = EV_FILTROS.map(([k, t]) =>
+    '<button type="button" data-f="' + k + '" class="' + (k === _evFiltro ? "on" : "") + '" onclick="evFiltrar(\'' + k + '\')">' + t + "</button>").join("");
   try {
-    const { data } = await sb.from("wa_agente_evals")
-      .select("id, pregunta, nota_esperada, activo, updated_at")
-      .order("created_at", { ascending: true });
-    const items = data || [];
-    if (!items.length) { cont.innerHTML = '<div class="bl-empty">Sin preguntas de evaluación</div>'; return; }
-    cont.innerHTML = items.map(renderEval).join("");
+    const r = await amInvoke({ action: "eval_list" });
+    _evals = r.evals || [];
+    if (!_evals.length) { cont.innerHTML = '<div class="bl-empty">Sin preguntas de evaluación</div>'; return; }
+    cont.innerHTML = renderEvals();
+    evAplicar();
   } catch (e) {
-    cont.innerHTML = '<div class="bl-empty" style="color: var(--danger)">Error al cargar</div>';
+    cont.innerHTML = '<div class="bl-empty" style="color: var(--danger)">Error al cargar: ' + evEsc(e.message) + "</div>";
   }
+}
+
+function renderEvals() {
+  const estudio = _evals.filter((e) => e.clave && e.clave.startsWith("m"));
+  const ejemplos = _evals.filter((e) => e.clave && e.clave.startsWith("r"));
+  const manuales = _evals.filter((e) => !e.clave);
+  let html = "";
+  if (estudio.length) {
+    html += '<div class="ev-sec">Por tipo de mensaje · consultas del 01/01 al 09/06/2026</div>';
+    const causas = new Map();
+    for (const e of estudio) {
+      if (!causas.has(e.causa)) causas.set(e.causa, new Map());
+      const tipos = causas.get(e.causa);
+      if (!tipos.has(e.tipo)) tipos.set(e.tipo, []);
+      tipos.get(e.tipo).push(e);
+    }
+    for (const [causa, tipos] of causas) {
+      const totC = [...tipos.values()].flat().reduce((a, e) => a + (e.consultas || 0), 0);
+      html += '<div data-evbloque><h4 class="ev-causa">' + evEsc(causa) + " <small>" + evNum(totC) + " consultas</small></h4>";
+      for (const [tipo, casos] of tipos) {
+        const totT = casos.reduce((a, e) => a + (e.consultas || 0), 0), met = casos[0].metodo || "";
+        html += '<div data-evbloque><div class="ev-tipo">' + evEsc(tipo) + " <small>" + evNum(totT) + " consultas</small>" +
+          (met ? ' <span class="ev-met ' + evMet(met) + '">' + evEsc(met) + "</span>" : "") + "</div>" + casos.map(evCard).join("") + "</div>";
+      }
+      html += "</div>";
+    }
+  }
+  if (ejemplos.length) {
+    html += '<div data-evbloque><div class="ev-sec">Un ejemplo por causa · consultas del 28/07 al 28/09</div>' + ejemplos.map(evCard).join("") + "</div>";
+  }
+  if (manuales.length) {
+    html += '<div data-evbloque><div class="ev-sec">Casos cargados a mano</div>' + manuales.map(renderEval).join("") + "</div>";
+  }
+  return html;
+}
+
+function evCard(e) {
+  const mal = evMal(e), noSim = (e.simulacion || {}).no_simular, estado = e.estado || "pendiente";
+  const pill = estado === "aplicada" ? '<span class="cat-pill permiso">Aplicada</span>'
+    : estado === "corregida" ? '<span class="cat-pill objetivo">Corregida</span>' : '<span class="cat-pill pendiente">Sin corregir</span>';
+  return '<div class="consulta-card" id="eval-' + e.id + '" data-ev="' + e.id + '">' +
+    '<div class="ev-head"><b>' + evEsc(e.num || "") + "</b>" + (e.consultas != null ? "<span>" + evNum(e.consultas) + " consultas</span>" : "") +
+      (e.clave && e.clave.startsWith("r") ? "<span>" + evEsc(e.causa) + "</span>" : "") +
+      '<span id="evPill-' + e.id + '">' + pill + "</span>" + (mal ? '<span class="cat-pill limite">Contesta mal</span>' : "") + "</div>" +
+    '<div class="ev-chat">' +
+      '<div class="ev-b in">' + evEsc(e.pregunta) + "</div>" +
+      '<div class="ev-b out" id="evBot-' + e.id + '">' + (e.respuesta_bot ? evWa(e.respuesta_bot) : "<i>Sin simular todavía</i>") + "</div>" +
+      '<div class="ev-meta" id="evMeta-' + e.id + '">' + evMetaTxt(e) + "</div>" +
+    "</div>" +
+    (e.obs_claude ? '<div class="ev-obs' + (mal ? " mal" : "") + '"><b>Observación:</b> ' + evEsc(e.obs_claude) + "</div>" : "") +
+    '<div class="consulta-form">' +
+      '<div class="md-col-label">Respuesta corregida (lo que debería contestar el bot)</div>' +
+      '<textarea id="evC-' + e.id + '">' + evEsc(e.respuesta_corregida) + "</textarea>" +
+      '<div class="md-col-label">Nota esperada (qué tiene que hacer: derivar, preguntar, mandar a la web…)</div>' +
+      '<textarea id="evN-' + e.id + '">' + evEsc(e.nota_esperada) + "</textarea>" +
+      '<div class="row">' +
+        '<button class="config-btn primary small" onclick="evCorregir(' + e.id + ')">💾 Guardar corrección</button>' +
+        '<button class="config-btn small" onclick="evSimular(' + e.id + ')"' + (noSim ? ' disabled title="' + evEsc(noSim) + '"' : "") + ">🔁 Simular de nuevo</button>" +
+        '<span class="config-status" id="evSt-' + e.id + '">' + evEstadoTxt(e) + "</span>" +
+      "</div>" +
+    "</div>" +
+  "</div>";
+}
+
+function evFiltrar(k) {
+  _evFiltro = k;
+  for (const b of document.querySelectorAll("#evFiltros button")) b.classList.toggle("on", b.dataset.f === k);
+  evAplicar();
+}
+function evBuscar(v) { _evBusca = String(v || "").trim().toLowerCase(); evAplicar(); }
+// Filtra mostrando/ocultando (no re-renderiza): así no se pierde lo que alguien está escribiendo en otro caso.
+function evAplicar() {
+  const porId = new Map(_evals.map((e) => [String(e.id), e]));
+  for (const card of document.querySelectorAll("#evalContainer .consulta-card")) {
+    const e = porId.get(String(card.id.replace("eval-", ""))); if (!e) continue;
+    let ok = true;
+    if (_evFiltro === "mal") ok = evMal(e);
+    else if (_evFiltro !== "todos") ok = !!e.clave && (e.estado || "pendiente") === _evFiltro;
+    if (ok && _evBusca) {
+      const extra = [document.getElementById("evC-" + e.id)?.value, document.getElementById("evN-" + e.id)?.value].join(" ");
+      ok = (card.textContent + " " + extra).toLowerCase().includes(_evBusca);
+    }
+    card.style.display = ok ? "" : "none";
+  }
+  for (const b of [...document.querySelectorAll("#evalContainer [data-evbloque]")].reverse()) {
+    b.style.display = [...b.querySelectorAll(".consulta-card")].some((c) => c.style.display !== "none") ? "" : "none";
+  }
+  const est = _evals.filter((e) => e.clave), hechas = est.filter((e) => (e.estado || "pendiente") !== "pendiente").length;
+  document.getElementById("evResumen").textContent = est.length ? hechas + " de " + est.length + " casos del estudio corregidos" : "";
+}
+
+async function evSimular(id) {
+  const e = _evals.find((x) => x.id === id); if (!e) return;
+  const st = document.getElementById("evSt-" + id);
+  st.textContent = "Simulando… (puede tardar hasta un minuto)"; st.className = "config-status";
+  try {
+    const sim = e.simulacion && !e.simulacion.no_simular ? e.simulacion : { cod_cliente: 4210 };
+    const { data, error } = await authedInvoke("lk_bot-simular", { ...sim, pasos: [{ cliente: e.pregunta }] });
+    if (error || !data?.ok) throw new Error(data?.error || error?.message || "el simulador no respondió");
+    const c = (data.charla || [])[0] || {};
+    const al = (c.alertas || [])[0];
+    const deriva = al ? "Sí · " + (EV_MOTIVO[al.motivo] || String(al.motivo || "a una persona").replace(/_/g, " ")) +
+      (al.urgente === true || al.urgente === "true" ? " · urgente" : "") : "No";
+    const via = evVia(c.via);
+    await amInvoke({ action: "eval_resultado", id, respuesta_bot: c.bot || "", respuesta_via: via, respuesta_deriva: deriva });
+    Object.assign(e, { respuesta_bot: c.bot || "", respuesta_via: via, respuesta_deriva: deriva, simulado_at: new Date().toISOString() });
+    document.getElementById("evBot-" + id).innerHTML = evWa(e.respuesta_bot);
+    document.getElementById("evMeta-" + id).innerHTML = evMetaTxt(e);
+    st.textContent = "✓ Simulada"; st.className = "config-status ok";
+  } catch (err) { st.textContent = "✗ " + err.message; st.className = "config-status err"; }
+}
+
+async function evCorregir(id) {
+  const st = document.getElementById("evSt-" + id);
+  const respuesta_corregida = document.getElementById("evC-" + id).value.trim();
+  const nota_esperada = document.getElementById("evN-" + id).value.trim();
+  st.textContent = "Guardando…"; st.className = "config-status";
+  try {
+    const r = await amInvoke({ action: "eval_corregir", id, respuesta_corregida, nota_esperada });
+    const e = _evals.find((x) => x.id === id);
+    const hay = !!(respuesta_corregida || nota_esperada);
+    if (e) Object.assign(e, { respuesta_corregida, nota_esperada, estado: hay ? "corregida" : "pendiente",
+      corregido_por: hay ? r.por : null, corregido_at: hay ? r.at : null });
+    document.getElementById("evPill-" + id).innerHTML = hay ? '<span class="cat-pill objetivo">Corregida</span>' : '<span class="cat-pill pendiente">Sin corregir</span>';
+    st.textContent = hay ? "✓ " + evEstadoTxt(e || {}).replace(/<[^>]+>/g, "") : "✓ Corrección borrada"; st.className = "config-status ok";
+    evAplicar();
+  } catch (err) { st.textContent = "✗ " + err.message; st.className = "config-status err"; }
 }
 
 function renderEval(e) {
@@ -2954,7 +3173,7 @@ async function deleteEval(id) {
 }
 
 // --- Modelos ---
-const PROV_LABEL = { anthropic: "Anthropic", openai: "OpenAI", google: "Google", otro: "Otro" };
+const PROV_LABEL = { anthropic: "Anthropic", openai: "OpenAI", google: "Google", groq: "Groq", otro: "Otro" };
 let _modRows = [];
 const escM = s => (s || "").replace(/</g, "&lt;");
 
@@ -3460,6 +3679,7 @@ async function saveDerivaciones() {
 
 // --- Vinculaciones: aprobación humana de teléfonos nuevos (lk_vinculaciones, sql/072) ---
 const telCorto = (t) => (t ? "…" + String(t).slice(-4) : "—");
+const vincCadenas = {}; // id de solicitud → aviso de cadena con lista propia (sql/114, Pablo 01/10)
 async function loadVinculos() {
   const box = document.getElementById("vincList");
   const st = document.getElementById("vincStatus");
@@ -3469,6 +3689,7 @@ async function loadVinculos() {
     const { data, error } = await authedInvoke("lk_vinculaciones", { action: "list" });
     if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
     const rows = data.pendientes || [];
+    rows.forEach((r) => { vincCadenas[r.id] = r.cadena ? r.cadena.aviso : null; });
     st.textContent = rows.length ? `${rows.length} pendiente(s)` : "";
     badge.style.display = rows.length ? "" : "none";
     badge.textContent = rows.length;
@@ -3481,7 +3702,7 @@ async function loadVinculos() {
       ${rows.map((r) => `<tr style="border-top: 1px solid var(--border);">
         <td style="padding:4px 10px 4px 0;white-space:nowrap;">${esc(new Date(r.creado_en).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td>
         <td style="padding:4px 10px 4px 0;white-space:nowrap;"><code>${esc(r.telefono)}</code>${r.tipo === "pedidos_access" ? '<br><span class="hint">acceso a pedidos</span>' : ""}</td>
-        <td style="padding:4px 10px 4px 0;">${esc(r.business_name || "")}<br><span class="hint">cód. ${esc(String(r.cod_cliente ?? ""))} · CUIT ${esc(r.cuit_normalizado || "")}</span></td>
+        <td style="padding:4px 10px 4px 0;">${esc(r.business_name || "")}${r.empresa === "CH" ? ' <span class="cat-pill">Chef</span>' : ""}<br><span class="hint">${r.empresa === "CH" ? "cód. Chef" : "cód."} ${esc(String(r.cod_cliente ?? ""))} · CUIT ${esc(r.cuit_normalizado || "")}</span>${r.cadena ? `<br><span style="color: var(--danger);font-weight:600;">⚠ ${esc(r.cadena.aviso)}</span>` : ""}</td>
         <td style="padding:4px 10px 4px 0;">${(r.telefonos_erp || []).map((t) => `<code>${esc(t)}</code>`).join("<br>") || '<span class="hint">sin teléfonos</span>'}</td>
         <td style="padding:4px 10px 4px 0;">${r.principal_actual ? `<code>${esc(telCorto(r.principal_actual))}</code>` : '<span class="hint">ninguno</span>'}</td>
         <td style="padding:4px 10px 4px 0;${(r.intentos_24h || 0) > 1 ? "color: var(--danger);font-weight:600;" : ""}">${r.intentos_24h ?? 0}</td>
@@ -3498,7 +3719,8 @@ async function loadVinculos() {
 async function decideVinculo(id, decision) {
   let motivo = "";
   if (decision === "approve") {
-    if (!confirm("¿Confirmaste que este número es de la empresa? Al aprobar, el número puede ver pedidos y datos de ese cliente.")) return;
+    const cadena = vincCadenas[id] ? `⚠ ${vincCadenas[id]}\n\n` : "";
+    if (!confirm(cadena + "¿Confirmaste que este número es de la empresa? Al aprobar, el número puede ver pedidos y datos de ese cliente.")) return;
   } else {
     motivo = (prompt("Motivo del rechazo (se le informa al número):") || "").trim();
     if (!motivo) return;
@@ -4106,12 +4328,17 @@ function renderIaTable() {
   const rng = document.getElementById("iaRange").value || "month";
   const prov = document.getElementById("iaProvider").value;
   const tier = document.getElementById("iaTier").value;
-  const rows = (_iaLastData.by_model?.[rng] || []).filter(r => {
+  const pasa = (r) => {
     if (prov && r.provider !== prov) return false;
     if (tier === "free" && !r.is_free_tier) return false;
     if (tier === "paid" && r.is_free_tier) return false;
     return true;
-  });
+  };
+  const rows = (_iaLastData.by_model?.[rng] || []).filter(pasa);
+  // El gráfico usa los mismos filtros, por modelo (proveedor y tier salen de by_model).
+  const info = {};
+  for (const k of ["prev_month", "month", "week", "session"]) for (const r of (_iaLastData.by_model?.[k] || [])) info[r.model] = r;
+  renderIaComp((m) => info[m] ? pasa(info[m]) : (!prov && tier !== "free"));
   // Totales
   const tot = rows.reduce((a, r) => ({
     calls: a.calls + r.calls,
@@ -4145,6 +4372,90 @@ function renderIaTable() {
     </tr>`;
   }).join("");
 }
+
+// Gasto acumulado por día del mes: mes actual (hasta hoy) vs mes anterior completo (Pablo, 01/10).
+// Datos: stats.comparacion de lk_chat-test, por modelo, para respetar los filtros de Proveedor y Tier.
+function iaUsd(v) { return "US$ " + Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function iaAcum(porModelo, dias, ok, hasta) {
+  const s = new Array(dias).fill(0);
+  for (const [m, arr] of Object.entries(porModelo || {})) if (ok(m)) arr.forEach((v, i) => { s[i] += Number(v) || 0; });
+  let acc = 0;
+  return s.slice(0, hasta ?? dias).map((v) => (acc += v));
+}
+function renderIaComp(ok) {
+  const box = document.getElementById("iaComp");
+  const c = _iaLastData?.comparacion;
+  if (!box) return;
+  if (!c) { box.innerHTML = ""; return; }
+  const nAct = c.mes.nombre, nAnt = c.mes_anterior.nombre, hoy = c.hoy;
+  const act = iaAcum(c.mes.por_modelo, c.mes.dias, ok, hoy);
+  const ant = iaAcum(c.mes_anterior.por_modelo, c.mes_anterior.dias, ok);
+  const vAct = act[act.length - 1] || 0, vAntTot = ant[ant.length - 1] || 0;
+  const vAntDia = ant[Math.min(hoy, ant.length) - 1] || 0;
+  let delta;
+  if (vAntDia > 0) {
+    const p = Math.round((vAct / vAntDia - 1) * 100);
+    delta = `<span>${p >= 0 ? "+" : ""}${p.toLocaleString("es-AR")}% vs ${nAnt} al mismo día</span>`;
+  } else delta = `<span>${nAnt} no tiene gasto registrado hasta el día ${hoy}</span>`;
+  const head = `<div class="ia-comp-head">
+      <span>${nAct} al día ${hoy}: <b>${iaUsd(vAct)}</b></span>
+      <span>${nAnt} al día ${Math.min(hoy, ant.length)}: <b>${iaUsd(vAntDia)}</b></span>
+      <span>${nAnt} completo: <b>${iaUsd(vAntTot)}</b></span>
+      ${delta}
+    </div>
+    <div class="ia-comp-ley"><span><i style="border-color: var(--accent-tx, var(--primary));"></i>${nAct}</span><span><i style="border-color: var(--muted);border-top-style:dashed;"></i>${nAnt}</span></div>`;
+  if (Math.max(vAct, vAntTot) <= 0) {
+    box.innerHTML = head + '<div style="padding:0.8rem 0;color: var(--muted);font-size:0.8rem;">Sin gasto en estos dos meses con el filtro actual.</div>';
+    return;
+  }
+  // El ancho sale del contenedor (box está oculto mientras está vacío); cerrado, 640 y se redibuja al abrir.
+  const W = Math.max(320, (box.parentElement?.clientWidth || 666) - 26), H = 190, ml = 52, mr = 132, mt = 10, mb = 22;
+  const n = Math.max(c.mes.dias, c.mes_anterior.dias);
+  const max = Math.max(vAct, vAntTot);
+  const paso = (() => { const raw = max / 4, e = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 2.5, 5, 10].map((k) => k * e).find((s) => s >= raw); })();
+  const tope = Math.ceil(max / paso) * paso;
+  const x = (i) => ml + i * (W - ml - mr) / (n - 1);
+  const y = (v) => mt + (H - mt - mb) * (1 - v / tope);
+  let g = "";
+  for (let v = 0; v <= tope + 1e-9; v += paso) {
+    g += `<line x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)" stroke-width="1"/>`
+      + `<text x="${ml - 6}" y="${y(v) + 3.5}" text-anchor="end" font-size="11" fill="var(--muted)">${iaUsd(v).replace("US$ ", "$")}</text>`;
+  }
+  for (const d of [1, 5, 10, 15, 20, 25, 30]) if (d <= n) g += `<text x="${x(d - 1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)">${d}</text>`;
+  const linea = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const cAct = "var(--accent-tx, var(--primary))", cAnt = "var(--muted)";
+  // Etiquetas directas al final de cada línea, separadas si caen encima
+  let yA = y(vAct), yB = y(vAntTot);
+  if (Math.abs(yA - yB) < 14) { if (yA <= yB) { yA -= 7; yB += 7; } else { yA += 7; yB -= 7; } }
+  g += `<path d="${linea(ant)}" fill="none" stroke="${cAnt}" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>`
+    + `<circle cx="${x(ant.length - 1)}" cy="${y(vAntTot)}" r="4" fill="${cAnt}" stroke="var(--card)" stroke-width="2"/>`
+    + `<text x="${x(ant.length - 1) + 8}" y="${yB + 4}" font-size="11" fill="var(--muted)">${nAnt} ${iaUsd(vAntTot)}</text>`
+    + `<path d="${linea(act)}" fill="none" stroke="${cAct}" stroke-width="2" stroke-linejoin="round"/>`
+    + `<circle cx="${x(act.length - 1)}" cy="${y(vAct)}" r="4" fill="${cAct}" stroke="var(--card)" stroke-width="2"/>`
+    + `<text x="${x(act.length - 1) + 8}" y="${yA + 4}" font-size="11" font-weight="600" fill="var(--text)">${nAct} ${iaUsd(vAct)}</text>`
+    + `<g id="iaCompHover" style="display:none;"><line y1="${mt}" y2="${H - mb}" stroke="var(--muted)" stroke-width="1"/>`
+    + `<circle r="4" fill="${cAnt}" stroke="var(--card)" stroke-width="2" data-s="ant"/><circle r="4" fill="${cAct}" stroke="var(--card)" stroke-width="2" data-s="act"/></g>`
+    + `<rect x="${ml - 8}" y="0" width="${W - ml - mr + 16}" height="${H}" fill="transparent" id="iaCompHit"/>`;
+  box.innerHTML = head + `<div class="ia-comp-graf"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMid meet" role="img" aria-label="Gasto acumulado de ${nAct} contra ${nAnt}, por día del mes">${g}</svg><div class="ia-comp-tip" id="iaCompTip"></div></div>`;
+  const svg = box.querySelector("svg"), hov = box.querySelector("#iaCompHover"), tip = box.querySelector("#iaCompTip");
+  const hit = box.querySelector("#iaCompHit");
+  hit.addEventListener("mousemove", (ev) => {
+    const r = svg.getBoundingClientRect(), k = W / r.width;
+    const i = Math.max(0, Math.min(n - 1, Math.round(((ev.clientX - r.left) * k - ml) / ((W - ml - mr) / (n - 1)))));
+    hov.style.display = "";
+    hov.querySelector("line").setAttribute("x1", x(i)); hov.querySelector("line").setAttribute("x2", x(i));
+    const pA = hov.querySelector('[data-s="act"]'), pB = hov.querySelector('[data-s="ant"]');
+    pA.style.display = i < act.length ? "" : "none"; pA.setAttribute("cx", x(i)); pA.setAttribute("cy", y(act[i] || 0));
+    pB.style.display = i < ant.length ? "" : "none"; pB.setAttribute("cx", x(i)); pB.setAttribute("cy", y(ant[i] || 0));
+    tip.innerHTML = `<b>Día ${i + 1}</b><br>${nAct}: ${i < act.length ? iaUsd(act[i]) : "—"}<br>${nAnt}: ${i < ant.length ? iaUsd(ant[i]) : "—"}`;
+    tip.style.display = "block";
+    const px = x(i) / k;
+    tip.style.left = (px + tip.offsetWidth + 14 > r.width ? px - tip.offsetWidth - 10 : px + 10) + "px";
+  });
+  hit.addEventListener("mouseleave", () => { hov.style.display = "none"; tip.style.display = "none"; });
+}
+let _iaCompResize = null;
+window.addEventListener("resize", () => { clearTimeout(_iaCompResize); _iaCompResize = setTimeout(() => { if (_iaLastData) renderIaTable(); }, 200); });
 
 async function loadDashboard() {
   const head = document.getElementById("dashHead"), bodyEl = document.getElementById("dashBody");
@@ -4206,7 +4517,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.2</div>
-<script src="gestop2.js?v=0.25.18"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.7</div>
+<script src="gestop2.js?v=0.26.4"></script>
 </body>
 </html>

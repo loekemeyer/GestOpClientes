@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { leerVersiones, nombreActivo } from "../_shared/plantillas-version.ts";
+import { CHEF_TITULAR } from "../_shared/plantillas-factura.ts";
 
 // lk_factura-check — Etapa 5 del pipeline de facturación (PaginaLK).
 //
@@ -113,6 +114,10 @@ async function refreshTpls(): Promise<void> {
 async function tplStatus(name: string): Promise<string | null> {
   await refreshTpls(); return _tplStatus![name] ?? null;
 }
+// ¿Hay que retener el aviso por la plantilla? Loekemeyer: sólo si Meta la tiene en otro estado que APPROVED (si no la
+// encuentra, se manda igual: siempre fue así). Chef: debe estar APPROVED — si todavía no existe en Meta (null) se retiene,
+// porque mandarla fallaría y la de Loekemeyer no sirve (lleva el alias de Loekemeyer).
+const plantillaNoLista = (cfg: DtoCfg, st: string | null): boolean => cfg.esChef ? st !== "APPROVED" : (!!st && st !== "APPROVED");
 async function tplParamCount(name: string): Promise<number | null> {
   await refreshTpls(); const v = _tplParams![name]; return (v === undefined) ? null : v;
 }
@@ -252,8 +257,10 @@ const SALUDO = "¡Hola! Te adjuntamos la factura de tu pedido.";   // Pablo, 30/
 // Pie de pago (alias/CBU): EDITABLE desde el Panel, se completa como variable en la plantilla.
 const PAGO_ALIAS_DEFAULT = "loeke.srl";
 const PAGO_CBU_DEFAULT = "1910027855002702387450";
-function pagoFooter(alias: string, cbu: string): string {
-  return ["", "Datos para el pago:", `Alias: ${alias}`, `CBU: ${cbu}`].join("\n");
+function pagoFooter(alias: string, cbu: string, esChef = false): string {
+  // Chef no tiene alias: titular y CBU (plantillas pedido_*_chef, _shared/plantillas-factura.ts).
+  return esChef ? ["", "Datos para el pago:", `Titular: ${CHEF_TITULAR}`, `CBU: ${cbu}`].join("\n")
+    : ["", "Datos para el pago:", `Alias: ${alias}`, `CBU: ${cbu}`].join("\n");
 }
 
 // Config de descuentos editable (Panel de Control → app_settings.wa_descuentos_config).
@@ -267,8 +274,10 @@ interface DtoCfg {
   excCuit: Record<string, string>; excRazon: Record<string, string>;
   // Datos de pago editables (alias/CBU), se completan como variables en el pie.
   alias: string; cbu: string;
-  // Pablo, 01/10: Chef sin alias/CBU cargado en la ficha Empresas → el aviso se retiene (nunca el alias de Loekemeyer).
+  // Pablo, 01/10: Chef sin CBU cargado en la ficha Empresas → el aviso se retiene (nunca el alias de Loekemeyer).
   sinDatosPago: boolean;
+  // Factura de Chef: usa sus propias plantillas (pedido_*_chef, sin alias) y se retiene hasta que la suya esté APPROVED.
+  esChef: boolean;
   // Formato de plantilla: 'v1' = estructura vieja (sin %/alias/CBU variables, footer fijo);
   // 'v2' = nueva (% y alias/CBU como variables). Debe coincidir con lo cargado en Meta.
   formato: string;
@@ -299,11 +308,13 @@ async function loadDtoCfg(empresa = "lk"): Promise<DtoCfg> {
       else { const d = String(it.valor).replace(/\D/g, ""); if (d) excCuit[d] = bandKey; }
     }
   }
+  // Pablo, 01/10: Chef no tiene alias (sólo CBU, Santander) y manda con sus propias plantillas (sin línea de alias).
+  // Sin CBU de Chef cargado, el aviso se retiene.
   const alias = esChef ? String(chef.alias ?? "").trim() : (String(cfg?.pago?.alias ?? PAGO_ALIAS_DEFAULT).trim() || PAGO_ALIAS_DEFAULT);
   const cbu = esChef ? String(chef.cbu ?? "").trim() : (String(cfg?.pago?.cbu ?? PAGO_CBU_DEFAULT).trim() || PAGO_CBU_DEFAULT);
   const formato = ((await getSetting("wa_plantilla_formato")) || "auto").trim();
   return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map, excCuit, excRazon, alias, cbu,
-    sinDatosPago: esChef && (!alias || !cbu), formato };
+    sinDatosPago: esChef && !cbu, esChef, formato };
 }
 function dtoDeMetodo(metodo: string, cfg: DtoCfg): { dto: number; label: string } {
   const e = cfg.map[metodo];
@@ -347,7 +358,7 @@ async function fechaPlazo(fechaISO: string, label: string, metodo: string): Prom
 }
 // Reconstrucción legible del mensaje (preview/auditoría). Debe respetar el ORDEN de params
 // según el formato: v2 intercala el %dto y agrega alias/CBU; v1 no.
-function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: string, cbu: string, v2: boolean): string {
+function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: string, cbu: string, v2: boolean, esChef = false): string {
   const sav2 = (f: string, a: string, c: string) => ["", `*Pagando hasta el ${f} podes ahorrarte ${a}.*`, `*Total Contado: ${c}*`];
   const sav1 = (f: string, a: string, c: string) => ["", `*Pagando hasta el ${f} podes ahorrarte ${a}.`, `Total Contado: ${c}*`];
   let cuerpo: string[];
@@ -379,7 +390,8 @@ function textoLegible(grupo: string, esMultiple: boolean, p: string[], alias: st
         : [...base, `Con tu pago por e-cheq a ${p[3]} días abonás: ${p[4]}`, "Recordá enviar el e-cheq al momento de recibir el pedido.", ...sav1(p[5], p[6], p[7])];
     }
   }
-  return cuerpo.join("\n") + "\n" + pagoFooter(alias, cbu);
+  const texto = cuerpo.join("\n");
+  return (esChef ? texto.replace(SALUDO, SALUDO.replace("tu pedido.", "tu pedido de Chef.")) : texto) + "\n" + pagoFooter(alias, cbu, esChef);
 }
 // deno-lint-ignore no-explicit-any
 async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg: DtoCfg) {
@@ -394,13 +406,15 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
   const n = facturas.length;
   const esMultiple = n > 1;
   const lista = totales.map((t) => fmtARS(t)).join(" / ");
-  const template = esMultiple ? TPL[grupo].multi : TPL[grupo].single;
+  // Chef: su propia plantilla (pedido_contado_s → pedido_contado_s_chef), sin alias.
+  const template = (esMultiple ? TPL[grupo].multi : TPL[grupo].single) + (cfg.esChef ? "_chef" : "");
   // Versión que se manda hoy (pedido_contado_p → pedido_contado_p_v2 cuando Meta aprobó la nueva): su estado y su
   // texto son los que valen (Pablo, 30/09: los cambios de texto van siempre por versión nueva).
   const nombreMeta = nombreActivo(await leerVersiones(paginalk), template);
   // Formato: 'v1'/'v2' fuerza; 'auto' (default) lo detecta contando los {{n}} vivos en Meta.
   let v2: boolean;
-  if (cfg.formato === "v2") v2 = true;
+  if (cfg.esChef) v2 = true;   // las plantillas de Chef nacieron con el % y el pie de pago como variables (no hay v1)
+  else if (cfg.formato === "v2") v2 = true;
   else if (cfg.formato === "v1") v2 = false;
   else {
     const lc = await tplParamCount(nombreMeta);
@@ -428,7 +442,7 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
       ? [...base, label, fmtARS(montoCliente), metodoPct, fechaLimite, fmtARS(ahorro), fmtARS(montoContado)]
       : [...base, label, fmtARS(montoCliente), fechaLimite, fmtARS(ahorro), fmtARS(montoContado)];
   }
-  if (v2) params = [...params, cfg.alias, cfg.cbu]; // pie de pago (variables) sólo en v2
+  if (v2) params = cfg.esChef ? [...params, cfg.cbu] : [...params, cfg.alias, cfg.cbu]; // pie de pago (variables) sólo en v2; Chef: sólo el CBU
   // Orden y texto según la plantilla activa en Meta (mapearPorTexto); el historial guarda ese cuerpo con los valores.
   let textoMeta: string | null = null;
   await refreshTpls();
@@ -444,7 +458,7 @@ async function armarMensaje(metodo: string, facturas: any[], fecha: string, cfg:
   }
   return {
     template, template_meta: nombreMeta, language: "es_AR", metodo, grupo, n_facturas: n, multiple: esMultiple, formato: v2 ? "v2" : "v1",
-    params, lista_facturas: lista, texto_legible: textoMeta ?? textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu, v2),
+    params, lista_facturas: lista, texto_legible: textoMeta ?? textoLegible(grupo, esMultiple, params, cfg.alias, cfg.cbu, v2, cfg.esChef),
     total_sum, total_fmt: fmtARS(total_sum),
     desglose: {
       total_civa: fmtARS(total_sum), dto_cliente: `${Math.round(dto * 100)}%`, plazo_dias: label || null,
@@ -570,7 +584,7 @@ async function handleGrupo(body: any) {
     if (cfg.sinDatosPago) estado = "held_sin_datos_pago_chef";
     const st = await tplStatus(mensaje.template_meta ?? mensaje.template);
     mensaje.tpl_status = st;
-    if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
+    if (plantillaNoLista(cfg, st)) estado = "held_tpl_no_aprobada";
     mensaje.real_group = { group_key: sgKey, cod_cliente: body.cod_cliente ?? null, comprobantes: sub.facturas.map((f) => f.comprobante_id).filter(Boolean) };
     if (multiMetodo) mensaje.split_metodo = { metodo: sub.metodo, n_sub: subgrupos.length };
 
@@ -646,7 +660,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
       const base: any = await armarMensaje(sub.metodo, sub.facturas, fecha, cfg);
       const st = await tplStatus(base.template_meta ?? base.template);
       base.tpl_status = st;
-      if (st && st !== "APPROVED") estado0 = "held_tpl_no_aprobada";
+      if (plantillaNoLista(cfg, st)) estado0 = "held_tpl_no_aprobada";
       if (cfg.sinDatosPago) estado0 = "held_sin_datos_pago_chef";
       base.real_group = { cuit, empresa: gr.empresa, destino, cod_cliente: gr.cod_cliente ?? null, razon_social: gr.razon_social ?? null, comprobantes: sub_comprob };
       if (multiMetodo) base.split_metodo = { metodo: sub.metodo, n_sub: subgrupos.length };
@@ -773,7 +787,7 @@ serve(async (req) => {
       const mensaje: any = await armarMensaje(sub.metodo, sub.facturas, fecha, cfg);
       const st = await tplStatus(mensaje.template_meta ?? mensaje.template);
       mensaje.tpl_status = st;
-      if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
+      if (plantillaNoLista(cfg, st)) estado = "held_tpl_no_aprobada";
       if (cfg.sinDatosPago) estado = "held_sin_datos_pago_chef";
       if (multiMetodo) mensaje.split_metodo = { metodo: sub.metodo, de_grupo: grupoKey, n_sub: subgrupos.length };
 

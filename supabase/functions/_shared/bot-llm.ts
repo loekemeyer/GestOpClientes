@@ -79,12 +79,20 @@ export async function resolveChain(): Promise<ResolvedModel[]> {
     if (!rows.length) return [];
 
     const now = Date.now();
+    const cooldownVencido = (r: { cooldown_hasta: string | null }) =>
+      !r.cooldown_hasta || new Date(r.cooldown_hasta).getTime() <= now;
+    // Un modelo `caido` con el cooldown vencido se vuelve a probar: antes quedaba afuera para siempre (un solo 503
+    // lo sacaba de la cadena). Si falla de nuevo, markModelDown lo marca otra vez con un cooldown nuevo.
     const usable = rows.filter((r) => {
+      if (r.estado === "caido") return !!r.cooldown_hasta && cooldownVencido(r);
       if (r.estado !== "ok") return false;
-      if (r.cooldown_hasta && new Date(r.cooldown_hasta).getTime() > now) return false;
-      return true;
+      return cooldownVencido(r);
     });
     if (!usable.length) return [];
+    const reactivar = usable.filter((r) => r.estado === "caido").map((r) => r.id);
+    if (reactivar.length) {
+      await supabase.from("wa_agente_modelos").update({ estado: "ok", cooldown_hasta: null }).in("id", reactivar);
+    }
 
     const keyIds = [...new Set(usable.map((r) => r.key_id).filter(Boolean))];
     const { data: keys } = await supabase
@@ -114,8 +122,36 @@ export async function resolveChain(): Promise<ResolvedModel[]> {
   }
 }
 
+/** Un modelo puntual por su model_id, sin mirar prioridad ni estado: para el modelo de pruebas
+ *  (app_settings.llm_modelo_pruebas). Sólo proveedores con key propia en wa_agente_model_keys; anthropic usa la key del
+ *  env por otro camino. id -1 (distinto del 0 del fallback de env): nunca se marca caído. null si no existe o no tiene credencial. */
+export async function resolveModelById(modelId: string): Promise<ResolvedModel | null> {
+  try {
+    const { data: rows } = await supabase
+      .from("wa_agente_modelos")
+      .select("proveedor, model_id, key_id, is_free_tier")
+      .eq("model_id", modelId)
+      .neq("proveedor", "anthropic")
+      .not("key_id", "is", null)
+      .limit(1);
+    const m = rows?.[0];
+    if (!m) return null;
+    const { data: k } = await supabase
+      .from("wa_agente_model_keys")
+      .select("key_source, secret_ref, api_key")
+      .eq("id", m.key_id)
+      .maybeSingle();
+    const key = k?.key_source === "env" ? (Deno.env.get(k?.secret_ref ?? "") ?? "") : (k?.api_key ?? "");
+    if (!key) return null;
+    return { id: -1, provider: m.proveedor, model: m.model_id, key, isFreeTier: !!m.is_free_tier };
+  } catch (e) {
+    console.error("[bot-llm.resolveModelById]", e);
+    return null;
+  }
+}
+
 export async function markModelDown(id: number, msg: string) {
-  if (!id) return; // 0 = fallback de env, no existe fila
+  if (!id || id < 0) return; // 0 = fallback de env, -1 = modelo de pruebas: no existe fila
   try {
     await supabase.from("wa_agente_modelos").update({
       estado: "caido",
@@ -212,7 +248,12 @@ function toGeminiSchema(js: any): any {
   const out: any = {};
   if (js.type) out.type = String(js.type).toUpperCase(); // STRING / INTEGER / OBJECT / ARRAY…
   if (js.description) out.description = js.description;
-  if (Array.isArray(js.enum)) out.enum = js.enum;
+  if (Array.isArray(js.enum)) {
+    // Gemini sólo acepta `enum` en campos string (con valores string): rechaza con 400 un integer con enum [8, 9, …]
+    // (condicion_code de las herramientas de pedido). En ese caso pasamos los valores válidos por la descripción.
+    if (String(js.type ?? "string").toLowerCase() === "string") out.enum = js.enum.map(String);
+    else out.description = `${out.description ? out.description + " " : ""}Valores válidos: ${js.enum.join(", ")}.`;
+  }
   if (js.items) out.items = toGeminiSchema(js.items);
   if (js.properties && typeof js.properties === "object") {
     // deno-lint-ignore no-explicit-any
@@ -328,20 +369,29 @@ function toOpenAIMessages(system: string, history: NormMsg[]): any[] {
   return msgs;
 }
 
+// Proveedores con API compatible con OpenAI (mismo formato de mensajes y tools): sólo cambia la URL.
+const OPENAI_COMPAT: Record<string, { label: string; url: string }> = {
+  openai: { label: "OpenAI", url: "https://api.openai.com/v1/chat/completions" },
+  groq: { label: "Groq", url: "https://api.groq.com/openai/v1/chat/completions" },
+};
+
 async function callOpenAI(
-  key: string, model: string, system: string, tools: ToolDef[], history: NormMsg[], timeoutMs: number,
+  provider: string, key: string, model: string, system: string, tools: ToolDef[], history: NormMsg[], timeoutMs: number,
 ): Promise<ModelResult> {
-  const body = {
+  const ep = OPENAI_COMPAT[provider];
+  const body: Record<string, unknown> = {
     model, max_tokens: 1024, temperature: 0,
     messages: toOpenAIMessages(system, history),
     tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
   };
-  const r = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+  // gpt-oss razona y esos tokens salen del max_tokens: en "low" no se come el presupuesto de la respuesta.
+  if (provider === "groq" && model.startsWith("openai/gpt-oss")) body.reasoning_effort = "low";
+  const r = await fetchWithTimeout(ep.url, {
     method: "POST",
     headers: { "content-type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify(body),
   }, timeoutMs);
-  if (!r.ok) throw httpError("OpenAI", r.status, await r.text());
+  if (!r.ok) throw httpError(ep.label, r.status, await r.text());
   const d = await r.json();
   const msg = d.choices?.[0]?.message ?? {};
   // deno-lint-ignore no-explicit-any
@@ -355,7 +405,7 @@ async function callOpenAI(
     toolCalls,
     inputTokens: d.usage?.prompt_tokens ?? 0,
     outputTokens: d.usage?.completion_tokens ?? 0,
-    provider: "openai", model,
+    provider, model,
   };
 }
 
@@ -365,7 +415,7 @@ export async function callModel(
 ): Promise<ModelResult> {
   if (m.provider === "anthropic") return callAnthropic(m.key, m.model, system, tools, history, timeoutMs);
   if (m.provider === "google") return callGoogle(m.key, m.model, system, tools, history, timeoutMs);
-  if (m.provider === "openai") return callOpenAI(m.key, m.model, system, tools, history, timeoutMs);
+  if (OPENAI_COMPAT[m.provider]) return callOpenAI(m.provider, m.key, m.model, system, tools, history, timeoutMs);
   throw new Error(`Proveedor no soportado: ${m.provider}`);
 }
 

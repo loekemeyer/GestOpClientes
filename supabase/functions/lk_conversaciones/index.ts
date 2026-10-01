@@ -5,6 +5,7 @@ import { requireAdmin } from "../_shared/admin-gate.ts";
 import { salientes } from "../_shared/salientes.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
 import { sinAnulados } from "../_shared/pedidos-anulados.ts";
+import { cadenasListaPropia } from "../_shared/cadenas.ts";
 
 // lk_conversaciones — Bandeja de atención humana (PaginaLK), integrada al bot real.
 //
@@ -59,6 +60,7 @@ const MOTIVO: Record<string, string> = {
   consulta_stock: "Consulta sin stock", comprobante_recibido: "Comprobante recibido", comprobante_error: "Comprobante con error",
   reclamo: "Reclamo", pago: "Pago o importe", cambio_pedido: "Cambio de pedido", pedido_no_encontrado: "Pedido que no aparece", entrega: "Consulta de entrega",
   alta_cliente: "Alta de cliente", llm_timeout: "El bot no respondió", llm_error: "El bot falló", faq_no_match: "Pregunta sin respuesta",
+  cliente_chef: "Cliente de Chef",
 };
 // deno-lint-ignore no-explicit-any
 function motivoAlerta(a: any): string {
@@ -297,7 +299,9 @@ serve(async (req) => {
       // agendado = el teléfono está en bot_customer_whatsapps (lo que usan las herramientas de la IA). Si sólo lo
       // reconoce el teléfono del ERP, la ficha ofrece "Agendar" con un click (Pablo, 29/09).
       const agendado = cli?.source === "vinculo";
-      return json({ ok: true, phone, identificado: !!cli, agendado, fuente: cli?.source ?? null, cliente, entrega, pedidos, avisos: av ?? [], facturas, deuda });
+      // Cadena con lista propia (sql/114): la ficha avisa que el bot le cotiza con la lista general (Pablo, 01/10).
+      const cadena = cod ? (await cadenasListaPropia([cod])).get(Number(cod)) ?? null : null;
+      return json({ ok: true, phone, identificado: !!cli, agendado, fuente: cli?.source ?? null, cliente, cadena, entrega, pedidos, avisos: av ?? [], facturas, deuda });
     }
 
     if (action === "buscar_cliente") {
@@ -308,7 +312,8 @@ serve(async (req) => {
       qb = /^\d+$/.test(q) ? qb.eq("cod_cliente", Number(q)) : qb.ilike("business_name", `%${q.replace(/[%_,()]/g, " ")}%`);
       const { data, error } = await qb.order("business_name");
       if (error) return json({ ok: false, error: error.message }, 200);
-      return json({ ok: true, clientes: data ?? [] });
+      const cadenas = await cadenasListaPropia((data ?? []).map((c) => c.cod_cliente));
+      return json({ ok: true, clientes: (data ?? []).map((c) => ({ ...c, cadena: cadenas.get(Number(c.cod_cliente)) ?? null })) });
     }
 
     if (action === "agendar") {
