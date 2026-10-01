@@ -7,19 +7,20 @@
 //   · SIN precio — REGLA VIGENTE (Pablo, 01/10): hasta que Thommy confirme la fórmula (lista de Chef × unidades por caja ×
 //     (1 − descuento de clientes_dto) + IVA; consulta c-20261001-1557-1) el bot no muestra precios de Chef. Si lo pide, lo pasa una
 //     persona (alerta cliente_chef). No implementar precios acá sin esa respuesta (D008);
-//   · SIN foto (todavía, paso C): la columna images de Chef está vacía pero las fotos EXISTEN: 104 de 104 artículos activos tienen un
-//     JPEG por código (<cod>.jpg) en el bucket público products-images de la base de Chef. No consultarlo en ráfaga: ~100 pedidos
-//     seguidos dan 429 too_many_connections (01/10).
+//   · foto (paso C): "mandame la foto del 437E" manda UNA foto de Chef (JPEG por código en el bucket público products-images de su
+//     base; 104 de 104 activos, medido el 01/10). Con varios resultados pide el código. No consultar ese almacenamiento en ráfaga:
+//     ~100 pedidos seguidos dan 429 too_many_connections (01/10).
 // Regla (Pablo, 01/10): el producto de un código dual (437E, 438E, 439E, 809E) es el mismo en las dos empresas pero el precio es
 // distinto: la descripción y el precio salen SIEMPRE del catálogo de la empresa que consulta, nunca del otro.
 //
 // Cuándo contesta: sólo ante una pregunta clara de producto (tienen/hay/venden/stock/precio/código/catálogo + un nombre o código).
 // Ante la duda devuelve null y el cliente sigue a una persona: un falso negativo es seguro, un falso positivo no.
-import { supabase } from "./supabase.ts";
+import { getSetting, supabase } from "./supabase.ts";
 import { type StockArticulo, stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 
 export type ProductoChef = { cod: string; category: string | null; subcategory: string | null; description: string; uxb: number };
-export type RespuestaProductos = { reply: string; via: string; alerta?: { motivo: string; detalle: string } };
+export type ImagenChef = { url: string; caption: string };
+export type RespuestaProductos = { reply: string; via: string; alerta?: { motivo: string; detalle: string }; imagenes?: ImagenChef[] };
 
 const sinAcentos = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
@@ -35,7 +36,8 @@ const STOP = new Set(("a al algo alguna alguno algunos algunas alguien ante aca 
   "favor porfa gracias queria quiero quisiera necesito busco buscando tienen tienes tenes tiene tener hay venden vende manejan trabajan ofrecen consigo conseguir " +
   "ver saber comprar pedir precio precios cuanto sale salen cuesta cuestan vale valen stock disponible disponibles disponibilidad codigo cod catalogo lista " +
   "articulo articulos producto productos chef medida tamano tambien persona personas ayuda ayudar hablar comunicar comunicarme atencion consulta consultas " +
-  "duda dudas problema urgente hoy manana mensaje responder respuesta").split(" "));
+  "duda dudas problema urgente hoy manana mensaje responder respuesta " +
+  "foto fotos fotito fotitos imagen imagenes mandame mandas manda mandar pasame pasas pasa pasar enviame envias envia enviar podes podrias pueden").split(" "));
 const UNIDADES = new Set(["cm", "mm", "mt", "mts", "lt", "lts", "kg", "gr", "grs", "ml", "unidad", "unidades", "caja", "cajas", "pulgadas", "x"]);
 
 /** "coladores" → "colador", "cuchillos" → "cuchillo": ILIKE '%colador%' encuentra el singular y el plural. */
@@ -125,6 +127,59 @@ export function textoProductosChef(
   };
 }
 
+// ── fotos (paso C) ───────────────────────────────────────────────────────────────────────────────────
+// Los 104 artículos activos de Chef tienen un JPEG por código (<cod>.jpg) en el bucket público products-images de la base de Chef
+// (la columna images de la tabla de productos está vacía, pero los archivos existen: medido el 01/10). Se manda UNA foto por pedido:
+// ante varios resultados se pide el código. Antes de prometerla se verifica con un HEAD (ese almacenamiento responde 429
+// too_many_connections ante ráfagas): si no está o no responde, lo atiende una persona.
+export const FOTOS_BASE_DEFECTO = "https://nkhzocgdpwtgrmwleihr.supabase.co/storage/v1/object/public/products-images";
+export const urlFotoChef = (cod: string, base = FOTOS_BASE_DEFECTO) => `${base.replace(/\/+$/, "")}/${encodeURIComponent(cod)}.jpg`;
+
+const RE_FOTO = /\b(fotos?|fotito|fotitos|imagen|imagenes)\b/;
+// "te mando una foto de la rotura", "foto del comprobante": no es el pedido de la foto de un producto.
+const RE_FOTO_OTRO = /\b(rota|roto|rotas|rotos|rotura|danada|danado|falla|fallado|defecto|defectuoso|reclamo|comprobante|transferencia|factura|facturas|pago|pagos|pedido|pedidos)\b/;
+
+/** ¿Pide la foto de un producto? Conservador: ante la duda sigue a una persona. */
+export function esPedidoDeFoto(text: string): boolean {
+  const n = sinAcentos(text);
+  return RE_FOTO.test(n) && !RE_FOTO_OTRO.test(n);
+}
+
+/** Varios productos para una foto: se lista y se pide el código (una foto por pedido). */
+export function textoElegirFoto(prods: ProductoChef[]): string {
+  const lista = prods.slice(0, MAX_LISTA).map((p) => `• ${nombreProd(p)}`);
+  const mas = prods.length > MAX_LISTA ? "\nHay más resultados: decime la medida o el tipo para afinar." : "";
+  return `Encontré varios productos de *Chef*:\n\n${lista.join("\n")}${mas}\n\nDecime el código del que querés ver la foto y te la mando. 📷`;
+}
+
+/** La respuesta a "mandame la foto de X" con ya el producto elegido. `url` = la foto, ya verificada. */
+export function respuestaFoto(p: ProductoChef, url: string, precio: boolean): RespuestaProductos {
+  const desc = String(p.description).trim();
+  return {
+    reply: `Te mando la foto de ${nombreProd(p)}. 📷${precio ? "\n\nEl precio te lo pasa una persona del equipo por acá. 🙏" : ""}`,
+    via: "chef_foto",
+    imagenes: [{ url, caption: `${desc} (cód. ${p.cod}) · caja de ${p.uxb}` }],
+    ...(precio ? { alerta: { motivo: "cliente_chef", detalle: `Cliente de Chef pide foto y precio de: ${desc} (${p.cod}).` } } : {}),
+  };
+}
+
+const cacheFotos = new Map<string, number>();   // url → hasta cuándo se da por verificada
+
+/** ¿La foto existe y es una imagen? (HEAD con tope de 4 s; un 429 o un error cuenta como "no"). */
+async function fotoExiste(url: string): Promise<boolean> {
+  const hit = cacheFotos.get(url);
+  if (hit && hit > Date.now()) return true;
+  try {
+    const r = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(4000) });
+    if (!r.ok || !(r.headers.get("content-type") ?? "").startsWith("image/")) return false;
+    cacheFotos.set(url, Date.now() + 10 * 60_000);
+    return true;
+  } catch (e) {
+    console.error("fotoExiste:", e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
 async function buscarEnChef(q: string): Promise<ProductoChef[]> {
   const { data, error } = await supabase.rpc("bot_buscar_productos_chef", { p_query: q, p_limit: 20 });
   if (error) throw new Error(error.message);
@@ -137,12 +192,14 @@ async function buscarEnChef(q: string): Promise<ProductoChef[]> {
  */
 export async function responderProductosChef(text: string): Promise<RespuestaProductos | null> {
   const t = text.trim();
-  if (!esConsultaProducto(t)) return null;
+  const foto = esPedidoDeFoto(t);
+  if (!foto && !esConsultaProducto(t)) return null;
   const n = sinAcentos(t);
   const { terminos, numeros } = terminosDeBusqueda(t);
   const precio = RE_PRECIO.test(n);
 
   if (!terminos.length) {
+    if (foto) return { reply: "¿De qué producto querés la foto? Decime el nombre o el código (por ejemplo 437E). 📷", via: "chef_foto_pregunta" };
     // "¿Tienen catálogo?" / "pasame la lista de precios": Chef no tiene un PDF cargado en el bot.
     if (RE_CATALOGO.test(n)) {
       return { reply: "El catálogo y la lista de precios de Chef te los pasa una persona del equipo por acá. 🙏", via: "chef_catalogo_persona",
@@ -161,6 +218,16 @@ export async function responderProductosChef(text: string): Promise<RespuestaPro
     return { reply: "No encontré ese producto en el catálogo de Chef. Le paso tu consulta a una persona del equipo para que te confirme. 🙏",
       via: "chef_producto_sin_resultado",
       alerta: { motivo: "cliente_chef", detalle: `Cliente de Chef busca "${terminos.join(" ")}" y no figura en el catálogo de Chef.` } };
+  }
+  if (foto) {
+    if (prods.length > 1) return { reply: textoElegirFoto(prods), via: "chef_foto_elegir" };
+    const p = prods[0];
+    const base = (await getSetting("chef_fotos_base_url").catch(() => null))?.trim() || FOTOS_BASE_DEFECTO;
+    const url = urlFotoChef(p.cod, base);
+    if (await fotoExiste(url)) return respuestaFoto(p, url, precio);
+    return { reply: `Ahora no pude conseguir la foto de ${nombreProd(p)}. Le paso tu consulta a una persona del equipo para que te la mande. 🙏`,
+      via: "chef_foto_no_disponible",
+      alerta: { motivo: "cliente_chef", detalle: `Cliente de Chef pide la foto de ${String(p.description).trim()} (${p.cod}) y no se pudo obtener.` } };
   }
   // Stock de Chef de los primeros resultados; si Gestión no responde para uno, se muestra sin la etiqueta.
   const stocks = new Map<string, StockArticulo | null>();

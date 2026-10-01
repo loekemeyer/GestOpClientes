@@ -1102,6 +1102,11 @@ async function handleMessage(
         console.error(`[chef documento] Meta rechazó ${d.filename} a ${phone}:`, e instanceof Error ? e.message : e);
       }
     }
+    // Paso C (01/10): foto del producto de Chef (una por pedido; ya verificada en catalogo-chef.ts).
+    if (r.imagenes?.length) {
+      await sendMediaActions(r.imagenes.map((i) => ({ type: "image" as const, url: i.url, caption: i.caption })), phone, cfg);
+      for (const i of r.imagenes) await saveMessage(phone, "assistant", `[Imagen] ${i.caption}`);
+    }
     return;
   }
 
@@ -1193,6 +1198,10 @@ async function handleMessage(
         } catch (e) {
           console.error(`[marca documento] Meta rechazó ${d.filename} a ${phone}:`, e instanceof Error ? e.message : e);
         }
+      }
+      if (g.imagenes?.length) {
+        await sendMediaActions(g.imagenes.map((i) => ({ type: "image" as const, url: i.url, caption: i.caption })), phone, cfg);
+        for (const i of g.imagenes) await saveMessage(phone, "assistant", `[Imagen] ${i.caption}`);
       }
       return;
     }

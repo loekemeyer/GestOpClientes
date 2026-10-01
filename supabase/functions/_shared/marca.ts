@@ -125,7 +125,7 @@ export async function cuentaChefDeCliente(customer: NonNullable<Customer>): Prom
 
 // ── la puerta ────────────────────────────────────────────────────────────────────────────────────
 export type Puerta =
-  | { tipo: "responder"; reply: string; via: string; documentos?: Array<{ url: string; filename: string }> }
+  | { tipo: "responder"; reply: string; via: string; documentos?: Array<{ url: string; filename: string }>; imagenes?: Array<{ url: string; caption: string }> }
   | { tipo: "seguir"; texto: string; via: string };   // sigue el flujo de Loekemeyer (FAQ / agente) con este texto, etiquetado
 
 async function estadoDeLasDos(customer: NonNullable<Customer>, cuenta: CuentaChef): Promise<string> {
@@ -172,5 +172,5 @@ export async function puertaMarca(phone: string, text: string, customer: NonNull
 async function resolver(marca: MarcaUna, consulta: string, phone: string, cuenta: CuentaChef): Promise<Puerta> {
   if (marca === "lk") return { tipo: "seguir", texto: consulta, via: "marca (lk)" };
   const r = await atenderClienteChef(phone, consulta, cuenta);
-  return { tipo: "responder", reply: conEtiqueta("chef", r.reply), via: `marca (chef) → ${r.via}`, ...(r.documentos?.length ? { documentos: r.documentos } : {}) };
+  return { tipo: "responder", reply: conEtiqueta("chef", r.reply), via: `marca (chef) → ${r.via}`, ...(r.documentos?.length ? { documentos: r.documentos } : {}), ...(r.imagenes?.length ? { imagenes: r.imagenes } : {}) };
 }

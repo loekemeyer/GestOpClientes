@@ -179,8 +179,9 @@ catálogo de Loekemeyer, así que `bot_buscar_productos` (que sólo mira `produc
 Pasos pendientes: B (precios) y C (fotos y catálogo en PDF).
 **Paso C — corrección (01/10): SÍ hay fotos de Chef.** Retira lo que decía este párrafo ("ninguno con foto"), que salía de mirar la columna `images`
 vacía y no el bucket: los 104 artículos activos de Chef tienen un JPEG (`<código>.jpg`, 65 a 88 KB en la muestra, fotos reales de producto) en el
-bucket público `products-images` de la base de Chef (el host del servidor `chef_db`), el mismo esquema que Loekemeyer. Faltan mandarlas; el catálogo
-en PDF de Chef no se encontró (consulta `c-20261001-1603-1`). ⚠ No consultar ese almacenamiento en ráfaga: a unos 100 pedidos seguidos responde
+bucket público `products-images` de la base de Chef (el host del servidor `chef_db`), el mismo esquema que Loekemeyer. **Se mandan desde el 01/10** (Pablo: "implementalo"): una foto por pedido, con HEAD previo, y con varios resultados se pide el código; la base
+de las fotos se puede cambiar con `app_settings.chef_fotos_base_url` (sin la clave usa la de Chef). El catálogo en PDF de Chef no se encontró
+(consulta `c-20261001-1603-1`). ⚠ No consultar ese almacenamiento en ráfaga: a unos 100 pedidos seguidos responde
 `429 too_many_connections` (pasó el 01/10 por la medición de cobertura). Probar de a pocos.
 **Paso B — REGLA VIGENTE (Pablo, 01/10: "consultalo con Thommy, y dejamos una regla en el bot, es algo que no manejo"): hasta que Thommy
 confirme, el bot NO muestra precios de Chef a nadie**; si un cliente de Chef pide un precio, "te lo pasa una persona" y queda la alerta

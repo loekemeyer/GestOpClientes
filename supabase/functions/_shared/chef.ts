@@ -118,7 +118,7 @@ export async function atenderClienteChef(
   phone: string,
   text: string,
   cuenta: CuentaChef,
-): Promise<{ reply: string; via: string; yaSaluda?: boolean; documentos?: Array<{ url: string; filename: string }> }> {
+): Promise<{ reply: string; via: string; yaSaluda?: boolean; documentos?: Array<{ url: string; filename: string }>; imagenes?: Array<{ url: string; caption: string }> }> {
   const t = text.trim();
   const ctx: CtxPagos = { codLk: null, cuit: cuenta.cuit, codChef: cuenta.cod_cliente };
   // Respuesta de faq.ts: la alerta (si la trae) sale con los datos de la cuenta de Chef; los PDF los manda el webhook.
@@ -246,7 +246,7 @@ export async function atenderClienteChef(
       await notificarHumano({ tipo: "otro", phone, customerId: null, contexto: {
         motivo: prod.alerta.motivo, detalle: prod.alerta.detalle, ...contextoChef(cuenta, t) } });
     }
-    return { reply: prod.reply, via: prod.via };
+    return { reply: prod.reply, via: prod.via, ...(prod.imagenes?.length ? { imagenes: prod.imagenes } : {}) };
   }
 
   // Todo lo demás: a una persona. Una alerta por número cada 2 h; los mensajes siguientes quedan en la charla.

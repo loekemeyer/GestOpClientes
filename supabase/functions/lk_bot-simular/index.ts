@@ -143,6 +143,8 @@ async function simularClienteChef(body: any): Promise<Response> {
         reply = r.reply; via = r.via;
         // Reenvío de factura: en el simulador no se manda nada; se muestra qué PDF iría adjunto.
         if (r.documentos?.length) reply += "\n\n" + r.documentos.map((d) => `📎 ${d.filename}`).join("\n");
+        // Foto de producto de Chef: en el simulador no se manda nada; se muestra cuál iría.
+        if (r.imagenes?.length) reply += "\n\n" + r.imagenes.map((i) => `🖼️ ${i.caption}\n${i.url}`).join("\n");
       }
       const tareas: number[] = [];
       if (body.crear_tareas === true && SIM.alertas.length) {
@@ -280,6 +282,7 @@ serve(async (req) => {
         if (g?.tipo === "responder") {
           reply = g.reply; via = g.via;
           if (g.documentos?.length) reply += "\n\n" + g.documentos.map((d) => `📎 ${d.filename}`).join("\n");
+          if (g.imagenes?.length) reply += "\n\n" + g.imagenes.map((i) => `🖼️ ${i.caption}\n${i.url}`).join("\n");
         } else if (g?.tipo === "seguir") { text = g.texto; marcaLk = true; via = g.via; }
       }
       // 4. preguntas frecuentes
