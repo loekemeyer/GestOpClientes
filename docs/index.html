@@ -828,30 +828,57 @@
               • El % de cada fila es el descuento que se aplica al total de la factura.
             </p>
 
-            <!-- 1) Datos de pago (Alias / CBU) -->
-            <div style="font-weight:600;margin:0.4rem 0 0.35rem;">Datos de pago</div>
+            <!-- 1) Empresas: Loekemeyer y Chef lado a lado (Pablo, 01/10). LK alias/CBU = pago.alias/cbu. -->
+            <div style="display:flex;align-items:center;gap:0.5rem;margin:0.4rem 0 0.35rem;">
+              <div style="font-weight:600;">Empresas</div>
+              <button class="config-btn small" id="emp_edit" onclick="empEdit()">✏️ Editar</button>
+              <button class="config-btn primary" id="emp_save" onclick="empSave()" style="display:none;">💾 Guardar</button>
+              <span class="config-status" id="emp_st"></span>
+            </div>
             <p class="hint" style="display:block;margin:-0.2rem 0 0.5rem;line-height:1.4;">
-              Salen en las 6 plantillas de factura; cambiarlos no requiere tocar Meta.
+              El bot da los datos de pago de la empresa de <b>cada factura</b> (las de Chef se buscan por CUIT: el código de cliente es otro en cada empresa).
+              Si un dato de Chef queda vacío, el bot <b>no</b> usa el de Loekemeyer: le dice que Cobranzas se lo pasa y el aviso de factura de Chef queda retenido.
             </p>
-            <div style="display:flex;gap:1.4rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.3rem;">
-              <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:1;min-width:230px;">
-                <div style="flex:1;">
-                  <label style="display:block;font-size:0.75rem;color: var(--muted);margin-bottom:0.2rem;">Alias</label>
-                  <input type="text" id="pagoAlias" placeholder="loeke.srl" style="width:100%;" readonly>
-                </div>
-                <button class="config-btn small" id="pagoAlias_edit" title="Editar" onclick="fieldEdit('pagoAlias')">✏️</button>
-                <button class="config-btn primary" id="pagoAlias_save" title="Guardar" onclick="fieldSave('pagoAlias')" style="display:none;">💾</button>
-                <span class="config-status" id="pagoAlias_st"></span>
-              </div>
-              <div style="display:flex;align-items:flex-end;gap:0.35rem;flex:2;min-width:290px;">
-                <div style="flex:1;">
-                  <label style="display:block;font-size:0.75rem;color: var(--muted);margin-bottom:0.2rem;">CBU</label>
-                  <input type="text" id="pagoCbu" placeholder="1910027855002702387450" style="width:100%;" readonly>
-                </div>
-                <button class="config-btn small" id="pagoCbu_edit" title="Editar" onclick="fieldEdit('pagoCbu')">✏️</button>
-                <button class="config-btn primary" id="pagoCbu_save" title="Guardar" onclick="fieldSave('pagoCbu')" style="display:none;">💾</button>
-                <span class="config-status" id="pagoCbu_st"></span>
-              </div>
+            <div style="overflow-x:auto;margin-bottom:0.6rem;">
+              <table id="empTable" style="border-collapse:collapse;font-size:0.85rem;min-width:520px;max-width:760px;width:100%;">
+                <thead><tr>
+                  <th style="width:1%;"></th>
+                  <th style="text-align:left;padding:3px 6px;color: var(--muted);font-weight:600;">Loekemeyer</th>
+                  <th style="text-align:left;padding:3px 6px;color: var(--muted);font-weight:600;">Chef</th>
+                </tr></thead>
+                <tbody>
+                <tr><td style="padding:3px 6px;color: var(--muted);white-space:nowrap;">Razón social</td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_lk_razon_social" placeholder="" style="width:100%;" readonly></td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_chef_razon_social" placeholder="" style="width:100%;" readonly></td></tr>
+                <tr><td style="padding:3px 6px;color: var(--muted);white-space:nowrap;">CUIT</td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_lk_cuit" placeholder="" style="width:100%;" readonly></td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_chef_cuit" placeholder="" style="width:100%;" readonly></td></tr>
+                <tr><td style="padding:3px 6px;color: var(--muted);white-space:nowrap;">Alias</td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_lk_alias" placeholder="loeke.srl" style="width:100%;" readonly></td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_chef_alias" placeholder="" style="width:100%;" readonly></td></tr>
+                <tr><td style="padding:3px 6px;color: var(--muted);white-space:nowrap;">CBU</td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_lk_cbu" placeholder="1910027855002702387450" style="width:100%;" readonly></td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_chef_cbu" placeholder="" style="width:100%;" readonly></td></tr>
+                <tr><td style="padding:3px 6px;color: var(--muted);white-space:nowrap;">Web</td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_lk_web" placeholder="loekemeyer.com" style="width:100%;" readonly></td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_chef_web" placeholder="chefsrl.com" style="width:100%;" readonly></td></tr>
+                <tr><td style="padding:3px 6px;color: var(--muted);white-space:nowrap;">Cobranzas (WhatsApp o mail)</td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_lk_cobranzas" placeholder="" style="width:100%;" readonly></td>
+                  <td style="padding:3px 6px;"><input type="text" class="emp-in" id="emp_chef_cobranzas" placeholder="" style="width:100%;" readonly></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <label style="display:flex;align-items:center;gap:0.45rem;font-size:0.85rem;margin-bottom:1.3rem;">
+              <input type="checkbox" id="chefMismosDto" onchange="chefMismosDtoChange()" checked>
+              Chef usa los mismos descuentos por pago que Loekemeyer
+              <span class="config-status" id="chefMismosDto_st"></span>
+            </label>
+
+            <!-- Qué tabla de descuentos se edita (sólo si Chef tiene descuentos propios) -->
+            <div id="dtoVistaRow" style="display:none;align-items:center;gap:0.5rem;margin:0 0 0.8rem;">
+              <span style="font-size:0.8rem;color: var(--muted);">Editando los descuentos de:</span>
+              <button class="config-btn small" id="dtoVista_lk" onclick="dtoVista('lk')">Loekemeyer</button>
+              <button class="config-btn small" id="dtoVista_chef" onclick="dtoVista('chef')">Chef</button>
             </div>
 
             <!-- 2) Contado (descuento % + plazo) -->
@@ -2053,7 +2080,20 @@ async function loadDescuentos() {
 }
 
 // ── Campos escalares: bloqueo / edición / guardado individual ──
-const DTO_SCALARS = ["dtoContado", "dtoContadoDias", "pagoAlias", "pagoCbu"];
+const DTO_SCALARS = ["dtoContado", "dtoContadoDias"];
+// Ficha Empresas (Pablo, 01/10): qué tabla de descuentos se está editando. "chef" sólo si Chef tiene descuentos propios.
+let dtoEmpresaVista = "lk";
+function chefPropios(cfg) { return !!(cfg && cfg.empresas && cfg.empresas.chef && cfg.empresas.chef.descuentos_propios); }
+// Objeto de descuentos que se edita: la config general (Loekemeyer) o la tabla de Chef (se crea copiando la de LK).
+function dtoTarget(cfg) {
+  if (dtoEmpresaVista !== "chef" || !chefPropios(cfg)) return cfg;
+  cfg.empresas = cfg.empresas || {}; cfg.empresas.chef = cfg.empresas.chef || {};
+  if (!cfg.empresas.chef.descuentos) cfg.empresas.chef.descuentos = {
+    contado: Object.assign({}, cfg.contado || {}),
+    credito: JSON.parse(JSON.stringify(cfg.credito || [])), echeq: JSON.parse(JSON.stringify(cfg.echeq || [])),
+  };
+  return cfg.empresas.chef.descuentos;
+}
 function fieldLock(id) {
   const inp = document.getElementById(id);
   inp.readOnly = true; inp.style.background = "var(--surface2)";
@@ -2067,13 +2107,58 @@ function fieldEdit(id) {
   document.getElementById(id + "_save").style.display = "";
 }
 function patchScalar(cfg, id) {
-  cfg.contado = cfg.contado || {}; cfg.pago = cfg.pago || {};
+  const t = dtoTarget(cfg);
+  t.contado = t.contado || {};
   const v = document.getElementById(id).value;
-  if (id === "dtoContado") cfg.contado.dto = Math.min(1, Math.max(0, (Number(v) || 0) / 100));
-  else if (id === "dtoContadoDias") cfg.contado.dias_limite = Math.max(0, Math.round(Number(v) || 0));
-  else if (id === "pagoAlias") cfg.pago.alias = String(v).trim();
-  else if (id === "pagoCbu") cfg.pago.cbu = String(v).trim();
+  if (id === "dtoContado") t.contado.dto = Math.min(1, Math.max(0, (Number(v) || 0) / 100));
+  else if (id === "dtoContadoDias") t.contado.dias_limite = Math.max(0, Math.round(Number(v) || 0));
 }
+// ── Ficha Empresas: se edita y guarda entera ──
+const EMP_CAMPOS = ["razon_social", "cuit", "alias", "cbu", "web", "cobranzas"];
+function empLock(locked) {
+  document.querySelectorAll("#empTable .emp-in").forEach((i) => { i.readOnly = locked; i.style.background = locked ? "var(--surface2)" : ""; });
+  document.getElementById("emp_edit").style.display = locked ? "" : "none";
+  document.getElementById("emp_save").style.display = locked ? "none" : "";
+}
+function empEdit() { empLock(false); }
+async function empSave() {
+  const st = document.getElementById("emp_st");
+  st.textContent = "…"; st.className = "config-status";
+  try {
+    const cfg = JSON.parse(JSON.stringify(dtoCfgCache || {}));
+    cfg.pago = cfg.pago || {}; cfg.empresas = cfg.empresas || {};
+    const lk = Object.assign({}, cfg.empresas.lk || {}), ch = Object.assign({}, cfg.empresas.chef || {});
+    EMP_CAMPOS.forEach((k) => {
+      const vl = document.getElementById("emp_lk_" + k).value.trim(), vc = document.getElementById("emp_chef_" + k).value.trim();
+      if (k === "alias" || k === "cbu") cfg.pago[k] = vl; else lk[k] = vl;
+      ch[k] = vc;
+    });
+    cfg.empresas.lk = lk; cfg.empresas.chef = ch;
+    const d = await notifCall({ action: "descuentos_save", config: cfg });
+    dtoCfgCache = d.config; renderDescuentos(d.config);
+    st.textContent = "✓"; st.className = "config-status ok"; setTimeout(() => { st.textContent = ""; }, 2500);
+  } catch (e) { st.textContent = "✗ " + (e.message || "error"); st.className = "config-status err"; }
+}
+// Casilla "Chef usa los mismos descuentos": al destildarla, Chef arranca con una copia de la tabla de Loekemeyer.
+async function chefMismosDtoChange() {
+  const st = document.getElementById("chefMismosDto_st");
+  st.textContent = "…"; st.className = "config-status";
+  try {
+    const cfg = JSON.parse(JSON.stringify(dtoCfgCache || {}));
+    cfg.empresas = cfg.empresas || {}; cfg.empresas.chef = cfg.empresas.chef || {};
+    const propios = !document.getElementById("chefMismosDto").checked;
+    cfg.empresas.chef.descuentos_propios = propios;
+    if (propios && !cfg.empresas.chef.descuentos) cfg.empresas.chef.descuentos = {
+      contado: Object.assign({}, cfg.contado || {}),
+      credito: JSON.parse(JSON.stringify(cfg.credito || [])), echeq: JSON.parse(JSON.stringify(cfg.echeq || [])),
+    };
+    dtoEmpresaVista = propios ? "chef" : "lk";
+    const d = await notifCall({ action: "descuentos_save", config: cfg });
+    dtoCfgCache = d.config; renderDescuentos(d.config);
+    st.textContent = "✓"; st.className = "config-status ok"; setTimeout(() => { st.textContent = ""; }, 2500);
+  } catch (e) { st.textContent = "✗ " + (e.message || "error"); st.className = "config-status err"; }
+}
+function dtoVista(emp) { dtoEmpresaVista = emp; renderDescuentos(dtoCfgCache); }
 // Guarda un solo campo: parte de la config guardada (cache) y sólo pisa ese campo.
 async function fieldSave(id) {
   const st = document.getElementById(id + "_st");
@@ -2125,8 +2210,9 @@ async function tableSave(name) {
   st.textContent = "…"; st.className = "config-status";
   try {
     const cfg = JSON.parse(JSON.stringify(dtoCfgCache || {}));
-    if (name === "Credito") cfg.credito = collectCreditoRows();
-    else cfg.echeq = collectEcheqRows();
+    const t = dtoTarget(cfg);
+    if (name === "Credito") t.credito = collectCreditoRows();
+    else t.echeq = collectEcheqRows();
     const d = await notifCall({ action: "descuentos_save", config: cfg });
     dtoCfgCache = d.config; renderDescuentos(d.config);
     st.textContent = "✓"; st.className = "config-status ok"; setTimeout(() => { st.textContent = ""; }, 2500);
@@ -2160,16 +2246,29 @@ function dtoRowEcheq(r) {
 
 function renderDescuentos(cfg) {
   cfg = cfg || {};
-  const c = cfg.contado || {};
+  // Ficha Empresas
+  const emp = cfg.empresas || {}, lk = emp.lk || {}, ch = emp.chef || {}, pago = cfg.pago || {};
+  EMP_CAMPOS.forEach((k) => {
+    document.getElementById("emp_lk_" + k).value = (k === "alias" || k === "cbu") ? (pago[k] || "") : (lk[k] || "");
+    document.getElementById("emp_chef_" + k).value = ch[k] || "";
+  });
+  empLock(true);
+  const propios = chefPropios(cfg);
+  document.getElementById("chefMismosDto").checked = !propios;
+  if (!propios) dtoEmpresaVista = "lk";
+  document.getElementById("dtoVistaRow").style.display = propios ? "flex" : "none";
+  ["lk", "chef"].forEach((e) => { document.getElementById("dtoVista_" + e).className = "config-btn small" + (dtoEmpresaVista === e ? " primary" : ""); });
+  // Descuentos de la empresa que se está viendo (las excepciones por cliente son generales: sólo en la vista de LK).
+  const src = dtoEmpresaVista === "chef" && propios && ch.descuentos ? ch.descuentos : cfg;
+  const excHead = document.getElementById("excEditBtn").parentElement;
+  [excHead, excHead.nextElementSibling, document.getElementById("excList")].forEach((el) => { el.style.display = dtoEmpresaVista === "chef" ? "none" : ""; });
+  const c = src.contado || {};
   document.getElementById("dtoContado").value = Math.round((Number(c.dto) || 0) * 100);
   document.getElementById("dtoContadoDias").value = Number(c.dias_limite) || 0;
-  const pago = cfg.pago || {};
-  document.getElementById("pagoAlias").value = pago.alias || "";
-  document.getElementById("pagoCbu").value = pago.cbu || "";
   const ct = document.querySelector("#dtoCreditoTable tbody"); ct.innerHTML = "";
-  (cfg.credito || []).forEach((r) => ct.appendChild(dtoRowCredito(r)));
+  (src.credito || []).forEach((r) => ct.appendChild(dtoRowCredito(r)));
   const et = document.querySelector("#dtoEcheqTable tbody"); et.innerHTML = "";
-  (cfg.echeq || []).forEach((r) => et.appendChild(dtoRowEcheq(r)));
+  (src.echeq || []).forEach((r) => et.appendChild(dtoRowEcheq(r)));
   excData = cfg.excepciones && typeof cfg.excepciones === "object" ? cfg.excepciones : {};
   excLocked = true;
   DTO_SCALARS.forEach(fieldLock);
@@ -4107,7 +4206,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.2</div>
 <script src="gestop2.js?v=0.25.18"></script>
 </body>
 </html>

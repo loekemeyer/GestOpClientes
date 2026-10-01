@@ -267,16 +267,24 @@ interface DtoCfg {
   excCuit: Record<string, string>; excRazon: Record<string, string>;
   // Datos de pago editables (alias/CBU), se completan como variables en el pie.
   alias: string; cbu: string;
+  // Pablo, 01/10: Chef sin alias/CBU cargado en la ficha Empresas → el aviso se retiene (nunca el alias de Loekemeyer).
+  sinDatosPago: boolean;
   // Formato de plantilla: 'v1' = estructura vieja (sin %/alias/CBU variables, footer fijo);
   // 'v2' = nueva (% y alias/CBU como variables). Debe coincidir con lo cargado en Meta.
   formato: string;
 }
 const normRazon = (s: string) => String(s || "").trim().toUpperCase().replace(/\s+/g, " ");
-async function loadDtoCfg(): Promise<DtoCfg> {
+async function loadDtoCfg(empresa = "lk"): Promise<DtoCfg> {
   // deno-lint-ignore no-explicit-any
   let cfg: any = null;
   const raw = await getSetting("wa_descuentos_config");
   if (raw) { try { cfg = JSON.parse(raw); } catch { /* usa defaults */ } }
+  // Pablo, 01/10 (ficha Empresas): las facturas de Chef usan los datos de pago de Chef y, si Chef tiene descuentos propios,
+  // su tabla. Las excepciones por cliente siguen siendo las de la config general.
+  const esChef = empresa === "chef" || empresa === "ch";
+  const chef = cfg?.empresas?.chef ?? {};
+  const dtoChef = esChef && chef.descuentos_propios === true && chef.descuentos ? chef.descuentos : null;
+  if (dtoChef) cfg = { ...cfg, contado: dtoChef.contado ?? cfg?.contado, credito: dtoChef.credito ?? cfg?.credito, echeq: dtoChef.echeq ?? cfg?.echeq };
   const contadoDto = Number(cfg?.contado?.dto ?? DTO_DEFAULT.contado);
   const diasLimite = Number(cfg?.contado?.dias_limite ?? 14);
   const map: Record<string, { dto: number; label: string }> = {};
@@ -291,10 +299,11 @@ async function loadDtoCfg(): Promise<DtoCfg> {
       else { const d = String(it.valor).replace(/\D/g, ""); if (d) excCuit[d] = bandKey; }
     }
   }
-  const alias = String(cfg?.pago?.alias ?? PAGO_ALIAS_DEFAULT).trim() || PAGO_ALIAS_DEFAULT;
-  const cbu = String(cfg?.pago?.cbu ?? PAGO_CBU_DEFAULT).trim() || PAGO_CBU_DEFAULT;
+  const alias = esChef ? String(chef.alias ?? "").trim() : (String(cfg?.pago?.alias ?? PAGO_ALIAS_DEFAULT).trim() || PAGO_ALIAS_DEFAULT);
+  const cbu = esChef ? String(chef.cbu ?? "").trim() : (String(cfg?.pago?.cbu ?? PAGO_CBU_DEFAULT).trim() || PAGO_CBU_DEFAULT);
   const formato = ((await getSetting("wa_plantilla_formato")) || "auto").trim();
-  return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map, excCuit, excRazon, alias, cbu, formato };
+  return { contadoDto: Number.isFinite(contadoDto) ? contadoDto : 0.25, diasLimite: Number.isFinite(diasLimite) ? diasLimite : 14, map, excCuit, excRazon, alias, cbu,
+    sinDatosPago: esChef && (!alias || !cbu), formato };
 }
 function dtoDeMetodo(metodo: string, cfg: DtoCfg): { dto: number; label: string } {
   const e = cfg.map[metodo];
@@ -522,7 +531,7 @@ async function handleGrupo(body: any) {
   const comprobantes = (body.comprobantes ?? []) as string[];
   const metodosFac = (body.metodos_fac ?? []) as string[];   // método por factura (si el emisor lo manda)
   const metodosDistinct = (body.metodos ?? []) as string[];  // set distinto (fallback)
-  const cfg = await loadDtoCfg();
+  const cfg = await loadDtoCfg(empresa);
   const g = await gp();
   const total_sum = totales.reduce((s: number, t: number) => s + t, 0);
 
@@ -558,6 +567,7 @@ async function handleGrupo(body: any) {
     let estado = "delivered";
     // deno-lint-ignore no-explicit-any
     const mensaje: any = await armarMensaje(sub.metodo, sub.facturas, String(body.dia ?? hoy), cfg);
+    if (cfg.sinDatosPago) estado = "held_sin_datos_pago_chef";
     const st = await tplStatus(mensaje.template_meta ?? mensaje.template);
     mensaje.tpl_status = st;
     if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
@@ -606,9 +616,11 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
   const { data: grupos } = await g.rpc("wa_grupos_dia_cuit", { p_cuit: cuit, p_fecha: fecha });
   if (!grupos || !grupos.length) return json({ pendiente: true, cuit, note: "sin facturas matcheadas a NP/dirección hoy" });
 
-  const cfg = await loadDtoCfg();
+  const cfgLk = await loadDtoCfg("lk");
+  const cfgChef = await loadDtoCfg("chef");
   const out = [];
   for (const gr of grupos) {
+    const cfg = gr.empresa === "chef" ? cfgChef : cfgLk;
     const destino = gr.destino || "(s/dir)";
     const source = gr.empresa === "chef" ? "ch" : "lk";
     const totales = (gr.totales ?? []) as number[];
@@ -635,6 +647,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
       const st = await tplStatus(base.template_meta ?? base.template);
       base.tpl_status = st;
       if (st && st !== "APPROVED") estado0 = "held_tpl_no_aprobada";
+      if (cfg.sinDatosPago) estado0 = "held_sin_datos_pago_chef";
       base.real_group = { cuit, empresa: gr.empresa, destino, cod_cliente: gr.cod_cliente ?? null, razon_social: gr.razon_social ?? null, comprobantes: sub_comprob };
       if (multiMetodo) base.split_metodo = { metodo: sub.metodo, n_sub: subgrupos.length };
       // PDF combinado: SÓLO las facturas de este sub-grupo (un PDF por método).
@@ -720,7 +733,7 @@ serve(async (req) => {
     const srcUsado = facturasLk.length ? "lk" : "ch";
     if (!facturas.length) return json({ complete: true, note: "grupo completo pero sin documentos parseados aún" });
 
-    const cfg = await loadDtoCfg();
+    const cfg = await loadDtoCfg(srcUsado);
     // Excepción por cliente: fuerza el método (ignora condición de venta / método mixto).
     const ov = metodoExcepcion(cfg, cuit, grupo.razon_social);
     const total_sum = facturas.reduce((s: number, f: Record<string, unknown>) => s + Number(f.total || 0), 0);
@@ -761,6 +774,7 @@ serve(async (req) => {
       const st = await tplStatus(mensaje.template_meta ?? mensaje.template);
       mensaje.tpl_status = st;
       if (st && st !== "APPROVED") estado = "held_tpl_no_aprobada";
+      if (cfg.sinDatosPago) estado = "held_sin_datos_pago_chef";
       if (multiMetodo) mensaje.split_metodo = { metodo: sub.metodo, de_grupo: grupoKey, n_sub: subgrupos.length };
 
       // PDF combinado: SÓLO las facturas de este sub-grupo (un PDF por método).

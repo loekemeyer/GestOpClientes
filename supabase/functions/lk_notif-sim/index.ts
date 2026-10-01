@@ -383,12 +383,37 @@ serve(async (req) => {
         alias: (String(c?.pago?.alias ?? DEFAULT_DESCUENTOS.pago.alias).trim() || DEFAULT_DESCUENTOS.pago.alias),
         cbu: (String(c?.pago?.cbu ?? DEFAULT_DESCUENTOS.pago.cbu).trim() || DEFAULT_DESCUENTOS.pago.cbu),
       };
+      // Ficha "Empresas" (Pablo, 01/10): datos de Loekemeyer (alias/CBU siguen en `pago`) y de Chef, y si Chef tiene
+      // descuentos por pago propios, su tabla. Un campo vacío queda vacío: el bot no completa Chef con datos de LK.
+      // deno-lint-ignore no-explicit-any
+      const t = (v: any) => String(v ?? "").trim().slice(0, 200);
+      // deno-lint-ignore no-explicit-any
+      const filas = (arr: any, pref: string) => (Array.isArray(arr) ? arr : []).map((r: any, i: number) => ({
+        key: String(r?.key || `${pref}_x${i + 1}`).trim(), label: String(r?.label ?? "").trim(), dto: clamp(r?.dto),
+      })).filter((r: { label: string }) => r.label !== "");
+      const e = c?.empresas ?? {};
+      const chefPropios = e?.chef?.descuentos_propios === true;
+      const empresas = {
+        lk: { razon_social: t(e?.lk?.razon_social), cuit: t(e?.lk?.cuit).replace(/\D/g, ""), web: t(e?.lk?.web), cobranzas: t(e?.lk?.cobranzas) },
+        chef: {
+          razon_social: t(e?.chef?.razon_social), cuit: t(e?.chef?.cuit).replace(/\D/g, ""), alias: t(e?.chef?.alias),
+          cbu: t(e?.chef?.cbu).replace(/\s/g, ""), web: t(e?.chef?.web), cobranzas: t(e?.chef?.cobranzas),
+          descuentos_propios: chefPropios,
+          ...(e?.chef?.descuentos ? { descuentos: {
+            contado: {
+              dto: clamp(e.chef.descuentos?.contado?.dto ?? DEFAULT_DESCUENTOS.contado.dto),
+              dias_limite: Math.max(0, Math.round(Number(e.chef.descuentos?.contado?.dias_limite ?? DEFAULT_DESCUENTOS.contado.dias_limite)) || 0),
+            },
+            credito: filas(e.chef.descuentos?.credito, "credito"), echeq: filas(e.chef.descuentos?.echeq, "echeq"),
+          } } : {}),
+        },
+      };
       const norm = {
         contado: {
           dto: clamp(c?.contado?.dto ?? DEFAULT_DESCUENTOS.contado.dto),
           dias_limite: Math.max(0, Math.round(Number(c?.contado?.dias_limite ?? DEFAULT_DESCUENTOS.contado.dias_limite)) || 0),
         },
-        credito, echeq, excepciones, pago,
+        credito, echeq, excepciones, pago, empresas,
       };
       const { error } = await paginalk.from("app_settings").upsert({ key: "wa_descuentos_config", value: JSON.stringify(norm) }, { onConflict: "key" });
       if (error) return json({ error: error.message }, 500);

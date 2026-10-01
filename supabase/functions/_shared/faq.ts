@@ -12,6 +12,7 @@ import { getGestionClient, getIsisClient, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
+import { datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -382,7 +383,16 @@ async function lookupPaymentData(faq: any, customer: Customer): Promise<string |
     ? (faq.bot_response ?? faq.institutional_response)
     : (faq.institutional_response ?? faq.bot_response);
   if (!tpl || !String(tpl).trim()) return null;
-  return renderTemplate(String(tpl), { nombre_cliente: customer?.business_name, alias, cbu }).trim();
+  const base = renderTemplate(String(tpl), { nombre_cliente: customer?.business_name, alias, cbu }).trim();
+  // Pablo, 01/10: si además tiene facturas de Chef (cruce por CUIT), van también los datos de Chef; si Chef no tiene alias
+  // cargado en la ficha Empresas, se lo pasa Cobranzas (nunca el de Loekemeyer para facturas de Chef).
+  if (!customer) return base;
+  const { data: cu } = await supabase.from("customers").select("cuit").eq("id", customer.id).maybeSingle();
+  const chef = await deudaChefPorCuit(cu?.cuit);
+  if (!chef?.length) return base;
+  const emp = await datosEmpresas();
+  return `${base.replace(/\n*\*?Alias:/, "\n\nPara las facturas de Loekemeyer:\n*Alias:")}\n\n` +
+    (textoDatosPago(emp.chef, true) ?? "Para las facturas de Chef, Cobranzas te pasa los datos de pago por acá.");
 }
 
 const RE_NO_LLEGO = /\b(no (me )?(lleg[oó]|vino|entregaron|trajeron)|nunca lleg|todav[ií]a no (lleg|vino|me)|ten[ií]a que (llegar|venir|haber llegado)|deb[ií]a (llegar|venir)|sigo esperando|no lleg[oó] nada)/i;

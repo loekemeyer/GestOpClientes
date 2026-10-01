@@ -9,6 +9,7 @@ import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
+import { datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import {
   callModel,
   esCulpaDelRequest,
@@ -684,11 +685,18 @@ async function executeTool(
           new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
         ]);
         if (r.error) throw new Error(r.error.message);
-        rows = r.data ?? [];
+        rows = ((r.data ?? []) as Array<Record<string, unknown>>).map((x) => ({ ...x, empresa: "lk" }));
+        // Pablo, 01/10: también las facturas de Chef, cruzadas por CUIT (el código de cliente es otro en cada empresa).
+        const { data: cu } = await supabase.from("customers").select("cuit").eq("id", c.customer_id).maybeSingle();
+        const chef = await deudaChefPorCuit(cu?.cuit);
+        if (chef === null) throw new Error("Chef no respondió");
+        rows = ([...rows, ...chef.map((x) => ({ ...x, empresa: "chef" }))] as Array<Record<string, unknown>>)
+          .sort((a, b) => String(a.fecha ?? "").localeCompare(String(b.fecha ?? "")));
       } catch (e) {
         console.error("consultar_mis_facturas: Gestión no respondió", e);
         return { data: { error: "No pude consultar las facturas ahora. Derivá a Cobranzas con derivar_a_persona (motivo pago)." } };
       }
+      const hayChef = rows.some((r) => r.empresa === "chef");
       // Descuento de la condición (dto_cond) pagando hasta `vence`, sólo si la factura no tiene pagos parciales
       // (pendiente = lista). Vencida o con pagos: el importe pendiente, y el final lo confirma Cobranzas.
       const facturas = rows.map((r) => {
@@ -697,6 +705,7 @@ async function executeTool(
         const vencida = !!vence && vence < hoy;
         const sinPagos = Math.abs(pend - lista) < 1;
         return {
+          ...(hayChef ? { empresa: r.empresa === "chef" ? "Chef" : "Loekemeyer" } : {}),
           factura: r.comprobante, fecha: ddmm(String(r.fecha ?? "")), condicion: r.condicion, importe: pesos(pend),
           estado: vencida ? `vencida el ${ddmm(vence)}` : vence ? `a pagar hasta el ${ddmm(vence)}` : "impaga",
           ...(!vencida && sinPagos && dto > 0 && vence
@@ -725,11 +734,17 @@ async function executeTool(
         const aplica = !!vence && vence >= hoy && Math.abs(pend - lista) < 1 && dto > 0;
         return a + (aplica ? pend * (1 - dto) : pend);
       }, 0);
+      // Datos para transferir de CADA empresa con facturas (Chef sin alias cargado: no se le da el de LK).
+      const emp = await datosEmpresas();
+      const datos_para_pagar = (["lk", "chef"] as const).filter((k) => rows.some((r) => r.empresa === k)).map((k) =>
+        textoDatosPago(emp[k], hayChef) ?? `Para las facturas de ${emp[k].nombre}, Cobranzas te pasa los datos de pago por acá.`);
       return { data: { saldo_total: pesos(saldo),
         ...(Math.round(conDto) < Math.round(saldo) ? { total_con_descuento: `${pesos(conDto)} (pagando cada factura hasta su fecha de descuento)` } : {}),
-        facturas, nota: "Importes con IVA, redondeados a pesos. Cobranzas quedó avisada de la consulta.",
+        facturas, datos_para_pagar, nota: "Importes con IVA, redondeados a pesos. Cobranzas quedó avisada de la consulta.",
         // Thommy, 30/09: en toda respuesta de importes, pedir el comprobante.
-        regla: "Cerrá pidiéndole que, cuando pague, mande el comprobante por acá." } };
+        regla: hayChef
+          ? "Tiene facturas de Loekemeyer y de Chef: separalas por empresa y, si da datos para pagar, los de cada empresa tal cual datos_para_pagar (nunca el alias de una para las facturas de la otra). Cerrá pidiéndole que, cuando pague, mande el comprobante por acá."
+          : "Cerrá pidiéndole que, cuando pague, mande el comprobante por acá." } };
     }
 
     case "consultar_mis_descuentos": {
