@@ -1429,8 +1429,9 @@ let testPhone = null;
 let aiDisabled = false;
 let skipRateLimit = false;
 
-// Teléfonos reales de clientes en la base (wa_clientes_telefono)
-const KNOWN_PHONES = ["5493586017973","5491138267294","5491134360609","5491136188988"];
+// Auditoría 02/10: acá había 4 teléfonos reales de clientes (KNOWN_PHONES) en un HTML público, servidos antes del login.
+// El teléfono de prueba del chat sale ahora de la whitelist (wa_envio_contactos, hoy sólo Thomy: único canal de prueba),
+// leída por la edge lk_chat-test al elegir "Cliente existente" (ver startAs).
 
 // --- Auth (Google OAuth via Supabase) ---
 async function doGoogleLogin() {
@@ -1975,7 +1976,9 @@ function now() {
 function addMsg(text, cls) {
   const div = document.createElement("div");
   div.className = "msg " + cls;
-  div.innerHTML = text.replace(/\n/g, "<br>") + `<span class="time">${now()}</span>`;
+  // Auditoría 02/10: la respuesta del bot (o de una FAQ, o un mensaje de error) entraba como HTML. Un modelo al que le
+  // inyecten "<img onerror=…>" corría en la sesión de un admin logueado. Se escapa y sólo se conserva el salto de línea.
+  div.innerHTML = esc(String(text ?? "")).replace(/\n/g, "<br>") + `<span class="time">${now()}</span>`;
   chatMessages.appendChild(div);
   const clear = document.createElement("div");
   clear.style.clear = "both";
@@ -2114,9 +2117,23 @@ function showStartScreen() {
   chatMessages.appendChild(screen);
 }
 
-function startAs(mode) {
+async function startAs(mode) {
   if (mode === "client") {
-    testPhone = KNOWN_PHONES[Math.floor(Math.random() * KNOWN_PHONES.length)];
+    // El teléfono de prueba es el primero de la whitelist (wa_envio_contactos), por la edge (requiere admin). Sin
+    // whitelist no hay con quién probar: se avisa en vez de inventar un número.
+    try {
+      const { data, error } = await chatTest({ action: "whitelist_list" });
+      if (error) throw error;
+      const items = data?.items || [];
+      if (!items.length) {
+        addBotMsg("⚠️ La whitelist (wa_envio_contactos) está vacía: no hay teléfono de prueba. Cargá uno en Panel de Control › Whitelist.");
+        return;
+      }
+      testPhone = String(items[0].phone);
+    } catch (e) {
+      addBotMsg("❌ No pude leer la whitelist: " + (e.message || "error desconocido"));
+      return;
+    }
   } else {
     testPhone = "54911" + Math.floor(10000000 + Math.random() * 90000000);
   }
@@ -3976,8 +3993,12 @@ function tplParamCount(t) {
   const nums = (tplBody(t).match(/\{\{\s*(\d+)\s*\}\}/g) || []).map((m) => parseInt(m.replace(/\D/g, ""), 10));
   return nums.length ? Math.max(...nums) : 0;
 }
+// Auditoría 02/10: también comillas. esc() se usa en 15 lugares DENTRO de atributos (onclick="…('${esc(x)}')", value="…",
+// title="…"): sin escaparlas, una comilla en el dato cerraba el atributo. gesc() de gestop2.js delega acá.
 function esc(s) {
-  return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 async function loadTemplates() {
@@ -4677,7 +4698,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.11</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.12</div>
 <script src="gestop2.js?v=0.26.11"></script>
 </body>
 </html>

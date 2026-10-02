@@ -12,8 +12,10 @@
 > cadena de modelos) se leen en paralelo; el `first_seen` del candado de idempotencia se reutiliza; `wa_pedidos_cfg` se memoiza;
 > (c) sql/122: índices por teléfono en `wa_inbound_seen` y `wa_alertas_humano`, `(context, ref_id)` en `wa_outbox`, índice de
 > expresión que `wa_identify_customer` sí usa en `wa_clientes_telefono` (el de sql/010 tenía 0 usos), `(model, created_at)` en
-> `bot_token_usage`; (d) el dashboard deja de pollear con la pestaña oculta (v0.26.11). Medido antes: webhook 1.246 ms promedio
-> / 4.459 ms p95 con ~30-35 viajes a la base en fila antes del primer token del modelo.
+> `bot_token_usage`; (d) el dashboard deja de pollear con la pestaña oculta (v0.26.11); (e) dashboard v0.26.12: la respuesta
+> del chat de prueba se escapa (XSS), `esc()` escapa comillas y los 4 teléfonos reales de `KNOWN_PHONES` salieron del HTML (el
+> chat toma el de la whitelist). Medido antes: webhook 1.246 ms promedio / 4.459 ms p95 con ~30-35 viajes a la base en fila
+> antes del primer token del modelo.
 >
 > **01/10 (Pablo): audios de WhatsApp con Groq Whisper** (`_shared/transcribir.ts`, `textoDeAudio` en el webhook). Claude no recibe audio
 > (la API sólo acepta texto, imagen y PDF), así que el audio se baja de Meta, se transcribe con Whisper de Groq (clave `groq` de

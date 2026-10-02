@@ -103,9 +103,10 @@ deploy con la misma consulta de `function_edge_logs` de la sección 1.
    callers. **Alto.** [Seguro]
 2. **XSS en el chat de prueba del dashboard**: `docs/index.html:1973` `div.innerHTML = text.replace(/\n/g,"<br>")` con la
    respuesta del modelo / de la FAQ. Un prompt injection que devuelva `<img onerror=…>` corre en la sesión de un admin
-   logueado con Google. Fix de una línea: `esc(text)` antes del replace. **Alto.** [Seguro]
+   logueado con Google. **Corregido el 02/10 (v0.26.12)**: `esc(text)` antes del replace. [Seguro]
 3. **`esc()` no escapa comillas** (`docs/index.html:3975`, sólo `& < >`) y se usa dentro de atributos y `onclick` en 15
-   lugares; `gesc` de gestop2.js delega en ella, así que su rama segura está muerta. Fix: agregar `"` y `'`. **Alto.** [Seguro]
+   lugares; `gesc` de gestop2.js delega en ella, así que su rama segura está muerta. **Corregido el 02/10 (v0.26.12)**:
+   escapa también `"` y `'`. [Seguro]
 4. **Lecturas públicas con la clave publishable** (RLS `using (true)` para `anon`): `gestop_users (email, role)` — la lista
    de mails del staff y quién es admin se enumera con un `GET /rest/v1/gestop_users?select=email,role` (sql/063:28-34);
    `wa_agente_config.contenido` (el prompt del agente, sql/058:67), `wa_agente_config_history`, `wa_agente_modelos`
@@ -125,7 +126,8 @@ deploy con la misma consulta de `function_edge_logs` de la sección 1.
    Fix: una línea de `revoke` por función; las edges usan service_role. **Medio.** [Probable: default de Postgres;
    falta confirmar en vivo con `has_function_privilege('anon', …)`]
 8. **4 teléfonos reales de clientes en el HTML público** (`docs/index.html:1433 KNOWN_PHONES`), servidos antes del
-   login. Contradice "único canal de prueba: Thomy". **Medio.** [Seguro]
+   login. Contradice "único canal de prueba: Thomy". **Corregido el 02/10 (v0.26.12)**: el chat de prueba toma el
+   teléfono de la whitelist (`wa_envio_contactos`) vía `lk_chat-test whitelist_list`; sin whitelist, avisa. [Seguro]
 9. **Comparación de secretos con `===`** (no constant-time) en 12 funciones (`lk_alerta-planify:40`, `lk_ia-puntaje:39`,
    `lk_templates:38`, `lk_alertas:81`, `notify-tracking-status:211`, …). `admin-gate.ts:153` y `webhook-firma.ts:51` sí lo
    hacen bien. **Bajo**, gratis con un helper compartido. [Probable]
