@@ -4,6 +4,12 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-02.
 >
+> **02/10 (Luis): responder a mano desde Conversaciones daba error de autorización.** `lk_conversaciones` era la única
+> función que leía primero el secret `LK_WA_TOKEN` (el de antes del 10/09) en vez de `WHATSAPP_ACCESS_TOKEN`, que es el
+> que usan el webhook y todas las demás: el bot contestaba y el envío manual volvía con 502. Nunca salió una respuesta
+> manual (0 filas `humano:%` en `wa_conversations`). Ahora usa el mismo orden que el webhook y deja el motivo de Meta en
+> los logs. ⚠ Queda borrar el secret `LK_WA_TOKEN` de las Edge Functions (lo hace el dueño desde el panel de Supabase).
+>
 > **02/10 (Pablo): auditoría general + performance.** Informe completo con todos los hallazgos (webhook, edge functions, SQL,
 > dashboard, advisors de Supabase) y lo que queda pendiente de decidir: `docs/AUDITORIA-2026-10-02.md`. Lo aplicado:
 > (a) `app_settings` se cachea 15 s **sólo en el webhook** (`habilitarCacheSettings` + `primeSettings`, `_shared/supabase.ts`;
