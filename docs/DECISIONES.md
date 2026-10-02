@@ -72,6 +72,9 @@ abortada: con `0` no despacha, con `prueba` sólo Thomy y el resto queda `held_n
 `bot-recordatorio-25` se apagó y se **volvió a prender el mismo día** por el principio de abajo
 (encola en `wa_outbox`, así que la llave ya lo corta; la plantilla `pedido_recordatorio_25`
 además no existe en Meta). Whitelist de prueba = **sólo Thomy**.
+⚠ **02/10 (Thomas):** la whitelist suma a **Damián, dueño de Chef S.R.L.** (cliente LK 411): primer teléfono
+de cliente real cargado en las tablas del bot, con aprobación de Thomas. El canal de prueba sigue siendo Thomy
+(la fila más vieja de `wa_envio_contactos`).
 Rollback del cron: `select cron.alter_job(jobid, active := true) from cron.job where jobname='bot-recordatorio-25';`
 
 ---

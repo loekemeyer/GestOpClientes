@@ -173,7 +173,7 @@ que le habla a Meta.
 | un corte único en el punto de salida: la llave **`app_settings.wa_envio_automatico`** (`0` nada · `prueba` sólo `wa_envio_contactos` · `1` producción; sin fila = `0`) | apagar crons (`cron.alter_job(… active := false)`), triggers, feeds o funciones "por las dudas" |
 | todo mensaje automático nuevo **encola en `wa_outbox`** y lo despacha `lk_outbox-flush`, que pasa por la llave (`bot_flush_outbox`) | un productor nuevo que le pegue directo a `graph.facebook.com` — es una salida sin corte |
 | alimentar las tablas de estado (ej. `order_tracking` desde Gestión) aunque disparen avisos: quedan en cola detrás de la llave | dejar datos sin cargar para que "no dispare nada" |
-| números de prueba: **sólo Thomy** en `wa_envio_contactos` | cargar teléfonos de clientes en tablas que lean los que mandan (`bot_customer_whatsapps`, `customers.whatsapp`, `wa_clientes_telefono`) sin que Luis lo pida |
+| whitelist (`wa_envio_contactos`): **Thomy** (canal de prueba) **+ Damián de Chef S.R.L.** (real, aprobado por Thomas el 02/10) | cargar teléfonos de clientes en tablas que lean los que mandan (`bot_customer_whatsapps`, `customers.whatsapp`, `wa_clientes_telefono`) sin que Luis o Thomas lo pidan |
 
 **Dónde está el corte (uno en la base, uno en el código, la misma decisión):**
 - **Base:** `public.wa_puede_enviar(phone)` (sql/070) es LA decisión. `bot_flush_outbox` la usa.
@@ -183,10 +183,23 @@ que le habla a Meta.
   webhook vía `_shared/wa-api.ts`. Una función nueva que mande WhatsApp sin importarlo es una
   salida sin corte.
 
-**Canal de prueba ÚNICO (Luis, 25/09): Thomy.** Está en `wa_envio_contactos` (el webhook le
-contesta y le llegan los automáticos) y asociado al **cliente de prueba LK 99862** en
-`bot_customer_whatsapps`, así los avisos de pedidos de ese cliente le llegan a él. Llave en
-`prueba`. Para cambiar quién prueba: cambiar la fila de `wa_envio_contactos` (una sola).
+**Canal de prueba (Luis, 25/09): Thomy.** Está en `wa_envio_contactos` (el webhook le
+contesta y le llegan los automáticos) y asociado a un cliente en `bot_customer_whatsapps` (hoy,
+TEMPORAL, el **4028 Bazar Farimar**: ver `docs/ESTADO.md`), así los avisos de pedidos de ese
+cliente le llegan a él. Llave en `prueba`.
+
+⚠ **Desde el 02/10 la whitelist tiene DOS filas, y la segunda NO es de prueba (Thomas, 02/10).**
+**Damián, dueño de Chef S.R.L.** (`5491131181594`), vinculado al cliente real **LK 411 Chef
+S.R.L.** (`bot_customer_whatsapps` id 226: principal, ve pedidos). El bot le contesta como Chef y
+le llegan los avisos **reales** de Chef 411. **No sacarlo para "volver a un solo canal"**: está
+aprobado por Thomas. Ese número figuró como Torres y Liva (288) en agosto; ya no (alerta 670
+descartada).
+
+⚠ **El canal de prueba es la fila MÁS VIEJA de la whitelist**, no "la única": así la toman
+`lk_bot-simular` y el chat de prueba del dashboard (v0.26.13). Hasta la v0.26.12 el dashboard
+tomaba la más NUEVA, así que al cargar a Damián el chat de prueba pasó a probar con su número
+real (y `lk_chat-test` pasa por `wa-guard`, que a él lo deja salir). Para cambiar quién prueba:
+cambiar la fila de Thomy, no agregar otra.
 
 **Para arrancar con clientes es UN update:** `update app_settings set value='1' where key='wa_envio_automatico';`
 (y para probar punta a punta, `'prueba'`). Si arrancar exige prender otras 20 cosas, el

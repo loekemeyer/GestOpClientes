@@ -1430,8 +1430,8 @@ let aiDisabled = false;
 let skipRateLimit = false;
 
 // Auditoría 02/10: acá había 4 teléfonos reales de clientes (KNOWN_PHONES) en un HTML público, servidos antes del login.
-// El teléfono de prueba del chat sale ahora de la whitelist (wa_envio_contactos, hoy sólo Thomy: único canal de prueba),
-// leída por la edge lk_chat-test al elegir "Cliente existente" (ver startAs).
+// El teléfono de prueba del chat sale ahora de la whitelist (wa_envio_contactos): la fila MÁS VIEJA, que es el canal de
+// prueba (Thomy). Leída por la edge lk_chat-test al elegir "Cliente existente" (ver startAs).
 
 // --- Auth (Google OAuth via Supabase) ---
 async function doGoogleLogin() {
@@ -2119,8 +2119,11 @@ function showStartScreen() {
 
 async function startAs(mode) {
   if (mode === "client") {
-    // El teléfono de prueba es el primero de la whitelist (wa_envio_contactos), por la edge (requiere admin). Sin
+    // El teléfono de prueba es la fila MÁS VIEJA de la whitelist (wa_envio_contactos), por la edge (requiere admin). Sin
     // whitelist no hay con quién probar: se avisa en vez de inventar un número.
+    // v0.26.13: la edge la devuelve de más nueva a más vieja y acá se tomaba items[0]. Desde el 02/10 la whitelist tiene
+    // también a Damián (Chef S.R.L., número REAL que wa-guard deja salir), así que "Cliente existente" probaba con él.
+    // Misma regla que lk_bot-simular: el canal de prueba es el más viejo.
     try {
       const { data, error } = await chatTest({ action: "whitelist_list" });
       if (error) throw error;
@@ -2129,7 +2132,8 @@ async function startAs(mode) {
         addBotMsg("⚠️ La whitelist (wa_envio_contactos) está vacía: no hay teléfono de prueba. Cargá uno en Panel de Control › Whitelist.");
         return;
       }
-      testPhone = String(items[0].phone);
+      const canal = items.reduce((a, b) => (new Date(b.created_at) < new Date(a.created_at) ? b : a));
+      testPhone = String(canal.phone);
     } catch (e) {
       addBotMsg("❌ No pude leer la whitelist: " + (e.message || "error desconocido"));
       return;
@@ -4698,7 +4702,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.12</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.13</div>
 <script src="gestop2.js?v=0.26.11"></script>
 </body>
 </html>
