@@ -600,7 +600,11 @@ const _showAppViejo = showApp;
 showApp = function () { _showAppViejo(); alEntrar(); };
 // Si el login terminó antes de que cargara este archivo, arrancar igual.
 if (document.getElementById("app")?.classList.contains("active")) alEntrar();
-setInterval(() => {
+// Auditoría 02/10: con la pestaña del navegador oculta (document.hidden) no se consulta nada: nadie ve esos badges y cada
+// tick eran 3-4 invocaciones de edge. Medido el 02/10: lk_conversaciones y lk_vinculaciones fueron las dos funciones más
+// llamadas del día (1.838 y 1.798 veces en 24 h), casi todo este polling. Al volver a la pestaña se refresca en el acto.
+function pollTick() {
+  if (document.hidden) return;
   if (!document.getElementById("app")?.classList.contains("active") || !esAdmin()) return;
   cargarLlave();
   if (document.getElementById("pageTareas")?.classList.contains("active")) { if (!document.getElementById("gModal")) tkCargar(); }
@@ -610,7 +614,9 @@ setInterval(() => {
     const escribiendo = (document.getElementById("cmTexto")?.value || "").length > 0;
     if (G.convSel && !escribiendo && !document.getElementById("gModal")) cmCargarHilo(false);
   }
-}, 45000);
+}
+setInterval(pollTick, 45000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pollTick(); });
 renderNav();
 
 // ── Centro de mensajes › Tareas (etapa 3) ───────────────────────────────────

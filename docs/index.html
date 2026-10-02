@@ -1715,7 +1715,12 @@ async function saveVencimientos() {
   setTimeout(() => { st.textContent = ""; }, 3000);
 }
 // El contador del menú se refresca cada 2 minutos mientras el dashboard está abierto.
-setInterval(() => { if (currentRole === "admin" && document.getElementById("app")?.classList.contains("active")) loadAlertas().catch(() => {}); }, 120000);
+// Auditoría 02/10: con la pestaña oculta (document.hidden) no se consulta —nadie ve el contador—; al volver se refresca en el acto.
+function pollAlertas() {
+  if (!document.hidden && currentRole === "admin" && document.getElementById("app")?.classList.contains("active")) loadAlertas().catch(() => {});
+}
+setInterval(pollAlertas, 120000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pollAlertas(); });
 
 // --- Page navigation ---
 function showPage(page) {
@@ -4672,7 +4677,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.10</div>
-<script src="gestop2.js?v=0.26.4"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.11</div>
+<script src="gestop2.js?v=0.26.11"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 // Claude API — Tool-use conversacional para bot WhatsApp Loekemeyer
 // Usa RPCs bot_* existentes como herramientas de Claude
 
-import { getGestionClient, getSetting, supabase } from "./supabase.ts";
+import { cacheSettingsTtl, getGestionClient, getSetting, supabase } from "./supabase.ts";
 import { derivaciones, motivosIA } from "./derivaciones.ts";
 import { notificarHumano } from "./alertas.ts";
 import { ingresoEstimado, proximosIngresos, stockArticulo, stockNecesitaHumano, textoIngreso, textoStock } from "./stock.ts";
@@ -33,10 +33,19 @@ type ToolDef = { name: string; description: string; input_schema: any };
 // uso: no mandaba el pedido a Gestión ni usaba las formas de pago de la web.
 export const PEDIDOS_POR_WHATSAPP = false;
 const HERRAMIENTAS_PEDIDO = new Set(["opciones_de_pedido", "armar_pedido", "confirmar_pedido"]);
+// Se lee hasta 6 veces por mensaje (ráfaga, pedido por archivo, pedido en curso, prompt, herramientas, tools). Con la caché
+// de settings prendida (webhook, _shared/supabase.ts) se memoiza el mismo tiempo; sin ella (Simulador, chat de prueba) va a
+// la base en cada lectura, como siempre.
+// deno-lint-ignore no-explicit-any
+let cfgPedidosMemo: { hasta: number; cfg: any } | null = null;
 // deno-lint-ignore no-explicit-any
 export async function configPedidosWa(): Promise<any> {
+  const ttl = cacheSettingsTtl();
+  if (ttl && cfgPedidosMemo && cfgPedidosMemo.hasta > Date.now()) return cfgPedidosMemo.cfg;
   const { data } = await supabase.rpc("wa_pedidos_cfg");
-  return data ?? { activo: false, modo: "precarga" };
+  const cfg = data ?? { activo: false, modo: "precarga" };
+  if (ttl) cfgPedidosMemo = { hasta: Date.now() + ttl, cfg };
+  return cfg;
 }
 /**
  * Pedido por WhatsApp a medio armar (Pablo, 30/09, Simulador): si lo último que dijo el bot en los últimos 60 min es parte
@@ -399,21 +408,21 @@ async function buildSystemPrompt(
   // wa_agente_config). Define Objetivo / Limitaciones / Permisos del agente y
   // se inyecta como una sección más. Las reglas operativas y de Seguridad de
   // abajo quedan FIJAS en código (no editables) y tienen prioridad sobre él.
-  let rector = "";
-  try {
-    rector = (await getAgenteConfig()).trim();
-  } catch { /* si falla, seguimos sin doc rector */ }
+  // Auditoría 02/10: documento rector, config de pedidos y mínimo del cliente no dependen entre sí: se piden juntos
+  // (antes eran cuatro viajes en fila en cada turno del agente).
+  const [rector, pedidosOn, min] = await Promise.all([
+    getAgenteConfig().then((r) => r.trim()).catch(() => ""),   // si falla, seguimos sin doc rector
+    // Pablo, 30/09: con pedidos por WhatsApp prendidos, los mínimos y el 2% web salen de wa_pedidos_config (por WhatsApp no
+    // va el 2%; mínimo vacío = no se controla). Antes estaban fijos acá y el agente frenaba el pedido con un mínimo que la
+    // configuración no pedía (Simulador, 30/09).
+    pedidosWaHabilitados(),
+    // Pablo, 01/10 (sql/120): el mínimo que se informa es el del cliente (su excepción o el general); una excepción nueva la
+    // decide un vendedor. Antes estaba fijo acá ($500.000 / $300.000).
+    minimoCliente({ cod: codCliente }).catch(() => null),
+  ]);
   const rectorBloque = rector
     ? `\nDocumento rector (definido por Loekemeyer desde el Panel — respetalo salvo que contradiga la Seguridad de más abajo):\n---\n${rector}\n---\n`
     : "";
-
-  // Pablo, 30/09: con pedidos por WhatsApp prendidos, los mínimos y el 2% web salen de wa_pedidos_config (por WhatsApp no
-  // va el 2%; mínimo vacío = no se controla). Antes estaban fijos acá y el agente frenaba el pedido con un mínimo que la
-  // configuración no pedía (Simulador, 30/09).
-  const pedidosOn = await pedidosWaHabilitados();
-  // Pablo, 01/10 (sql/120): el mínimo que se informa es el del cliente (su excepción o el general); una excepción nueva la
-  // decide un vendedor. Antes estaba fijo acá ($500.000 / $300.000).
-  const min = await minimoCliente({ cod: codCliente }).catch(() => null);
   const lineaMinimo = min
     ? `- Pedido mínimo de este cliente${min.excepcion ? " (tiene uno propio)" : ""}: con envío ${fmtMinimo(min.envio)}, si retira en el depósito ${fmtMinimo(min.retiro)}. Es un dato informativo si lo pregunta: no frena ni condiciona un pedido. Si pide comprar por debajo o una excepción al mínimo, no la prometas ni la niegues: derivá con derivar_a_persona (motivo excepcion_minimo).\n`
     : "";
@@ -463,10 +472,14 @@ const HERRAMIENTAS = BOT_TOOLS.filter((t) => PEDIDOS_POR_WHATSAPP || t.name !== 
 // Los motivos de derivar_a_persona salen de Configuración › Derivaciones: se sacan los que "responde el bot" y
 // se suman los agregados desde el panel. Si la config no se puede leer, quedan los de siempre.
 async function herramientasDelTurno(): Promise<ToolDef[]> {
-  const conPedidos = await pedidosWaHabilitados();
+  // Config de pedidos y de derivaciones no dependen entre sí: en paralelo.
+  const [conPedidos, mot] = await Promise.all([
+    pedidosWaHabilitados(),
+    motivosIA().catch((e) => { console.error("herramientasDelTurno: sin config de derivaciones", e); return null; }),
+  ]);
   const base = HERRAMIENTAS.filter((t) => conPedidos || !HERRAMIENTAS_PEDIDO.has(t.name));
+  if (!mot) return base;
   try {
-    const mot = await motivosIA();
     return base.map((t) => {
       if (t.name !== "derivar_a_persona") return t;
       const enumM = [...mot.map((m) => m.clave), "alta_cliente", "escalation"];
@@ -1251,8 +1264,15 @@ export async function runConversation(
   apiKey: string,
   fuente = "lk_whatsapp-webhook",
 ): Promise<ConversationResult> {
-  const rawHistory = await loadHistory(phone, 16);
-  const systemPrompt = (await buildSystemPrompt(customerName, codCliente, dtoVol)) + "\n\n" + notaDeTiempo(rawHistory, userText);
+  // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
+  // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
+  const [rawHistory, promptBase, herramientas, chain] = await Promise.all([
+    loadHistory(phone, 16),
+    buildSystemPrompt(customerName, codCliente, dtoVol),
+    herramientasDelTurno(),
+    resolveChain(),
+  ]);
+  const systemPrompt = promptBase + "\n\n" + notaDeTiempo(rawHistory, userText);
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
   // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor
   // en cualquier iteración sin romper el formato.
@@ -1276,11 +1296,9 @@ export async function runConversation(
     history.push({ role: "user", text: userText });
   }
 
-  const herramientas = await herramientasDelTurno();
-
   // Cadena de modelos (prioridad ASC) + fallback duro al env ANTHROPIC_API_KEY con
   // Sonnet, para que el bot siga contestando aunque la cadena esté vacía o toda caída.
-  const candidates: ResolvedModel[] = await resolveChain();
+  const candidates: ResolvedModel[] = chain;
   // Pruebas (simulador y chat de test): un modelo propio, más barato, para no gastar el de producción. Sin la clave
   // app_settings.llm_modelo_pruebas todo sigue igual. Con la clave, la prueba usa SÓLO ese modelo: si falla, la prueba
   // falla (llmError) y NO cae a la cadena, para que una caída no se pague en otro modelo sin que nadie se entere (Pablo, 01/10).

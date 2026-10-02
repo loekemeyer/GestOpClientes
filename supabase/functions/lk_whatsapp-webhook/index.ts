@@ -8,7 +8,7 @@
 // Claude tool-use para conversación inteligente.
 
 import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
-import { supabase, getSetting } from "../_shared/supabase.ts";
+import { supabase, getSetting, habilitarCacheSettings, primeSettings } from "../_shared/supabase.ts";
 import {
   sendText,
   sendImage,
@@ -37,6 +37,13 @@ import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START, tryRegister } from "../_shared/alta.ts";
+
+// Auditoría de performance (02/10/2026): este webhook leía app_settings ~17 veces por mensaje, un viaje a la base cada una
+// (3 ó 4 sólo en loadConfig, antes de mirar el mensaje). Ahora la tabla (40 filas, 8 KB) se lee ENTERA una vez por mensaje
+// (`primeSettings`, en el handler POST) y las lecturas que siguen salen de memoria durante 15 s. Sólo este isolate: el
+// Simulador y el chat de prueba no la prenden y siguen viendo cada cambio al instante. La llave de envíos
+// (`wa_envio_automatico`) no pasa por acá: la lee `wa_puede_enviar` en SQL desde wa-guard. Detalle en _shared/supabase.ts.
+habilitarCacheSettings(15_000);
 
 // ─── Config (app_settings → fallback Deno.env) ─────────────────────
 // Prioridad: app_settings → env var. app_settings es la fuente de verdad —
@@ -783,7 +790,12 @@ async function triggerParser(comprobanteId: string): Promise<void> {
  * Y va con `tipo='whitelist_gate'` en vez de `'otro'`, para poder filtrarlo sin leer el jsonb.
  * `descartado` ya estaba en el CHECK de `estado` (sql/044), así que no hace falta tocar la tabla.
  */
-async function avisarDescartePorWhitelist(phone: string, contexto: Record<string, unknown>): Promise<void> {
+async function avisarDescartePorWhitelist(
+  phone: string,
+  contexto: Record<string, unknown>,
+  // Si el que llama ya identificó al cliente (handleMessage lo hace junto con los otros candados), no se vuelve a consultar.
+  yaIdentificado?: CustomerContext | null,
+): Promise<void> {
   try {
     const desde = new Date(); desde.setUTCHours(0, 0, 0, 0);
     const { count } = await supabase
@@ -796,8 +808,10 @@ async function avisarDescartePorWhitelist(phone: string, contexto: Record<string
 
     // Si falla la identificación, se asume que NO es cliente: mejor un aviso de menos en la cola
     // que volver a llenarla de ruido. La fila queda igual, con el teléfono, para poder revisarla.
-    let cliente: CustomerContext | null = null;
-    try { cliente = await getCustomerContext(phone); } catch { /* no identificado */ }
+    let cliente: CustomerContext | null = yaIdentificado ?? null;
+    if (yaIdentificado === undefined) {
+      try { cliente = await getCustomerContext(phone); } catch { /* no identificado */ }
+    }
 
     await supabase.from("wa_alertas_humano").insert({
       tipo: "whitelist_gate",
@@ -941,19 +955,32 @@ async function handleMessage(
   msgId: string,
   contactName: string | undefined,
   cfg: Config,
+  // `first_seen` de este wamid, tal como lo devolvió el insert del candado de idempotencia (handler). Lo usan el saludo
+  // suelto y la ráfaga de pedido; si no vino (insert sin fila), se lee de la tabla como antes.
+  firstSeen: string | null = null,
 ): Promise<void> {
   // 0. Kill switch: si el toggle está prendido, solo procesamos números
   //    de la whitelist (wa_envio_contactos). Cualquier otro se descarta
   //    silenciosamente — no marcamos leído para no confundir a Meta, no
   //    respondemos, no guardamos historial. Log en wa_alertas_humano
   //    para saber qué números intentaron.
-  const raw = await getSetting("wa_bot_solo_whitelist");
+  //
+  // Auditoría 02/10: las cinco lecturas de los pasos 0, 0b, 2 y 3 (llave de whitelist, whitelist, blacklist, modo de la
+  // conversación y cliente) son sólo lecturas y no dependen entre sí: se piden juntas y se evalúan en el MISMO orden de
+  // siempre. Antes eran cinco viajes a la base en fila, en cada mensaje.
+  const [raw, enWhitelist, bl, modo, customer] = await Promise.all([
+    getSetting("wa_bot_solo_whitelist"),
+    estaEnWhitelist(phone),
+    blacklistRow(phone),
+    getConversationMode(phone),
+    getCustomerContext(phone),
+  ]);
   const soloWhitelist = Number(raw ?? "1") === 1;
-  if (soloWhitelist && !(await estaEnWhitelist(phone))) {
+  if (soloWhitelist && !enWhitelist) {
     console.warn(`[whitelist-gate] mensaje de ${phone} descartado (no está en wa_envio_contactos).`);
     await avisarDescartePorWhitelist(phone, {
       motivo: "whitelist_gate", texto_recibido: text.slice(0, 200), contact_name: contactName ?? null,
-    });
+    }, customer);
     return;
   }
 
@@ -966,7 +993,6 @@ async function handleMessage(
   //     la blacklist se le responde una vez y después, silencio. `avisado_at` marca ese
   //     "ya avisé". Queda la fila en `wa_alertas_humano` para saber que escribió.
   {
-    const bl = await blacklistRow(phone);
     if (bl) {
       console.warn(`[blacklist] mensaje de ${phone} descartado.`);
       if (!bl.avisado_at) {
@@ -1026,14 +1052,13 @@ async function handleMessage(
   //    conversación?") o darle un botón "Cerrar chat" en el Panel; al cerrar,
   //    modo vuelve a "bot" y el bot retoma si el cliente reinicia contacto.
   //    Requiere: cron/edge de barrido (idle sweep) + acción de UI. NO conectado.
-  const modo = await getConversationMode(phone);
+  //    (`modo` ya se leyó arriba, junto con los otros candados.)
   if (modo === "humano") {
     await saveMessage(phone, "user", text);
     return;
   }
 
-  // 3. Identificar cliente por teléfono
-  const customer = await getCustomerContext(phone);
+  // 3. Identificar cliente por teléfono (`customer`: leído arriba, junto con los otros candados)
 
   // 3a. Cliente sólo de Chef (Pablo, 01/10, sql/115 + _shared/chef.ts). Sólo se busca si no es cliente de Loekemeyer.
   //     Las herramientas del bot buscan en Loekemeyer por número de cliente, y ese número es otro cliente en cada
@@ -1075,12 +1100,22 @@ async function handleMessage(
   //       escribiendo: si llegó otro mensaje, ése contesta (con el saludo en el historial) y éste no dice nada. Si no,
   //       va a la respuesta fija del saludo (FAQ #41 "¡Hola …! ¿En qué te puedo ayudar?", editable desde el dashboard).
   const soloSaludo = esSoloSaludo(text);
+  // `first_seen` de ESTE mensaje: lo devolvió el insert del candado de idempotencia (handler); si no vino, se lee una vez.
+  const miFirstSeen = async (): Promise<string | null> => {
+    if (firstSeen) return firstSeen;
+    const { data: yo } = await supabase.from("wa_inbound_seen").select("first_seen").eq("wamid", msgId).maybeSingle();
+    firstSeen = yo?.first_seen ?? null;
+    return firstSeen;
+  };
+  // Pedido por WhatsApp en curso: se consulta una sola vez por mensaje (lo miran la ráfaga de abajo y el paso 4).
+  let enCursoP: Promise<boolean> | null = null;
+  const enCursoLazy = (): Promise<boolean> => (enCursoP ??= pedidoEnCurso(phone));
   if (soloSaludo && msgId) {
     await new Promise((r) => setTimeout(r, 5000));
-    const { data: yo } = await supabase.from("wa_inbound_seen").select("first_seen").eq("wamid", msgId).maybeSingle();
-    if (yo?.first_seen) {
+    const visto = await miFirstSeen();
+    if (visto) {
       const { count } = await supabase.from("wa_inbound_seen").select("wamid", { count: "exact", head: true })
-        .eq("phone", phone).gt("first_seen", yo.first_seen);
+        .eq("phone", phone).gt("first_seen", visto);
       // No se guarda en el historial: quedaría DESPUÉS de la consulta (el otro mensaje ya se guardó) y no aporta.
       if ((count ?? 0) > 0) return;
     }
@@ -1117,18 +1152,18 @@ async function handleMessage(
   //       (que ya lo ve). Se guarda acá porque si no, el último no lo vería.
   if (customer && !soloSaludo && msgId) {
     const RE_ITEMS = /(\b\d+\s*(cajas?|cj|bultos?|unidades|u)\b|\bdel\s+\d{3,5}[a-z]?\b|\bc[oó]d(igo)?\.?\s*\d{3,5})/i;
-    const { data: yo } = await supabase.from("wa_inbound_seen").select("first_seen").eq("wamid", msgId).maybeSingle();
+    const visto = await miFirstSeen();
     let rafaga = false;
-    if (yo?.first_seen) {
+    if (visto) {
       const { count: previos } = await supabase.from("wa_inbound_seen").select("wamid", { count: "exact", head: true })
-        .eq("phone", phone).neq("wamid", msgId).lt("first_seen", yo.first_seen)
-        .gt("first_seen", new Date(new Date(yo.first_seen).getTime() - 6000).toISOString());
+        .eq("phone", phone).neq("wamid", msgId).lt("first_seen", visto)
+        .gt("first_seen", new Date(new Date(visto).getTime() - 6000).toISOString());
       rafaga = (previos ?? 0) > 0;
     }
-    if (yo?.first_seen && (rafaga || RE_ITEMS.test(text) || await pedidoEnCurso(phone))) {
+    if (visto && (rafaga || RE_ITEMS.test(text) || await enCursoLazy())) {
       await new Promise((r) => setTimeout(r, 5000));
       const { count } = await supabase.from("wa_inbound_seen").select("wamid", { count: "exact", head: true })
-        .eq("phone", phone).gt("first_seen", yo.first_seen);
+        .eq("phone", phone).gt("first_seen", visto);
       if ((count ?? 0) > 0) {
         await saveMessage(phone, "user", text);
         return;
@@ -1175,7 +1210,7 @@ async function handleMessage(
     }
   }
   // Pedido por WhatsApp a medio armar: lo que conteste va al agente, no a una respuesta fija (pedidoEnCurso).
-  const enCurso = customer ? await pedidoEnCurso(phone) : false;
+  const enCurso = customer ? await enCursoLazy() : false;
   // Pablo, 01/10 (D008): quien compra en Loekemeyer Y en Chef elige de qué marca es cada consulta (_shared/marca.ts). Se le
   // pregunta salvo saludo, cortesía y consultas de plata (esas ya separan las dos empresas); con Chef contesta lo que Chef
   // sabe o una persona; con Loekemeyer sigue el flujo de siempre, con la respuesta etiquetada. Si algo falla acá, sigue el
@@ -1313,17 +1348,21 @@ async function handleMessage(
   const reply = await conSaludoSiCorresponde(marcaLk ? conEtiqueta("lk", result.reply) : result.reply, phone, customer.business_name);
   await enviarTexto(cfg, phone, reply);
 
-  // 9. Guardar respuesta en historial
-  await saveMessage(phone, "assistant", reply);
-
+  // 9. Guardar respuesta en historial.
   // 10. Puntaje de la IA (Pablo, 29/09): la respuesta queda para que Haiku la evalúe en segundo plano (cron
-  // lk_ia-puntaje, sql/101). No frena al cliente; si el insert falla, sólo se pierde el puntaje.
-  try {
-    await supabase.from("wa_ia_puntajes").insert({
+  //     lk_ia-puntaje, sql/101). No frena al cliente; si el insert falla, sólo se pierde el puntaje.
+  // Son dos inserts independientes: van juntos (auditoría 02/10; antes, en fila). PostgrestBuilder no rechaza ante un
+  // error de la base (lo devuelve en `error`), así que se mira el resultado además de atajar la excepción de red.
+  await Promise.all([
+    saveMessage(phone, "assistant", reply),
+    supabase.from("wa_ia_puntajes").insert({
       phone, customer_id: customer.customer_id, pregunta: text.slice(0, 2000), respuesta: reply.slice(0, 4000),
       herramientas: result.herramientas ?? [], modelo_respuesta: result.modelo ?? null,
-    });
-  } catch (e) { console.error("[puntaje] no se pudo encolar:", e); }
+    }).then(
+      ({ error }) => { if (error) console.error("[puntaje] no se pudo encolar:", error.message); },
+      (e) => console.error("[puntaje] no se pudo encolar:", e),
+    ),
+  ]);
 }
 
 // ─── Edge Function entry point ──────────────────────────────────────
@@ -1403,6 +1442,9 @@ Deno.serve(async (req: Request) => {
         return new Response("OK", { status: 200 });
       }
 
+      // Un solo viaje trae toda app_settings a memoria (15 s): loadConfig y los candados de abajo ya no van a la base
+      // por cada clave (auditoría 02/10).
+      await primeSettings();
       const cfg = await loadConfig();
 
       // Adjuntos (imagen, documento, audio, video, sticker): se guardan y se pasan a una
@@ -1410,9 +1452,12 @@ Deno.serve(async (req: Request) => {
       const TIPOS_ADJUNTO = ["image", "document", "audio", "video", "sticker"];
       if (TIPOS_ADJUNTO.includes(msg.type)) {
         // Candado de idempotencia (sql/057) también para adjuntos: leer un pedido por archivo con la IA puede tardar y
-        // Meta reintenta; sin esto la tarea salía dos veces (29/09).
+        // Meta reintenta; sin esto la tarea salía dos veces (29/09). Devuelve `first_seen` para el audio transcripto.
+        let firstSeenAdj: string | null = null;
         if (msg.msgId) {
-          const { error: dupA } = await supabase.from("wa_inbound_seen").insert({ wamid: msg.msgId, phone: msg.from });
+          const { data: vistoA, error: dupA } = await supabase.from("wa_inbound_seen")
+            .insert({ wamid: msg.msgId, phone: msg.from }).select("first_seen").maybeSingle();
+          firstSeenAdj = vistoA?.first_seen ?? null;
           if (dupA?.code === "23505") { console.log(`[idem] adjunto repetido, se ignora: ${msg.msgId}`); return new Response("OK", { status: 200 }); }
         }
         if (msg.type === "audio") {
@@ -1426,7 +1471,7 @@ Deno.serve(async (req: Request) => {
                 await saveMessage(msg.from, "assistant", eco);
               } catch (e) { console.error("[audio] eco falló:", e instanceof Error ? e.message : e); }
             }
-            await handleMessage(msg.from, a.texto, msg.msgId, msg.name, cfg);
+            await handleMessage(msg.from, a.texto, msg.msgId, msg.name, cfg, firstSeenAdj);
             return new Response("OK", { status: 200 });
           }
           await handleAdjunto(msg, cfg, a.intentado ? MSG_AUDIO_NO_ENTENDIDO : undefined);
@@ -1445,10 +1490,15 @@ Deno.serve(async (req: Request) => {
       // Meta REINTENTA el webhook si no ve el 200 a tiempo. Sin esto el mismo mensaje se
       // contesta dos veces y, si era la confirmación de un pedido, el pedido se duplica.
       // El insert es atómico: si la fila ya estaba, es un reintento y se corta acá.
+      // Devuelve `first_seen`: handleMessage lo usa para el saludo suelto y la ráfaga de pedido (antes lo volvía a leer).
+      let firstSeen: string | null = null;
       if (msg.msgId) {
-        const { error: dup } = await supabase
+        const { data: visto, error: dup } = await supabase
           .from("wa_inbound_seen")
-          .insert({ wamid: msg.msgId, phone: msg.from });
+          .insert({ wamid: msg.msgId, phone: msg.from })
+          .select("first_seen")
+          .maybeSingle();
+        firstSeen = visto?.first_seen ?? null;
         if (dup) {
           // 23505 = unique_violation → ya lo procesamos. Cualquier otro error NO frena el
           // mensaje: preferimos contestar dos veces antes que no contestar nunca.
@@ -1461,7 +1511,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Procesar (Meta tolera hasta 20s de respuesta)
-      await handleMessage(msg.from, msg.text, msg.msgId, msg.name, cfg);
+      await handleMessage(msg.from, msg.text, msg.msgId, msg.name, cfg, firstSeen);
     } catch (e) {
       console.error("Error procesando mensaje:", e);
     }

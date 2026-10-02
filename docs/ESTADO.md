@@ -2,7 +2,18 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-10-01.
+> Última actualización: 2026-10-02.
+>
+> **02/10 (Pablo): auditoría general + performance.** Informe completo con todos los hallazgos (webhook, edge functions, SQL,
+> dashboard, advisors de Supabase) y lo que queda pendiente de decidir: `docs/AUDITORIA-2026-10-02.md`. Lo aplicado:
+> (a) `app_settings` se cachea 15 s **sólo en el webhook** (`habilitarCacheSettings` + `primeSettings`, `_shared/supabase.ts`;
+> opt-in: Simulador, chat de prueba y dashboard siguen leyendo en vivo; la llave `wa_envio_automatico` no pasa por la caché);
+> (b) los candados del webhook (whitelist, blacklist, modo, cliente) y el arranque del agente (historial, prompt, herramientas,
+> cadena de modelos) se leen en paralelo; el `first_seen` del candado de idempotencia se reutiliza; `wa_pedidos_cfg` se memoiza;
+> (c) sql/122: índices por teléfono en `wa_inbound_seen` y `wa_alertas_humano`, `(context, ref_id)` en `wa_outbox`, índice de
+> expresión que `wa_identify_customer` sí usa en `wa_clientes_telefono` (el de sql/010 tenía 0 usos), `(model, created_at)` en
+> `bot_token_usage`; (d) el dashboard deja de pollear con la pestaña oculta (v0.26.11). Medido antes: webhook 1.246 ms promedio
+> / 4.459 ms p95 con ~30-35 viajes a la base en fila antes del primer token del modelo.
 >
 > **01/10 (Pablo): audios de WhatsApp con Groq Whisper** (`_shared/transcribir.ts`, `textoDeAudio` en el webhook). Claude no recibe audio
 > (la API sólo acepta texto, imagen y PDF), así que el audio se baja de Meta, se transcribe con Whisper de Groq (clave `groq` de

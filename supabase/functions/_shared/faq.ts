@@ -8,7 +8,7 @@
 // El agente conversacional (`runConversation`) queda como último recurso:
 // solo se invoca si acá no hay match útil.
 
-import { getGestionClient, getIsisClient, supabase } from "./supabase.ts";
+import { getGestionClient, getIsisClient, getSetting, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
@@ -399,9 +399,8 @@ const PAGO_CBU_FALLBACK = "1910027855002702387450";
 // deno-lint-ignore no-explicit-any
 async function lookupPaymentData(faq: any, customer: Customer): Promise<string | null> {
   let alias = PAGO_ALIAS_FALLBACK, cbu = PAGO_CBU_FALLBACK;
-  const { data } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
   try {
-    const cfg = JSON.parse(String(data?.value ?? "{}"));
+    const cfg = JSON.parse((await getSetting("wa_descuentos_config")) ?? "{}");
     if (cfg?.pago?.alias) alias = String(cfg.pago.alias).trim() || alias;
     if (cfg?.pago?.cbu) cbu = String(cfg.pago.cbu).trim() || cbu;
   } catch { /* usa fallbacks */ }
@@ -694,18 +693,21 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
   // le contestaba "Por volumen: 0%" a TODOS — 561 de los 1.273 clientes tienen
   // descuento no-cero. Y `dto_vol` es una FRACCIÓN (0.25 = 25%, es el mismo
   // valor que el carrito usa como `(1 - dto_vol)`), así que va × 100.
-  const { data: row } = await supabase
-    .from("customers").select("dto_vol").eq("id", customer.id).maybeSingle();
+  // Auditoría 02/10: las cuatro lecturas de abajo no dependen entre sí (dos de ellas van a Gestión, que es lo lento) y
+  // antes iban en fila: ahora salen juntas.
+  const [{ data: row }, pagoBlock, facturasBlock, chefBlock] = await Promise.all([
+    supabase.from("customers").select("dto_vol").eq("id", customer.id).maybeSingle(),
+    // Descuentos por pago: SALEN DE LA TABLA del Panel (app_settings.wa_descuentos_config),
+    // no hardcodeados. Así lo que el vendedor edita en "Descuentos por pago" es lo que el bot
+    // le responde al cliente — la misma fuente que usan las plantillas de factura.
+    pagoDiscountBlock(),
+    // Pablo, 30/09: si ya tiene facturas abiertas, fechas reales ("pagando hasta el mié 14/10 tenés 25%").
+    descuentosFacturasBlock(customer),
+    // Pablo, 01/10 (fase 3): si además tiene facturas de Chef abiertas (cruce por CUIT), van aparte con el descuento de cada
+    // factura de Chef. La tabla de descuentos de arriba es la de Loekemeyer.
+    ctxPagosDeCliente(customer).then((c) => bloqueFacturasChef(c.cuit)).catch(() => null),
+  ]);
   const volumeDiscount = Math.round(Number(row?.dto_vol ?? 0) * 1000) / 10;
-  // Descuentos por pago: SALEN DE LA TABLA del Panel (app_settings.wa_descuentos_config),
-  // no hardcodeados. Así lo que el vendedor edita en "Descuentos por pago" es lo que el bot
-  // le responde al cliente — la misma fuente que usan las plantillas de factura.
-  const pagoBlock = await pagoDiscountBlock();
-  // Pablo, 30/09: si ya tiene facturas abiertas, fechas reales ("pagando hasta el mié 14/10 tenés 25%").
-  const facturasBlock = await descuentosFacturasBlock(customer);
-  // Pablo, 01/10 (fase 3): si además tiene facturas de Chef abiertas (cruce por CUIT), van aparte con el descuento de cada
-  // factura de Chef. La tabla de descuentos de arriba es la de Loekemeyer.
-  const chefBlock = await bloqueFacturasChef((await ctxPagosDeCliente(customer)).cuit).catch(() => null);
   const extraChef = chefBlock ? `\n\n${chefBlock}` : "";
   // Pablo, 30/09 (4.3): "En las últimas facturas no veo el descuento" recibía toda la tabla y todas las facturas abiertas
   // ("muy larga"). Si habla de facturas: sólo la última, por qué no ve el descuento en ella, y el resto si lo pide.
@@ -749,9 +751,8 @@ type GrupoDeuda = { fecha: string; condicion: string; saldo: number; n: number }
 
 // Helpers compartidos por la FAQ de descuentos y el reenvío de factura (misma cuenta de fechas y montos).
 async function contextoDescuentos() {
-  const { data: cfgRow } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
   // deno-lint-ignore no-explicit-any
-  const cfg: any = JSON.parse(String(cfgRow?.value ?? "{}"));
+  const cfg: any = JSON.parse((await getSetting("wa_descuentos_config")) ?? "{}");
   const pesos = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
   const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
   const conDia = (iso: string) => { const d = new Date(iso + "T12:00:00Z"); return `${DIAS[d.getUTCDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`; };
@@ -1111,9 +1112,8 @@ export async function lookupFacturaReenvio(ctx: CtxPagos, message: string): Prom
 // Fuente única compartida con las plantillas de factura (lk_factura-check). Editable en el Panel.
 async function pagoDiscountBlock(): Promise<string> {
   try {
-    const { data } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
     // deno-lint-ignore no-explicit-any
-    const cfg: any = JSON.parse(String(data?.value ?? "{}"));
+    const cfg: any = JSON.parse((await getSetting("wa_descuentos_config")) ?? "{}");
     const pct = (d: unknown) => Math.round((Number(d) || 0) * 100);
     const lines: string[] = [];
     if (cfg?.contado) lines.push(`  • Contado (hasta ${Number(cfg.contado.dias_limite) || 0} días): ${pct(cfg.contado.dto)}%`);

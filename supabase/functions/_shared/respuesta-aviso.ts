@@ -12,7 +12,7 @@
 //   4. Cualquier otra cosa                   → null: sigue el flujo normal (FAQ / agente), que ya ve
 //                                              el aviso en el historial con el texto real.
 
-import { supabase } from "./supabase.ts";
+import { getSetting, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
@@ -336,21 +336,21 @@ async function responderRecordatorio(
     let fechaFac = `${hoyAR.slice(0, 4)}-${fac[2]}-${fac[1]}`;
     if (fechaFac > hoyAR) fechaFac = `${Number(hoyAR.slice(0, 4)) - 1}-${fac[2]}-${fac[1]}`;
     // Escalones del Panel (wa_descuentos_config), igual que la factura y la FAQ de descuentos.
-    const { data: cfgRow } = await supabase.from("app_settings").select("value").eq("key", "wa_descuentos_config").maybeSingle();
     // deno-lint-ignore no-explicit-any
     let cfg: any = {};
-    try { cfg = JSON.parse(String(cfgRow?.value ?? "{}")); } catch { /* sin config: sin escalones */ }
+    try { cfg = JSON.parse((await getSetting("wa_descuentos_config")) ?? "{}"); } catch { /* sin config: sin escalones */ }
     const ultimoNum = (s: unknown) => Math.max(0, ...(String(s ?? "").match(/\d+/g) ?? []).map(Number));
     const esc: Array<{ dias: number; dto: number }> = [];
     if (cfg?.contado) esc.push({ dias: Number(cfg.contado.dias_limite) || 14, dto: Number(cfg.contado.dto) || 0 });
     for (const r of (cfg?.credito ?? [])) if (ultimoNum(r?.label)) esc.push({ dias: ultimoNum(r.label), dto: Number(r.dto) || 0 });
     esc.sort((a, b) => a.dias - b.dias);
-    const tramos: Array<{ hasta: string; dto: number }> = [];
-    for (const e of esc) {
+    // Un escalón no depende del otro: los hábiles se piden todos juntos (antes, uno por uno).
+    const tramos: Array<{ hasta: string; dto: number }> = await Promise.all(esc.map(async (e) => {
       const d = new Date(fechaFac + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + e.dias);
-      const { data } = await supabase.rpc("wa_proximo_habil", { p: d.toISOString().slice(0, 10) });
-      tramos.push({ hasta: typeof data === "string" ? data.slice(0, 10) : d.toISOString().slice(0, 10), dto: e.dto });
-    }
+      const iso = d.toISOString().slice(0, 10);
+      const { data } = await supabase.rpc("wa_proximo_habil", { p: iso });
+      return { hasta: typeof data === "string" ? data.slice(0, 10) : iso, dto: e.dto };
+    }));
     const pedida = fechaPedida(t);
     if (pedida && pedida >= hoyAR) {
       const tramo = tramos.find((x) => x.hasta >= pedida);
