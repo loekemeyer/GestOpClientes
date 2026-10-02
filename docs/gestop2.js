@@ -474,6 +474,13 @@ async function cmAccion(accion) {
   } catch (e) { toast("No se pudo: " + e.message); }
 }
 
+// Ficha plegable (Luis, 02/10): se pliega a una tira para darle ancho a la charla y queda así en las próximas visitas.
+function cmPlegarFicha() {
+  const plegada = document.getElementById("cmRoot").classList.toggle("ficha-plegada");
+  try { localStorage.setItem("gestop_ficha_plegada", plegada ? "1" : "0"); } catch { /* sin storage */ }
+}
+try { if (localStorage.getItem("gestop_ficha_plegada") === "1") document.getElementById("cmRoot")?.classList.add("ficha-plegada"); } catch { /* sin storage */ }
+
 async function cmCargarFicha() {
   const f = document.getElementById("cmFicha");
   f.innerHTML = `<section><h4>Ficha del cliente</h4><div class="cm-vacio" style="padding:0">Cargando…</div></section>`;

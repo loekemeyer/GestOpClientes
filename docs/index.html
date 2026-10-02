@@ -381,7 +381,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.25.17">
+  <link rel="stylesheet" href="gestop2.css?v=0.26.13">
 </head>
 <body>
 
@@ -1371,7 +1371,11 @@
           <div class="cm-lista" id="cmLista"><div class="cm-vacio">Cargando…</div></div>
         </section>
         <section class="cm-chat" id="cmChat"><div class="cm-vacio">Elegí una conversación de la bandeja.</div></section>
-        <aside class="cm-ficha" id="cmFicha"><section><h4>Ficha del cliente</h4><div style="color: var(--g-muted)">Elegí una conversación.</div></section></aside>
+        <!-- Ficha plegable (Luis, 02/10): el botón queda fuera de #cmFicha porque cmCargarFicha() reescribe su contenido. -->
+        <aside class="cm-ficha">
+          <button class="cm-ficha-plegar" onclick="cmPlegarFicha()" title="Plegar o desplegar la ficha del cliente"><span class="fl">›</span><span class="tx">Ficha del cliente</span></button>
+          <div id="cmFicha"><section><h4>Ficha del cliente</h4><div style="color: var(--g-muted)">Elegí una conversación.</div></section></div>
+        </aside>
       </div>
     </div>
     <!-- Page: Centro de mensajes › Salientes (rediseño etapa 4, gestop2.js) -->
@@ -1667,8 +1671,11 @@ function abrirPrimeraEspera(ev) {
 function pintarEsperaBanner(abiertas) {
   const el = document.getElementById("esperaBanner");
   if (!el) return;
-  if (!abiertas.length) { el.style.display = "none"; return; }
+  // Barra lateral escondida (Luis, 02/10): la tira que queda a la vista se pinta si hay gente esperando.
+  const sb = el.closest(".sb2");
   const urg = abiertas.filter((a) => a.urgente).length;
+  if (sb) { sb.classList.toggle("sb-espera", abiertas.length > 0); sb.classList.toggle("sb-urgente", urg > 0); }
+  if (!abiertas.length) { el.style.display = "none"; return; }
   _esperaPrimera = (abiertas.find((a) => a.phone) || {}).phone || null;
   const chips = abiertas.slice(0, 4).map((a) => {
     const quien = a.cliente || (a.phone ? "…" + String(a.phone).slice(-4) : "sin identificar");
@@ -4698,7 +4705,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.12</div>
-<script src="gestop2.js?v=0.26.11"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.13</div>
+<script src="gestop2.js?v=0.26.13"></script>
 </body>
 </html>

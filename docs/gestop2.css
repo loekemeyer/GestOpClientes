@@ -57,6 +57,23 @@ button, select, input, textarea { font-family: inherit; }
 .sb2 .user-info { padding: 12px 16px; border-top: 1px solid #38383b; color: #aba497; font-size: 12px; }
 .sb2 .user-info b { color: #f1ead8; display: block; font-size: 13px; }
 .sb2 .user-info a { color: #aba497 !important; }
+/* Barra que se esconde sola (Luis, 02/10): en la computadora queda a la vista una tira de 12 px y la barra sale al pasar
+   el mouse, por encima del contenido (no lo empuja). Abre a los 0,1 s y cierra a los 0,3 s, así un paso rápido del mouse por
+   el borde no la dispara ni la cierra de golpe. Con el teclado (Tab) también sale: :focus-visible, no :focus, porque un clic
+   deja el foco en el botón y la barra quedaría abierta tapando la bandeja. La tira se pinta si hay gente esperando
+   (sb-espera / sb-urgente, de pintarEsperaBanner), porque el aviso de espera queda adentro de la barra escondida.
+   Debajo de 1100 px la barra ya no se muestra (se navega con el selector del encabezado). */
+@media (min-width: 1101px) {
+  .app .sidebar.sb2 { --riel: 12px; position: fixed; top: 0; bottom: 0; left: 0; z-index: 1400;
+    transform: translateX(calc(-100% + var(--riel))); transition: transform .18s ease .3s, box-shadow .18s ease .3s; }
+  .app .sidebar.sb2:hover, .app .sidebar.sb2:has(:focus-visible) { transform: none; box-shadow: 10px 0 40px rgba(0,0,0,.35); transition-delay: .1s; }
+  .app .sidebar.sb2::after { content: "›"; position: absolute; top: 0; right: 0; bottom: 0; width: var(--riel); display: flex; align-items: center;
+    justify-content: center; background: #212122; color: #aba497; font-size: 13px; font-weight: 700; pointer-events: none; transition: opacity .15s ease .3s; }
+  .app .sidebar.sb2.sb-espera::after { background: #8a5a00; color: #f7efdc; }
+  .app .sidebar.sb2.sb-urgente::after { background: #9b1c22; color: #f7efdc; }
+  .app .sidebar.sb2:hover::after, .app .sidebar.sb2:has(:focus-visible)::after { opacity: 0; transition-delay: .1s; }
+  .app .main.main2 { margin-left: 12px; }
+}
 
 /* ── Columna principal: llave + header + páginas ─────────────────────── */
 .app .main.main2 { flex-direction: column; min-width: 0; background: var(--g-bg); }
@@ -161,6 +178,26 @@ button, select, input, textarea { font-family: inherit; }
 .cm-ficha .it { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--line2); }
 .cm-ficha .it:last-child { border-bottom: 0; }
 .cm-ficha-cerrar { display: none; }
+/* Ficha plegable (Luis, 02/10): en la computadora (≥ 1320 px, donde la ficha es columna) se pliega a una tira de 34 px
+   para darle ancho a la charla, y se recuerda (gestop_ficha_plegada). Debajo de 1320 px ya es un panel que se abre y
+   cierra con "Ficha del cliente" / "Cerrar", así que el botón no se muestra. */
+.cm-ficha { position: relative; }
+.cm-ficha-plegar { display: none; }
+@media (min-width: 1320px) {
+  .cm-ficha { transition: width .15s; }
+  .cm-ficha-plegar { display: flex; position: absolute; top: 7px; right: 8px; z-index: 1; width: 26px; height: 26px; align-items: center; justify-content: center;
+    gap: 10px; padding: 0; background: var(--surface2); border: 1px solid var(--line); color: var(--ink); border-radius: 2px; cursor: pointer; font-weight: 900; font-size: 15px; }
+  .cm-ficha-plegar:hover { border-color: var(--ink); }
+  .cm-ficha-plegar .tx { display: none; }
+  .cm.ficha-plegada .cm-ficha { width: 34px; overflow: hidden; }
+  .cm.ficha-plegada #cmFicha { display: none; }
+  .cm.ficha-plegada .cm-ficha-plegar { position: static; width: 100%; height: 100%; flex-direction: column; justify-content: flex-start; padding-top: 10px;
+    border: 0; background: transparent; }
+  .cm.ficha-plegada .cm-ficha-plegar:hover { background: var(--surface2); }
+  .cm.ficha-plegada .cm-ficha-plegar .fl { transform: rotate(180deg); }
+  .cm.ficha-plegada .cm-ficha-plegar .tx { display: inline; writing-mode: vertical-rl; font-size: 11px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--g-muted); }
+}
 
 /* Modal y toast */
 .g-modal-fondo { position: fixed; inset: 0; background: rgba(15,15,16,.55); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 16px; }
