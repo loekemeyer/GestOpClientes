@@ -14,8 +14,10 @@
 > expresión que `wa_identify_customer` sí usa en `wa_clientes_telefono` (el de sql/010 tenía 0 usos), `(model, created_at)` en
 > `bot_token_usage`; (d) el dashboard deja de pollear con la pestaña oculta (v0.26.11); (e) dashboard v0.26.12: la respuesta
 > del chat de prueba se escapa (XSS), `esc()` escapa comillas y los 4 teléfonos reales de `KNOWN_PHONES` salieron del HTML (el
-> chat toma el de la whitelist). Medido antes: webhook 1.246 ms promedio / 4.459 ms p95 con ~30-35 viajes a la base en fila
-> antes del primer token del modelo.
+> chat toma el de la whitelist); (f) **audios probados contra Groq real**: `wa_audio_activo` = 1 desde hoy, 1 transcripción OK
+> registrada en `bot_token_usage` (02/10 14:50, motivo `audio_transcripcion`, 0 `audio_fallo`), Pablo confirma que el bot los
+> recibe y los entiende. Zero Data Retention en la consola de Groq: sin confirmar. Medido antes: webhook 1.246 ms promedio /
+> 4.459 ms p95 con ~30-35 viajes a la base en fila antes del primer token del modelo.
 >
 > **01/10 (Pablo): audios de WhatsApp con Groq Whisper** (`_shared/transcribir.ts`, `textoDeAudio` en el webhook). Claude no recibe audio
 > (la API sólo acepta texto, imagen y PDF), así que el audio se baja de Meta, se transcribe con Whisper de Groq (clave `groq` de
@@ -26,7 +28,7 @@
 > `.webm`, `.flac` (el `.amr` no se lee). Si falla, está apagado o pasa el límite: "No pudimos entender tu audio, escribinos" + alerta
 > `adjunto_recibido` a una persona. Queda un renglón por audio en `bot_token_usage` (motivo `audio_transcripcion` o `audio_fallo:<causa>`,
 > costo 0). Antes de contestar manda el eco "🎤 Entendí: «…»" (`wa_audio_eco`, sin fila = prendido): el cliente y quien prueba ven qué escuchó
-> el bot, y la conversación queda marcada como audio. ⚠ No se probó contra Groq real (sin audios de prueba ni la llave prendida). Backend: la versión visible del dashboard no cambia.
+> el bot, y la conversación queda marcada como audio. ~~⚠ No se probó contra Groq real~~ → probado el 02/10, funciona (ver nota del 02/10, punto f). Backend: la versión visible del dashboard no cambia.
 >
 > **01/10 (Pablo): comprobante de pago y consulta de pago → datos de Cobranzas.** Al llegar un comprobante (imagen/PDF que habla de
 > pago) el webhook contesta con el texto de la plantilla de la marca, con el dato de la ficha Empresas (`empresas.<lk|chef>.cobranzas`:
