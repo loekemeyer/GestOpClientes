@@ -38,9 +38,12 @@ function canon(raw: string): string { return String(raw || "").replace(/\D/g, ""
 const DAY = 24 * 3600 * 1000;
 
 const META_API = "https://graph.facebook.com/v21.0";
-// Usa las credenciales del bot (mismas que el webhook) con fallback a las genéricas.
+// Usa las credenciales del bot, en el MISMO orden que el webhook (loadConfig): primero el secret
+// `WHATSAPP_ACCESS_TOKEN`, la única fuente del token desde el 10/09. Hasta el 02/10 esta función
+// leía primero `LK_WA_TOKEN`, el token viejo: el webhook contestaba y el envío manual del panel
+// volvía con error de autorización de Meta (Luis, 02/10). Es la única función que lo tenía al revés.
 async function metaToken(): Promise<string> {
-  return Deno.env.get("LK_WA_TOKEN") ?? Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? Deno.env.get("WA_TOKEN") ?? (await getSetting("wa_token")) ?? "";
+  return Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? Deno.env.get("LK_WA_TOKEN") ?? Deno.env.get("WA_TOKEN") ?? (await getSetting("wa_token")) ?? "";
 }
 async function waPhoneId(): Promise<string> {
   return Deno.env.get("LK_WA_PHONE_ID") ?? Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? (await getSetting("wa_phone_number_id")) ?? "";
@@ -416,7 +419,11 @@ serve(async (req) => {
           body: JSON.stringify({ messaging_product: "whatsapp", to: phone, type: "text", text: { body: texto.slice(0, 4000) } }),
         });
         const d = await res.json();
-        if (!res.ok) sendErr = d?.error?.message || `HTTP ${res.status}`;
+        if (!res.ok) {
+          sendErr = d?.error?.message || `HTTP ${res.status}`;
+          // Sin esto el motivo de Meta sólo lo veía quien apretó "Enviar": en los logs quedaba un 502 pelado.
+          console.error("lk_conversaciones send: Meta rechazó", res.status, JSON.stringify(d?.error ?? d));
+        }
         else wamid = d?.messages?.[0]?.id ?? null;
       } catch (e) { sendErr = String(e); }
       if (sendErr) return json({ error: "envio: " + sendErr }, 502);
