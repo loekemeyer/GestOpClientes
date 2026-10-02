@@ -965,14 +965,14 @@ async function handleMessage(
   //    respondemos, no guardamos historial. Log en wa_alertas_humano
   //    para saber qué números intentaron.
   //
-  // Auditoría 02/10: las cinco lecturas de los pasos 0, 0b, 2 y 3 (llave de whitelist, whitelist, blacklist, modo de la
-  // conversación y cliente) son sólo lecturas y no dependen entre sí: se piden juntas y se evalúan en el MISMO orden de
-  // siempre. Antes eran cinco viajes a la base en fila, en cada mensaje.
-  const [raw, enWhitelist, bl, modo, customer] = await Promise.all([
+  // Auditoría 02/10: las cuatro lecturas de los pasos 0, 0b y 3 (llave de whitelist, whitelist, blacklist y cliente) son
+  // sólo lecturas y no dependen entre sí: se piden juntas y se evalúan en el MISMO orden de siempre. Antes eran cuatro
+  // viajes a la base en fila, en cada mensaje. El modo de la conversación (paso 2) queda AFUERA a propósito:
+  // bot_conv_get_modo tiene efecto (vence el modo humano con un UPDATE) y no debe correr para un número que se descarta.
+  const [raw, enWhitelist, bl, customer] = await Promise.all([
     getSetting("wa_bot_solo_whitelist"),
     estaEnWhitelist(phone),
     blacklistRow(phone),
-    getConversationMode(phone),
     getCustomerContext(phone),
   ]);
   const soloWhitelist = Number(raw ?? "1") === 1;
@@ -1052,7 +1052,7 @@ async function handleMessage(
   //    conversación?") o darle un botón "Cerrar chat" en el Panel; al cerrar,
   //    modo vuelve a "bot" y el bot retoma si el cliente reinicia contacto.
   //    Requiere: cron/edge de barrido (idle sweep) + acción de UI. NO conectado.
-  //    (`modo` ya se leyó arriba, junto con los otros candados.)
+  const modo = await getConversationMode(phone);
   if (modo === "humano") {
     await saveMessage(phone, "user", text);
     return;

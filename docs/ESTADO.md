@@ -8,7 +8,7 @@
 > dashboard, advisors de Supabase) y lo que queda pendiente de decidir: `docs/AUDITORIA-2026-10-02.md`. Lo aplicado:
 > (a) `app_settings` se cachea 15 s **sólo en el webhook** (`habilitarCacheSettings` + `primeSettings`, `_shared/supabase.ts`;
 > opt-in: Simulador, chat de prueba y dashboard siguen leyendo en vivo; la llave `wa_envio_automatico` no pasa por la caché);
-> (b) los candados del webhook (whitelist, blacklist, modo, cliente) y el arranque del agente (historial, prompt, herramientas,
+> (b) los candados del webhook (whitelist, blacklist, cliente; el modo queda en fila porque tiene efecto) y el arranque del agente (historial, prompt, herramientas,
 > cadena de modelos) se leen en paralelo; el `first_seen` del candado de idempotencia se reutiliza; `wa_pedidos_cfg` se memoiza;
 > (c) sql/122: índices por teléfono en `wa_inbound_seen` y `wa_alertas_humano`, `(context, ref_id)` en `wa_outbox`, índice de
 > expresión que `wa_identify_customer` sí usa en `wa_clientes_telefono` (el de sql/010 tenía 0 usos), `(model, created_at)` en

@@ -43,9 +43,11 @@ export async function configPedidosWa(): Promise<any> {
   const ttl = cacheSettingsTtl();
   if (ttl && cfgPedidosMemo && cfgPedidosMemo.hasta > Date.now()) return cfgPedidosMemo.cfg;
   const { data } = await supabase.rpc("wa_pedidos_cfg");
-  const cfg = data ?? { activo: false, modo: "precarga" };
-  if (ttl) cfgPedidosMemo = { hasta: Date.now() + ttl, cfg };
-  return cfg;
+  // Sólo se memoiza una lectura real. Si el RPC falló (data null) se devuelve el default de siempre pero NO se guarda:
+  // si no, una falla transitoria dejaba 15 s al bot creyendo que los pedidos por WhatsApp están apagados (revisión 02/10).
+  if (data == null) return { activo: false, modo: "precarga" };
+  if (ttl) cfgPedidosMemo = { hasta: Date.now() + ttl, cfg: data };
+  return data;
 }
 /**
  * Pedido por WhatsApp a medio armar (Pablo, 30/09, Simulador): si lo último que dijo el bot en los últimos 60 min es parte

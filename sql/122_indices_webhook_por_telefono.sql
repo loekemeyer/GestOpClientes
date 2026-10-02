@@ -17,8 +17,9 @@
 --      pero wa_identify_customer compara right(wa_normalize_phone(telefono), 10) desde sql/073: 0 usos del índice
 --      en todo su historial (pg_stat_user_indexes). Se reemplaza por la expresión que la función usa de verdad.
 --      wa_identify_customer corre en CADA mensaje entrante.
---   5. bot_token_usage (654 filas). `bot_token_usage_created_at` e `idx_bot_token_usage_created` son el mismo índice
---      (created_at desc): se saca el menos usado (112 vs 854 scans). _shared/llm.ts consulta `model + created_at`
+--   5. bot_token_usage (654 filas; tabla de PaginaLK, ninguna migración de este repo la crea ni creó ese primer índice).
+--      `bot_token_usage_created_at` e `idx_bot_token_usage_created` (sql/107) son el mismo índice (created_at desc): se
+--      saca el menos usado (112 vs 854 scans); el `if exists` lo hace inocuo donde no esté. _shared/llm.ts consulta `model + created_at`
 --      tres veces antes de cada llamada a un modelo de la cadena (cuotas): se le da su índice.
 --
 -- Hoy son tablas chicas y el seq scan cuesta poco: los índices son para que el costo no crezca con el uso. Idempotente.

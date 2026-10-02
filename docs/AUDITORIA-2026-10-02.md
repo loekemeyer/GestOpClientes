@@ -58,16 +58,19 @@ previos** que `main`: cero errores nuevos. `deno lint` idéntico a `main` (7 avi
    dashboard siguen leyendo en vivo. La llave `wa_envio_automatico` no pasa por acá (la lee `wa_puede_enviar` en SQL
    desde wa-guard, sin caché): el principio "vasectomía" queda intacto.
 2. **Candados del webhook en paralelo** (`lk_whatsapp-webhook/index.ts`, `handleMessage`): llave de whitelist, whitelist,
-   blacklist, modo de la conversación y cliente se leen juntos (eran 5 viajes en fila) y se evalúan en el mismo orden.
-   `avisarDescartePorWhitelist` recibe el cliente ya identificado en vez de volver a buscarlo.
+   blacklist y cliente se leen juntos (eran 4 viajes en fila) y se evalúan en el mismo orden. El modo de la conversación
+   queda afuera a propósito: `bot_conv_get_modo` hace un UPDATE (vence el modo humano) y no debe correr para un número
+   descartado (lo marcó la revisión adversarial previa al merge). `avisarDescartePorWhitelist` recibe el cliente ya
+   identificado en vez de volver a buscarlo.
 3. **`first_seen` reutilizado**: el insert del candado de idempotencia (`wa_inbound_seen`) devuelve `first_seen` y
    `handleMessage` lo recibe; el saludo suelto y la ráfaga de pedido ya no lo vuelven a leer (1-2 viajes menos).
    `pedidoEnCurso` se consulta una sola vez por mensaje (antes, dos).
 4. **Arranque del agente en paralelo** (`_shared/bot-conversation.ts`, `runConversation`): historial, system prompt,
    herramientas y cadena de modelos juntos (eran ~9 viajes en fila). Dentro de `buildSystemPrompt`: documento rector,
    config de pedidos y mínimo del cliente en paralelo. `herramientasDelTurno`: config de pedidos y derivaciones en paralelo.
-5. **`wa_pedidos_cfg` memoizado** el mismo tiempo que la caché de settings (se leía hasta 6 veces por mensaje). Sin caché
-   prendida (Simulador) va a la base cada vez, como antes.
+5. **`wa_pedidos_cfg` memoizado** el mismo tiempo que la caché de settings (se leía hasta 6 veces por mensaje). Sólo se
+   memoiza una lectura real: si el RPC falla se devuelve el default sin guardarlo (la revisión adversarial encontró que la
+   primera versión memoizaba 15 s el default de falla). Sin caché prendida (Simulador) va a la base cada vez, como antes.
 6. **Lecturas de `wa_descuentos_config` y `wa_minimo_compra` por `getSetting`** en `faq.ts`, `respuesta-aviso.ts` y
    `minimo.ts` (eran selects directos que no aprovechaban la caché). En `lookupCustomerDiscount` las 4 lecturas (2 van a
    Gestión, lo lento) van juntas; en `responderRecordatorio` los días hábiles se piden todos juntos; `minimoCliente` lee
