@@ -89,8 +89,12 @@ jobs:
               FNS_TO_DEPLOY="$FNS_TO_DEPLOY $fn"
               continue
             fi
-            # Si cambió shared, solo redeploy si la función lo importa
-            if [ -n "$SHARED_CHANGED" ] && grep -rq "from \"../_shared" "supabase/functions/${fn}/"; then
+            # Si cambió shared, solo redeploy si la función lo importa. Cuenta también el import de
+            # efecto (`import "../_shared/wa-guard.ts";`, sin `from`): el 02/10 cinco funciones
+            # (asoc-timeout-cron, inbox-api, inbox-register, notify-order-created,
+            # notify-tracking-status) importaban wa-guard SÓLO así y un cambio en el corte de
+            # envíos a Meta no las habría redeployado.
+            if [ -n "$SHARED_CHANGED" ] && grep -rq "\"\.\./_shared/" "supabase/functions/${fn}/"; then
               FNS_TO_DEPLOY="$FNS_TO_DEPLOY $fn"
             fi
           done

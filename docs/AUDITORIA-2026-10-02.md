@@ -204,6 +204,11 @@ deploy con la misma consulta de `function_edge_logs` de la sección 1.
 7. **Cron `wa_outbox_flush` de sql/005** postea `{"action":"flush"}` al webhook, acción retirada el 10/09. El cron vivo
    (`jobid 21`) ya apunta a `lk_outbox-flush`, así que el de 005 es historia muerta en el repo, no un job roto. [Seguro: lista
    de `cron.job` del 02/10]
+8. **El CI no redeployaba los imports de efecto de `_shared`** (`.github/workflows/deploy-edge-functions.yml:93`): el grep
+   buscaba `from "../_shared`, y `asoc-timeout-cron`, `inbox-api`, `inbox-register`, `notify-order-created` y
+   `notify-tracking-status` importan `wa-guard.ts` SÓLO como `import "../_shared/wa-guard.ts";`. Un cambio en el corte
+   único de envíos a Meta no las habría redeployado: cinco salidas con el guard viejo. Visto en el deploy de hoy (14
+   funciones redeployadas, esas 5 no). **Corregido** en el mismo día: el grep ahora busca `"../_shared/`. [Seguro]
 
 ### 3.4 Datos y retención
 
