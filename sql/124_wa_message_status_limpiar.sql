@@ -13,8 +13,9 @@
 -- Misma forma que wa_inbound_seen_limpiar (sql/057). 04:20 UTC = 01:20 AR, cinco minutos después de la poda de
 -- wa_inbound_seen (sql/123). `cron.schedule(nombre, …)` hace upsert por nombre: idempotente.
 --
--- ESTADO (02/10/2026): la función está creada en producción (anon sin EXECUTE, verificado). El `cron.schedule` de abajo
--- se agenda con el "sí" de Pablo (regla BD del CLAUDE.md: toda escritura con su efecto a la vista). Hoy borraría 0 filas.
+-- ESTADO (02/10/2026): aplicada entera en producción. Función creada (anon sin EXECUTE) y cron agendado con el "sí" de
+-- Pablo: cron.job 76 'wa_message_status_limpiar', activo. La primera corrida (03/10 01:20 AR) borra 0 filas: la fila más
+-- vieja es del 02/09.
 
 create or replace function public.wa_message_status_limpiar(p_dias integer default 31)
 returns integer
