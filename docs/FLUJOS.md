@@ -14,7 +14,9 @@ es público). Tres caminos:
 
 ```
 CLIENTE: Hola
-BOT: Todavía no te tengo registrado como cliente. ¿Me pasás tu CUIT…?
+BOT: Todavía no te tengo registrado como cliente. 🤔
+     • Si ya sos cliente: pasame tu CUIT (con o sin guiones) y te vinculo este número.
+     • Si querés ser cliente: escribí registrarme y te tomo los datos (te pregunto de a uno).
 CLIENTE: 30-71234567-8
 BOT: Encontré la cuenta de *Comercial Ejemplo S.R.L*. 👍
      Por seguridad, un asesor tiene que confirmar que este número es de la empresa
@@ -22,6 +24,17 @@ BOT: Encontré la cuenta de *Comercial Ejemplo S.R.L*. 👍
 (admin aprueba en el dashboard)
 BOT: Hola Comercial Ejemplo S.R.L, te escribimos de Loekemeyer.
      Ya vinculamos este número a tu cuenta: podés consultar tus pedidos, descuentos y fechas de entrega.
+```
+
+**Quiere ser cliente (05/10, `_shared/alta.ts`):** arranca la toma de datos (primer paso: el CUIT) cuando escribe *"me gustaría / quisiera / quiero ser cliente"*, *registrame*, *soy nuevo*,
+*que me registren*, *abrir cuenta*… o cuando contesta **"sí" / "dale" / "sí, por favor"** a una oferta de registro del bot (el saludo *"Decime si querés que te registre"* o el *"Todavía no te tengo
+registrado"*). Un "sí" suelto sin esa oferta anterior no arranca nada, y *"dale, ya te lo paso"* tampoco (no es una afirmación pura). Si el CUIT del primer paso ya es de un cliente, el alta se
+corta y pasa a vinculación aprobada por una persona.
+
+```
+CLIENTE: Hola me gustaría ser cliente
+BOT: ¡Genial! Te tomo los datos para registrarte. 📋 Te voy a ir preguntando de a uno. Si querés cortar, escribí *cancelar*.
+     🔢 ¿Cuál es tu CUIT? (11 números, con o sin guiones)
 ```
 
 ## Flujo 1c: Cliente que sólo le compra a Chef (01/10, sql/115-116, `_shared/chef.ts`)

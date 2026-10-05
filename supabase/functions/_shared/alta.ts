@@ -123,13 +123,117 @@ export const MSG_ALTA_CANCELADA =
 //
 // Ahora son frases explícitas. `dale`/`sí` solos ya no alcanzan: tienen que venir pegados a
 // la intención ("dale, registrame"). Y si el mensaje trae un CUIT, `handleRegistration` ya
-// cortó antes de llegar acá.
+// cortó antes de llegar acá. (Nota 05/10: desde el 29/09 el alta SÍ tiene paso de CUIT, así que ese CUIT ya no se guardaría como razón
+// social; igual se mantiene la regla de frases explícitas, y el "sí" suelto sólo vale como respuesta a la oferta de registro: ver `iniciaAlta`.)
 export const RE_ALTA_START =
   // Pablo, 30/09: "queremos abrir cuenta" / "ser distribuidor" (visto en las consultas reales) pedían el CUIT antes de
   // arrancar el alta. Sólo se mira para números que todavía no son clientes, así que "cuenta corriente" de un cliente no cae acá.
   // Pablo, 30/09 (10.2 y 10.3): "tengo un comercio y quiero comprar por mayor" y "somos distribuidora, nos interesa
   // incorporar su línea" arrancan el alta igual que "quiero ser cliente".
-  /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo)|abrir (una )?cuenta|ser (distribuidor|distribuidora|revendedor|revendedora)(es|s)?|comprar (por|al) mayor|(tengo|tenemos) un (comercio|local|negocio|bazar)|somos (una |un )?(distribuidora|distribuidor|mayorista|comercio|bazar)|incorporar (su|sus|la|tu|tus) (l[ií]nea|productos|marca)|trabajar con (ustedes|su marca|tu marca))\b/i;
+  /\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|(darme|dar) de alta|registrame|registrarme|registrarte|quiero registrarme|quiero el registro|primera vez que (compro|les compro|escribo)|abrir (una )?cuenta|ser (distribuidor|distribuidora|revendedor|revendedora)(es|s)?|comprar (por|al) mayor|(tengo|tenemos) un (comercio|local|negocio|bazar)|somos (una |un )?(distribuidora|distribuidor|mayorista|comercio|bazar)|incorporar (su|sus|la|tu|tus) (l[ií]nea|productos|marca)|trabajar con (ustedes|su marca|tu marca)|(ser|hacerme|hacerse) (un |una )?clientes?|que (me|nos) (registren|den de alta|den el alta|abran (una )?cuenta)|(solicitar|pedir) (el |un |mi )?(alta|registro))\b/i;
+// Pablo, 05/10: "Hola me gustaría ser cliente" ganaba la respuesta fija del saludo ("decime si querés que te registre") y el
+// cliente tenía que contestar de nuevo: faltaban "ser cliente" a secas ("me gustaría / quisiera / me interesa ser cliente") y
+// "que me registren". Es seguro ampliar: si el CUIT que pide el primer paso ya es cliente, el alta se corta y pasa a vinculación.
+
+// Pablo, 05/10: el "sí" a la oferta de registro. El saludo de un no-cliente le ofrece registrarse ("Decime si querés que te
+// registre…") y el cliente contesta "Sí" / "Dale" / "Sí, por favor": ninguno de los tres arrancaba el alta, caía en "pasame tu CUIT".
+// Una afirmación suelta NO alcanza por sí sola (al "¿me pasás tu CUIT?" también se contesta "dale"): sólo vale si lo ÚLTIMO que
+// dijo el bot fue ofrecer el registro. Misma regla que el punto 11 de la auditoría: frases explícitas, no palabras sueltas.
+const RE_OFERTA_REGISTRO = /que te registre|te registro|registrarme|registrarte|te tomo los datos/i;
+const AFIRMA_SI = new Set(["si", "sii", "siii", "dale", "daale", "ok", "okey", "okay", "bueno", "claro", "perfecto", "obvio",
+  "quiero", "vamos", "adelante", "hagamoslo", "anotame"]);
+const AFIRMA_RELLENO = new Set(["de", "una", "por", "favor", "porfa", "me", "gustaria", "quisiera", "registrame", "registrarme", "genial"]);
+const RE_AFIRMA_EMOJI = /^(?:\s*[👍👌✅🙌🤝]\s*)+$/u;
+
+/** "Sí", "Dale", "Sí, por favor", "Bueno dale", "De una", "👍": una afirmación corta y nada más (hasta 5 palabras). */
+export function esAfirmacion(text: string): boolean {
+  if (RE_AFIRMA_EMOJI.test(text)) return true;
+  const palabras = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zñ\s]/g, " ").split(/\s+/).filter(Boolean);
+  if (!palabras.length || palabras.length > 5) return false;
+  if (!palabras.every((p) => AFIRMA_SI.has(p) || AFIRMA_RELLENO.has(p))) return false;
+  return palabras.some((p) => AFIRMA_SI.has(p)) || palabras.join(" ").includes("de una");
+}
+
+/** ¿Este mensaje de un no-cliente arranca el alta? Pide registrarse con palabras propias, o dice "sí" a la oferta del bot. */
+export function iniciaAlta(text: string, ultimoBot: string): boolean {
+  return RE_ALTA_START.test(text) || (RE_OFERTA_REGISTRO.test(ultimoBot) && esAfirmacion(text));
+}
+
+/** Último mensaje del bot a este teléfono ("" si lo último del historial no lo escribió el bot). Se lee ANTES de guardar el
+ *  mensaje que llegó, porque después lo último del historial es el del cliente. */
+export async function ultimoMensajeDelBot(phone: string): Promise<string> {
+  const { data } = await supabase.from("bot_historial_chat").select("rol, contenido").eq("telefono", phone)
+    .order("creado_en", { ascending: false }).limit(1);
+  const ult = data?.[0];
+  return ult && ult.rol === "assistant" ? String(ult.contenido ?? "") : "";
+}
+
+// Textos del no-cliente que todavía no arrancó el alta. Los usan el webhook, el Simulador y el Chat de prueba.
+export const MSG_CUIT_INVALIDO =
+  `Ese CUIT no parece válido 🤔\n\n` +
+  `Verificá que tenga *11 dígitos* y esté bien copiado (con o sin guiones), y probá de nuevo.\n\n` +
+  `Si no lo tenés a mano, escribinos a ventas@loekemeyer.com`;
+
+// Pablo, 05/10: antes mezclaba las dos cosas en una sola pregunta ("pasame tu CUIT… si todavía no sos cliente, decime registrarme")
+// y quien quería ser cliente no sabía qué contestar. Ahora son dos caminos, cada uno con su palabra. "sí" / "dale" también arrancan el alta.
+export const MSG_NO_CLIENTE =
+  `Todavía no te tengo registrado como cliente. 🤔\n\n` +
+  `• Si ya sos cliente: pasame tu *CUIT* (con o sin guiones) y te vinculo este número.\n` +
+  `• Si querés ser cliente: escribí *registrarme* y te tomo los datos (te pregunto de a uno).`;
+
+export interface RespuestaNoCliente { respuestas: string[]; via: string }
+
+/**
+ * El flujo de un no-cliente SIN efectos reales: lo que corren el Simulador (modo "número nuevo") y el Chat de prueba. Es el mismo
+ * orden que el webhook (alta en curso → alta pedida → respuesta fija → CUIT → alta → "no te tengo"), pero cuando el CUIT ya es de un
+ * cliente NO pide la vinculación (el webhook sí, con `tryRegister`). Quien lo llama prende `SIM.activo` para que el alta tampoco
+ * cree la alerta de Tareas. Antes el Chat de prueba tenía una copia vieja (otras preguntas, otro regex, sin el "sí"), así que
+ * probar ahí no mostraba lo que contesta el bot de verdad. `faq` lo pasa quien llama (cada uno arma su propio `via`).
+ */
+export async function atenderNoCliente(
+  phone: string,
+  text: string,
+  opts: { ultimoBot: string; faq: (t: string) => Promise<{ reply: string; via: string } | null> },
+): Promise<RespuestaNoCliente> {
+  const respuestas: string[] = [];
+  const send = async (r: string) => { respuestas.push(r); };
+  const lead = await getPendingLead(phone);
+  if (lead) {
+    await handleAltaStep(phone, text, lead, send);
+    return { respuestas, via: "alta (paso a paso)" };
+  }
+  const quiereAlta = iniciaAlta(text, opts.ultimoBot);
+  const faq = quiereAlta ? null : await opts.faq(text);   // mismo orden que el webhook
+  if (faq) return { respuestas: [faq.reply], via: faq.via };
+
+  const cuit = extractCuit(text);
+  if (cuit) {
+    const { data: ya } = await supabase.from("customers").select("business_name").eq("cuit", cuit).limit(1);
+    // sql/116: si no es de Loekemeyer pero sí de Chef, también va a vinculación (antes arrancaba el alta).
+    const { data: yaCh } = ya?.length ? { data: [] } : await supabase.from("bot_cuentas").select("razon_social")
+      .eq("empresa", "CH").eq("cuit", cuit.replace(/\D/g, "")).limit(1);
+    if (ya?.length || yaCh?.length) {
+      const nombre = ya?.length ? ya[0].business_name : yaCh![0].razon_social;
+      return {
+        respuestas: [`Encontré la cuenta de *${nombre}*. 👍\n\nPor seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. (Prueba: no se pide la vinculación.)`],
+        via: ya?.length ? "registro por CUIT" : "registro por CUIT (cliente de Chef)",
+      };
+    }
+    await crearLead(phone, text, cuit);
+    return {
+      respuestas: ["No te encontré como cliente con ese CUIT. 🤔\n\nSi querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. Te pregunto de a uno (para cortar, escribí *cancelar*):\n\n📋 ¿Cuál es tu *razón social*?"],
+      via: "alta (arranca con CUIT)",
+    };
+  }
+  if (text.replace(/\D/g, "").length >= 11) return { respuestas: [MSG_CUIT_INVALIDO], via: "CUIT inválido" };
+  if (quiereAlta) {
+    await crearLead(phone, text, null);
+    return { respuestas: [ALTA_INTRO], via: "alta (arranca)" };
+  }
+  return { respuestas: [MSG_NO_CLIENTE], via: "no cliente" };
+}
+
 // Cortar el alta en curso.
 export const RE_ALTA_CANCEL = /\b(cancelar|cancelá|salir|dejar|olvidalo|no quiero|parar|basta)\b/i;
 
@@ -243,8 +347,13 @@ export async function handleAltaStep(
   if ("error" in r) { await send(r.error); return; }   // dato mal → se repregunta el MISMO campo
 
   // CUIT que ya es cliente: no es un alta, es vincular el número (lo aprueba una persona, sql/072).
+  // Pablo, 05/10: antes sólo miraba Loekemeyer (`customers`). Un cliente que sólo le compra a Chef (399 filas del padrón, 05/10) que contestaba
+  // "sí" / "registrarme" y después pasaba su CUIT hacía el alta entera como si fuera nuevo. `tryRegister` ya sabe vincular a Chef (sql/116).
   if (paso.field === "cuit") {
-    const { data: ya } = await supabase.from("customers").select("id").eq("cuit", String(r.value)).limit(1);
+    const { data: ya0 } = await supabase.from("customers").select("id").eq("cuit", String(r.value)).limit(1);
+    const { data: yaCh } = ya0?.length ? { data: [] } : await supabase.from("bot_cuentas").select("razon_social")
+      .eq("empresa", "CH").eq("cuit", String(r.value)).limit(1);
+    const ya = ya0?.length ? ya0 : yaCh;
     if (ya?.length) {
       await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", lead.id);
       if (!SIM.activo) await tryRegister(phone, String(r.value));   // el simulador no pide vinculaciones reales
