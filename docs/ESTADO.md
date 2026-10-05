@@ -25,7 +25,8 @@
 > p50 3,9 s · p90 11,4 s · máx 16,3 s: el modelo es ~1 s por vuelta y **cada herramienta suma ~3 s**, así que el tiempo lo ponen las herramientas, no el modelo.
 > **Capacidad:** sin fallas hasta 14 llamadas por minuto (sólo 14 intentos: muestra chica), 4,7 % de fallas entre 15 y 18, 12,5 % con 19 o más. Un turno de IA
 > son ~2,1 llamadas, así que **~7 turnos de IA por minuto sin fallas** y ~710 por día (tope gratis 1.500 llamadas/día). Con 24 llamadas por minuto (~185.000 tokens)
-> empezaron los 429. ⚠ No se sabe QUÉ cuota cortó (minuto, tokens o día): el error se guarda cortado a 300 caracteres y el detalle del 429 viene después.
+> empezaron los 429. ⚠ No se sabe QUÉ cuota cortó (minuto, tokens o día): el error se guardaba cortado a 300 caracteres y el detalle del 429 viene después. **Desde el 05/10 se guardan 800**
+> (`ERROR_MAX` en `bot-llm.ts`, también en `httpError`): el próximo 429 trae la cuota exacta, `select created_at, error from bot_llm_intentos where http_status = 429 order by id desc limit 3`.
 > En producción un 429 no pierde el mensaje: `runConversation` prueba el siguiente modelo de la cadena (Sonnet, con costo). **Calidad con IA (un evaluador, n = 36;
 > la corrida anterior no registró qué modelo la hizo):** 5 para revisar: peores "Paso un pedidito, ¿puede estar para el viernes?" (contestó el estado del pedido viejo),
 > "Te paso el cotizador con el pedido" ("Recibimos tu cotizador" sin haber recibido nada) y "e-cheq al 15 y al 30" (derivó a Cobranzas sin contestar el descuento);

@@ -6,7 +6,7 @@
 --
 --   modelo_id : wa_agente_modelos.id · 0 = fallback de env (Sonnet) · -1 = modelo de pruebas (llm_modelo_pruebas)
 --   http_status: null cuando fue timeout (30 s) o error de red
---   error     : sin la API key (limpiarErrorLlm), máx. 300 caracteres
+--   error     : sin la API key (limpiarErrorLlm), máx. 800 caracteres (hasta el 05/10 eran 300: el detalle de cuota del 429 quedaba afuera)
 --
 -- RLS prendida y sin políticas: sólo la lee `service_role` (regla de CLAUDE.md: toda tabla nueva nace con RLS).
 -- Idempotente.

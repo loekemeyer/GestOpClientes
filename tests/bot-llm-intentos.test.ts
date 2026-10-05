@@ -29,7 +29,8 @@ igual("saca ?key= de la URL", limpiarErrorLlm(`error sending request for url (${
 igual("deja la marca", limpiarErrorLlm(`x (${url})`).includes("?key=***"), true);
 igual("saca &key= en medio", limpiarErrorLlm("https://x.test/a?alt=json&key=SECRETA&z=1"), "https://x.test/a?alt=json&key=***&z=1");
 igual("un 503 de Google queda igual", limpiarErrorLlm("Google 503: UNAVAILABLE"), "Google 503: UNAVAILABLE");
-igual("corta a 300", limpiarErrorLlm("x".repeat(500)).length, 300);
+igual("corta a 800", limpiarErrorLlm("x".repeat(1000)).length, 800);
+igual("un error de 700 no se corta", limpiarErrorLlm("y".repeat(700)).length, 700);
 
 // La fila que se manda: éxito y falla.
 logIntento({ funcion: "lk_bot-simular", modeloId: -1, proveedor: "google", modelo: "gemini-3.5-flash-lite", tarea: "conversacion",

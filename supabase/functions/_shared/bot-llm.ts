@@ -18,6 +18,9 @@ import { supabase } from "./supabase.ts";
 
 const COOLDOWN_MS = 5 * 60_000; // 5 min
 const DEFAULT_TIMEOUT_MS = 30_000;
+// Largo máximo del error de un proveedor que se guarda (httpError y bot_llm_intentos.error). Con 300 caracteres el 429 de Google
+// llegaba cortado antes del detalle (`QuotaFailure`: qué cuota exacta cortó), así que no se sabía si era por minuto, por tokens o por día.
+const ERROR_MAX = 800;
 
 // Precios USD por 1M tokens (input/output). Si el modelo no está acá se asume caro (3/15)
 // para no subestimar; los free-tier se loguean en $0 por su flag.
@@ -197,7 +200,7 @@ export interface IntentoLlm {
 
 /** Un error de red de Deno incluye la URL del request, y la de Gemini lleva `?key=…`: la clave no se guarda. */
 export function limpiarErrorLlm(msg: string): string {
-  return msg.replace(/([?&]key=)[^&\s)"']+/gi, "$1***").slice(0, 300);
+  return msg.replace(/([?&]key=)[^&\s)"']+/gi, "$1***").slice(0, ERROR_MAX);
 }
 
 /** Registra un intento sin frenar ni romper la conversación (mismo criterio que `logUsage`). */
@@ -237,7 +240,7 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 }
 
 function httpError(provider: string, status: number, body: string): Error {
-  return Object.assign(new Error(`${provider} ${status}: ${body.slice(0, 300)}`), { status });
+  return Object.assign(new Error(`${provider} ${status}: ${body.slice(0, ERROR_MAX)}`), { status });
 }
 
 // ── Anthropic ────────────────────────────────────────────────────────────────
