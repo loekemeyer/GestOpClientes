@@ -183,6 +183,11 @@ facturas del último día facturado (o de la fecha "28/09" o el mes "julio" que 
 la factura sigue con saldo agrega "💰 Si la pagás hoy tenés X% de descuento: pagás $Y (vale hasta el …)" o el reclamo
 del e-cheq, y alias/CBU; sin saldo, "✅ Ya figura pagada". Sin facturas / sin PDF / error: deriva a una persona
 (alerta `factura_no_encontrada` / `factura_sin_pdf` / `factura_error`). Código: `lookupFacturaReenvio` en `_shared/faq.ts`.
+**Sólo si la pide (05/10, Pablo):** por palabra clave la #10 se disparaba con cualquier mensaje que dijera "factura" y "¿Eso son las 3
+facturas?", dicho justo después de recibirlas, las volvía a mandar. Ahora reenvía si el mensaje es un pedido (`RE_PIDE_FACTURA`: "mandame / pasame
+la factura", "no me llegó la factura"; `RE_QUIERE_FACTURA`: "necesito / quiero / no recibí / no encuentro la factura", "¿dónde está la factura?",
+"la factura?" sola). Cualquier otra pregunta sobre facturas ("¿son estas cuatro?", "¿tiene el descuento?") devuelve `null` y la contesta la IA, que ve la
+charla y consulta sus facturas (`consultar_mis_facturas`): gasta IA. Pruebas sin red: `deno run --allow-env tests/faq-reenvio.test.ts`.
 
 **FAQ (28/09):** el saludo de respaldo (`greeting_fallback`) ya no contesta a un cliente identificado
 si el mensaje trae contenido (números o más de 3 palabras): pasa al agente. Una línea de una FAQ con

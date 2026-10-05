@@ -300,6 +300,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       const r = await lookupMinimo(top, customer);
       if (r) return { reply: r, intent: "minimo_compra", automation_level: "semi_auto", faq_id: top.faq_id, yaSaluda: yaSaluda(r) };
     } else if (customer && top.db_lookup_type === "factura_reenvio") {
+      // Pablo, 05/10: sólo si la pide (RE_QUIERE_FACTURA; RE_PIDE_FACTURA ya reenvió arriba). Lo demás, a la IA.
+      if (!RE_QUIERE_FACTURA.test(text)) return null;
       const r = await lookupFacturaReenvio(await ctxPagosDeCliente(customer), text);
       if (r) return { ...r, faq_id: top.faq_id, yaSaluda: yaSaluda(r.reply) };
     } else if (customer) {
@@ -464,6 +466,11 @@ const HORARIO_DEPOSITO = "Estamos en Virgilio 2788, Villa Devoto, de lunes a vie
 const RE_ALMUERZO = /\b(almuerz\w*|almorz\w*|almuerc\w*|mediod[ií]a)/i;
 const RE_LLEGANDO = /\b(estoy|estamos)\s+(llegando|yendo|en\s+camino|a\s+\d+\s+(cuadras|minutos))\b|\bme\s+esperan\b|\bya\s+(voy|salgo)\s+para\s+(all[aá]|el\s+dep[oó]sito)/i;
 export const RE_PIDE_FACTURA = /\b(mand[aá]me|pas[aá]me|envi[aá]me|reenvi[aá]\w*|me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*)\b[^.?!]{0,30}\bfacturas?\b|\bfacturas?\b[^.?!]{0,40}\b(me\s+(la\s+|las\s+)?(mand|pas|envi|reenvi)\w*|mand[aá]me|pas[aá]me|reenvi\w*)|\bno\s+(me\s+)?lleg[oó]\s+(la\s+|las\s+)?factura/i;
+// Pablo, 05/10: la #10 (reenvío) se disparaba con cualquier mensaje que dijera "factura" (la palabra sola le da puntaje 1):
+// "¿Eso son las 3 facturas?" le volvía a mandar las facturas que acababa de recibir. Por palabra clave sólo reenvía si la
+// pide: RE_PIDE_FACTURA, "necesito / quiero / no recibí / no encuentro la factura", "¿dónde está la factura?" o "la
+// factura?" sola. Cualquier otra pregunta sobre facturas va a la IA, que ve la charla y consulta sus facturas.
+export const RE_QUIERE_FACTURA = /\b(necesit[a-záéíóú]*|quier[a-záéíóú]*|precis[a-záéíóú]*|me\s+falta[a-záéíóú]*|no\s+(tengo|encuentro|recib[a-záéíóú]*))\s+(una\s+copia\s+de\s+)?(la\s+|las\s+|mi\s+|mis\s+|una\s+)?facturas?\b|\bd[oó]nde\s+est[aá]n?\s+(la\s+|las\s+|mi\s+|mis\s+)facturas?\b|^\s*[¿?]?\s*(y\s+)?(la\s+|las\s+|mi\s+|mis\s+)?facturas?\s*[?!.]*\s*(por\s+favor|porfa|xfa)?\s*[?!.]*\s*$/i;
 // "Llegaron 59 aceiteras de 60, pido la NC" / "tengo un faltante en el remito" / "me faltó una caja".
 const RE_FALTANTE = /\bfalt(ante|aron|[oó]|an?)(?![a-záéíóúñ])[^?]{0,60}\b(cajas?|unidad\w*|art[ií]culos?|c[oó]d\w*|\d+)\b|\bfaltante\b|\blleg(aron|[oó])\s+\d+\s+de\s+\d+\b|\b(pido|necesito|quiero|hacen?|me\s+hacen)\s+(la\s+|una\s+)?(nc|nota\s+de\s+cr[eé]dito)\b/i;
 const RE_ETIQUETA = /(c[oó]digos?\s+de\s+barras?|\betiquet\w*|\bean\b)[^?]{0,60}\b(mism[oa]s?|mal|equivocad\w*|incorrect\w*|distint\w*|cambiad\w*|no\s+(los\s+|las\s+|lo\s+|la\s+)?(lee|leen|pasa|pasan|escanea\w*|coincide\w*))|\b(mism[oa]s?|mal|equivocad\w*|incorrect\w*|distint\w*)\b[^?]{0,40}(c[oó]digos?\s+de\s+barras?|\betiquet\w*)/i;
