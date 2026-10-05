@@ -22,7 +22,12 @@
 --
 -- Idempotente: se puede correr dos veces.
 --
--- ESTADO (05/10/2026): NO APLICADA. Preparada; espera el "sí" de Pablo.
+-- ESTADO (05/10/2026): PARTE 1 APLICADA en producción (pasos 1 a 3: columna, regla y trigger), con el "sí" de Pablo y
+--   backup previo: public."GV_Backup_customer_delivery_addresses_20261005" y public."GV_Backup_expresos_20261005"
+--   (RLS sin políticas, hash idéntico al origen). Se aplicó pieza por pieza con execute_sql porque apply_migration se
+--   colgó dos veces (60 s) sin dejar nada en la base: esta migración NO figura en supabase_migrations.
+--   Verificado tras la parte 1: 1.623 filas, 0 con expreso_id, datos idénticos al backup, FK ON DELETE SET NULL,
+--   trigger habilitado. PARTE 2 (paso 4, backfill) pendiente: antes se prueba el trigger con rollback en el cliente 99862.
 
 -- 1) La columna. `on delete set null`: si algún día se depura el maestro, la dirección queda "no resuelta" en vez de trabarse.
 alter table public.customer_delivery_addresses
