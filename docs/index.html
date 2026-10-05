@@ -1966,7 +1966,10 @@ async function simAviso(name, factura) {
     if (r.no_aplica) simAgregar("system", "ℹ️ " + esc(r.nota || "Este aviso no le llega a este cliente."));
     else {
       const usado = r.aviso || name;
-      simAgregar("in", `${factura ? '<div style="font-size:0.8rem;padding:0.4rem;border-radius:6px;background: var(--card);margin-bottom:0.4rem;">📄 Factura.pdf</div>' : ""}<div style="white-space:pre-wrap;">${esc(r.texto)}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(usado)}${r.nota ? " · " + esc(r.nota) : ""}</div><span class="time">${simHora()}</span>`);
+      // Pablo, 05/10: si el aviso sale con valores de ejemplo (cliente sin pedidos o sin facturas, recordatorio, comprobante, Chef),
+      // una etiqueta arriba lo dice y explica por qué: un cliente sin pedidos parecía recibir datos inventados.
+      const ejemplo = r.ejemplo ? `<div style="font-size:0.78rem;font-weight:700;padding:0.35rem 0.5rem;border-radius:6px;background: var(--amb-bg);color: var(--warn);margin-bottom:0.45rem;">⚠️ DATOS DE EJEMPLO, no son de este cliente · ${esc(r.motivo || "")}</div>` : "";
+      simAgregar("in", `${ejemplo}${factura ? '<div style="font-size:0.8rem;padding:0.4rem;border-radius:6px;background: var(--card);margin-bottom:0.4rem;">📄 Factura.pdf</div>' : ""}<div style="white-space:pre-wrap;">${esc(r.texto)}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(usado)}${r.nota ? " · " + esc(r.nota) : ""}</div><span class="time">${simHora()}</span>`);
       _sim.historial.push({ rol: "assistant", contenido: `[Aviso automático ${usado}${r.pedido ? ` · pedido ${r.pedido}` : ""}]\n${r.texto}` });
     }
   } catch (e) { simAgregar("system", "⚠️ " + esc(e.message)); }
@@ -4736,7 +4739,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.3</div>
 <script src="gestop2.js?v=0.27.1"></script>
 </body>
 </html>

@@ -149,7 +149,8 @@ function historialDe(body: any): Array<{ rol: "user" | "assistant"; contenido: s
 //     versión) y `no_aplica` si a ese cliente no le llega (ej. pedido_entregado a un cliente de expreso). Las 6 de factura
 //     salen con las facturas del último día facturado del cliente, con las mismas cuentas que el aviso real
 //     (_shared/factura-valores.ts). Recordatorio y comprobante, o un cliente sin pedidos ni facturas: los valores de ejemplo
-//     de la plantilla (la razón social, si la plantilla la lleva, es la del cliente). Pablo, 05/10.
+//     de la plantilla (la razón social, si la plantilla la lleva, es la del cliente); el paso devuelve `ejemplo: true` y
+//     `motivo` y el dashboard lo marca con una etiqueta visible. Pablo, 05/10.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -253,7 +254,8 @@ async function simularClienteChef(body: any): Promise<Response> {
         if (!def) return json({ error: `aviso de Chef desconocido: ${nombre}` }, 400);
         const texto = rellenar(def.body, def.ejemplos);
         SIM.historial.push({ rol: "assistant", creado_en: new Date().toISOString(), contenido: `[Aviso automático ${nombre}]\n${texto}` });
-        salida.push({ aviso: nombre, texto });
+        // Pablo, 05/10: los de Chef todavía no se arman con las facturas reales del cliente: la etiqueta lo dice en el chat.
+        salida.push({ aviso: nombre, texto, ejemplo: true, motivo: "los avisos de Chef todavía no se arman con las facturas reales del cliente", nota: "valores de ejemplo" });
         continue;
       }
       const text = String(paso.cliente ?? "").trim();
@@ -370,6 +372,9 @@ serve(async (req) => {
         let nombre = tocado;
         let vals: string[] | null = paso.params ? Object.values(paso.params as Record<string, unknown>).map(String) : null;
         let nota = "";
+        // Pablo, 05/10: cuando el aviso sale con valores de ejemplo, el dashboard lo marca con una etiqueta bien visible que
+        // dice por qué (antes sólo una nota chica en gris, y un cliente sin pedidos parecía recibir datos inventados).
+        let motivoEjemplo = "";
         let pedido = Number(paso.pedido) || null;
         // Pablo, 05/10: los avisos de seguimiento salen con el pedido web real del cliente (el del paso o el último) y en
         // la versión que le corresponde por cómo se le entrega (reparto propio, expreso o retiro). Antes salían con los
@@ -390,15 +395,15 @@ serve(async (req) => {
             pedido = pedidoReal.order_id;
             nota = [delPedido, usar !== tocado ? `se usa ${usar} en vez de ${tocado}` : "",
               usar === "pedido_reprogramado" ? "la nueva fecha es de ejemplo" : ""].filter(Boolean).join(" · ");
-          } else nota = pedido ? `no encontré el pedido web ${pedido} de este cliente: valores de ejemplo`
-            : "el cliente no tiene pedidos web: valores de ejemplo";
+          } else motivoEjemplo = pedido ? `no encontré el pedido web ${pedido} de ${c.business_name}`
+            : `${c.business_name} no tiene pedidos web`;
         } else if (!vals && AVISOS.find((x) => x.name === tocado && x.empresa === "LK")?.factura) {
           try {
             const f = await facturaReal(customer.cod_cliente, tocado);
             if (f) { nombre = f.nombre; vals = f.vals; nota = f.nota; }
-            else nota = "el cliente no tiene facturas: valores de ejemplo";
+            else motivoEjemplo = `${c.business_name} no tiene facturas`;
           } catch (e) {
-            nota = `no pude leer las facturas (${e instanceof Error ? e.message : String(e)}): valores de ejemplo`;
+            motivoEjemplo = `no pude leer las facturas de ${c.business_name} (${e instanceof Error ? e.message : String(e)})`;
           }
         }
         const def = AVISOS.find((x) => x.name === nombre && x.empresa === "LK");
@@ -406,12 +411,13 @@ serve(async (req) => {
         // variable de razón social (si la plantilla la tiene), el nombre del cliente.
         if (!vals) {
           vals = def ? def.ejemplos.map((v, i) => (i === def.varCliente ? c.business_name : v)) : [];
-          nota ||= "valores de ejemplo";
+          motivoEjemplo ||= "esta plantilla todavía no se arma con datos reales del cliente";
+          nota = motivoEjemplo;
         }
         const texto = def ? rellenar(def.body, vals) : (renderPlantilla(nombre, null) ?? "");
         SIM.historial.push({ rol: "assistant", creado_en: ahora(),
           contenido: `[Aviso automático ${nombre}${pedido ? ` · pedido ${pedido}` : ""}]\n${texto}` });
-        salida.push({ aviso: nombre, texto, nota, ...(pedido ? { pedido } : {}) });
+        salida.push({ aviso: nombre, texto, nota, ...(motivoEjemplo ? { ejemplo: true, motivo: motivoEjemplo } : {}), ...(pedido ? { pedido } : {}) });
         continue;
       }
       let text = String(paso.cliente ?? "").trim();
