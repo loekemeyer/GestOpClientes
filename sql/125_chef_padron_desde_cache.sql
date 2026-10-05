@@ -1,4 +1,4 @@
--- 125 — El padrón de Chef sale de la misma copia que ya se hace cada 10 minutos
+-- 125 — (APLICADA 05/10 con el sí de Pablo) El padrón de Chef sale de la misma copia que ya se hace cada 10 minutos
 -- Pedido de Pablo Olejavetzky (05/10). Mapa de copias entre bases: https://claude.ai/artifact/AdXACio7NmBNa439QegciX
 --
 -- Antes: los clientes de Chef se leían DOS veces de la base de Chef (por FDW) y se guardaban en dos tablas:

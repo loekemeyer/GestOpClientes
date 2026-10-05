@@ -4,6 +4,21 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): mapa de copias entre bases + padrón de Chef con una sola lectura (sql/125).** Relevamiento de todos
+> los crons que copian datos entre bases: [Mapa de copias entre bases](https://claude.ai/artifact/AdXACio7NmBNa439QegciX)
+> (24 crons, origen → destino, frecuencia, quién usa cada copia, corridas y fallas de 7 días). Las bases son **cuatro**, no
+> tres: además de PaginaLK y Gestión, **Chef** (`nkhzocgdpwtgrmwleihr`) y **TN** (`zjvpzqhbekxnwxdczpof`), las dos fuera de
+> esta cuenta (ver la tabla de proyectos más abajo). **sql/125 aplicada el 05/10 con el sí de Pablo:** `chef_padron` ya no
+> relee los clientes de Chef por FDW una vez por día; `refrescar_chef_padron()` lo arma con `chef_customers_cache` +
+> `chef_dirs_cache` y `sincronizar_chef_orders()` (cron 48) lo llama al final de cada corrida. La tabla queda igual (la leen
+> 14 vistas y 20 funciones); se actualiza cada 10 min en vez de 1 vez por día y sólo reescribe lo que cambió.
+> **Abierto (auditoría, 05/10):** el bot reconoce clientes por teléfono con `wa_clientes_telefono`, copia diaria de
+> `virgilio.whatsapp_clientes`, que no se actualiza desde el 24/09; los teléfonos nuevos y corregidos van a
+> `GV_Clientes_Whatsapp` (copia `bot_telefonos_empresa`, que el bot sólo usa para separar LK de Chef). 179 teléfonos de LK
+> sólo en la vieja, 20 sólo en la nueva, 15 con otro cliente; ninguno le escribió nunca al bot. También leen la vieja
+> `bot_reactivar_inactivos` y `bot_encolar_recordatorios_25`. Consulta a Thommy `c-20261005-0913-1` (¿por qué esos 179 no
+> pasaron a la nueva?). Arreglo previsto: todo lo del bot lee `bot_telefonos_empresa` y se deja de copiar la vieja.
+>
 > **05/10 (Pablo): gate de secreto en `lk_factura-check`** (hallazgo 3.1.1 de la auditoría). Código en `main` con la llave
 > `app_settings.wa_factura_check_gate` **en `log`** desde el 05/10 ~11:50 UTC (sin fila = apagado; `log` = registra lo que no trae
 > secreto válido y lo deja pasar; `1` = 401). El secreto
@@ -102,6 +117,11 @@
 | **PaginaLK** — "loekemeyer's web" | `kwkclwhmoygunqmlegrg` | Bot WhatsApp, webhook, front (`docs/index.html`), `app_settings`, `wa_*`, edge functions `lk_*`. **Acá deploya el CI.** |
 | **ISIS** — "Control Partes Talleristas" | `hrxfctzncixxqmpfhskv` | Facturación: `Facturacion_NP`, `PPP_Programacion_Diaria`, `vista_cola_impresion`, `wa_pipeline_log`, RPCs `wa_dashboard_rango`, `wa_metodo_norm`, `wa_grupos_dia_cuit`. Login Google del dashboard. |
 | "Costos" | `fxyhvacysnqzzsdvmplx` | No toca el bot. |
+| **Chef** (fuera de esta cuenta) | `nkhzocgdpwtgrmwleihr` | Web de Chef. PaginaLK la lee por FDW (server `chef_db`, schema `chef_ext` y `public.chef_*`) y le escribe la deuda (cron 61); Gestión la lee por API (`sync-clientes-dto`, `sync-precios-venta`, `gv-sync-padron-direcciones`). Sin acceso por MCP. |
+| **TN** (fuera de esta cuenta) | `zjvpzqhbekxnwxdczpof` | Gestión la lee por FDW (server `tn_db`, schema `gt_tn`) para los pedidos y el consumo del módulo `gt`. Sin acceso por MCP. |
+
+Quién copia qué entre estas bases: [Mapa de copias entre bases](https://claude.ai/artifact/AdXACio7NmBNa439QegciX). Un cron
+nuevo que copie datos de una base a otra se agrega al mapa en el mismo cambio.
 
 **Tokens / secrets — dónde vive cada uno (para NO marear):**
 - **Token de WhatsApp (Meta):** vive en el **secret de Edge Function** `WHATSAPP_ACCESS_TOKEN` (PaginaLK, alcance de proyecto = lo ven todas las funciones). **Desde 2026-09-10 el webhook TAMBIÉN lee ese secret del Vault primero** (`loadConfig`: `WHATSAPP_ACCESS_TOKEN ?? LK_WA_TOKEN ?? …`); **`LK_WA_TOKEN` se BORRÓ de `app_settings`** (ya no vive en la tabla; backup en `public._bkp_lk_wa_token_20260910`, RLS/sin anon). O sea: **una sola fuente del token = el Vault**; rotarlo = actualizar ese secret. Falta rotarlo en Meta (estuvo expuesto pre-sql/061) y dropear el backup. ✅ **Exposición por `anon` CERRADA (sql/061, 2026-09-08):** la policy `app_settings_select_all` ahora deniega por patrón de credenciales (`key !~* '(token|secret|service_key|…)'`) → `anon` NO lee `LK_WA_TOKEN` ni `isis_supabase_service_key` ni ningún secret futuro; y se revocó INSERT/UPDATE/DELETE/TRUNCATE de `anon`/`authenticated` (quedó solo SELECT). RLS estaba prendida. El front no lee `app_settings` directo (lo hacen las edge functions con service_role), por eso no rompió nada. ⚠️ **Sigue pendiente (owner-only): ROTAR los dos secrets** — estuvieron legibles antes del parche, así que hay que regenerarlos igual (token en Meta, service_key en Supabase ISIS) y moverlos a secrets de Edge Function. **Para chequear si el token vive y si las plantillas están APPROVED: invocar la edge `lk_tpl-check`** (no hay que pedir el token).
