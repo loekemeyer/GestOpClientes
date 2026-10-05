@@ -11,8 +11,10 @@
 --   2. cron wa_barrido_avisos (jobid 69, cada 15 min: los cuits facturados de hoy y ayer)
 --   3. lk_notif-sim (edge de PaginaLK; ya manda el header por código, ver supabase/functions/lk_notif-sim)
 --
--- Diseño: el secreto nace y vive en el Vault de GESTIÓN (no se copia a ningún otro lado ni se muestra). El trigger y el cron lo
--- leen del Vault en cada corrida (no queda en cron.job.command). La edge lo lee con wa_factura_check_secret() (sólo service_role).
+-- Diseño: el secreto nace y vive en el Vault de GESTIÓN (no se muestra). El trigger y el cron lo
+-- leen del Vault en cada corrida (no queda en cron.job.command). La edge lo lee con wa_factura_check_secret() (sólo service_role)
+-- y, desde el 05/10, también acepta una copia como secret de la edge (LK_FACTURA_CHECK_SECRET) para no depender de Gestión en cada
+-- llamada (la edge arranca en frío siempre). Rotar = cambiar el Vault Y ese secret (o borrar el de la edge).
 -- La llave app_settings.wa_factura_check_gate (PaginaLK) escalona el cierre: sin fila = apagado · 'log' = sólo registra · '1' = 401.
 --
 -- ORDEN: (1) deploy del código [hecho: gate apagado, sin efecto] → (2) este archivo → (3) llave en 'log', mirar los logs un día

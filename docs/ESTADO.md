@@ -72,6 +72,13 @@
 > Gestión el 05/10** (secreto en el Vault, `wa_factura_check_secret()`, trigger y cron 69 mandan el header). **Falta mirar los logs
 > (`[gate] PASA (modo log)` en `function_logs` de `lk_factura-check`) un ciclo completo y, si sólo aparecen llamadas ajenas, subir la
 > llave a `1`** (con el "sí" de Pablo). En `log` el endpoint sigue abierto: sólo registra. Rollback: `delete from app_settings where key = 'wa_factura_check_gate';`.
+> **Secreto también como secret de la edge (05/10):** la edge `lk_factura-check` **arranca en frío en cada llamada** (medido: 5 arranques para 5
+> requests, dos de ellas a 2 s) y el caché en memoria no sirve, así que cada llamada leía el Vault de Gestión: si Gestión no contestaba, con la
+> llave en `1` se rechazaba también lo legítimo. Ahora `esperadoPara` (gate.ts) compara primero contra el secret de la edge
+> **`LK_FACTURA_CHECK_SECRET`** (mismo valor que el Vault) y sólo lee el Vault si no coincide o no existe (así una rotación hecha sólo en el
+> Vault sigue andando). **Mientras ese secret no esté cargado en PaginaLK, todo sigue como antes** (lee el Vault). Para cargarlo lo hace el
+> dueño a mano: valor en Gestión (`select decrypted_secret from vault.decrypted_secrets where name = 'lk_factura_check_secret'`) → PaginaLK ›
+> Edge Functions › Secrets › `LK_FACTURA_CHECK_SECRET`. **Rotar el secreto: cambiar el Vault y el secret de la edge (o borrar el de la edge).**
 > Pruebas del gate: `deno run tests/gate-factura-check.test.ts`.
 >
 > **02/10 (Luis): responder a mano desde Conversaciones daba error de autorización.** `lk_conversaciones` era la única

@@ -110,7 +110,12 @@ deploy con la misma consulta de `function_edge_logs` de la sección 1.
    con la llave apagada (sin efecto, deploy verde); SQL de Gestión en `sql/isis_wa_factura_check_gate.sql`, **aplicado el 05/10**.
    Pasos: código (hecho) → SQL de Gestión (hecho) → llave en `log` (**hecho 05/10 ~11:50 UTC**; dos llamadas de prueba sin secreto y con
    secreto malo quedaron registradas como `[gate] PASA (modo log)`) → mirar los logs un ciclo de facturación → llave en `1`.
+   Una llamada de prueba desde Gestión con el secreto real y body vacío (05/10 12:00 UTC) volvió 400 sin línea `[gate]`: el secreto coincide.
    Pruebas: `tests/gate-factura-check.test.ts`.
+   **Resiliencia (05/10):** la edge arranca en frío en cada llamada (5 arranques para 5 requests), así que el caché de 5 minutos en memoria
+   nunca sirvió y cada llamada dependía de que Gestión contestara; con la llave en `1` una caída de Gestión rechazaba también lo legítimo.
+   Arreglo: la edge compara primero contra su propio secret `LK_FACTURA_CHECK_SECRET` y sólo lee el Vault si no coincide o no existe
+   (`esperadoPara`, gate.ts). Falta cargar ese secret en PaginaLK (a mano, por el dueño); hasta entonces no cambia nada.
 2. **XSS en el chat de prueba del dashboard**: `docs/index.html:1973` `div.innerHTML = text.replace(/\n/g,"<br>")` con la
    respuesta del modelo / de la FAQ. Un prompt injection que devuelva `<img onerror=…>` corre en la sesión de un admin
    logueado con Google. **Corregido el 02/10 (v0.26.12)**: `esc(text)` antes del replace. [Seguro]

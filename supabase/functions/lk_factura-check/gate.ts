@@ -3,7 +3,8 @@
 // El endpoint es público (verify_jwt = false: lo llama pg_net desde Gestión). Sin gate, cualquiera con la URL podía disparar
 // envíos al número de redirección y reclamar grupos en wa_grupo_listo. Los llamadores legítimos mandan el header
 // `x-lk-secret` con un secreto guardado en el Vault de GESTIÓN (lk_factura_check_secret): el trigger wa_factura_notificar,
-// el cron wa_barrido_avisos y lk_notif-sim. La edge lo lee de Gestión con wa_factura_check_secret() (sólo service_role).
+// el cron wa_barrido_avisos y lk_notif-sim. La edge lo lee de Gestión con wa_factura_check_secret() (sólo service_role) o,
+// si lo tiene, del secret LK_FACTURA_CHECK_SECRET de la propia edge (ver esperadoPara).
 //
 // Llave app_settings.wa_factura_check_gate (PaginaLK), en tres escalones para no cortar el pipeline de facturas:
 //   · sin fila o "0" → apagado: no se chequea nada (como siempre).
@@ -27,6 +28,36 @@ export function igualesConstante(a: string, b: string): boolean {
   let dif = 0;
   for (let i = 0; i < a.length; i++) dif |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return dif === 0;
+}
+
+export type OrigenSecreto = "env" | "vault" | "env (Vault ilegible)" | "sin header" | "ninguno";
+
+/**
+ * Elige contra qué secreto comparar lo recibido. La edge arranca en frío en cada llamada (medido el 05/10: 5 arranques para 5
+ * requests, incluidas dos separadas por 2 s), así que un caché en memoria no sirve y cada llamada leía el Vault de Gestión:
+ * si Gestión no contesta, con la llave en "1" se rechazaba TODO, también lo legítimo. Por eso el secreto también puede vivir
+ * como secret de la edge (LK_FACTURA_CHECK_SECRET, mismo valor que el Vault):
+ *   · coincide con el de la edge     → listo, no se toca Gestión.
+ *   · no coincide (o la edge no lo tiene) → se lee el Vault: así una rotación hecha sólo en el Vault sigue andando.
+ *   · el Vault no contesta           → se compara contra el de la edge si existe; si no, no hay con qué (falla cerrada).
+ * Sin header no se lee el Vault: el resultado es el mismo ("sin x-lk-secret") y no se le suma carga a Gestión.
+ */
+export async function esperadoPara(
+  recibido: string,
+  env: string,
+  leerVault: () => Promise<string | null>,
+): Promise<{ esperado: string | null; origen: OrigenSecreto }> {
+  if (!recibido) return { esperado: env || null, origen: "sin header" };
+  if (env && igualesConstante(recibido, env)) return { esperado: env, origen: "env" };
+  let v: string | null = null;
+  try {
+    v = await leerVault();
+  } catch {
+    v = null;
+  }
+  if (v) return { esperado: v, origen: "vault" };
+  if (env) return { esperado: env, origen: "env (Vault ilegible)" };
+  return { esperado: null, origen: "ninguno" };
 }
 
 export interface DecisionGate {
