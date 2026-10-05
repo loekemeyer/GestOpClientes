@@ -381,7 +381,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.26.15">
+  <link rel="stylesheet" href="gestop2.css?v=0.26.16">
 </head>
 <body>
 
@@ -3729,6 +3729,8 @@ async function refreshCosts() {
   try {
     const { data, error } = await chatTest({ action: "stats", since: sessionStart });
     if (error || !data) return;
+    // Inicio (gestop2.js, Luis 05/10) muestra semana y mes en la columna derecha: mismos números, sin otra llamada.
+    if (typeof G !== "undefined") { G.costos = data; if (typeof inicioVisible === "function" && inicioVisible()) pintarInicio(); }
     document.getElementById("costSession").textContent = fmtCost(data.session?.cost);
     document.getElementById("costSessionTok").textContent = fmtTok(data.session?.input_tokens, data.session?.output_tokens);
     document.getElementById("costWeek").textContent = fmtCost(data.week?.cost);
@@ -4712,7 +4714,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.15</div>
-<script src="gestop2.js?v=0.26.15"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.16</div>
+<script src="gestop2.js?v=0.26.16"></script>
 </body>
 </html>

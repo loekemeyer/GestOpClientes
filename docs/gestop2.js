@@ -1144,7 +1144,7 @@ function pintarInicio() {
   const l = G.llave;
   const cEnv = `<button class="ini-card" onclick="navSec('com','salientes')"><span>Envíos de hoy</span>
     <b>${l ? l.hoy.enviados : "…"}</b><i>${l ? `enviados · ${l.hoy.fallidos} fallido${l.hoy.fallidos === 1 ? "" : "s"} · ${l.hoy.retenidos} retenido${l.hoy.retenidos === 1 ? "" : "s"} · llave en ${(LLAVE[l.modo] || LLAVE["0"]).nombre}` : "cargando…"}</i><em>Ir a Salientes →</em></button>`;
-  const ult = G.convs.slice().sort((a, b) => (RANGO[a.estado_ui] - RANGO[b.estado_ui]) || String(b.last_at).localeCompare(String(a.last_at))).slice(0, 5);
+  const ult = G.convs.slice().sort((a, b) => (RANGO[a.estado_ui] - RANGO[b.estado_ui]) || String(b.last_at).localeCompare(String(a.last_at))).slice(0, 8);
   const filas = ult.map((c) => {
     const min = sinResponder(c);
     return `<div class="ini-conv" onclick="abrirCharla('${gesc(c.phone)}')"><b>${nombreConv(c) ? gesc(nombreConv(c)) : "<i>No identificado</i>"}</b>
@@ -1152,5 +1152,32 @@ function pintarInicio() {
       <div class="tx">${gesc(textoUltimo(c))}</div></div>`;
   }).join("");
   const charlas = `<section class="sl-card"><h4>Últimas conversaciones</h4>${G.convsOk ? (filas || `<div class="nota">Todavía no hay conversaciones.</div>`) : `<div class="nota">Cargando…</div>`}</section>`;
-  root.innerHTML = hola + `<div class="ini-cards">${cEsp}${cTar}${cEnv}</div>` + charlas + accesos;
+  root.innerHTML = hola + `<div class="ini-grid"><div class="ini-izq"><div class="ini-cards">${cEsp}${cTar}${cEnv}</div>${charlas}</div>
+    <aside class="ini-der">${iniEstadoBot()}${iniGastoIa()}${accesos}</aside></div>`;
+}
+// Columna derecha de Inicio (Luis, 05/10: "el sector derecho lo veo realmente vacío").
+function iniEstadoBot() {
+  const l = G.llave;
+  if (!l) return `<section class="sl-card"><h4>Estado del bot</h4><div class="nota">Cargando…</div></section>`;
+  const m = LLAVE[l.modo] || LLAVE["0"];
+  const desc = l.modo === "prueba"
+    ? `Sólo salen mensajes ${l.contactos_prueba === 1 ? "al número" : `a los ${l.contactos_prueba} números`} de prueba. Lo que va a clientes queda retenido.`
+    : m.desc;
+  const u = l.ultimo_cambio;
+  return `<section class="sl-card"><h4>Estado del bot</h4>
+    <div><span class="ini-llave ${m.clase}">${m.nombre}</span></div><div class="nota">${gesc(desc)}</div>
+    ${u ? `<div class="nota">Último cambio de la llave: ${fechaCorta(u.creado_en)} ${hora(u.creado_en)} por ${gesc(u.usuario)}</div>` : ""}
+    <button class="g-btn" onclick="modalLlave()">Cambiar modo…</button></section>`;
+}
+// Mismos números que refreshCosts() (lk_chat-test stats: sólo lee bot_token_usage, no llama a la IA).
+function iniGastoIa() {
+  const c = G.costos;
+  if (!c) return `<section class="sl-card"><h4>Gasto de IA</h4><div class="nota">Cargando…</div></section>`;
+  const usd = (v) => "US$ " + Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const llam = (n) => `${Number(n || 0).toLocaleString("es-AR")} llamada${n === 1 ? "" : "s"}`;
+  return `<section class="sl-card"><h4>Gasto de IA</h4>
+    <div class="ini-gasto"><div><span>Esta semana</span><b>${usd(c.week?.cost)}</b><i>${llam(c.week?.calls)}</i></div>
+      <div><span>Este mes</span><b>${usd(c.month?.cost)}</b><i>mes anterior: ${usd(c.prev_month?.cost)}</i></div></div>
+    <div class="nota">Estimación del sistema, no la factura de Anthropic.</div>
+    <button class="g-btn" onclick="navSec('dash','ia')">Ver el detalle →</button></section>`;
 }
