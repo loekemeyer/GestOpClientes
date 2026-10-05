@@ -4,6 +4,20 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): respuesta al cliente nuevo — el "sí" a la oferta de registro y "me gustaría ser cliente" arrancan el alta; el Chat de prueba usa el mismo flujo.**
+> Captura del Chat de prueba: *"Hola me gustaría ser cliente"* → el saludo ofrecía registrar; *"Si, registrame por favor"* → *"necesito identificarte… si todavía no sos cliente decime
+> soy nuevo"*. **Esa segunda respuesta NO la daba el bot real:** salía de `lk_chat-test`, que tenía una copia vieja del alta (otro regex, otras preguntas; ya lo decía la nota del 28/09).
+> El bot real sí arrancaba con *registrame*, pero tenía dos huecos medidos con `RE_ALTA_START`: *"me gustaría / quisiera / me interesa ser cliente"* y un **"sí" / "dale" suelto**
+> a la oferta del saludo caían en *"pasame tu CUIT"*. **Cambios (`_shared/alta.ts`, sin tocar `wa_faq` ni el front):** (1) `RE_ALTA_START` suma *ser cliente*, *hacerme cliente*,
+> *que me registren / den de alta* y *solicitar el alta*; (2) `iniciaAlta(texto, ultimoBot)`: una afirmación corta (`esAfirmacion`: "sí", "dale", "sí, por favor", "👍", hasta 5 palabras) arranca
+> el alta **sólo si lo último que dijo el bot fue ofrecer el registro** (`ultimoMensajeDelBot` lee `bot_historial_chat`, y sólo cuando el texto es una afirmación: 0 consultas extra al resto);
+> "dale, ya te lo paso" NO arranca (punto 11 de la auditoría del 07/09); (3) el mensaje *"Todavía no te tengo registrado"* (`MSG_NO_CLIENTE`) ahora muestra los **dos caminos**
+> (ya sos cliente → CUIT; querés serlo → *registrarme*) en vez de mezclarlos en una pregunta; (4) `atenderNoCliente` es el flujo del no-cliente **sin efectos reales** y lo usan el
+> Simulador (modo número nuevo) y el Chat de prueba: se borró la copia vieja del alta de `lk_chat-test`. En el Chat de prueba el alta no pide vinculaciones ni crea la alerta de Tareas (`SIM.activo`).
+> **Qué afecta:** el CI deploya `lk_whatsapp-webhook`, `lk_chat-test` y `lk_bot-simular` al llegar a `main`; la versión visible del dashboard no cambia (no se tocó `docs/index.html`).
+> **Pruebas sin red y sin IA (US$ 0):** `deno run --allow-env tests/alta-inicio.test.ts` (regex, afirmaciones, y la conversación de la captura contra una base simulada). **No se corrió el Simulador ni el
+> Chat de prueba** (regla de gasto del 01/10). Ojo: el saludo del no-cliente (`wa_faq` `saludo_inicial`, `institutional_response`) sigue diciendo *"Decime si querés que te registre"*; se puede acortar sin tocar código.
+>
 > **05/10 (Pablo): registro de CADA intento a un modelo de IA — tabla `bot_llm_intentos` (sql/126).** `bot_token_usage` sólo guardaba las llamadas
 > que salieron bien: no había forma de saber cuántas veces falló Gemini, con qué código ni cuánto tardó. Ahora `runConversation` escribe una fila
 > por intento con `logIntento` (`_shared/bot-llm.ts`): `funcion`, `modelo_id` (0 = respaldo de env, -1 = modelo de pruebas), `proveedor`, `modelo`,
@@ -554,7 +568,7 @@ el killswitch, sin ningún consumidor de esa cola.
   (`Wpp_Vendedores`) + dto_vol → `crear_cliente_web` (usuario = CUIT, clave temporal), dirección de entrega
   `pending_isis=true` y bienvenida con el acceso por `wa_outbox`. **No** vincula el número al cliente (regla de Luis):
   cuando escriba, el bot le pide el CUIT y la vinculación la aprueba una persona. Se sacaron del alta: tamaño del local,
-  venta web, si ya vende LK, a quién le compra, de dónde nos conoce. `lk_chat-test` todavía tiene la copia vieja del alta.
+  venta web, si ya vende LK, a quién le compra, de dónde nos conoce. ~~`lk_chat-test` todavía tiene la copia vieja del alta~~ (resuelto el 05/10: usa `_shared/alta.ts`).
 - **"Salió en el camión" para pedidos web de reparto** (29/09, sql/105): Gestión no tiene estado de salida (pasa de
   facturado a entregado, y "entregado" en reparto se marca al día siguiente a las 8). Cron `lk_aviso-en-viaje-web`
   (9 y 11 h AR, lun-sáb) → `wa_avisos_en_viaje_web()`: facturado + fecha_entrega = hoy + reparto → `pedido_en_viaje`

@@ -7,7 +7,7 @@ import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_shared/pedido-archivo.ts";
-import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START } from "../_shared/alta.ts";
+import { atenderNoCliente } from "../_shared/alta.ts";
 import { pedidoEnCurso, runConversation } from "../_shared/bot-conversation.ts";
 import { atenderClienteChef } from "../_shared/chef.ts";
 import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
@@ -173,43 +173,21 @@ async function simularNumeroNuevo(body: any): Promise<Response> {
         .eq("phone", TEL_NUEVO).eq("status", "pending");
     }
     const salida: Array<Record<string, unknown>> = [];
+    let ultimoBot = [...historialDe(body)].reverse().find((h) => h.rol === "assistant")?.contenido ?? "";
     for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
       const text = String(paso.cliente ?? "").trim();
       if (!text) continue;
       SIM.alertas = [];
-      const respuestas: string[] = [];
-      const send = async (r: string) => { respuestas.push(r); };
-      let via = "";
-      const lead = await getPendingLead(TEL_NUEVO);
-      if (lead) {
-        await handleAltaStep(TEL_NUEVO, text, lead, send); via = "alta (paso a paso)";
-      } else {
-        const faq = RE_ALTA_START.test(text) ? null : await handleFaq(text, null);   // mismo orden que el webhook
-        if (faq) { respuestas.push(faq.reply); via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`; }
-        else {
-          const cuit = extractCuit(text);
-          if (cuit) {
-            const { data: ya } = await supabase.from("customers").select("business_name").eq("cuit", cuit).limit(1);
-            // sql/116: si no es de Loekemeyer pero sí de Chef, también va a vinculación (antes arrancaba el alta).
-            const { data: yaCh } = ya?.length ? { data: [] } : await supabase.from("bot_cuentas").select("razon_social")
-              .eq("empresa", "CH").eq("cuit", cuit.replace(/\D/g, "")).limit(1);
-            if (ya?.length || yaCh?.length) {
-              const nombre = ya?.length ? ya[0].business_name : yaCh![0].razon_social;
-              respuestas.push(`Encontré la cuenta de *${nombre}*. 👍\n\nPor seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. (Simulador: no se pide la vinculación.)`);
-              via = ya?.length ? "registro por CUIT" : "registro por CUIT (cliente de Chef)";
-            } else {
-              await crearLead(TEL_NUEVO, text, cuit);
-              respuestas.push("No te encontré como cliente con ese CUIT. 🤔\n\nSi querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. Te pregunto de a uno (para cortar, escribí *cancelar*):\n\n📋 ¿Cuál es tu *razón social*?");
-              via = "alta (arranca con CUIT)";
-            }
-          } else if (RE_ALTA_START.test(text)) {
-            await crearLead(TEL_NUEVO, text, null); respuestas.push(ALTA_INTRO); via = "alta (arranca)";
-          } else {
-            respuestas.push("Todavía no te tengo registrado como cliente. ¿Me pasás tu *CUIT* así te registro y podés ver precios y hacer pedidos? (con o sin guiones)\n\nSi todavía no sos cliente, decime *registrarme* y te tomo los datos.");
-            via = "no cliente";
-          }
-        }
-      }
+      // Mismo flujo que el webhook y el Chat de prueba (_shared/alta.ts). Lo último que dijo el bot es la respuesta del paso
+      // anterior (o la última del historial que manda el dashboard al seguir una charla): con eso un "sí" a la oferta de registro arranca el alta.
+      const { respuestas, via } = await atenderNoCliente(TEL_NUEVO, text, {
+        ultimoBot,
+        faq: async (t) => {
+          const faq = await handleFaq(t, null);
+          return faq ? { reply: faq.reply, via: `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})` } : null;
+        },
+      });
+      ultimoBot = respuestas[respuestas.length - 1] ?? "";
       const tareas: number[] = [];
       if (body.crear_tareas === true && SIM.alertas.length) {
         const { data: tp } = await supabase.from("wa_envio_contactos").select("phone").order("created_at").limit(1).maybeSingle();

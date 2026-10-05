@@ -5,6 +5,8 @@ import { canonPhone } from "../_shared/wa-api.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
+import { atenderNoCliente } from "../_shared/alta.ts";
+import { SIM } from "../_shared/simulacion.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -140,6 +142,33 @@ serve(async (req) => {
     let reply: string;
     let detectedIntent: string | null = null;
 
+    // ── No-cliente: el MISMO flujo que el webhook y el Simulador (_shared/alta.ts), 0 tokens ──
+    // Pablo, 05/10: acá había una copia vieja del alta (otro regex, otras preguntas, sin el "sí" a la oferta de registro) y probar
+    // en el Chat de prueba no mostraba lo que contesta el bot de verdad. SIM.activo: el alta no pide vinculaciones reales ni crea
+    // la alerta de Tareas (un teléfono de prueba no es un cliente). El teléfono del modo "Cliente nuevo" es uno al azar por sesión.
+    if (!customerRow) {
+      const { data: prev } = await supabase.from("wa_conversations").select("body")
+        .eq("phone", phone).eq("direction", "out").order("created_at", { ascending: false }).limit(1);
+      const memo = { intent: null as string | null };
+      SIM.activo = true;
+      const r = await atenderNoCliente(testPhone, text, {
+        ultimoBot: String(prev?.[0]?.body ?? ""),
+        faq: async (t) => {
+          const f = await handleFaq(t, null);
+          if (!f) return null;
+          memo.intent = f.intent;
+          return { reply: f.reply, via: "faq" };
+        },
+      }).finally(() => { SIM.activo = false; });
+      reply = r.respuestas.join("\n\n");
+      detectedIntent = memo.intent ?? "linking";
+      supabase.from("wa_conversations").insert([
+        { phone, direction: "in",  body: text,  msg_type: "text", customer_id: null, intent: detectedIntent },
+        { phone, direction: "out", body: reply, msg_type: "text", customer_id: null, intent: detectedIntent },
+      ]).then(() => {}, (e: unknown) => console.error("conv log err:", e));
+      return json({ reply, customer: null, via: r.via, ...(memo.intent ? { faqHit: true } : {}) });
+    }
+
     // ── Paso 1: FAQ trigram ANTES de gastar tokens (0 tokens) ──
     const faqResult = await handleFaq(text, customerRow);
     if (faqResult) {
@@ -176,44 +205,39 @@ serve(async (req) => {
     }
 
     let convAlert: { kind: "timeout" | "llm_error"; text: string } | null = null;
-    if (!customerRow) {
-      detectedIntent = "linking";
-      reply = await handleLinking(testPhone, text, anthropicKey);
+    // Unificado con el webhook real: usa el mismo runConversation
+    // (tool-use loop) que atiende WhatsApp en producción. Esto elimina la
+    // divergencia de flujo entre test y prod. Las media (fotos, PDFs) se
+    // adjuntan como links al final del reply para simular el envío.
+    detectedIntent = "bot";
+    const conv = await runConversation(
+      text,
+      testPhone,
+      customerRow.business_name,
+      customerRow.cod_cliente,
+      customerRow.dto_vol,
+      anthropicKey,
+      "lk_chat-test",
+    );
+    // Timeout / error del LLM → en producción NO se envía nada al
+    // cliente (se avisa a un humano). Acá levantamos una alerta visible
+    // en el chat de test para que el operador entienda qué habría
+    // pasado en prod.
+    if (conv.timeout || conv.llmError) {
+      convAlert = {
+        kind: conv.timeout ? "timeout" : "llm_error",
+        text: conv.reply,
+      };
+      detectedIntent = conv.timeout ? "llm_timeout" : "llm_error";
+      reply = conv.reply;
     } else {
-      // Unificado con el webhook real: usa el mismo runConversation
-      // (tool-use loop) que atiende WhatsApp en producción. Esto elimina la
-      // divergencia de flujo entre test y prod. Las media (fotos, PDFs) se
-      // adjuntan como links al final del reply para simular el envío.
-      detectedIntent = "bot";
-      const conv = await runConversation(
-        text,
-        testPhone,
-        customerRow.business_name,
-        customerRow.cod_cliente,
-        customerRow.dto_vol,
-        anthropicKey,
-        "lk_chat-test",
-      );
-      // Timeout / error del LLM → en producción NO se envía nada al
-      // cliente (se avisa a un humano). Acá levantamos una alerta visible
-      // en el chat de test para que el operador entienda qué habría
-      // pasado en prod.
-      if (conv.timeout || conv.llmError) {
-        convAlert = {
-          kind: conv.timeout ? "timeout" : "llm_error",
-          text: conv.reply,
-        };
-        detectedIntent = conv.timeout ? "llm_timeout" : "llm_error";
-        reply = conv.reply;
-      } else {
-        reply = conv.reply;
-        if (conv.media.length) {
-          const mediaLines = conv.media.map((m) => {
-            const label = m.caption ?? m.filename ?? m.type;
-            return `📎 ${label}\n${m.url}`;
-          });
-          reply = reply + "\n\n" + mediaLines.join("\n\n");
-        }
+      reply = conv.reply;
+      if (conv.media.length) {
+        const mediaLines = conv.media.map((m) => {
+          const label = m.caption ?? m.filename ?? m.type;
+          return `📎 ${label}\n${m.url}`;
+        });
+        reply = reply + "\n\n" + mediaLines.join("\n\n");
       }
     }
 
@@ -551,168 +575,3 @@ async function handleStats(since?: string) {
     },
   });
 }
-
-// ── Handlers (misma lógica que webhook, sin enviar a WA) ──
-
-// ── Alta de cliente nuevo: pasos secuenciales, 0 tokens ──
-
-const ALTA_INTRO = `¡Genial! Te voy a dar de alta como cliente.\n\n📋 ¿Cuál es tu *razón social*?`;
-
-// Orden de campos a pedir (CUIT ya lo tenemos del paso de identificación)
-const ALTA_STEPS: { field: string; prompt: string }[] = [
-  { field: "razon_social",     prompt: "📋 ¿Cuál es tu *razón social*?" },
-  { field: "nombre_contacto",  prompt: "👤 ¿*Nombre de contacto*?" },
-  { field: "telefono",         prompt: "📱 ¿*Teléfono* de contacto?" },
-  { field: "mail",             prompt: "📧 ¿*Mail*?" },
-  { field: "direccion",        prompt: "📍 ¿*Dirección*?" },
-  { field: "localidad",        prompt: "📍 ¿*Localidad*?" },
-  { field: "expreso_nombre",   prompt: "🚚 ¿Con qué *expreso* trabajan? (nombre)" },
-  { field: "expreso_direccion", prompt: "🚚 ¿*Dirección del expreso*?" },
-  { field: "expreso_telefono", prompt: "🚚 ¿*Teléfono del expreso*?" },
-  { field: "tipo_comercio",    prompt: "🏪 ¿*Tipo de comercio*? (Ej: Bazar, mayorista, distribuidor)" },
-  { field: "dimension_comercio", prompt: "🏪 ¿*Dimensión del comercio*? (Ej: 4x8=32m²)" },
-  { field: "tiene_venta_web",  prompt: "🌐 ¿Tiene *venta web / página*?" },
-  { field: "ya_vende_lk",      prompt: "📦 ¿Ya vendés *mercadería Loekemeyer*? (Sí/No)" },
-];
-
-// Paso extra según respuesta de ya_vende_lk
-const STEP_A_QUIEN = "📦 ¿A quién le comprás actualmente?";
-const STEP_COMO_CONOCE = "📢 ¿De dónde conocés la marca?";
-
-async function handleLinking(phone: string, text: string, apiKey: string): Promise<string> {
-  // ── ¿Ya tiene un lead en curso? → siguiente paso del alta ──
-  const { data: existingLead } = await supabase
-    .from("wa_prospect_leads")
-    .select("id, razon_social, nombre_contacto, telefono, mail, direccion, localidad, expreso_nombre, expreso_direccion, expreso_telefono, tipo_comercio, dimension_comercio, tiene_venta_web, ya_vende_lk, a_quien_compra, como_conoce_marca, alta_step, raw_messages")
-    .eq("phone", phone)
-    .eq("status", "pending")
-    .maybeSingle();
-
-  if (existingLead) {
-    return await handleAltaStep(phone, text, existingLead);
-  }
-
-  // ── Dice "soy nuevo" / "no soy cliente" → crear lead y empezar alta ──
-  if (/\b(soy nuevo|no soy cliente|nuevo cliente|quiero ser cliente|darme de alta|primera vez)\b/i.test(text)) {
-    await supabase.from("wa_prospect_leads").insert({
-      phone,
-      alta_step: 0,
-      raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
-    });
-    return ALTA_INTRO;
-  }
-
-  const cleaned = text.replace(/[^0-9]/g, "");
-  if (!cleaned) {
-    return "¡Hola! Soy el asistente de Loekemeyer. Para poder ayudarte, necesito identificarte. ¿Me pasás tu CUIT o código de cliente?\n\nSi todavía no sos cliente, decime *soy nuevo* y te ayudo con el alta.";
-  }
-
-  // ── Buscar por código de cliente ──
-  let customer = null;
-  const { data: byCod } = await supabase
-    .from("customers")
-    .select("id, cod_cliente, business_name")
-    .eq("cod_cliente", parseInt(cleaned))
-    .maybeSingle();
-  customer = byCod;
-
-  // ── Buscar por CUIT si tiene 10+ dígitos ──
-  if (!customer && cleaned.length >= 10) {
-    const { data: byCuit } = await supabase
-      .from("customers")
-      .select("id, cod_cliente, business_name")
-      .eq("cuit", cleaned)
-      .maybeSingle();
-    customer = byCuit;
-  }
-
-  // ── Cliente encontrado ──
-  // NO se vincula desde acá. Vincular un teléfono a un cliente es lo que le
-  // da acceso a sus pedidos, direcciones y descuentos, y los códigos de
-  // cliente son enteros secuenciales: un alta automática por código es un
-  // takeover de cuenta enumerable. La vinculación real va por
-  // `bot_register_request_v2` (queda `pending_primary` hasta que un humano la
-  // aprueba), que es el camino que usa el webhook de producción.
-  if (customer) {
-    return `Encontré a *${customer.business_name}* (código ${customer.cod_cliente}).\n\n` +
-      `⚠️ La consola de test no vincula teléfonos. La vinculación se pide desde ` +
-      `WhatsApp y la tiene que aprobar un humano.`;
-  }
-
-  // ── CUIT no encontrado → cliente nuevo, arrancar alta ──
-  if (cleaned.length >= 10) {
-    await supabase.from("wa_prospect_leads").insert({
-      phone,
-      cuit: cleaned,
-      alta_step: 0,
-      raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
-    });
-    return `No encontré ese CUIT en nuestro sistema. ¡Pero no hay problema, te damos de alta!\n\n${ALTA_INTRO}`;
-  }
-
-  // ── Código corto no encontrado ──
-  return "No encontré ese código. ¿Me pasás tu CUIT? Si todavía no sos cliente, decime *soy nuevo* y te ayudo con el alta.";
-}
-
-// ── Alta paso a paso: cada respuesta va al campo que toca ──
-
-// deno-lint-ignore no-explicit-any
-async function handleAltaStep(phone: string, text: string, lead: any): Promise<string> {
-  const step: number = lead.alta_step ?? 0;
-  const messages = Array.isArray(lead.raw_messages) ? [...lead.raw_messages] : [];
-  messages.push({ role: "user", content: text, ts: new Date().toISOString() });
-
-  // Guardar respuesta en el campo correspondiente al paso actual
-  if (step < ALTA_STEPS.length) {
-    const currentField = ALTA_STEPS[step].field;
-    let value: unknown = text.trim();
-
-    // ya_vende_lk → convertir a boolean
-    if (currentField === "ya_vende_lk") {
-      value = /^(si|sí|s|yes|y|1|true)\b/i.test(text.trim());
-    }
-
-    const nextStep = step + 1;
-    await supabase.from("wa_prospect_leads")
-      .update({
-        [currentField]: value,
-        alta_step: nextStep,
-        raw_messages: messages,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", lead.id);
-
-    // ── ¿Terminamos los pasos base? ──
-    if (nextStep >= ALTA_STEPS.length) {
-      // Preguntar paso extra según ya_vende_lk
-      const yaVende = currentField === "ya_vende_lk" ? value : lead.ya_vende_lk;
-      if (yaVende === true) {
-        return STEP_A_QUIEN;
-      }
-      return STEP_COMO_CONOCE;
-    }
-
-    return ALTA_STEPS[nextStep].prompt;
-  }
-
-  // ── Paso extra: a_quien_compra o como_conoce_marca ──
-  const yaVende = lead.ya_vende_lk;
-  const needsExtra = yaVende === true ? "a_quien_compra" : "como_conoce_marca";
-
-  if (!lead[needsExtra]) {
-    await supabase.from("wa_prospect_leads")
-      .update({
-        [needsExtra]: text.trim(),
-        status: "complete",
-        raw_messages: messages,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", lead.id);
-
-    return `✅ ¡Listo! Ya tenemos todos tus datos. Tu solicitud de alta fue registrada y va a ser revisada por el equipo de ventas.\n\nTe vamos a contactar cuando esté aprobada. ¡Gracias! 🙌`;
-  }
-
-  // Ya completó todo — mensaje genérico
-  return "Tu solicitud de alta ya fue registrada ✅ Un vendedor se va a poner en contacto con vos.";
-}
-

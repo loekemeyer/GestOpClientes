@@ -36,7 +36,7 @@ import { audioActivo, audioEco, textoEco, transcribirAudio } from "../_shared/tr
 import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
-import { ALTA_INTRO, crearLead, extractCuit, getPendingLead, handleAltaStep, RE_ALTA_START, tryRegister } from "../_shared/alta.ts";
+import { ALTA_INTRO, crearLead, esAfirmacion, extractCuit, getPendingLead, handleAltaStep, iniciaAlta, MSG_CUIT_INVALIDO, MSG_NO_CLIENTE, RE_ALTA_START, tryRegister, ultimoMensajeDelBot } from "../_shared/alta.ts";
 
 // Auditoría de performance (02/10/2026): este webhook leía app_settings ~17 veces por mensaje, un viaje a la base cada una
 // (3 ó 4 sólo en loadConfig, antes de mirar el mensaje). Ahora la tabla (40 filas, 8 KB) se lee ENTERA una vez por mensaje
@@ -182,6 +182,8 @@ async function handleRegistration(
   text: string,
   contactName: string | undefined,
   cfg: Config,
+  // Pablo, 05/10: lo decide el paso 4 (pidió registrarse con palabras propias o dijo "sí" a la oferta del bot).
+  quiereAlta: boolean = RE_ALTA_START.test(text),
 ): Promise<void> {
   // Guardamos el mensaje entrante y cada respuesta en el historial, para que
   // el flujo de identificación (CUIT) sea visible en Conversaciones y se pueda
@@ -201,24 +203,16 @@ async function handleRegistration(
     // (el flujo es stateless: cada mensaje de no-cliente reintenta el registro).
     const digitos = text.replace(/\D/g, "").length;
     if (digitos >= 11) {
-      await send(
-        `Ese CUIT no parece válido 🤔\n\n` +
-        `Verificá que tenga *11 dígitos* y esté bien copiado (con o sin guiones), y probá de nuevo.\n\n` +
-        `Si no lo tenés a mano, escribinos a ventas@loekemeyer.com`,
-      );
+      await send(MSG_CUIT_INVALIDO);
       return;
     }
     // Aceptó registrarse (o dijo "soy nuevo") sin pasar CUIT → arrancar alta.
-    if (RE_ALTA_START.test(text)) {
+    if (quiereAlta) {
       await crearLead(phone, text, null);
       await send(ALTA_INTRO);
       return;
     }
-    await send(
-      `Todavía no te tengo registrado como cliente. ` +
-      `¿Me pasás tu *CUIT* así te registro y podés ver precios y hacer pedidos? (con o sin guiones)\n\n` +
-      `Si todavía no sos cliente, decime *registrarme* y te tomo los datos.`,
-    );
+    await send(MSG_NO_CLIENTE);
     return;
   }
 
@@ -1242,7 +1236,10 @@ async function handleMessage(
     }
     if (g?.tipo === "seguir") { text = g.texto; marcaLk = true; }
   }
-  const faq = !customer && RE_ALTA_START.test(text) ? null
+  // Pablo, 05/10: además de pedirlo con palabras propias, un "sí" / "dale" a la oferta de registro del saludo arranca el alta
+  // (antes caía en "pasame tu CUIT"). Se lee lo último que dijo el bot ANTES de guardar este mensaje.
+  const quiereAlta = !customer && iniciaAlta(text, esAfirmacion(text) ? await ultimoMensajeDelBot(phone) : "");
+  const faq = quiereAlta ? null
     : enCurso ? null
     : await handleFaq(text, faqCustomer);
   if (faq) {
@@ -1300,7 +1297,7 @@ async function handleMessage(
 
   // 5. Sin cliente y sin FAQ → flujo de identificación (CUIT)
   if (!customer) {
-    await handleRegistration(phone, text, contactName, cfg);
+    await handleRegistration(phone, text, contactName, cfg, quiereAlta);
     return;
   }
 
