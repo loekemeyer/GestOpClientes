@@ -1,6 +1,6 @@
 // Pedido que llega como archivo (Excel, CSV, foto o PDF) — Pablo, 29/09 ("la IA lee el archivo").
 //
-// 1. lk_whatsapp-webhook guarda el adjunto (como siempre) y llama leerPedidoArchivo: la IA (Haiku) arma la lista de
+// 1. lk_whatsapp-webhook guarda el adjunto (como siempre) y llama leerPedidoArchivo: la IA (Sonnet, fijo: no puede fallar) arma la lista de
 //    artículos y cantidades; resolverArticulos la cruza con el catálogo (código exacto o búsqueda) y pasa unidades a cajas.
 // 2. El bot le contesta al cliente con la lista y le pide "sí" o qué cambiar (textoConfirmacion).
 // 3. La tarea (wa_alertas_humano, motivo pedido_archivo) se crea EN EL MOMENTO con la lista y el archivo: si el cliente
@@ -10,8 +10,27 @@
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 import { supabase } from "./supabase.ts";
 
-const MODELO = "claude-haiku-4-5-20251001";
-const TARIFA = { input: 1.0, output: 5.0 };   // US$ por millón de tokens
+// Pablo Olejavetzky, 05/10: leer un cotizador o una orden de compra es una toma de pedido: "no podemos fallar ahí". Antes usaba Haiku 4.5.
+// Sonnet 4.6 cuesta 3 veces más por archivo (US$ 3 / 15 por millón de tokens de entrada / salida, en vez de 1 / 5).
+const MODELO = "claude-sonnet-4-6";
+const TARIFA = { input: 3.0, output: 15.0 };   // US$ por millón de tokens
+
+const TRANSITORIOS = new Set([429, 500, 502, 503, 504, 529]);
+/** Llama a Anthropic y reintenta UNA vez (1,5 s después) si falla por cuota, sobrecarga, error del servidor o timeout. */
+async function llamarClaude(apiKey: string, body: Record<string, unknown>, timeoutMs: number): Promise<Response> {
+  for (let intento = 0; ; intento++) {
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.ok || intento === 1 || !TRANSITORIOS.has(res.status)) return res;
+    } catch (e) { if (intento === 1) throw e; }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
 const MAX_LINEAS = 120;
 
 export interface LineaLeida { cod: string | null; descripcion: string; cantidad: number; unidad: "cajas" | "unidades" | null }
@@ -74,12 +93,7 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
       : [{ type: "image", source: { type: "base64", media_type: m.startsWith("image/") ? m : "image/jpeg", data: b64 } }];
     content.push({ type: "text", text: "Este es el pedido que mandó el cliente." });
   }
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODELO, max_tokens: 4000, temperature: 0, system: SISTEMA, messages: [{ role: "user", content }] }),
-    signal: AbortSignal.timeout(40_000),
-  });
+  const res = await llamarClaude(apiKey, { model: MODELO, max_tokens: 4000, temperature: 0, system: SISTEMA, messages: [{ role: "user", content }] }, 40_000);
   if (!res.ok) return { lineas: [], error: `IA ${res.status}: ${(await res.text()).slice(0, 200)}` };
   const r = await res.json();
   const it = Number(r?.usage?.input_tokens ?? 0), ot = Number(r?.usage?.output_tokens ?? 0);
@@ -125,14 +139,9 @@ async function elegirConIA(items: Array<{ i: number; desc: string; cands: Prod[]
   Promise<Record<number, { cod: string | null; seguro: boolean; opciones: string[] }>> {
   if (!items.length || !apiKey) return {};
   const prompt = items.map((x) => `Línea ${x.i}: "${x.desc}"\nCandidatos: ${x.cands.map((c) => `${c.cod} = ${c.description.trim()}`).join(" | ") || "(ninguno)"}`).join("\n\n");
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODELO, max_tokens: 1500, temperature: 0,
+  const res = await llamarClaude(apiKey, { model: MODELO, max_tokens: 1500, temperature: 0,
       system: "Para cada línea de pedido de un bazar mayorista, elegí el código del candidato que corresponde al artículo pedido, o null si ninguno corresponde. seguro=true sólo si hay UN solo candidato que corresponde (ej. \"sacacorchos mariposa\" = \"Sacacorcho Doble Aleta\"). Si dos o más podrían ser (distintos tamaños, materiales o modelos, o un dato del pedido como \"grande\" que no alcanza para decidir), seguro=false y en opciones poné los códigos que podrían ser, 2 o 3, el más probable primero. Respondé SOLO JSON {\"elecciones\":[{\"linea\":0,\"cod\":\"441\"|null,\"seguro\":false,\"opciones\":[\"441\",\"438E\"]}]}",
-      messages: [{ role: "user", content: prompt }] }),
-    signal: AbortSignal.timeout(30_000),
-  });
+      messages: [{ role: "user", content: prompt }] }, 30_000);
   if (!res.ok) return {};
   const r = await res.json();
   const it = Number(r?.usage?.input_tokens ?? 0), ot = Number(r?.usage?.output_tokens ?? 0);

@@ -4,6 +4,24 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): modelo FIJO (Claude Sonnet 4.6) para cotizadores y toma de pedidos: ya no pasan por la cadena (Gemini #1).** Pedido de Pablo: *"podemos usar algún LLM fijo
+> cuando se envían los cotizadores y para tomar pedidos, en este caso sería Sonnet, no podemos fallar ahí"*. **Antes:** (1) el LECTOR de archivos (`pedido-archivo.ts`:
+> `leerPedidoArchivo` + `resolverArticulos`) usaba **Haiku 4.5** fijo y sin reintento; (2) la conversación de pedidos (`armar_pedido`, `confirmar_pedido`,
+> `solicitar_agregado_pedido`) iba por la cadena, que desde las 16:18 UTC de hoy tiene a Gemini gratis #1 (con los dos errores graves medidos hoy: promete fecha y toma un
+> cotizador sin archivo como pedido recibido). **Cambios:** `_shared/pedido-turno.ts` (puro, `tests/pedido-turno.test.ts`): `esTurnoDePedido` = el cliente pide, manda un
+> cotizador / orden de compra o dice cantidades (`RE_CLIENTE_PIDE`, amplio a propósito) o lo último del bot fue parte de un pedido en la última hora (`RE_BOT_EN_PEDIDO`, el
+> mismo criterio de `pedidoEnCurso`). Esos turnos usan SOLO `claude-sonnet-4-6` con la key del env, dos intentos (reintento a los 1,5 s); si fallan los dos, alerta `llm_error`
+> a una persona: **nunca cae en otro proveedor**. `app_settings.llm_modelo_pedidos` cambia el modelo sin deploy (`cadena` u `off` lo apaga; sin la clave rige Sonnet 4.6).
+> El lector de archivos pasó a Sonnet 4.6 con un reintento ante 429/5xx/timeout (tarifa 3/15 en vez de 1/5). **No aplica en el Simulador ni en el Chat de prueba** (usan
+> `llm_modelo_pruebas`: un gasto en Sonnet necesita el "sí" de Pablo): ahí los turnos de pedido siguen con el modelo de pruebas, así que lo simulado NO muestra el pin.
+> Además, en un turno de pedido el filtro de cierres (`sinCierreGenerico(texto, true)`) sólo saca los cierres de ayuda, no "¿Algo más?" (puede preguntar por más artículos).
+> **Costo [Probable]:** US$ 0,033 por llamada de conversación (3 llamadas del 02/10 con herramientas de pedido, 10.463 tokens de entrada de promedio); un pedido armado por
+> WhatsApp son unas 10 llamadas ≈ US$ 0,33 [Adivinando: sin medir un pedido completo]. Lector de archivos: las 9 llamadas del 29/09 (de prueba, 410 tokens de entrada) costarían
+> US$ 0,0035 cada una con Sonnet; un archivo real (foto, PDF o Excel grande) es mucho más grande y no está medido. **Para ver que corre:** `select model, count(*) from
+> bot_token_usage where function_name='lk_whatsapp-webhook' and created_at > '<deploy>' group by 1` (los turnos de pedido salen como `claude-sonnet-4-6`; el resto, Gemini).
+> **Hallazgo al leerlo:** el regex de `pedidoEnCurso` incluía `algo más\?`: cualquier respuesta de la IA que cerraba con "¿Necesitás algo más?" dejaba al número en "pedido en curso"
+> 60 minutos y el mensaje siguiente salteaba las respuestas fijas (FAQ) e iba a la IA. Con el filtro de cierres de hoy eso deja de pasar fuera de los pedidos.
+>
 > **05/10 (Pablo): el bot no cierra con "¿necesitás algo más?" (sin tocar `wa_faq` ni el front).** Pedido de Pablo: *"en todas las respuestas sacá el
 > 'te podemos ayudar en algo más', porque genera respuestas que no tienen sentido: si tiene más consultas las hace, si no se cortó la charla"*. El cierre lo
 > inventa cada modelo (Sonnet: "¿Necesitás algo más?", "¿Puedo ayudarte con algo más?"; Gemini: "¿Te podemos ayudar con algo más?"): el documento rector y

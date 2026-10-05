@@ -308,6 +308,16 @@ plantillas de Meta (`pedido_entregado` dice "si falta algo, avisanos por acá": 
 
 ## Flujo 3: Nuevo pedido (30/09: precarga por WhatsApp, `sql/112`)
 
+**Modelo FIJO para pedidos (Pablo, 05/10: "no podemos fallar ahí").** Los cotizadores / archivos y la toma de pedido NO pasan por la
+cadena de modelos del Panel (hoy Gemini gratis #1): los contesta siempre **Claude Sonnet 4.6**. (1) Lector de archivos
+(`pedido-archivo.ts`: `leerPedidoArchivo` y `resolverArticulos`): Sonnet con un reintento ante 429, 5xx o timeout (antes Haiku, sin reintento).
+(2) Conversación: `esTurnoDePedido` (`_shared/pedido-turno.ts`) marca el turno como de pedido si el cliente pide, manda un cotizador o una
+orden de compra, o dice cantidades ("6 cajas de…"), o si lo último que dijo el bot fue parte de un pedido en la última hora (resumen, forma de
+pago, "Leímos esto"…: lo que contesta el cliente, "sí" o "contado", sigue siendo del pedido). Esos turnos usan SOLO Sonnet, con un reintento a
+los 1,5 s; si fallan los dos intentos se avisa a una persona (alerta `llm_error`) y **nunca cae en otro proveedor**. Las consultas de estado
+("¿lo recibieron?", "Hice un pedido hace 10 días…") siguen por la cadena. `app_settings.llm_modelo_pedidos` cambia el modelo sin deploy
+(`cadena` u `off` lo apaga). No corre en el Simulador ni en el Chat de prueba: ahí rige `llm_modelo_pruebas`.
+
 Se prende en Configuración del agente › 🛒 Pedidos por WhatsApp (`app_settings.wa_pedidos_config`; apagado por
 defecto). Sólo números vinculados y aprobados. El agente: confirma artículos y cajas → pregunta SIEMPRE forma de pago
 (`opciones_de_pedido`) → pregunta SIEMPRE entrega (si retira, día hábil desde +3 hábiles y franja) → `armar_pedido`

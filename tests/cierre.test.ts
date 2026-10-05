@@ -53,5 +53,12 @@ const quedan = [
 for (const t of quedan) igual(`queda igual: ${t.slice(0, 50)}`, sinCierreGenerico(t), t);
 igual("si todo el texto es un cierre, no se deja vacío", sinCierreGenerico("¿Necesitás algo más?"), "¿Necesitás algo más?");
 
+// ── En un turno de PEDIDO "¿Algo más?" puede ser una pregunta de verdad (¿más artículos?): sólo se sacan los cierres de ayuda ──
+igual("pedido: '¿Algo más?' se deja", sinCierreGenerico("Anotado: 6 cajas del 505. ¿Algo más?", true), "Anotado: 6 cajas del 505. ¿Algo más?");
+igual("pedido: '¿Necesitás algo más?' se deja", sinCierreGenerico("Anotado: 6 cajas del 505. ¿Necesitás algo más?", true), "Anotado: 6 cajas del 505. ¿Necesitás algo más?");
+igual("pedido: '¿Te podemos ayudar con algo más?' sí se saca", sinCierreGenerico("Anotado: 6 cajas del 505. ¿Te podemos ayudar con algo más?", true), "Anotado: 6 cajas del 505.");
+igual("pedido: 'cualquier consulta avisame' sí se saca", sinCierreGenerico("Pedido cargado. Cualquier consulta avisame.", true), "Pedido cargado.");
+igual("fuera de un pedido el mismo '¿Algo más?' se saca", sinCierreGenerico("Anotado: 6 cajas del 505. ¿Algo más?"), "Anotado: 6 cajas del 505.");
+
 if (fallas) { console.error(`\n${fallas} falla(s)`); const g = globalThis as { Deno?: { exit(c: number): never }; process?: { exit(c: number): never } }; (g.Deno ?? g.process)!.exit(1); }
 else console.log("\ntodo bien");

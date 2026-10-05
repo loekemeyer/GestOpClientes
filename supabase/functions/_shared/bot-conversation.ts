@@ -9,6 +9,7 @@ import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
+import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
@@ -65,8 +66,7 @@ export async function pedidoEnCurso(phone: string): Promise<boolean> {
       .order("creado_en", { ascending: false }).limit(1);
   const ult = data?.[0];
   if (!ult || Date.now() - new Date(ult.creado_en).getTime() > 60 * 60_000) return false;
-  return /(le[ií]mos esto|recibimos tu cotizador|te tomo el pedido|qu[eé] art[ií]culos (necesit|quer)|algo m[aá]s\?|confirm[aá]s \d+ cajas|formas? de pago|resumen (de|del) (tu )?pedido|tu pedido:|confirm(á|as)\s+(el pedido|con un s[ií])|¿?con cu[aá]l (vas|pag)|direcci[oó]n de entrega|¿(a )?d[oó]nde (lo )?(enviamos|entregamos)|franja|d[ií]a de retiro)/i
-    .test(String(ult.contenido ?? ""));
+  return RE_BOT_EN_PEDIDO.test(String(ult.contenido ?? ""));   // el mismo criterio que usa pedido-turno.ts para elegir el modelo
 }
 
 export async function pedidosWaHabilitados(): Promise<boolean> {
@@ -1322,6 +1322,16 @@ export async function runConversation(
   if (apiKey && !soloPruebas) {
     candidates.push({ id: 0, provider: "anthropic", model: "claude-sonnet-4-6", key: apiKey, isFreeTier: false });
   }
+  // Pablo, 05/10: la TOMA DE PEDIDOS (cotizador, orden de compra, armar / confirmar / agregar a un pedido) la contesta SIEMPRE un
+  // modelo fijo (Sonnet), no la cadena de producción (hoy Gemini gratis #1): "no podemos fallar ahí". Si Sonnet falla se reintenta
+  // una vez con el mismo modelo y, si vuelve a fallar, se avisa a una persona (alerta llm_error): NUNCA cae en otro proveedor, para
+  // que un pedido no lo tome un modelo más débil. `app_settings.llm_modelo_pedidos` cambia el modelo ("cadena" lo apaga). En el
+  // Simulador y el Chat de prueba no corre (usan el modelo de pruebas: un gasto en Sonnet necesita el "sí" de Pablo, 01/10).
+  const turnoPedido = esTurnoDePedido(userText, rawHistory);
+  if (turnoPedido && apiKey && !soloPruebas) {
+    const fijo = modeloFijoDePedidos(await getSetting("llm_modelo_pedidos"));
+    if (fijo) { candidates.length = 0; candidates.push(...candidatosDePedido(fijo, apiKey)); }
+  }
   if (!candidates.length) {
     await notificarHumano({ tipo: "llm_error", phone, contexto: { userText, error: "Sin modelos en la cadena ni ANTHROPIC_API_KEY" } });
     return { reply: "⚠️ [LLM_ERROR] No hay modelos configurados. Se avisó a un humano.", media: [], llmError: true };
@@ -1343,6 +1353,7 @@ export async function runConversation(
     // Failover: probamos la cadena en orden hasta que un modelo responda.
     for (const cand of candidates) {
       if (downThisTurn.has(cand.id)) continue;
+      if (cand.id === -2) await new Promise((r) => setTimeout(r, 1500));   // reintento del modelo fijo de pedidos (candidatosDePedido)
       const t0 = performance.now();
       try {
         res = await callModel(cand, systemPrompt, herramientas, history, 30_000);
@@ -1400,7 +1411,9 @@ export async function runConversation(
       registrarUsos();
       // Pablo, 05/10: sin cierres de cortesía ("¿Necesitás algo más?"): ver _shared/cierre.ts y la regla CIERRE de agente-fijos.ts.
       // El texto de respaldo (la IA no devolvió nada) tampoco cierra con "¿en qué más…?": pide que cuente la consulta.
-      return { reply: sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo."), media: allMedia, herramientas: usadas, modelo: used.model };
+      // En un turno de pedido "¿Algo más?" puede ser una pregunta de verdad (¿más artículos?): ahí sólo se sacan los cierres de ayuda.
+      const enPedido = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
+      return { reply: sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo.", enPedido), media: allMedia, herramientas: usadas, modelo: used.model };
     }
 
     // El modelo pidió herramientas: las ejecutamos y devolvemos los resultados.
