@@ -4,6 +4,15 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): el aviso de cumpleaños de Planify pasa a una plantilla de UTILIDAD.** `planify_cumple-wa` (edge del
+> proyecto de Gestión `hrxfctzncixxqmpfhskv`, cron `planify_cumple_wa_diario` 11:00 UTC, **no está en ningún repo**) mandaba
+> `cumple_empleado`, que Meta tiene como MARKETING (US$ 0,0618 por mensaje contra 0,026) y decía "Mañana" fijo aunque el aviso
+> saliera 2 días hábiles antes. Desde la v4 (desplegada el 05/10 con el sí de Pablo) manda `aviso_cumple_operario` (UTILITY,
+> es_AR, misma variable de fecha y de personas). Verificado con `?dry=1` (no manda): `template: aviso_cumple_operario`, el
+> próximo aviso real es el 09/10. `cumple_empleado` queda aprobada en Meta pero sin uso (pasa a "Aprobadas que ya no se
+> usan" en el artifact de plantillas). Ahorro real: centavos (2 a 5 mensajes por mes, a 2 destinatarios); el motivo es que no
+> quede ninguna plantilla de marketing en uso. Las otras 7 de marketing son versiones viejas sin uso.
+>
 > **05/10 (Pablo): la base de PaginaLK se saturó de 10:36 a ~11:15 AR y el panel no dejaba entrar.** Google pasaba (auth es
 > ISIS, sano), pero la consulta de permiso a `gestop_users` volvía **504** y el panel decía *"Email no autorizado"* y cerraba la
 > sesión. En los logs: consultas triviales de catálogo (`pg_settings`, `pg_database_size`) tardando 10-20 s con sólo 6 sesiones

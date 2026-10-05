@@ -290,14 +290,14 @@
       "orden": 11,
       "estado": "otro_sistema",
       "para": "RR. HH.",
-      "sale": "Planify: cumpleaños de un operario."
+      "sale": "Planify (edge planify_cumple-wa, 8:00 hábiles): aviso de cumpleaños de un empleado, un día hábil antes (dos si cae en fin de semana o feriado). Desde el 05/10 reemplaza a cumple_empleado: es de utilidad, no de marketing."
     },
     "cumple_empleado": {
-      "grupo": "otros",
-      "orden": 12,
-      "estado": "otro_sistema",
+      "grupo": "legado",
+      "orden": 9,
+      "estado": "legado",
       "para": "RR. HH.",
-      "sale": "Planify: cumpleaños de un empleado."
+      "sale": "Ya no se manda (se reemplazó el 05/10 por aviso_cumple_operario). Meta la cobraba como marketing y decía \"Mañana\" fijo aunque el aviso saliera dos días hábiles antes."
     },
     "pedido_recordatorio_descuento": {
       "grupo": "complementarias",
