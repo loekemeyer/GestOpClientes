@@ -1134,6 +1134,13 @@ function prPintar() {
   const tablaIaA = filasIa.map((x) => `<tr><td>${nomBase(x)}</td>${celda(Math.round(x.cons))}<td>${nfmt(Math.round(x.sinIa))} <span class="pr-pct">${pct(x.sinIa, x.cons)}</span></td><td>${nfmt(Math.round(x.conIa))} <span class="pr-pct">${pct(x.conIa, x.cons)}</span></td><td>${nfmt(Math.round(x.objFija))} <span class="pr-pct">${pct(x.objFija, x.cons)}</span></td><td>${nfmt(Math.round(x.objIa))} <span class="pr-pct">${pct(x.objIa, x.cons)}</span></td></tr>`).join("");
   const tablaIaB = filasIa.map((x) => `<tr><td>${gesc(x.b.nombre)}</td>${celda(Math.round(x.llamadas))}<td class="pr-sep">${prUsd(x.hoy)}</td><td>${prUsd(x.objetivo)}</td><td>${prUsd(x.tope)}</td><td class="pr-sep">${nfmt(Math.round(x.respuestas))} <span class="pr-pct">${pct(x.respuestas, X.topeServicioGratisPorNumero)} del tope</span></td></tr>`).join("");
 
+  // Total mensual: plantillas de Meta (según "Ver") + IA (según el modelo elegido). Dos proveedores distintos, se suman.
+  const metaMes = promTot === null ? 0 : promTot * tarifa;
+  const ESCEN = [["hoy", "Como resuelve el bot hoy"], ["objetivo", "Si todo lo marcado \"Agente\" usa IA"], ["tope", "Si todo usa IA"]];
+  const filasTot = filasIa.flatMap((x) => ESCEN.map(([k, t]) => ({ base: x.b.nombre, esc: t, ia: x[k], total: metaMes + x[k] }))).sort((a, b) => b.total - a.total);
+  const tablaTot = filasTot.map((x) => `<tr><td>${gesc(x.base)}</td><td class="pr-emp">${gesc(x.esc)}</td><td>${prUsd(metaMes)}</td><td>${prUsd(x.ia)}</td><td class="pr-sep"><b>${prUsd(x.total)}</b></td></tr>`).join("");
+  const totMin = filasTot[filasTot.length - 1].total, totMax = filasTot[0].total;
+
   document.getElementById("prRoot").innerHTML = `
     <div class="sl-top">Ver <select onchange="G.prVista=this.value;prPintar()"><option value="todos"${conTel ? "" : " selected"}>Todos los clientes (si todos tuvieran teléfono)</option><option value="conTel"${conTel ? " selected" : ""}>Sólo clientes con teléfono</option></select>
       <span>Corte del ${dd(r.generado)} · tarifa de utilidad US$ ${tarifaTxt} por aviso (Argentina)</span></div>
@@ -1162,6 +1169,13 @@ function prPintar() {
       <div class="nota">"Respuesta fija" es la plantilla del bot (FAQ o regla, sin IA); "Agente" es la que usa IA. "Hoy" = cómo resolvió cada caso el bot en la última simulación; "según el estudio" = cómo conviene resolverlo (Plantilla, Agente o Plantilla + Agente, que acá se cuenta con IA).</div>
       <div class="nota">Las respuestas del bot salen como texto libre dentro de las 24 h del cliente: no usan plantillas de WhatsApp y, según el cambio de Meta del 01/10 (a confirmar con la factura), no se cobran mientras no pasen de ${nfmt(X.topeServicioGratisPorNumero)} por mes y por número. Los saludos usan la IA (${prUsd(X.usdPorSaludo * esc2, 3)} c/u).</div>
       <div class="nota">${gesc(ia._nota)} Cada consulta cuenta como una respuesta del bot: si la charla tiene más vueltas, el gasto sube en proporción. No incluye audios ni el puntaje de IA.</div>
+    </div>
+    <div class="sl-card"><h4>Total mensual estimado: plantillas de Meta + IA</h4>
+      <div class="sl-top"><span>Entre <b>${prUsd(totMin)}</b> y <b>${prUsd(totMax)}</b> por mes, según la base de consultas y cuánto use IA.
+        Plantillas: ${conTel ? "sólo clientes con teléfono" : "todos los clientes"} (selector "Ver"). IA: ${gesc(PR_MODELOS[G.prModelo])} (selector "Modelo").</span></div>
+      <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Base de consultas</th><th class="pr-emp">Cuánto usa IA</th><th>Plantillas<br>(Meta)</th><th>IA<br>(API)</th><th class="pr-sep">Total<br>por mes</th></tr></thead><tbody>${tablaTot}</tbody></table></div>
+      <div class="nota">Se paga a dos proveedores distintos: las plantillas a Meta (${nfmt(Math.round(promTot ?? 0))} avisos × US$ ${tarifaTxt}) y la IA al proveedor del modelo. Todo en US$ por mes, con el promedio de ${gesc(rango)} para las plantillas y 30 días para la IA (las sumas pueden diferir en un centavo por el redondeo).
+        No incluye las respuestas de texto libre del bot (no se cobran mientras no pasen de ${nfmt(X.topeServicioGratisPorNumero)} por mes y por número, a confirmar con la factura de Meta), ni audios, ni el puntaje de IA. Con un modelo gratis primero en la cadena del agente, el gasto real de IA es US$ 0.</div>
     </div>
     <div class="sl-card"><h4>Cómo se calcula</h4><ul class="pr-notas">${r.notas.map((n) => `<li>${gesc(n)}</li>`).join("")}</ul></div>`;
 }

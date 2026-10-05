@@ -45,6 +45,13 @@
 > ⚠ **No cubre** un pago anterior a la carga que el saldo todavía no refleja (ej. cliente 862: recibo del 01/10 por $11.687.939,34 y, en la carga del 02/10 18:26, dos facturas abiertas por
 > $11.736.332,17 en total): el recibo no se imputó a esas facturas, y eso es del armado del saldo, no de esta regla. Dato para decidir: sin carga nueva el saldo no se rearma, así que el aviso de las 9:05 usa lo de la noche anterior.
 >
+> **05/10 (Pablo): Informes › Proyección suma el total mensual (dashboard v0.27.5, `docs/gestop2.js` `prPintar`).** Bloque nuevo "Total mensual estimado: plantillas de Meta + IA" al final de
+> la pantalla: por cada base de consultas (jul–sep y ene–jun) y escenario de IA (como resuelve el bot hoy, si todo lo marcado "Agente" usa IA, si todo usa IA) muestra **plantillas de Meta +
+> IA (API) = total**, de mayor a menor. Las plantillas siguen el selector "Ver" (todos / sólo con teléfono) y la IA el selector "Modelo"; el rango de arriba cambia con los dos. Con los
+> datos del corte 05/10 y Sonnet: **US$ 34,50 a 47,52 por mes** con todos los clientes (plantillas US$ 31,49) y **US$ 29,08 a 42,10** sólo con teléfono (plantillas US$ 26,06). Haiku:
+> 32,81 a 38,51; Sonnet con caché: 33,84 a 44,01. Es un cálculo en el front sobre los datos que ya entrega `lk_conversaciones`: no hay backend nuevo ni gasto. El gasto real de IA es
+> US$ 0 mientras un modelo gratis esté primero en la cadena; el bloque lo aclara. Probado en el navegador (claro, oscuro y móvil) con el payload del servidor.
+>
 > **05/10 (Pablo): Informes › Proyección corregido (dashboard v0.27.4): Sonnet cuesta US$ 0,0251 por llamada, no 0,032.** El parámetro `usdPorLlamada.sonnet` de `datos-base.json`
 > salió de una corrida chica y sobreestimaba un 27 %. Medido con **534 llamadas reales de Sonnet 4.6** (`bot_token_usage`, simulador y webhook, 28/09–02/10): entrada 7.850 tokens
 > (mediana 8.598, de 4.125 a 11.735), salida 103, **US$ 0,0251** por llamada y el **93,8 % del costo es entrada**. "Sonnet con caché" pasó de 0,021 a **0,0196** (≈ −22 %: la segunda
