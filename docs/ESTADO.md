@@ -24,9 +24,13 @@
 > y 5.147 de salida, US$ 0. **Tiempo** (`bot_llm_intentos`): cada llamada p50 1,09 s · p95 2,0 s · máx 2,46 s; el turno completo con IA (logs de la edge, 31 turnos)
 > p50 3,9 s · p90 11,4 s · máx 16,3 s: el modelo es ~1 s por vuelta y **cada herramienta suma ~3 s**, así que el tiempo lo ponen las herramientas, no el modelo.
 > **Capacidad:** sin fallas hasta 14 llamadas por minuto (sólo 14 intentos: muestra chica), 4,7 % de fallas entre 15 y 18, 12,5 % con 19 o más. Un turno de IA
-> son ~2,1 llamadas, así que **~7 turnos de IA por minuto sin fallas** y ~710 por día (tope gratis 1.500 llamadas/día). Con 24 llamadas por minuto (~185.000 tokens)
-> empezaron los 429. ⚠ No se sabe QUÉ cuota cortó (minuto, tokens o día): el error se guardaba cortado a 300 caracteres y el detalle del 429 viene después. **Desde el 05/10 se guardan 800**
-> (`ERROR_MAX` en `bot-llm.ts`, también en `httpError`): el próximo 429 trae la cuota exacta, `select created_at, error from bot_llm_intentos where http_status = 429 order by id desc limit 3`.
+> son ~2,1 llamadas, así que **~7 turnos de IA por minuto sin fallas**.
+> **Cuota que cortó — MEDIDA el 05/10 (18:17 UTC, 15 consultas de IA en ráfaga, US$ 0):** 29 llamadas, 19 bien y 10 con 429: **10 de los 15 turnos fallaron**. Google lo dice en el
+> error: `generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite` y "retry in 33 s": **el tope es 15 solicitudes por minuto por modelo** (no tokens), y se
+> libera en ~33 s. Para ver el texto completo: `select created_at, error from bot_llm_intentos where http_status = 429 order by id desc limit 3` (el error se guarda hasta 800
+> caracteres desde el 05/10, `ERROR_MAX` en `bot-llm.ts`). ⚠ `wa_agente_modelos.rpm_limit` dice **30** (default de sql/045) y es incorrecto para este modelo (15); no cambia nada
+> porque sólo lo lee `_shared/llm.ts`, que es código muerto. El tope diario (1.500 en la tabla) no se probó. ⚠ **Pendiente de decidir:** en producción un solo 429 marca a Gemini
+> `caido` por 5 minutos (`COOLDOWN_MS`) aunque Google libera la cuota en ~33 s: en esos 5 minutos todo va a Sonnet, con costo.
 > En producción un 429 no pierde el mensaje: `runConversation` prueba el siguiente modelo de la cadena (Sonnet, con costo). **Calidad con IA (un evaluador, n = 36;
 > la corrida anterior no registró qué modelo la hizo):** 5 para revisar: peores "Paso un pedidito, ¿puede estar para el viernes?" (contestó el estado del pedido viejo),
 > "Te paso el cotizador con el pedido" ("Recibimos tu cotizador" sin haber recibido nada) y "e-cheq al 15 y al 30" (derivó a Cobranzas sin contestar el descuento);
