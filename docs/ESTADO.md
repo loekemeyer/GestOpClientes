@@ -79,6 +79,8 @@
 > Vault sigue andando). **Mientras ese secret no esté cargado en PaginaLK, todo sigue como antes** (lee el Vault). Para cargarlo lo hace el
 > dueño a mano: valor en Gestión (`select decrypted_secret from vault.decrypted_secrets where name = 'lk_factura_check_secret'`) → PaginaLK ›
 > Edge Functions › Secrets › `LK_FACTURA_CHECK_SECRET`. **Rotar el secreto: cambiar el Vault y el secret de la edge (o borrar el de la edge).**
+> Cómo verificar que quedó bien cargado: una llamada válida deja en `function_logs` `[gate] ok · secreto=env` (usó el de la edge) o
+> `[gate] ok · secreto=vault` (el de la edge falta); si dice `· OJO: LK_FACTURA_CHECK_SECRET no coincide con el Vault`, el de la edge está mal pegado.
 > Pruebas del gate: `deno run tests/gate-factura-check.test.ts`.
 >
 > **02/10 (Luis): responder a mano desde Conversaciones daba error de autorización.** `lk_conversaciones` era la única

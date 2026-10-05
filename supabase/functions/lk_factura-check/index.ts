@@ -85,8 +85,13 @@ async function gate(req: Request): Promise<Response | null> {
   }
   if (modo === "off") return null;
   const recibido = req.headers.get("x-lk-secret") ?? "";
-  const { esperado, origen } = await esperadoPara(recibido, Deno.env.get("LK_FACTURA_CHECK_SECRET") ?? "", leerSecretoVault);
+  const secretEdge = Deno.env.get("LK_FACTURA_CHECK_SECRET") ?? "";
+  const { esperado, origen } = await esperadoPara(recibido, secretEdge, leerSecretoVault);
   const d = decidirGate(modo, recibido, esperado);
+  if (!d.registrar && d.pasa) {
+    // Llamada válida: deja constancia de qué secreto la validó. "vault" con el secret de la edge cargado = el de la edge quedó desactualizado.
+    console.log(`[gate] ok · secreto=${origen}${origen === "vault" && secretEdge ? " · OJO: LK_FACTURA_CHECK_SECRET no coincide con el Vault" : ""}`);
+  }
   if (d.registrar) {
     console.warn(`[gate] ${d.pasa ? "PASA (modo log)" : "RECHAZADA"}: ${d.motivo} · ua=${(req.headers.get("user-agent") ?? "").slice(0, 60)} · ip=${(req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim()} · secreto=${origen}`);
   }
