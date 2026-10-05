@@ -13,6 +13,7 @@ import { atenderClienteChef } from "../_shared/chef.ts";
 import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
+import { AVISOS_DE_PEDIDO, avisoParaModo, type DatosPedido, fechaAR, fechaCorta, modoDe, modoTexto, paramsAviso } from "../_shared/aviso-pedido.ts";
 
 // Botonera del Simulador: avisos de seguimiento + las 6 de factura (con el PDF de la factura en el mensaje).
 // Pablo, 01/10: la botonera cambia con el tipo de cliente. Loekemeyer: seguimiento + 6 de factura; Chef: sus 6 de factura
@@ -26,6 +27,42 @@ const AVISOS: Aviso[] = [...PLANTILLAS.map((p) => ({ name: p.name, disparo: p.di
   ...PLANTILLAS_FACTURA.map((p) => ({ name: p.name, disparo: p.disparo, body: p.body, ejemplos: p.ejemplos, factura: true, varCliente: -1,
     empresa: (p.empresa === "chef" ? "CH" : "LK") as "LK" | "CH" }))];
 const rellenar = (body: string, vals: string[]) => body.replace(/\{\{(\d+)\}\}/g, (m, n) => vals[Number(n) - 1] ?? m);
+
+/** El pedido web real con el que se arman los avisos de seguimiento (Pablo, 05/10): el que viene en el paso o, si no, el
+ *  último que el cliente mandó desde la web. Mismas fuentes que los disparadores y que la Prueba de plantillas: orders,
+ *  v_pedidos_web_np (dirección y expreso de Gestión), bot_estado_pedidos_gv (fecha de salida), wa_fecha_estimada
+ *  (entrega estimada) y wa_metodo_pago_texto. Sólo lee. null si el cliente no tiene pedidos web. */
+async function datosPedido(customerId: string, pedidoId: number | null): Promise<DatosPedido | null> {
+  let q = supabase.from("orders").select("id, created_at, total, payment_method").eq("customer_id", customerId).eq("sheets_sent", true);
+  q = pedidoId ? q.eq("id", pedidoId) : q.order("created_at", { ascending: false }).limit(1);
+  const { data: o } = await q.maybeSingle();
+  if (!o) return null;
+  const [{ data: nps }, { data: est }, { data: fe }, { data: met }] = await Promise.all([
+    supabase.from("v_pedidos_web_np").select("razon_social,direccion,localidad,nombre_expreso,retiro_fecha")
+      .eq("empresa", "lk").eq("order_id", o.id).order("np_idx").limit(1),
+    supabase.rpc("bot_estado_pedidos_gv", { p_ids: [o.id] }),
+    supabase.from("wa_fecha_estimada").select("texto").eq("order_id", o.id).maybeSingle(),
+    supabase.rpc("wa_metodo_pago_texto", { p: o.payment_method ?? "" }),
+  ]);
+  const np = nps?.[0];
+  if (!np) return null;
+  const modo = modoDe(np);
+  let estimada: string | null = fe?.texto ?? null;
+  if (!estimada) {
+    // Pedidos de antes de la fecha estimada (sql/087) no tienen fila: se calcula igual (función de sólo lectura).
+    const { data: calc } = await supabase.rpc("wa_fecha_estimada_calc", { p_order_id: o.id });
+    estimada = calc?.[0]?.texto ?? null;
+  }
+  const fechaEntrega = est?.[0]?.fecha_entrega ?? null;
+  return {
+    order_id: Number(o.id), razon_social: String(np.razon_social ?? ""), pedido_el: fechaAR(o.created_at),
+    salida: modo === "retira" ? (np.retiro_fecha ?? fechaEntrega) : fechaEntrega, modo,
+    expreso: String(np.nombre_expreso ?? ""),
+    // Igual que los avisos reales (sql/090 y 105): `direccion` ya trae la localidad; la localidad sola si no hay dirección.
+    direccion: String(np.direccion ?? "").trim() || String(np.localidad ?? "").trim(),
+    total_neto: o.total == null ? null : Number(o.total), metodo: typeof met === "string" ? met : null, estimada,
+  };
+}
 
 /** La charla previa que manda el dashboard (se carga sin volver a correrla): sólo user/assistant, las últimas 40, 4.000 caracteres c/u. */
 // deno-lint-ignore no-explicit-any
@@ -51,7 +88,11 @@ function historialDe(body: any): Array<{ rol: "user" | "assistant"; contenido: s
 //   · { action: "avisos" }  → la botonera: [{ name, cuando, texto }] con las plantillas definidas y su texto de ejemplo.
 //   · { historial: [{rol:"user"|"assistant", contenido}] } → charla previa que se carga SIN volver a correrla
 //     (el simulador no guarda estado: así cada mensaje nuevo cuesta un solo turno de IA, no toda la charla).
-//   · { aviso: "pedido_recibido" } sin params → usa los valores de ejemplo de la plantilla (la razón social, si la plantilla la lleva, es la del cliente).
+//   · { aviso: "pedido_recibido" } sin params → los avisos de seguimiento salen con el último pedido web real del cliente
+//     (o el de `pedido`) y en la versión que le corresponde por cómo se le entrega; devuelve `nota` (qué pedido y qué
+//     versión) y `no_aplica` si a ese cliente no le llega (ej. pedido_entregado a un cliente de expreso). Factura,
+//     recordatorio y comprobante, o un cliente sin pedidos web: los valores de ejemplo de la plantilla (la razón social,
+//     si la plantilla la lleva, es la del cliente). Pablo, 05/10.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -265,17 +306,47 @@ serve(async (req) => {
     const salida: Array<Record<string, unknown>> = [];
     const ahora = () => new Date().toISOString();
 
+    let pedidoReal: DatosPedido | null | undefined;   // se busca una sola vez por llamada, con el primer aviso
     for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
       if (paso.aviso) {
-        const nombre = String(paso.aviso);
+        const tocado = String(paso.aviso);
+        let nombre = tocado;
+        let vals: string[] | null = paso.params ? Object.values(paso.params as Record<string, unknown>).map(String) : null;
+        let nota = "";
+        let pedido = Number(paso.pedido) || null;
+        // Pablo, 05/10: los avisos de seguimiento salen con el pedido web real del cliente (el del paso o el último) y en
+        // la versión que le corresponde por cómo se le entrega (reparto propio, expreso o retiro). Antes salían con los
+        // valores de ejemplo de plantillas-meta.ts y la versión que se tocara ("Lamadrid 157 - S.M. Tucumán" a un
+        // cliente de Mar del Plata que va por expreso).
+        if (!vals && AVISOS_DE_PEDIDO.has(tocado)) {
+          if (pedidoReal === undefined) pedidoReal = await datosPedido(c.id, pedido);
+          if (pedidoReal) {
+            const usar = avisoParaModo(tocado, pedidoReal.modo);
+            const delPedido = `pedido real ${pedidoReal.order_id} del ${fechaCorta(pedidoReal.pedido_el)} · ${modoTexto(pedidoReal)}`;
+            if (!usar) {
+              salida.push({ aviso: tocado, texto: null, no_aplica: true, pedido: pedidoReal.order_id,
+                nota: `${tocado} no le llega a este cliente: ${delPedido}.` });
+              continue;
+            }
+            nombre = usar;
+            vals = paramsAviso(usar, pedidoReal);
+            pedido = pedidoReal.order_id;
+            nota = [delPedido, usar !== tocado ? `se usa ${usar} en vez de ${tocado}` : "",
+              usar === "pedido_reprogramado" ? "la nueva fecha es de ejemplo" : ""].filter(Boolean).join(" · ");
+          } else nota = pedido ? `no encontré el pedido web ${pedido} de este cliente: valores de ejemplo`
+            : "el cliente no tiene pedidos web: valores de ejemplo";
+        }
         const def = AVISOS.find((x) => x.name === nombre && x.empresa === "LK");
-        // Sin params: los valores de ejemplo; en la variable de razón social (si la plantilla la tiene), el nombre del cliente.
-        const vals = paso.params ? Object.values(paso.params as Record<string, unknown>).map(String)
-          : def ? def.ejemplos.map((v, i) => (i === def.varCliente ? c.business_name : v)) : [];
+        // Sin pedido real (factura, recordatorio, comprobante o cliente sin pedidos web): los valores de ejemplo; en la
+        // variable de razón social (si la plantilla la tiene), el nombre del cliente.
+        if (!vals) {
+          vals = def ? def.ejemplos.map((v, i) => (i === def.varCliente ? c.business_name : v)) : [];
+          nota ||= "valores de ejemplo";
+        }
         const texto = def ? rellenar(def.body, vals) : (renderPlantilla(nombre, null) ?? "");
         SIM.historial.push({ rol: "assistant", creado_en: ahora(),
-          contenido: `[Aviso automático ${nombre}${paso.pedido ? ` · pedido ${paso.pedido}` : ""}]\n${texto}` });
-        salida.push({ aviso: nombre, texto });
+          contenido: `[Aviso automático ${nombre}${pedido ? ` · pedido ${pedido}` : ""}]\n${texto}` });
+        salida.push({ aviso: nombre, texto, nota, ...(pedido ? { pedido } : {}) });
         continue;
       }
       let text = String(paso.cliente ?? "").trim();

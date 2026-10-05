@@ -1961,8 +1961,14 @@ async function simAviso(name, factura) {
   _sim.ocupado = true;
   try {
     const r = await simLlamar([{ aviso: name }]);
-    simAgregar("in", `${factura ? '<div style="font-size:0.8rem;padding:0.4rem;border-radius:6px;background: var(--card);margin-bottom:0.4rem;">📄 Factura.pdf</div>' : ""}<div style="white-space:pre-wrap;">${esc(r.texto)}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(name)}</div><span class="time">${simHora()}</span>`);
-    _sim.historial.push({ rol: "assistant", contenido: `[Aviso automático ${name}]\n${r.texto}` });
+    // Pablo, 05/10: el seguimiento sale con el último pedido web real del cliente y en su versión (expreso, retiro o
+    // reparto propio): `aviso` es la que usó y `nota` dice de qué pedido sale; `no_aplica` si a ese cliente no le llega.
+    if (r.no_aplica) simAgregar("system", "ℹ️ " + esc(r.nota || "Este aviso no le llega a este cliente."));
+    else {
+      const usado = r.aviso || name;
+      simAgregar("in", `${factura ? '<div style="font-size:0.8rem;padding:0.4rem;border-radius:6px;background: var(--card);margin-bottom:0.4rem;">📄 Factura.pdf</div>' : ""}<div style="white-space:pre-wrap;">${esc(r.texto)}</div><div style="font-size:0.66rem;color: var(--muted);margin-top:0.35rem;font-family:monospace;">${esc(usado)}${r.nota ? " · " + esc(r.nota) : ""}</div><span class="time">${simHora()}</span>`);
+      _sim.historial.push({ rol: "assistant", contenido: `[Aviso automático ${usado}${r.pedido ? ` · pedido ${r.pedido}` : ""}]\n${r.texto}` });
+    }
   } catch (e) { simAgregar("system", "⚠️ " + esc(e.message)); }
   _sim.ocupado = false;
 }
@@ -4730,7 +4736,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.1</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.2</div>
 <script src="gestop2.js?v=0.27.1"></script>
 </body>
 </html>

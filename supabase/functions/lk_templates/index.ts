@@ -5,6 +5,7 @@ import { requireAdmin } from "../_shared/admin-gate.ts";
 import { PLANTILLAS, componentesMeta, validar } from "../_shared/plantillas-meta.ts";
 import { leerVersiones, nombreActivo, siguienteNombre, type Versiones } from "../_shared/plantillas-version.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
+import { fechaAR, fechaCorta, fechaLarga, masDias, modoDe } from "../_shared/aviso-pedido.ts";
 import { PDFDocument, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 // Función dedicada a plantillas WhatsApp: listar (Meta) + enviar prueba.
@@ -559,22 +560,7 @@ async function subirPdfMuestra(token: string): Promise<string> {
 // Sin order_id: lista los últimos pedidos web LK para elegir. Con order_id: arma la
 // secuencia de avisos que recibiría ese cliente (texto real de plantillas-meta.ts con
 // sus datos). Sólo lee: no encola ni manda nada.
-const fechaCorta = (d?: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "");
-const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-// "miércoles 30/09": fecha de salida con día de la semana, sin año.
-const fechaLarga = (d?: string | null) =>
-  d ? `${DIAS[new Date(d.slice(0, 10) + "T12:00:00Z").getUTCDay()]} ${fechaCorta(d)}` : "";
-function masDias(d: string | null, n: number): string | null {
-  if (!d) return null;
-  const x = new Date(d + "T12:00:00Z");
-  x.setUTCDate(x.getUTCDate() + n);
-  return x.toISOString().slice(0, 10);
-}
-// deno-lint-ignore no-explicit-any
-function modoDe(np: any): "propio" | "expreso" | "retira" {
-  if (np.retiro_fecha || /retira/i.test(np.nombre_expreso ?? "")) return "retira";
-  return np.nombre_expreso ? "expreso" : "propio";
-}
+// fechaAR, fechaCorta, fechaLarga, masDias y modoDe viven en _shared/aviso-pedido.ts: los usa también el Simulador (lk_bot-simular).
 
 async function handleTemplatesPreview(body: Record<string, unknown>) {
   const orderId = Number(body.order_id) || 0;
@@ -607,7 +593,8 @@ async function handleTemplatesPreview(body: Record<string, unknown>) {
 
   const modo = modoDe(np);
   const estado = est?.[0] ?? null;
-  const pedidoEl = (ord?.created_at ?? np.fecha_recep ?? "").slice(0, 10);
+  // En hora de Argentina, como el aviso real: un pedido de después de las 21 salía con el día siguiente.
+  const pedidoEl = ord?.created_at ? fechaAR(ord.created_at) : String(np.fecha_recep ?? "").slice(0, 10);
   const salida = modo === "retira" ? (np.retiro_fecha ?? estado?.fecha_entrega ?? null) : (estado?.fecha_entrega ?? null);
   const rs = np.razon_social ?? "";
   const fp = fechaCorta(pedidoEl);
