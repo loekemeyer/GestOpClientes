@@ -22,12 +22,16 @@
 --
 -- Idempotente: se puede correr dos veces.
 --
--- ESTADO (05/10/2026): PARTE 1 APLICADA en producción (pasos 1 a 3: columna, regla y trigger), con el "sí" de Pablo y
---   backup previo: public."GV_Backup_customer_delivery_addresses_20261005" y public."GV_Backup_expresos_20261005"
---   (RLS sin políticas, hash idéntico al origen). Se aplicó pieza por pieza con execute_sql porque apply_migration se
---   colgó dos veces (60 s) sin dejar nada en la base: esta migración NO figura en supabase_migrations.
---   Verificado tras la parte 1: 1.623 filas, 0 con expreso_id, datos idénticos al backup, FK ON DELETE SET NULL,
---   trigger habilitado. PARTE 2 (paso 4, backfill) pendiente: antes se prueba el trigger con rollback en el cliente 99862.
+-- ESTADO (05/10/2026): APLICADA ENTERA en producción, en dos tiempos y con el "sí" de Pablo, con backup previo:
+--   public."GV_Backup_customer_delivery_addresses_20261005" y public."GV_Backup_expresos_20261005" (RLS sin políticas,
+--   hash idéntico al origen). Se aplicó pieza por pieza con execute_sql porque apply_migration se colgó dos veces (60 s)
+--   sin dejar nada en la base: esta migración NO figura en supabase_migrations.
+--   · PARTE 1 (pasos 1 a 3: columna, regla y trigger): 1.623 filas, 0 con expreso_id, datos idénticos al backup, FK
+--     ON DELETE SET NULL, trigger habilitado.
+--   · Prueba del trigger con rollback en el cliente de prueba 99862: A (cambia la dirección) 235, B (nombre repetido sin
+--     dirección) NULL y con la dirección de Pergamino 59, C (INSERT) 1, D (expreso_id a mano en el mismo UPDATE) 1. Sin rastro.
+--   · PARTE 2 (paso 4, backfill): 973 con id, 30 con nombre sin id, 1.623 en total; 0 enlaces con otro nombre; los datos
+--     originales (sin la columna nueva) siguen idénticos al backup.
 
 -- 1) La columna. `on delete set null`: si algún día se depura el maestro, la dirección queda "no resuelta" en vez de trabarse.
 alter table public.customer_delivery_addresses

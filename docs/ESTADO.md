@@ -518,6 +518,18 @@ el killswitch, sin ningún consumidor de esa cola.
   `solicitar_nueva_sucursal` → tarea `cambio_datos`; en Tareas "Agregar dirección" (`lk_alertas` `sucursal_agregar`)
   inserta en `customer_delivery_addresses` (slot siguiente, `pending_isis=true`) y avisa al cliente por la cola.
   "Cambié de dirección" ya no cae en la FAQ #4 (`RE_NUEVA_DIRECCION` → IA).
+- **Expreso enlazado a la dirección (05/10, Pablo, sql/126):** `customer_delivery_addresses.expreso_id` → `expresos.id`
+  (`ON DELETE SET NULL`). Se enlaza por `id` y no por `codigo`: no está verificado que `codigo` sea el de ISIS. La regla
+  es `expreso_id_de(nombre, dirección)` (nombre único → ese; nombre repetido → el que coincide con la dirección; si no,
+  NULL) y el trigger `cda_expreso_id` la aplica cuando cambia `nombre_expreso` o `direccion_expreso` (escriben
+  `expreso_cambiar`, `expo_guardar_cliente`, `lk_alertas` y la página por REST); un `expreso_id` puesto a mano en el mismo
+  UPDATE se respeta. Backfill del 05/10: 973 de 1.623 con id (137 son «Retira» = id 412, código 999), 30 con nombre quedan
+  NULL (12 repetidos ambiguos, 18 fuera del maestro) y 620 sin expreso. **NULL = no resuelto**, no «sin expreso».
+  El maestro `expresos` (412 filas) es una carga única del 30/04: los expresos dados de alta en ISIS después no están.
+  No llega a Gestión (`gv-sync-padron-direcciones` pide columnas por nombre) y no cubre Chef. Backups (RLS sin políticas,
+  borrar cuando lleve semanas estable): `GV_Backup_customer_delivery_addresses_20261005` y `GV_Backup_expresos_20261005`.
+  `apply_migration` se colgó dos veces (60 s) sin dejar rastro: se aplicó con `execute_sql` y 126 no figura en
+  `supabase_migrations`.
 - **Cambio de mail** (29/09): `solicitar_cambio_mail` → tarea `cambio_datos` con `mail_nuevo` → "Cambiar mail" (`mail_cambiar`).
 - **Simulador › 📱 Número nuevo** (29/09): corre el alta real (`_shared/alta.ts`, movido del webhook sin cambios) con el
   número falso 5490000000099; el estado vive en `wa_prospect_leads` de ese número y una charla nueva cancela la anterior.
