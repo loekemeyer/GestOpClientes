@@ -4,6 +4,20 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): Informes › Proyección de avisos y gasto (dashboard v0.27.0, sólo admin).** Módulo nuevo "Informes": cuántos avisos
+> dispararían mes a mes los disparadores (registro del pedido, cambios de estado, retiro y salida web, facturas, recordatorio de descuento)
+> y cuánto gastaría la IA con la base de consultas del WhatsApp de ventas. `lk_conversaciones` action `proyeccion` → `_shared/proyeccion.ts`
+> (sólo lectura, detrás del gate de admin; tarifa viva de `app_settings.wa_tarifas`). Los números NO se calculan al abrir la pantalla: son un
+> corte en `_shared/proyeccion-datos.ts`, **generado** con `node scripts/proyeccion-avisos/generar.mjs` desde `datos-base.json` (el resultado de
+> las 4 consultas de `consultas.sql`, que se corren a mano contra PaginaLK y Gestión). Corte 05/10: **promedio Jun–Sep 1.211 avisos/mes =
+> US$ 31,49** (todos los clientes) o 1.003 = US$ 26,06 (sólo los que tienen teléfono); el recordatorio de descuento es el aviso que más pesa
+> (312/mes, 26 %). IA, mes de 30 días: US$ 6,07 (base 28/07–28/09) y 3,84 (base 01/01–09/06) con Sonnet 4.6 y 1,8 llamadas por consulta con IA.
+> **Límites:** (1) la base de consultas está cargada ya agrupada por causa (`wa_agente_evals`: 'm' 1.013 consultas, 'r' 712 + 108 saludos), sin fecha
+> por mensaje, así que la IA es "mes promedio" y no mes a mes; el archivo original (`chatbot_intents_whatsapp.json`) no está en el repo, ni en
+> Storage, ni en Drive. (2) Gestión guarda ~4 semanas de estado de pedidos web: antes del 07/09 se supone el recorrido completo. (3) Sin
+> `pedido_reprogramado` (no hay historial de cambios de fecha antes del 28/09). (4) El repo es público: `datos-base.json` y
+> `proyeccion-datos.ts` son sólo agregados, como `scripts/plantillas-artifact/simulacion.json`. El CI deploya `lk_conversaciones` al llegar a `main`.
+>
 > **05/10 (Pablo): el aviso de cumpleaños de Planify pasa a una plantilla de UTILIDAD.** `planify_cumple-wa` (edge del
 > proyecto de Gestión `hrxfctzncixxqmpfhskv`, cron `planify_cumple_wa_diario` 11:00 UTC, **no está en ningún repo**) mandaba
 > `cumple_empleado`, que Meta tiene como MARKETING (US$ 0,0618 por mensaje contra 0,026) y decía "Mañana" fijo aunque el aviso
@@ -827,6 +841,9 @@ Un commit que sólo toca docs NO dispara deploy.
   (`wa_outbox.wamid`, lo escribe `lk_outbox-flush`); APROXIMADO (teléfono ±3 min) para respuestas del bot en la
   charla (`bot_historial_chat` no guarda wamid) y para lo anterior al 28/09. Dato del 28/09: en 7 días salieron ~1.000 mensajes del número y ~15 fueron
   del bot; el resto sale de otros sistemas o de la app.
+- **Informes (v0.27.0) — Proyección de avisos y gasto** (`lk_conversaciones` action `proyeccion`, `_shared/proyeccion.ts`, pantalla
+  `#pageProyeccion` en `gestop2.js`): avisos por plantilla y mes (todos los clientes o sólo con teléfono), gasto en Meta por tipo de aviso,
+  pedidos web de LK por modo de entrega, y gasto de IA por mes de 30 días con el modelo a elección (Sonnet, Haiku, Sonnet con caché). Ver la nota del 05/10 arriba.
 - **Etapa 5 (v0.22.0) — restyle de Dashboard, Panel de Control, Agente, Alertas y Pruebas:** los ~110 colores
   fijos de `index.html` (CSS y estilos armados en JS) pasaron a los tokens (`--surface`, `--ok-bg`, `--bad-bg`,
   `--amb-bg`, `--pur-bg`…), el modo oscuro vale en todo el sistema (el simulador de Pruebas usa la paleta oscura

@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { salientes } from "../_shared/salientes.ts";
+import { proyeccion } from "../_shared/proyeccion.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
 import { sinAnulados } from "../_shared/pedidos-anulados.ts";
 import { cadenasListaPropia } from "../_shared/cadenas.ts";
@@ -345,6 +346,14 @@ serve(async (req) => {
 
     if (action === "salientes") {
       return json(await salientes(Number(body.dias ?? 7)));
+    }
+
+    // Informes › Proyección de avisos y gasto (v0.27.0): datos de un corte (_shared/proyeccion-datos.ts) + tarifa viva.
+    if (action === "proyeccion") {
+      const { data: tRow } = await sb.from("app_settings").select("value").eq("key", "wa_tarifas").maybeSingle();
+      let tarifas = {};
+      try { if (tRow?.value) tarifas = JSON.parse(tRow.value); } catch { /* tarifa de respaldo */ }
+      return json(proyeccion(tarifas));
     }
 
     if (action === "llave_get") {

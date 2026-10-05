@@ -7,7 +7,7 @@ var G = {
   mod: "ini", sec: "inicio", abiertos: { com: true },
   esperando: 0, alertas: 0, vinculos: 0, consultas: 0,
   llave: null, miNombre: null,
-  slDias: 7, tareas: [], tareaSel: null, filtroTipo: "todas", resueltasHoy: 0,
+  slDias: 7, pr: null, prVista: "todos", prModelo: "sonnet", tareas: [], tareaSel: null, filtroTipo: "todas", resueltasHoy: 0,
   convs: [], convsOk: false, convSel: null, hilo: null, ficha: null, filtroEstado: "todas", filtroTema: "", filtroEspera: 0, buscar: "",
 };
 const esAdmin = () => currentRole === "admin";
@@ -28,6 +28,10 @@ const MODULOS = [
   { id: "dash", nombre: "Dashboard", secciones: [
     { id: "pipe", nombre: "Pipeline de facturas", abrir: () => { irPagina("dash"); abrirDash(0); } },
     { id: "ia", nombre: "IA · gastos y uso", abrir: () => { irPagina("dash"); abrirDash(1); } },
+  ] },
+  // Informes (Pablo, 05/10): lectura de un corte de datos; sólo admin.
+  { id: "inf", nombre: "Informes", admin: true, secciones: [
+    { id: "proy", nombre: "Proyección de avisos y gasto", abrir: () => irPagina("proyeccion") },
   ] },
   { id: "cfg", nombre: "Panel de Control", secciones: [
     { id: "acceso", nombre: "Acceso", abrir: () => cfg("acceso") },
@@ -56,17 +60,19 @@ function abrirDash(i) {
 const visibles = (m) => m.secciones.filter((s) => !s.admin || esAdmin());
 
 // Página → módulo/sección, así el menú queda sincronizado aunque otra función llame a showPage().
-const PAGINA_A = { inicio: ["ini", "inicio"], conv: ["com", "conv"], tareas: ["com", "tareas"], salientes: ["com", "salientes"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
+const PAGINA_A = { inicio: ["ini", "inicio"], conv: ["com", "conv"], tareas: ["com", "tareas"], salientes: ["com", "salientes"], proyeccion: ["inf", "proy"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
 
 // ── showPage extendido: suma la página nueva del Centro de mensajes ─────────
 const _showPageViejo = showPage;
 function irPagina(p) {
-  const nueva = p === "inicio" || p === "conv" || p === "tareas" || p === "salientes";
+  if (p === "proyeccion" && !esAdmin()) return; // el servidor igual exige admin; acá no se muestra una pantalla vacía
+  const nueva = p === "inicio" || p === "conv" || p === "tareas" || p === "salientes" || p === "proyeccion";
   _showPageViejo(nueva ? "__ninguna__" : p);
   document.getElementById("pageInicio")?.classList.toggle("active", p === "inicio");
   document.getElementById("pageConv").classList.toggle("active", p === "conv");
   document.getElementById("pageTareas")?.classList.toggle("active", p === "tareas");
   document.getElementById("pageSalientes")?.classList.toggle("active", p === "salientes");
+  document.getElementById("pageProyeccion")?.classList.toggle("active", p === "proyeccion");
   const [m, s] = PAGINA_A[p] || [G.mod, G.sec];
   G.mod = m;
   if (s) G.sec = s;
@@ -75,6 +81,7 @@ function irPagina(p) {
   if (p === "conv") cmCargar();
   if (p === "tareas") tkCargar();
   if (p === "salientes") slCargar();
+  if (p === "proyeccion") prCargar();
   renderNav();
 }
 // eslint-disable-next-line no-global-assign
@@ -1054,6 +1061,109 @@ function slPintar() {
         <div class="nota">Retenidos = la llave no los dejó salir (modo prueba o apagado).</div></div>
     </div>
     ${r.respuesta.length ? `<div class="sl-card"><h4>Tasa de respuesta por tipo de aviso</h4><div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Categoría</th><th>Entregados</th><th>Respondidos en 24 h</th><th>%</th></tr></thead><tbody>${r.respuesta.map((x) => `<tr><td>${x.categoria === "utility" ? "Utilidad" : "Marketing"}</td>${celda(x.enviados)}${celda(x.respondidos)}<td>${pct(x.respondidos, x.enviados)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`;
+}
+
+// ── Informes › Proyección de avisos y gasto (v0.27.0, Pablo 05/10/2026) ─────────────────────────────────────
+// Un corte de datos (lk_conversaciones {action:"proyeccion"}, armado con scripts/proyeccion-avisos): cuántos avisos dispararían
+// mes a mes los disparadores del sistema y cuánto gastaría la IA con la base de consultas del WhatsApp de ventas.
+// Sólo lectura: no llama a Meta ni a la IA.
+const prUsd = (n, d = 2) => "US$ " + Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const prDec = (n, d = 1) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const PR_MODELOS = { sonnet: "Sonnet 4.6 (el de producción hoy)", haiku: "Haiku 4.5", sonnetConCache: "Sonnet 4.6 con caché de prompt (≈ −35 %)" };
+const PR_GRUPOS = [["Seguimiento del pedido", "var(--accent)"], ["Factura y pago", "var(--warn)"], ["Recordatorio", "var(--g-muted)"]];
+async function prCargar() {
+  const root = document.getElementById("prRoot");
+  if (!G.pr) root.innerHTML = `<div class="cm-vacio">Cargando…</div>`;
+  try { G.pr = await conv({ action: "proyeccion" }); prPintar(); }
+  catch (e) { root.innerHTML = `<div class="cm-vacio">No se pudo cargar: ${gesc(e.message)}</div>`; }
+}
+function prPintar() {
+  const r = G.pr, tarifa = r.tarifa.utility, meses = r.meses, comp = meses.filter((m) => !m.parcial);
+  const conTel = G.prVista === "conTel";
+  const val = (c) => (conTel ? c.conTel : c.todos);                       // null = sin dato (Chef no tiene el cruce de teléfono)
+  const prom = (arr) => (arr.some((x) => x === null) ? null : arr.reduce((a, b) => a + b, 0) / arr.length);
+  const celN = (n, cls) => (n === null ? `<td class="cero">—</td>` : celda(n, cls));
+  const dd = (iso) => iso.split("-").reverse().join("/");
+  const tot = (m) => (conTel ? r.totales[m.id].conTel : r.totales[m.id].todos);   // "con teléfono" no incluye a Chef
+  const promTot = prom(comp.map(tot));
+  const rango = `${comp[0].nombre} a ${comp[comp.length - 1].nombre}`;
+  const tarifaTxt = String(tarifa).replace(".", ",");
+
+  // Avisos por plantilla y mes (el servidor ya las manda de mayor a menor peso).
+  const filas = r.plantillas.map((f) => {
+    const p = prom(comp.map((m) => val(f.porMes[m.id])));
+    return `<tr><td>${gesc(f.etiqueta)}</td>${meses.map((m) => celN(val(f.porMes[m.id]))).join("")}${p === null ? `<td class="cero pr-sep">—</td><td class="cero">—</td>` : `<td class="pr-sep">${nfmt(Math.round(p))}</td><td>${prUsd(p * tarifa)}</td>`}</tr>`;
+  }).join("");
+  const filaTotal = `<tr class="tot"><td>${conTel ? "Total (sin Chef)" : "Total"}</td>${meses.map((m) => celda(tot(m))).join("")}<td class="pr-sep">${nfmt(Math.round(promTot))}</td><td>${prUsd(promTot * tarifa)}</td></tr>
+    <tr><td>Costo del mes</td>${meses.map((m) => `<td>${prUsd(tot(m) * tarifa)}</td>`).join("")}<td class="pr-sep" colspan="2">${prUsd(promTot * tarifa)} por mes</td></tr>`;
+  const sinSalir = meses.filter((m) => r.totales[m.id].falta > 0).map((m) => `${gesc(m.nombre)}: ${nfmt(r.totales[m.id].falta)}`).join(" · ");
+
+  // US$ por mes, partido por tipo de aviso.
+  const porGrupo = PR_GRUPOS.map(([g]) => meses.map((m) => r.plantillas.filter((f) => f.grupo === g).reduce((s, f) => s + (val(f.porMes[m.id]) ?? 0), 0) * tarifa));
+  const maxMes = Math.max(1e-9, ...meses.map((m, i) => porGrupo.reduce((s, g) => s + g[i], 0)));
+  const barras = meses.map((m, i) => `<span>${gesc(m.nombre)}</span><div class="b">${porGrupo.map((g, j) => `<i style="width:${(g[i] / maxMes) * 100}%;background:${PR_GRUPOS[j][1]}" title="${gesc(PR_GRUPOS[j][0])}: ${prUsd(g[i])}"></i>`).join("")}</div><b>${prUsd(porGrupo.reduce((s, g) => s + g[i], 0))}</b>`).join("");
+  const leyenda = PR_GRUPOS.map(([g, c], j) => `<span><i style="background:${c}"></i>${gesc(g)} · ${prUsd(prom(comp.map((m) => porGrupo[j][meses.indexOf(m)])))} por mes</span>`).join("");
+
+  // Pedidos web de LK por mes.
+  const P = (m) => r.pedidos[m.id];
+  const filasPed = [
+    ["Pedidos cargados", (m) => P(m).total + P(m).cancelados],
+    ["· por expreso (3 avisos c/u)", (m) => P(m).modo.expreso],
+    ["· en reparto (4 avisos c/u)", (m) => P(m).modo.reparto],
+    ["· con retiro (3 avisos c/u)", (m) => P(m).modo.retira],
+    ["· cancelados", (m) => P(m).cancelados],
+    ["En curso, sin entregar", (m) => P(m).enCurso],
+    ["Con teléfono del cliente", (m) => P(m).conTel],
+  ].map(([t, f]) => `<tr><td>${t}</td>${meses.map((m) => celda(f(m))).join("")}</tr>`).join("");
+
+  // KPIs.
+  const nPed = comp.reduce((s, m) => s + P(m).total + P(m).cancelados, 0);
+  const avPed = comp.reduce((s, m) => s + P(m).avisos, 0) / Math.max(1, nPed);
+  const rec = r.plantillas.find((f) => f.id === "pedido_recordatorio_descuento");
+  const recProm = rec ? prom(comp.map((m) => val(rec.porMes[m.id]))) : null;
+
+  // IA con la base de consultas del WhatsApp de ventas.
+  const ia = r.ia, X = ia.parametros, ll = X.llamadasPorConsultaIa, usdLl = X.usdPorLlamada[G.prModelo], esc2 = usdLl / X.usdPorLlamada.sonnet;
+  const filasIa = ia.bases.map((b) => {
+    const k = 30 / b.dias, cons = b.consultas * k, salu = b.saludos * k, conIa = b.hoy.conIa * k;
+    const objIa = (b.metodo.agente + b.metodo.plantillaAgente) * k, gSalu = salu * X.usdPorSaludo * esc2;
+    return { b, cons, salu, conIa, sinIa: b.hoy.sinIa * k, objIa, objFija: b.metodo.plantilla * k, llamadas: conIa * ll + salu,
+      hoy: conIa * ll * usdLl + gSalu, objetivo: objIa * ll * usdLl + gSalu, tope: cons * ll * usdLl + gSalu, respuestas: cons + salu };
+  }).sort((a, b) => b.hoy - a.hoy);
+  const nomBase = (x) => `${gesc(x.b.nombre)}<div class="nota">${gesc(x.b.nota)}</div>`;
+  const tablaIaA = filasIa.map((x) => `<tr><td>${nomBase(x)}</td>${celda(Math.round(x.cons))}<td>${nfmt(Math.round(x.sinIa))} <span class="pr-pct">${pct(x.sinIa, x.cons)}</span></td><td>${nfmt(Math.round(x.conIa))} <span class="pr-pct">${pct(x.conIa, x.cons)}</span></td><td>${nfmt(Math.round(x.objFija))} <span class="pr-pct">${pct(x.objFija, x.cons)}</span></td><td>${nfmt(Math.round(x.objIa))} <span class="pr-pct">${pct(x.objIa, x.cons)}</span></td></tr>`).join("");
+  const tablaIaB = filasIa.map((x) => `<tr><td>${gesc(x.b.nombre)}</td>${celda(Math.round(x.llamadas))}<td class="pr-sep">${prUsd(x.hoy)}</td><td>${prUsd(x.objetivo)}</td><td>${prUsd(x.tope)}</td><td class="pr-sep">${nfmt(Math.round(x.respuestas))} <span class="pr-pct">${pct(x.respuestas, X.topeServicioGratisPorNumero)} del tope</span></td></tr>`).join("");
+
+  document.getElementById("prRoot").innerHTML = `
+    <div class="sl-top">Ver <select onchange="G.prVista=this.value;prPintar()"><option value="todos"${conTel ? "" : " selected"}>Todos los clientes (si todos tuvieran teléfono)</option><option value="conTel"${conTel ? " selected" : ""}>Sólo clientes con teléfono</option></select>
+      <span>Corte del ${dd(r.generado)} · tarifa de utilidad US$ ${tarifaTxt} por aviso (Argentina)</span></div>
+    <div class="sl-kpis">
+      <div class="sl-kpi"><span>Avisos por mes</span><b>${promTot === null ? "—" : nfmt(Math.round(promTot))}</b><i>promedio de ${gesc(rango)}</i></div>
+      <div class="sl-kpi"><span>Costo por mes</span><b>${prUsd(promTot * tarifa)}</b><i>${nfmt(Math.round(promTot))} avisos × US$ ${tarifaTxt}</i></div>
+      <div class="sl-kpi"><span>Avisos por pedido web</span><b>${prDec(avPed)}</b><i>recibido, programado y salida; facturas aparte</i></div>
+      <div class="sl-kpi"><span>Recordatorio de descuento</span><b>${recProm === null ? "—" : nfmt(Math.round(recProm))}</b><i>${recProm === null ? "" : `${pct(recProm, promTot)} de los avisos · ${prUsd(recProm * tarifa)} por mes`}</i></div>
+    </div>
+    <div class="sl-card"><h4>Avisos que dispararía cada plantilla, por mes (cantidad de mensajes)</h4>
+      <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Plantilla</th>${meses.map((m) => `<th>${gesc(m.nombre)}</th>`).join("")}<th class="pr-sep">Promedio por mes<br>(${gesc(rango)})</th><th>US$ por mes</th></tr></thead>
+      <tbody>${filas}${filaTotal}</tbody></table></div>
+      ${sinSalir ? `<div class="nota">Aún sin salir (pedidos en curso, ya contados arriba): ${sinSalir}.</div>` : ""}
+    </div>
+    <div class="sl-2col">
+      <div class="sl-card"><h4>Gasto en Meta por mes, por tipo de aviso</h4>
+        <div class="pr-barras">${barras}</div><div class="sl-ley">${leyenda}</div></div>
+      <div class="sl-card"><h4>Pedidos web de LK por mes (cantidad)</h4>
+        <div class="sl-scroll"><table class="sl-tab"><thead><tr><th></th>${meses.map((m) => `<th>${gesc(m.nombre)}</th>`).join("")}</tr></thead><tbody>${filasPed}</tbody></table></div></div>
+    </div>
+    <div class="sl-card"><h4>Gasto de IA con la base de consultas del WhatsApp de ventas (por mes de 30 días)</h4>
+      <div class="sl-top">Modelo <select onchange="G.prModelo=this.value;prPintar()">${Object.entries(PR_MODELOS).map(([k, t]) => `<option value="${k}"${k === G.prModelo ? " selected" : ""}>${gesc(t)} · ${prUsd(X.usdPorLlamada[k], 3)} por llamada</option>`).join("")}</select>
+        <span>${prDec(ll)} llamadas a la IA por consulta que la usa</span></div>
+      <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Base de consultas</th><th>Consultas<br>por mes</th><th>Respuesta fija hoy<br>(sin IA)</th><th>Con IA hoy</th><th>Respuesta fija<br>según el estudio</th><th>Con IA según<br>el estudio</th></tr></thead><tbody>${tablaIaA}</tbody></table></div>
+      <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Base de consultas</th><th>Llamadas a la IA<br>por mes (hoy)</th><th class="pr-sep">Gasto de API<br>por mes (hoy)</th><th>Si todo lo marcado<br>"Agente" usa IA</th><th>Si todo usa IA</th><th class="pr-sep">Respuestas de WhatsApp<br>por mes</th></tr></thead><tbody>${tablaIaB}</tbody></table></div>
+      <div class="nota">"Respuesta fija" es la plantilla del bot (FAQ o regla, sin IA); "Agente" es la que usa IA. "Hoy" = cómo resolvió cada caso el bot en la última simulación; "según el estudio" = cómo conviene resolverlo (Plantilla, Agente o Plantilla + Agente, que acá se cuenta con IA).</div>
+      <div class="nota">Las respuestas del bot salen como texto libre dentro de las 24 h del cliente: no usan plantillas de WhatsApp y, según el cambio de Meta del 01/10 (a confirmar con la factura), no se cobran mientras no pasen de ${nfmt(X.topeServicioGratisPorNumero)} por mes y por número. Los saludos usan la IA (${prUsd(X.usdPorSaludo * esc2, 3)} c/u).</div>
+      <div class="nota">${gesc(ia._nota)} Cada consulta cuenta como una respuesta del bot: si la charla tiene más vueltas, el gasto sube en proporción. No incluye audios ni el puntaje de IA.</div>
+    </div>
+    <div class="sl-card"><h4>Cómo se calcula</h4><ul class="pr-notas">${r.notas.map((n) => `<li>${gesc(n)}</li>`).join("")}</ul></div>`;
 }
 
 // Alta de cliente: aprobar / rechazar con aviso (lk_alertas alta_decidir). El texto que se muestra es el que
