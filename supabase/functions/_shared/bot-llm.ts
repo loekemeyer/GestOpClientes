@@ -11,12 +11,13 @@
 //
 // Cada llamada a un modelo se loguea en `bot_token_usage` (input/output tokens + costo estimado),
 // así el panel "IA — gastos y uso" muestra datos reales. Un modelo que falla por su culpa
-// (401/403/404/429/5xx/timeout) se marca `caido` con cooldown; un 400/413/422 es culpa del
+// (401/403/404/429/5xx/timeout) se marca `caido` con cooldown (5 min; un 429 por cuota por minuto, lo que pide Google: ver `cooldownParaError`); un 400/413/422 es culpa del
 // request (payload) y NO penaliza al modelo.
 
 import { supabase } from "./supabase.ts";
 
 const COOLDOWN_MS = 5 * 60_000; // 5 min
+const COOLDOWN_429_MIN_MS = 60_000; // piso del cooldown de un 429 por cuota por minuto (ver cooldownParaError)
 const DEFAULT_TIMEOUT_MS = 30_000;
 // Largo máximo del error de un proveedor que se guarda (httpError y bot_llm_intentos.error). Con 300 caracteres el 429 de Google
 // llegaba cortado antes del detalle (`QuotaFailure`: qué cuota exacta cortó), así que no se sabía si era por minuto, por tokens o por día.
@@ -153,12 +154,23 @@ export async function resolveModelById(modelId: string): Promise<ResolvedModel |
   }
 }
 
-export async function markModelDown(id: number, msg: string) {
+/** Cuánto queda caído un modelo tras fallar. Un 429 de cuota por minuto (el plan gratis de Gemini: 15 por minuto, medido el 05/10) la libera
+ *  Google en ~33 s y trae el "retry in Ns" en el error: se espera eso, con un piso de 60 s y sin pasar de COOLDOWN_MS. Antes todo 429 dejaba
+ *  al modelo 5 minutos afuera y en ese lapso TODO iba a Sonnet, con costo. La cuota por día (`PerDay`) y los demás errores (401/403/404/5xx,
+ *  timeout) siguen en COOLDOWN_MS: no se arreglan en un minuto. */
+export function cooldownParaError(status: number | undefined, msg: string): number {
+  if (status !== 429 || /PerDay/i.test(msg)) return COOLDOWN_MS;
+  const m = msg.match(/retry in ([\d.]+)\s*s/i) ?? msg.match(/"retryDelay"\s*:\s*"([\d.]+)s"/i);
+  const pedido = m ? Math.ceil(parseFloat(m[1]) * 1000) : 0;
+  return Math.min(COOLDOWN_MS, Math.max(COOLDOWN_429_MIN_MS, pedido));
+}
+
+export async function markModelDown(id: number, msg: string, cooldownMs = COOLDOWN_MS) {
   if (!id || id < 0) return; // 0 = fallback de env, -1 = modelo de pruebas: no existe fila
   try {
     await supabase.from("wa_agente_modelos").update({
       estado: "caido",
-      cooldown_hasta: new Date(Date.now() + COOLDOWN_MS).toISOString(),
+      cooldown_hasta: new Date(Date.now() + cooldownMs).toISOString(),
       ultimo_error: msg.slice(0, 500),
     }).eq("id", id);
   } catch (e) {
