@@ -17,6 +17,23 @@
 > puede cruzar por hora). Pruebas sin red: `deno run --allow-env tests/bot-llm-intentos.test.ts`.
 > Sin cambio de lógica de conversación, de `wa_faq` ni del front (la versión visible del dashboard no cambia). Pendiente: purga por antigüedad (hoy no hay).
 >
+> **05/10 (Pablo): límites de Gemini medidos con las 88 consultas comunes (`wa_agente_evals`), sólo Gemini, US$ 0.** Cliente 4210 por
+> `lk_bot-simular` (modo estricto de pruebas), 17:59–18:04 UTC: 84 casos (los 4 de alta paso a paso no se simulan: crean una solicitud). **36 pasaron
+> por IA y 44 por respuesta fija**; 2 que el 01/10 eran fijos hoy van a IA (ids 41 y 44). **81 llamadas a Gemini: 76 bien y 5 con 429 (6,2 %)**, todas en
+> ráfagas; las 5 salieron bien al repetirlas despacio. Gasto verificado en `bot_token_usage`: 76 llamadas, 649.619 tokens de entrada (7.719 de promedio)
+> y 5.147 de salida, US$ 0. **Tiempo** (`bot_llm_intentos`): cada llamada p50 1,09 s · p95 2,0 s · máx 2,46 s; el turno completo con IA (logs de la edge, 31 turnos)
+> p50 3,9 s · p90 11,4 s · máx 16,3 s: el modelo es ~1 s por vuelta y **cada herramienta suma ~3 s**, así que el tiempo lo ponen las herramientas, no el modelo.
+> **Capacidad:** sin fallas hasta 14 llamadas por minuto (sólo 14 intentos: muestra chica), 4,7 % de fallas entre 15 y 18, 12,5 % con 19 o más. Un turno de IA
+> son ~2,1 llamadas, así que **~7 turnos de IA por minuto sin fallas** y ~710 por día (tope gratis 1.500 llamadas/día). Con 24 llamadas por minuto (~185.000 tokens)
+> empezaron los 429. ⚠ No se sabe QUÉ cuota cortó (minuto, tokens o día): el error se guarda cortado a 300 caracteres y el detalle del 429 viene después.
+> En producción un 429 no pierde el mensaje: `runConversation` prueba el siguiente modelo de la cadena (Sonnet, con costo). **Calidad con IA (un evaluador, n = 36;
+> la corrida anterior no registró qué modelo la hizo):** 5 para revisar: peores "Paso un pedidito, ¿puede estar para el viernes?" (contestó el estado del pedido viejo),
+> "Te paso el cotizador con el pedido" ("Recibimos tu cotizador" sin haber recibido nada) y "e-cheq al 15 y al 30" (derivó a Cobranzas sin contestar el descuento);
+> a verificar: "¿Venden despolvillador de yerba?" (dijo sin stock) y "factura a nombre de otra razón social" ("Quedó registrado tu pedido"). Mejor que antes: "agregá 60
+> sacacorchos 067" (antes no lo encontraba) y "no recibí las NC" (antes mandaba las facturas). La capa fija no depende del modelo: 21 de 44 textos cambiaron desde el 01/10
+> por datos (el cliente ya no es "Cliente de prueba", estados de pedido, facturas) y por código (retiro con fecha real, FAQ #21 con otro formato). La demanda real es
+> de ~4 turnos de IA por día [Probable, base de 712 consultas en 63 días], así que el techo sólo importaría en un pico de 7 o más clientes con IA en el mismo minuto.
+>
 > **05/10 (Pablo): Gemini gratis vuelve a ser el #1 de la cadena de producción — PRUEBA DE LÍMITES.** `wa_agente_modelos` id 29
 > (`gemini-3.5-flash-lite`, plan gratis) pasó de `prioridad = NULL` a **1** (UPDATE con el sí de Pablo, 05/10 16:18 UTC). La cadena de charla
 > queda **Gemini #1 → Sonnet 4.6 #2 (id 1) → Haiku 4.5 #3 (id 45)** + el respaldo duro de env (Sonnet). OJO: `resolveChain` NO filtra por
