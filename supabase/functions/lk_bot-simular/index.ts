@@ -1,6 +1,6 @@
 import "../_shared/wa-guard.ts"; // D007: por las dudas — igual no manda nada (teléfono ficticio)
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { getSetting, supabase } from "../_shared/supabase.ts";
+import { getGestionClient, getIsisClient, getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { SIM } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
@@ -14,6 +14,8 @@ import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { PLANTILLAS, renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 import { AVISOS_DE_PEDIDO, avisoParaModo, type DatosPedido, fechaAR, fechaCorta, modoDe, modoTexto, paramsAviso } from "../_shared/aviso-pedido.ts";
+import { armarDtoCfg, cuentasFactura, ddmm, diasDelPlazo, type FacMin, fmtARS, grupoDe, mapearPorTexto, metodoExcepcion, planMetodos,
+  sumarDias } from "../_shared/factura-valores.ts";
 
 // Botonera del Simulador: avisos de seguimiento + las 6 de factura (con el PDF de la factura en el mensaje).
 // Pablo, 01/10: la botonera cambia con el tipo de cliente. Loekemeyer: seguimiento + 6 de factura; Chef: sus 6 de factura
@@ -64,6 +66,60 @@ async function datosPedido(customerId: string, pedidoId: number | null): Promise
   };
 }
 
+/** El aviso de factura armado con las facturas reales del último día facturado del cliente (Pablo, 05/10). Mismas cuentas
+ *  que el aviso real (lk_factura-check, vía _shared/factura-valores.ts): método de cada factura por su condición de venta
+ *  (wa_metodo_norm de Gestión), excepciones por cliente, reglas de método mixto, descuentos y fechas al día hábil. Si
+ *  ese día tiene facturas de otra forma de pago que la del botón, usa la plantilla que le llegaría. Sólo lee.
+ *  null si el cliente no tiene facturas o el texto no se pudo completar. */
+async function facturaReal(cod: number, tocado: string): Promise<{ nombre: string; vals: string[]; nota: string } | null> {
+  const isis = await getIsisClient();
+  const { data: docs, error } = await isis.from("documentos").select("fecha, total, condicion_venta, contraparte_cuit, contraparte_nombre")
+    .eq("contraparte_codigo", String(cod)).eq("contraparte_tipo", "cliente").like("tipo", "FC%")
+    .order("fecha", { ascending: false }).limit(30);
+  if (error) throw new Error(error.message);
+  if (!docs?.length) return null;
+  const fecha = String(docs[0].fecha).slice(0, 10);
+  const delDia = docs.filter((d: { fecha: string }) => String(d.fecha).slice(0, 10) === fecha);
+  const g = await getGestionClient("public");
+  const metodoDe = new Map<string, string>();
+  const condiciones = new Set<string>(delDia.map((d: { condicion_venta: string | null }) => String(d.condicion_venta ?? "")));
+  await Promise.all([...condiciones].map(async (cond) => {
+    const { data } = await g.rpc("wa_metodo_norm", { p_cond: cond || null });
+    metodoDe.set(cond, typeof data === "string" ? data : "no_decidido");
+  }));
+  // deno-lint-ignore no-explicit-any
+  let cfgRaw: any = null;
+  try { cfgRaw = JSON.parse((await getSetting("wa_descuentos_config")) ?? "null"); } catch { /* defaults */ }
+  // El Simulador muestra el texto de plantillas-factura.ts (formato nuevo, con el % y el alias/CBU como variables).
+  const cfg = armarDtoCfg(cfgRaw, "lk", "v2");
+  const facturas: FacMin[] = delDia.map((d: { total: number; condicion_venta: string | null }) =>
+    ({ total: Number(d.total || 0), metodo: metodoDe.get(String(d.condicion_venta ?? "")) ?? "no_decidido" }));
+  const subgrupos = planMetodos(facturas, cfg, metodoExcepcion(cfg, delDia[0].contraparte_cuit, delDia[0].contraparte_nombre));
+  const sub = subgrupos.find((s) => grupoDe(s.metodo) === grupoDe(tocado.replace(/^pedido_/, ""))) ?? subgrupos[0];
+  const c = cuentasFactura(sub.metodo, sub.facturas.map((f) => f.total), cfg);
+  const def = PLANTILLAS_FACTURA.find((p) => p.name === c.template);
+  if (!def) return null;
+  const habil = async (iso: string | null) => {
+    if (!iso) return null;
+    const { data } = await supabase.rpc("wa_proximo_habil", { p: iso });
+    return typeof data === "string" ? data.slice(0, 10) : iso;
+  };
+  const limite = await habil(sumarDias(fecha, cfg.diasLimite));
+  const dias = diasDelPlazo(c.label, sub.metodo);
+  const plazo = dias !== null ? await habil(sumarDias(fecha, dias)) : null;
+  const vals = mapearPorTexto(def.body, {
+    total: fmtARS(c.total_sum), n: String(c.n), lista: c.lista, plazo: c.label, pct: c.grupo === "contado" ? c.contadoPct : c.metodoPct,
+    montoCliente: fmtARS(c.montoCliente), montoContado: fmtARS(c.montoContado), fecha: limite ? ddmm(limite) : "", ahorro: fmtARS(c.ahorro),
+    alias: cfg.alias, cbu: cfg.cbu, fechaPlazo: plazo ? ddmm(plazo) : "la fecha acordada",
+  }, c.grupo);
+  if (!vals) return null;
+  const nota = [`factura real del ${ddmm(fecha)}: ${c.n === 1 ? "1 factura" : `${c.n} facturas`} por ${fmtARS(c.total_sum)} (${sub.metodo})`,
+    c.template !== tocado ? `se usa ${c.template} en vez de ${tocado}` : "",
+    subgrupos.length > 1 ? `ese día tiene ${subgrupos.length} formas de pago: saldrían ${subgrupos.length} avisos` : "",
+    c.n > 1 ? "si van a distintas direcciones de entrega, sale un aviso por dirección" : ""].filter(Boolean).join(" · ");
+  return { nombre: c.template, vals, nota };
+}
+
 /** La charla previa que manda el dashboard (se carga sin volver a correrla): sólo user/assistant, las últimas 40, 4.000 caracteres c/u. */
 // deno-lint-ignore no-explicit-any
 function historialDe(body: any): Array<{ rol: "user" | "assistant"; contenido: string; creado_en: string }> {
@@ -90,9 +146,10 @@ function historialDe(body: any): Array<{ rol: "user" | "assistant"; contenido: s
 //     (el simulador no guarda estado: así cada mensaje nuevo cuesta un solo turno de IA, no toda la charla).
 //   · { aviso: "pedido_recibido" } sin params → los avisos de seguimiento salen con el último pedido web real del cliente
 //     (o el de `pedido`) y en la versión que le corresponde por cómo se le entrega; devuelve `nota` (qué pedido y qué
-//     versión) y `no_aplica` si a ese cliente no le llega (ej. pedido_entregado a un cliente de expreso). Factura,
-//     recordatorio y comprobante, o un cliente sin pedidos web: los valores de ejemplo de la plantilla (la razón social,
-//     si la plantilla la lleva, es la del cliente). Pablo, 05/10.
+//     versión) y `no_aplica` si a ese cliente no le llega (ej. pedido_entregado a un cliente de expreso). Las 6 de factura
+//     salen con las facturas del último día facturado del cliente, con las mismas cuentas que el aviso real
+//     (_shared/factura-valores.ts). Recordatorio y comprobante, o un cliente sin pedidos ni facturas: los valores de ejemplo
+//     de la plantilla (la razón social, si la plantilla la lleva, es la del cliente). Pablo, 05/10.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -335,6 +392,14 @@ serve(async (req) => {
               usar === "pedido_reprogramado" ? "la nueva fecha es de ejemplo" : ""].filter(Boolean).join(" · ");
           } else nota = pedido ? `no encontré el pedido web ${pedido} de este cliente: valores de ejemplo`
             : "el cliente no tiene pedidos web: valores de ejemplo";
+        } else if (!vals && AVISOS.find((x) => x.name === tocado && x.empresa === "LK")?.factura) {
+          try {
+            const f = await facturaReal(customer.cod_cliente, tocado);
+            if (f) { nombre = f.nombre; vals = f.vals; nota = f.nota; }
+            else nota = "el cliente no tiene facturas: valores de ejemplo";
+          } catch (e) {
+            nota = `no pude leer las facturas (${e instanceof Error ? e.message : String(e)}): valores de ejemplo`;
+          }
         }
         const def = AVISOS.find((x) => x.name === nombre && x.empresa === "LK");
         // Sin pedido real (factura, recordatorio, comprobante o cliente sin pedidos web): los valores de ejemplo; en la
