@@ -347,8 +347,13 @@ export async function handleAltaStep(
   if ("error" in r) { await send(r.error); return; }   // dato mal → se repregunta el MISMO campo
 
   // CUIT que ya es cliente: no es un alta, es vincular el número (lo aprueba una persona, sql/072).
+  // Pablo, 05/10: antes sólo miraba Loekemeyer (`customers`). Un cliente que sólo le compra a Chef (399 filas del padrón, 05/10) que contestaba
+  // "sí" / "registrarme" y después pasaba su CUIT hacía el alta entera como si fuera nuevo. `tryRegister` ya sabe vincular a Chef (sql/116).
   if (paso.field === "cuit") {
-    const { data: ya } = await supabase.from("customers").select("id").eq("cuit", String(r.value)).limit(1);
+    const { data: ya0 } = await supabase.from("customers").select("id").eq("cuit", String(r.value)).limit(1);
+    const { data: yaCh } = ya0?.length ? { data: [] } : await supabase.from("bot_cuentas").select("razon_social")
+      .eq("empresa", "CH").eq("cuit", String(r.value)).limit(1);
+    const ya = ya0?.length ? ya0 : yaCh;
     if (ya?.length) {
       await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", lead.id);
       if (!SIM.activo) await tryRegister(phone, String(r.value));   // el simulador no pide vinculaciones reales

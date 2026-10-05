@@ -14,6 +14,10 @@
 > "dale, ya te lo paso" NO arranca (punto 11 de la auditoría del 07/09); (3) el mensaje *"Todavía no te tengo registrado"* (`MSG_NO_CLIENTE`) ahora muestra los **dos caminos**
 > (ya sos cliente → CUIT; querés serlo → *registrarme*) en vez de mezclarlos en una pregunta; (4) `atenderNoCliente` es el flujo del no-cliente **sin efectos reales** y lo usan el
 > Simulador (modo número nuevo) y el Chat de prueba: se borró la copia vieja del alta de `lk_chat-test`. En el Chat de prueba el alta no pide vinculaciones ni crea la alerta de Tareas (`SIM.activo`).
+> **Hueco encontrado al revisar "¿qué pasa con un CUIT ya registrado?" (y cerrado en el mismo cambio):** dentro del alta (arranca con *registrarme* o *sí*), el primer paso pide el CUIT y
+> `handleAltaStep` sólo buscaba en `customers` (Loekemeyer). Un cliente que sólo le compra a Chef (399 filas del padrón con CUIT que no está en `customers`, 05/10) hacía el alta entera como si
+> fuera nuevo. Ahora también mira `bot_cuentas` (empresa CH) y lo manda a vinculación con revisión humana (`tryRegister`, sql/116). Ese hueco **ya existía en `main`** con *registrarme*;
+> el "sí" lo hacía más alcanzable. Probado con la base simulada: sin el arreglo falla sólo ese caso.
 > **Qué afecta:** el CI deploya `lk_whatsapp-webhook`, `lk_chat-test` y `lk_bot-simular` al llegar a `main`; la versión visible del dashboard no cambia (no se tocó `docs/index.html`).
 > **Pruebas sin red y sin IA (US$ 0):** `deno run --allow-env tests/alta-inicio.test.ts` (regex, afirmaciones, y la conversación de la captura contra una base simulada). **No se corrió el Simulador ni el
 > Chat de prueba** (regla de gasto del 01/10). Ojo: el saludo del no-cliente (`wa_faq` `saludo_inicial`, `institutional_response`) sigue diciendo *"Decime si querés que te registre"*; se puede acortar sin tocar código.

@@ -4,13 +4,17 @@
 Deno.env.set("SUPABASE_URL", "http://localhost:54321");
 // Base simulada: toda lectura devuelve [] y toda escritura 201; se anotan las llamadas para ver qué habría escrito el flujo.
 const llamadas: Array<{ metodo: string; url: string; body: string }> = [];
+const filasPorTabla: Record<string, unknown[]> = {};   // tabla -> filas que devuelve la lectura (por defecto, ninguna)
 globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) => {
   const req = input instanceof Request ? input : new Request(String(input), init);
   const get = req.method === "GET";
   llamadas.push({ metodo: req.method, url: req.url, body: get ? "" : await req.clone().text() });
+  const fila = get ? Object.entries(filasPorTabla).find(([t]) => req.url.includes(`/rest/v1/${t}?`)) : undefined;
+  if (fila) return new Response(JSON.stringify(fila[1]), { status: 200, headers: { "content-type": "application/json" } });
   return new Response(get ? "[]" : "", { status: get ? 200 : 201, headers: { "content-type": "application/json" } });
 }) as typeof fetch;
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "clave-falsa");
+const { SIM } = await import("../supabase/functions/_shared/simulacion.ts");
 const { ALTA_INTRO, atenderNoCliente, MSG_CUIT_INVALIDO, RE_ALTA_START, esAfirmacion, iniciaAlta, MSG_NO_CLIENTE, validaCuit } = await import("../supabase/functions/_shared/alta.ts");
 
 let fallas = 0;
@@ -99,6 +103,30 @@ igual("CUIT válido: el lead lleva el CUIT", llamadas.some((c) => c.metodo === "
 llamadas.length = 0;
 r = await atenderNoCliente(tel, "20123456780000", { ultimoBot: "", faq: faqSaludo });
 igual("11+ dígitos que no son CUIT: avisa que no es válido", [r.respuestas, r.via], [[MSG_CUIT_INVALIDO], "CUIT inválido"]);
+
+// ── CUIT que YA es cliente, pasado en el primer paso del alta (el alta arrancó con "sí" / "registrarme") ──
+// Un lead abierto, sin CUIT, en el paso 0. SIM.activo: no se pide ninguna vinculación real.
+const leadAbierto = { id: 77, cuit: null, alta_step: 0, raw_messages: [], updated_at: new Date().toISOString() };
+const canceloLead = () => llamadas.some((c) => c.metodo === "PATCH" && c.url.includes("wa_prospect_leads") && c.body.includes("cancelled"));
+const sigueElAlta = () => llamadas.some((c) => c.metodo === "PATCH" && c.url.includes("wa_prospect_leads") && c.body.includes('"cuit"'));
+const MSG_YA_CLIENTE = "Ese CUIT ya es cliente nuestro 👍 Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por acá.";
+SIM.activo = true;
+
+filasPorTabla["wa_prospect_leads"] = [leadAbierto]; filasPorTabla["customers"] = [{ id: "c1" }];
+llamadas.length = 0;
+r = await atenderNoCliente(tel, cuitOk, { ultimoBot: "", faq: faqSaludo });
+igual("alta, CUIT de cliente de Loekemeyer: corta el alta y avisa que lo confirma un asesor", [r.respuestas, r.via, canceloLead(), sigueElAlta()], [[MSG_YA_CLIENTE], "alta (paso a paso)", true, false]);
+
+delete filasPorTabla["customers"]; filasPorTabla["bot_cuentas"] = [{ razon_social: "Chef de prueba" }];
+llamadas.length = 0;
+r = await atenderNoCliente(tel, cuitOk, { ultimoBot: "", faq: faqSaludo });
+igual("alta, CUIT de cliente SÓLO de Chef: también corta el alta (antes seguía como si fuera nuevo)", [r.respuestas, r.via, canceloLead(), sigueElAlta()], [[MSG_YA_CLIENTE], "alta (paso a paso)", true, false]);
+
+delete filasPorTabla["bot_cuentas"];
+llamadas.length = 0;
+r = await atenderNoCliente(tel, cuitOk, { ultimoBot: "", faq: faqSaludo });
+igual("alta, CUIT que no es cliente de nadie: sigue el alta con la razón social", [r.respuestas[0].includes("razón social"), canceloLead(), sigueElAlta()], [true, false, true]);
+delete filasPorTabla["wa_prospect_leads"]; SIM.activo = false;
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo ok");
