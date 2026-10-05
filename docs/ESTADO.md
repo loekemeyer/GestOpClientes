@@ -22,6 +22,16 @@
 > **Pruebas sin red y sin IA (US$ 0):** `deno run --allow-env tests/alta-inicio.test.ts` (regex, afirmaciones, y la conversación de la captura contra una base simulada). **No se corrió el Simulador ni el
 > Chat de prueba** (regla de gasto del 01/10). Ojo: el saludo del no-cliente (`wa_faq` `saludo_inicial`, `institutional_response`) sigue diciendo *"Decime si querés que te registre"*; se puede acortar sin tocar código.
 >
+> **05/10 (Pablo): el recordatorio de descuento no avisa a quien ya pagó después de la última carga de saldos (`lk_recordatorio-descuento`).**
+> El saldo (`GV_Cobranza_Deuda_Viva`) se rearma de noche (cron 103, 18:49–07:49 hora AR) y SÓLO si entró una carga nueva; su columna `ancla` dice
+> cuándo se armó. Un pago registrado en Gestión después (`gv_cobranza_recibos`, empresa lk) no está en ese saldo y el aviso de las 9:05 le diría
+> "pagá hasta el … con 25 %" a quien ya pagó. Ahora, antes de encolar, la función busca recibos del cliente con `fecha_pago` entre el día de la carga
+> (el más viejo de sus facturas) y hoy, los dos inclusive: si hay, el aviso queda `omitido_pago_reciente` (el plan trae `carga` y `pago`) y el
+> JSON suma `omitidos_pago`. Sólo SACA avisos, nunca agrega. Hoy es el tope porque `fecha_pago` trae cheques diferidos con fecha futura (hasta
+> 01/01/2027). Si no se pueden leer los recibos no se encola nada. Lógica pura en `_shared/recordatorio-pagos.ts` (`tests/recordatorio-pagos.test.ts`).
+> ⚠ **No cubre** un pago anterior a la carga que el saldo todavía no refleja (ej. cliente 862: recibo del 01/10 por $11.687.939,34 y, en la carga del 02/10 18:26, dos facturas abiertas por
+> $11.736.332,17 en total): el recibo no se imputó a esas facturas, y eso es del armado del saldo, no de esta regla. Dato para decidir: sin carga nueva el saldo no se rearma, así que el aviso de las 9:05 usa lo de la noche anterior.
+>
 > **05/10 (Pablo): registro de CADA intento a un modelo de IA — tabla `bot_llm_intentos` (sql/126).** `bot_token_usage` sólo guardaba las llamadas
 > que salieron bien: no había forma de saber cuántas veces falló Gemini, con qué código ni cuánto tardó. Ahora `runConversation` escribe una fila
 > por intento con `logIntento` (`_shared/bot-llm.ts`): `funcion`, `modelo_id` (0 = respaldo de env, -1 = modelo de pruebas), `proveedor`, `modelo`,

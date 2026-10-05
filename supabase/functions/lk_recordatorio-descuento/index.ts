@@ -6,7 +6,13 @@
 // lo manda lk_outbox-flush, que pasa por la llave `wa_envio_automatico` (vasectomía: en 'prueba' sólo sale a Thomy).
 //
 // Se saltea: e-cheq (el descuento es fijo por el plazo del cheque), "NN FF" y "Sin Cotizador" (sin descuento por pago),
-// y clientes sin WhatsApp en bot_customer_whatsapps. Varias facturas del mismo día y condición = un solo aviso.
+// clientes sin WhatsApp en bot_customer_whatsapps y clientes que PAGARON después de la última carga de saldos.
+//
+// Pago reciente (Pablo, 05/10): GV_Cobranza_Deuda_Viva se rearma de noche y sólo cuando entra una carga nueva (columna
+// `ancla` = cuándo se armó ese saldo). Un pago registrado en Gestión después (gv_cobranza_recibos, empresa lk) no está en el
+// saldo, y el aviso diría "pagá hasta el … con 25 %" por una factura que ya pagó. Si el cliente tiene un recibo con fecha de
+// pago entre el día de esa carga y hoy, no se le avisa (estado `omitido_pago_reciente`). Sólo SACA avisos, nunca agrega.
+// Si no se pueden leer los recibos no se encola nada (mejor un día sin recordatorio que avisarle a quien ya pagó). Varias facturas del mismo día y condición = un solo aviso.
 // Un aviso por (cliente, fecha, condición, escalón): wa_outbox.context='recordatorio_dto' + ref_id.
 // "Faltan 2 hábiles" = el vencimiento cae entre el próximo hábil y el siguiente (si un día no corrió, recupera).
 //
@@ -18,6 +24,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, supabase } from "../_shared/supabase.ts";
 import { leerVersiones, nombreActivo } from "../_shared/plantillas-version.ts";
+import { fechaAR } from "../_shared/aviso-pedido.ts";
+import { pagoPosterior, type ReciboMin } from "../_shared/recordatorio-pagos.ts";
 
 const TPL = "pedido_recordatorio_descuento";
 const CONTEXTO = "recordatorio_dto";
@@ -80,20 +88,24 @@ serve(async (req) => {
   // Facturas con saldo, sólo las que todavía pueden tener un escalón por vencer.
   const g = await getGestionClient("public");
   const { data: filas, error } = await g.from("GV_Cobranza_Deuda_Viva")
-    .select("cod_cliente, fecha, condicion, pendiente")
+    .select("cod_cliente, fecha, condicion, pendiente, ancla")
     .eq("empresa", "lk").gt("pendiente", 0).like("comprobante", "FC%")
     .gte("fecha", sumar(hoy, -(maxDias + 10)));
   if (error) return json({ ok: false, error: `Deuda Viva: ${error.message}` });
 
-  type Grupo = { cod: string; fecha: string; condicion: string; saldo: number };
+  // `carga`: día (hora de Argentina) en que se armó el saldo de este grupo; sin dato, hoy − 3 (cubre un fin de semana).
+  type Grupo = { cod: string; fecha: string; condicion: string; saldo: number; carga: string };
   const grupos = new Map<string, Grupo>();
-  for (const f of (filas ?? []) as Array<{ cod_cliente: string; fecha: string; condicion: string | null; pendiente: number }>) {
+  const sinCarga = sumar(hoy, -3);
+  for (const f of (filas ?? []) as Array<{ cod_cliente: string; fecha: string; condicion: string | null; pendiente: number; ancla: string | null }>) {
     const condicion = String(f.condicion ?? "");
     if (/e-?cheq|\bFF\b|sin cotizador/i.test(condicion)) continue;
     const fecha = String(f.fecha).slice(0, 10);
     const k = `${f.cod_cliente}|${fecha}|${condicion}`;
+    const carga = fechaAR(f.ancla) || sinCarga;
     const gr = grupos.get(k);
-    if (gr) gr.saldo += Number(f.pendiente); else grupos.set(k, { cod: String(f.cod_cliente), fecha, condicion, saldo: Number(f.pendiente) });
+    if (gr) { gr.saldo += Number(f.pendiente); if (carga < gr.carga) gr.carga = carga; }
+    else grupos.set(k, { cod: String(f.cod_cliente), fecha, condicion, saldo: Number(f.pendiente), carga });
   }
 
   // Qué escalón vence en la ventana (d1, d2].
@@ -111,6 +123,16 @@ serve(async (req) => {
 
   // Teléfono: el principal de bot_customer_whatsapps (mismo criterio que los otros avisos).
   const cods = [...new Set(avisos.map((a) => Number(a.cod)).filter(Number.isFinite))];
+
+  // Pagos posteriores a la carga de saldos. Se piden desde la carga más vieja de los avisos; cada aviso se compara con la suya.
+  const desdeMin = avisos.reduce((m, a) => (a.carga < m ? a.carga : m), hoy);
+  const sinCeros = (s: string) => s.trim().replace(/^0+/, "");
+  const codsRecibo = [...new Set(avisos.flatMap((a) => [a.cod, sinCeros(a.cod)]))];
+  const { data: recs, error: errRec } = await g.from("gv_cobranza_recibos")
+    .select("cod_cliente, fecha_pago, pagado").eq("empresa", "lk").in("cod_cliente", codsRecibo)
+    .gte("fecha_pago", desdeMin).lte("fecha_pago", hoy);
+  if (errRec) return json({ ok: false, hoy, error: `Recibos: ${errRec.message}`, encolados: 0 });
+  const recibos = (recs ?? []) as ReciboMin[];
   const { data: tels } = await supabase.from("bot_customer_whatsapps")
     .select("cod_cliente, whatsapp, is_primary, created_at").in("cod_cliente", cods).not("whatsapp", "is", null)
     .order("is_primary", { ascending: false }).order("created_at", { ascending: false });
@@ -126,9 +148,10 @@ serve(async (req) => {
   const activa = nombreActivo(await leerVersiones(supabase), TPL);
   const conDiferencia = ![TPL, `${TPL}_v2`].includes(activa);
   const plan = [];
-  let encolados = 0;
+  let encolados = 0, omitidosPago = 0;
   for (const a of avisos) {
     const phone = telDe.get(a.cod);
+    const pago = pagoPosterior(recibos, a.cod, a.carga, hoy);
     const base = {
       "1": ddmm(a.fecha), "2": conDia(a.hasta), "3": String(Math.round(a.dto * 100)),
       "4": pesos(a.saldo * (1 - a.dto)), "5": pesos(a.saldo), "6": String(Math.round(a.dtoDespues * 100)),
@@ -136,7 +159,8 @@ serve(async (req) => {
     const params: Record<string, string> = conDiferencia
       ? { ...base, "7": pesos(a.saldo * (a.dto - a.dtoDespues)), "8": alias, "9": cbu }
       : { ...base, "7": alias, "8": cbu };
-    const estado = enviados.has(a.ref) ? "ya_encolado" : !phone ? "sin_whatsapp" : aplicar ? "encolado" : "encolaría";
+    const estado = enviados.has(a.ref) ? "ya_encolado" : pago ? "omitido_pago_reciente" : !phone ? "sin_whatsapp" : aplicar ? "encolado" : "encolaría";
+    if (estado === "omitido_pago_reciente") omitidosPago++;
     if (estado === "encolado") {
       const { error: e } = await supabase.from("wa_outbox").insert({
         phone, template_name: TPL, template_params: params, context: CONTEXTO, ref_id: a.ref,
@@ -144,8 +168,9 @@ serve(async (req) => {
       if (e) { plan.push({ ref: a.ref, estado: "error", error: e.message }); continue; }
       encolados++;
     }
-    plan.push({ ref: a.ref, cod: a.cod, fecha: a.fecha, escalon_dias: a.dias, vence: a.hasta, estado, params });
+    plan.push({ ref: a.ref, cod: a.cod, fecha: a.fecha, escalon_dias: a.dias, vence: a.hasta, estado, params,
+      ...(pago ? { carga: a.carga, pago: { fecha: String(pago.fecha_pago).slice(0, 10), pagado: pago.pagado } } : {}) });
   }
-  console.log(`lk_recordatorio-descuento hoy=${hoy} ventana=${d1}..${d2} avisos=${avisos.length} encolados=${encolados} aplicar=${aplicar}`);
-  return json({ ok: true, hoy, ventana: [d1, d2], aplicado: aplicar, grupos: grupos.size, avisos: avisos.length, encolados, plan });
+  console.log(`lk_recordatorio-descuento hoy=${hoy} ventana=${d1}..${d2} avisos=${avisos.length} encolados=${encolados} omitidos_pago=${omitidosPago} aplicar=${aplicar}`);
+  return json({ ok: true, hoy, ventana: [d1, d2], aplicado: aplicar, grupos: grupos.size, avisos: avisos.length, encolados, omitidos_pago: omitidosPago, plan });
 });
