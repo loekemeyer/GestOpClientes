@@ -7,8 +7,9 @@
 > **05/10 (Pablo): gate de secreto en `lk_factura-check`** (hallazgo 3.1.1 de la auditoría). Código en `main` con la llave
 > `app_settings.wa_factura_check_gate` **apagada** (sin fila = como siempre; `log` = registra y deja pasar; `1` = 401). El secreto
 > (`lk_factura_check_secret`) va en el Vault de GESTIÓN y lo leen el trigger `wa_factura_notificar`, el cron `wa_barrido_avisos`
-> (jobid 69) y `lk_notif-sim`; la edge lo lee con `wa_factura_check_secret()`. **Falta aplicar `sql/isis_wa_factura_check_gate.sql`
-> en Gestión (espera el "sí" de Pablo) y recién después subir la llave a `log` y a `1`.** Hasta entonces el endpoint sigue abierto.
+> (jobid 69) y `lk_notif-sim`; la edge lo lee con `wa_factura_check_secret()`. `sql/isis_wa_factura_check_gate.sql` **aplicado en
+> Gestión el 05/10** (secreto en el Vault, `wa_factura_check_secret()`, trigger y cron 69 mandan el header). **Falta subir la llave a
+> `log` y, después de mirar los logs un día, a `1`** (cada una con el "sí" de Pablo). Hasta entonces el endpoint sigue abierto.
 > Pruebas del gate: `deno run tests/gate-factura-check.test.ts`.
 >
 > **02/10 (Luis): responder a mano desde Conversaciones daba error de autorización.** `lk_conversaciones` era la única
