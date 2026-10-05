@@ -528,8 +528,8 @@ el killswitch, sin ningún consumidor de esa cola.
   El maestro `expresos` (412 filas) es una carga única del 30/04: los expresos dados de alta en ISIS después no están.
   No llega a Gestión (`gv-sync-padron-direcciones` pide columnas por nombre) y no cubre Chef. Backups (RLS sin políticas,
   borrar cuando lleve semanas estable): `GV_Backup_customer_delivery_addresses_20261005` y `GV_Backup_expresos_20261005`.
-  `apply_migration` se colgó dos veces (60 s) sin dejar rastro: se aplicó con `execute_sql` y 126 no figura en
-  `supabase_migrations`.
+  `apply_migration` se colgó dos veces (60 s) sin dejar rastro: se aplicó con `execute_sql` y la fila de
+  `supabase_migrations` (versión 20261005132946, `126_expreso_id_en_direcciones`) se cargó a mano el 05/10.
 - **Cambio de mail** (29/09): `solicitar_cambio_mail` → tarea `cambio_datos` con `mail_nuevo` → "Cambiar mail" (`mail_cambiar`).
 - **Simulador › 📱 Número nuevo** (29/09): corre el alta real (`_shared/alta.ts`, movido del webhook sin cambios) con el
   número falso 5490000000099; el estado vive en `wa_prospect_leads` de ese número y una charla nueva cancela la anterior.
