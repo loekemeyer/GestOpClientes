@@ -115,8 +115,14 @@
 > (el más viejo de sus facturas) y hoy, los dos inclusive: si hay, el aviso queda `omitido_pago_reciente` (el plan trae `carga` y `pago`) y el
 > JSON suma `omitidos_pago`. Sólo SACA avisos, nunca agrega. Hoy es el tope porque `fecha_pago` trae cheques diferidos con fecha futura (hasta
 > 01/01/2027). Si no se pueden leer los recibos no se encola nada. Lógica pura en `_shared/recordatorio-pagos.ts` (`tests/recordatorio-pagos.test.ts`).
-> ⚠ **No cubre** un pago anterior a la carga que el saldo todavía no refleja (ej. cliente 862: recibo del 01/10 por $11.687.939,34 y, en la carga del 02/10 18:26, dos facturas abiertas por
-> $11.736.332,17 en total): el recibo no se imputó a esas facturas, y eso es del armado del saldo, no de esta regla. Dato para decidir: sin carga nueva el saldo no se rearma, así que el aviso de las 9:05 usa lo de la noche anterior.
+> ⚠ **Límite de la regla: mira al CLIENTE, no a la factura.** Cualquier recibo del cliente entre la carga y hoy omite todos sus avisos, aunque ese recibo
+> pague OTRAS facturas (más viejas) y la del aviso siga abierta. Medido el 05/10 sobre los 8 clientes con recibo del 02/10: 6 son depósitos del 01-02/10
+> todavía sin imputar (el caso para el que se hizo la regla; 1883 pagó exactamente el 75 % de su saldo, o sea con el 25 % de descuento) y 2 (3848 y 641) ya estaban imputados a
+> otras facturas. Dato que separa los dos casos: `fecha_primer_cobro` del recibo (si es anterior a la fecha de la factura, no la puede estar pagando).
+> Sin cambiar todavía. Sin carga nueva el saldo no se rearma, así que el aviso de las 9:05 usa lo de la noche anterior.
+> **Cliente 862 (aclaración):** NO hay error de imputación. Su recibo 14548 (01/10, $11.687.939,34) está imputado a las facturas 35706+35707+35708 del
+> 26/08 (suman $16.216.893, igual que `GV_Cobranza_Imputacion.lista`); las abiertas 36007/36008 del 23/09 ($11.736.332,17) son otra compra sin pagar, y su
+> aviso del 07/10 (25 %, $8.802.249) es correcto. La coincidencia de montos con el recibo es casual. En una versión anterior de esta nota decía lo contrario.
 >
 > **05/10 (Pablo): Informes › Proyección suma el total mensual (dashboard v0.27.5, `docs/gestop2.js` `prPintar`).** Bloque nuevo "Total mensual estimado: plantillas de Meta + IA" al final de
 > la pantalla: por cada base de consultas (jul–sep y ene–jun) y escenario de IA (como resuelve el bot hoy, si todo lo marcado "Agente" usa IA, si todo usa IA) muestra **plantillas de Meta +
