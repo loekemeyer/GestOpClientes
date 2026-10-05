@@ -4,6 +4,19 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): registro de CADA intento a un modelo de IA — tabla `bot_llm_intentos` (sql/126).** `bot_token_usage` sólo guardaba las llamadas
+> que salieron bien: no había forma de saber cuántas veces falló Gemini, con qué código ni cuánto tardó. Ahora `runConversation` escribe una fila
+> por intento con `logIntento` (`_shared/bot-llm.ts`): `funcion`, `modelo_id` (0 = respaldo de env, -1 = modelo de pruebas), `proveedor`, `modelo`,
+> `iteracion` (1..5), `ok`, `http_status` (null en timeout o error de red), `error` (sin la API key: `limpiarErrorLlm` saca `?key=…`, que Deno
+> deja en el mensaje de un error de red), `duracion_ms`, tokens. Sin teléfono ni texto del cliente. RLS prendida y sin políticas: sólo
+> `service_role`. La tabla se creó en PaginaLK el 05/10 (verificada: 0 filas, RLS sí, 0 políticas); **el código empieza a escribir cuando se
+> deploye a `main`** (afecta a las edges que importan `bot-llm.ts`; el insert no se espera ni puede romper la charla). Consultas:
+> tasa de error por modelo y código `select modelo, http_status, count(*), round(avg(duracion_ms)) from bot_llm_intentos group by 1,2 order by 3 desc`;
+> latencia `select modelo, percentile_cont(0.5) within group (order by duracion_ms) p50, percentile_cont(0.95) within group (order by duracion_ms) p95 from bot_llm_intentos where ok group by 1`;
+> failover = una fila `ok = false` seguida a los pocos segundos por una `ok = true` de otro modelo en la misma `funcion` (no hay id de turno: sólo se
+> puede cruzar por hora). Pruebas sin red: `deno run --allow-env tests/bot-llm-intentos.test.ts`.
+> Sin cambio de lógica de conversación, de `wa_faq` ni del front (la versión visible del dashboard no cambia). Pendiente: purga por antigüedad (hoy no hay).
+>
 > **05/10 (Pablo): Gemini gratis vuelve a ser el #1 de la cadena de producción — PRUEBA DE LÍMITES.** `wa_agente_modelos` id 29
 > (`gemini-3.5-flash-lite`, plan gratis) pasó de `prioridad = NULL` a **1** (UPDATE con el sí de Pablo, 05/10 16:18 UTC). La cadena de charla
 > queda **Gemini #1 → Sonnet 4.6 #2 (id 1) → Haiku 4.5 #3 (id 45)** + el respaldo duro de env (Sonnet). OJO: `resolveChain` NO filtra por
@@ -11,7 +24,7 @@
 > Motivo: Pablo quiere ver las limitaciones de Gemini en el uso real; asume que los datos del cliente viajen al plan gratis de Google (que
 > los usa para mejorar sus productos). Hoy el bot sólo le contesta a la lista de prueba (Thomy y Damián de Chef: `wa_bot_solo_whitelist` = 1).
 > **Qué mirar:** (1) velocidad: en pruebas Gemini tardó 15–20 s por vuelta con herramientas el 09/09 y menos de 7 s el 01/10; no se guarda la
-> duración de cada llamada en `bot_token_usage`, así que no hay medición de producción; (2) cuántos turnos caen a Sonnet: `select model,
+> duración de cada llamada en `bot_token_usage`; desde el deploy de `bot_llm_intentos` (nota de arriba) sí se mide; (2) cuántos turnos caen a Sonnet: `select model,
 > count(*) from bot_token_usage where function_name='lk_whatsapp-webhook' and created_at > '2026-10-05 16:18+00' group by 1` (Gemini va en
 > US$ 0 por su flag `is_free_tier`); (3) `wa_agente_modelos.estado/ultimo_error` de id 29 (429 o 503 lo marcan `caido` con cooldown).
 > **Volver atrás:** `update wa_agente_modelos set prioridad = null, updated_at = now() where id = 29;` (o desde Configuración del agente › Modelos).

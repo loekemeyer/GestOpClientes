@@ -177,6 +177,54 @@ export function logUsage(res: ModelResult, isFreeTier: boolean, phone: string | 
   }).then(() => {}).catch((e: unknown) => console.error("[bot-llm.logUsage]", e));
 }
 
+// ── Auditoría de intentos (sql/126) ──────────────────────────────────────────
+// `bot_token_usage` sólo guarda las llamadas que salieron bien. Acá queda CADA intento, con su resultado, código HTTP y
+// duración: es lo que permite saber cómo falla un modelo (429, 503, timeouts) y cuánto tarda. Sin teléfono ni texto del cliente.
+export interface IntentoLlm {
+  funcion: string; // lk_whatsapp-webhook / lk_bot-simular / lk_chat-test
+  modeloId: number; // wa_agente_modelos.id; 0 = fallback de env (Sonnet), -1 = modelo de pruebas
+  proveedor: string;
+  modelo: string;
+  tarea?: string | null;
+  iteracion: number; // 1..5 dentro del turno
+  ok: boolean;
+  httpStatus?: number | null; // null en timeout o error de red
+  error?: string | null;
+  duracionMs: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}
+
+/** Un error de red de Deno incluye la URL del request, y la de Gemini lleva `?key=…`: la clave no se guarda. */
+export function limpiarErrorLlm(msg: string): string {
+  return msg.replace(/([?&]key=)[^&\s)"']+/gi, "$1***").slice(0, 300);
+}
+
+/** Registra un intento sin frenar ni romper la conversación (mismo criterio que `logUsage`). */
+export function logIntento(i: IntentoLlm) {
+  try {
+    supabase.from("bot_llm_intentos").insert({
+      funcion: i.funcion,
+      modelo_id: i.modeloId,
+      proveedor: i.proveedor,
+      modelo: i.modelo,
+      tarea: i.tarea ?? null,
+      iteracion: i.iteracion,
+      ok: i.ok,
+      http_status: i.httpStatus ?? null,
+      error: i.error ? limpiarErrorLlm(i.error) : null,
+      duracion_ms: Math.round(i.duracionMs),
+      input_tokens: i.inputTokens ?? null,
+      output_tokens: i.outputTokens ?? null,
+    }).then(
+      ({ error }) => { if (error) console.error("[bot-llm.logIntento]", error.message); },
+      (e: unknown) => console.error("[bot-llm.logIntento]", e),
+    );
+  } catch (e) {
+    console.error("[bot-llm.logIntento]", e);
+  }
+}
+
 // ── Fetch con timeout ────────────────────────────────────────────────────────
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const ctrl = new AbortController();

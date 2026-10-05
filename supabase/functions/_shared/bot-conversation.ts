@@ -14,6 +14,7 @@ import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import {
   callModel,
   esCulpaDelRequest,
+  logIntento,
   logUsage,
   markModelDown,
   type NormMsg,
@@ -1340,9 +1341,15 @@ export async function runConversation(
     // Failover: probamos la cadena en orden hasta que un modelo responda.
     for (const cand of candidates) {
       if (downThisTurn.has(cand.id)) continue;
+      const t0 = performance.now();
       try {
         res = await callModel(cand, systemPrompt, herramientas, history, 30_000);
         used = cand;
+        logIntento({
+          funcion: fuente, modeloId: cand.id, proveedor: cand.provider, modelo: cand.model, tarea: "conversacion",
+          iteracion: iter + 1, ok: true, duracionMs: performance.now() - t0,
+          inputTokens: res.inputTokens, outputTokens: res.outputTokens,
+        });
         break;
       } catch (e) {
         const emsg = e instanceof Error ? e.message : String(e);
@@ -1350,6 +1357,10 @@ export async function runConversation(
         lastStatus = (e as any)?.status as number | undefined;
         lastErr = emsg;
         console.error(`[runConversation] ${cand.provider}/${cand.model} falló: ${emsg}`);
+        logIntento({
+          funcion: fuente, modeloId: cand.id, proveedor: cand.provider, modelo: cand.model, tarea: "conversacion",
+          iteracion: iter + 1, ok: false, httpStatus: lastStatus, error: emsg, duracionMs: performance.now() - t0,
+        });
 
         // Con cadena multi-proveedor, SIEMPRE probamos el próximo candidato: un 400 puede
         // ser un schema que ESE proveedor no acepta (y otro sí), no un error universal.
