@@ -28,8 +28,8 @@
 > **Cuota que cortó — MEDIDA el 05/10 (18:17 UTC, 15 consultas de IA en ráfaga, US$ 0):** 29 llamadas, 19 bien y 10 con 429: **10 de los 15 turnos fallaron**. Google lo dice en el
 > error: `generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite` y "retry in 33 s": **el tope es 15 solicitudes por minuto por modelo** (no tokens), y se
 > libera en ~33 s. Para ver el texto completo: `select created_at, error from bot_llm_intentos where http_status = 429 order by id desc limit 3` (el error se guarda hasta 800
-> caracteres desde el 05/10, `ERROR_MAX` en `bot-llm.ts`). ⚠ `wa_agente_modelos.rpm_limit` dice **30** (default de sql/045) y es incorrecto para este modelo (15); no cambia nada
-> porque sólo lo lee `_shared/llm.ts`, que es código muerto. El tope diario (1.500 en la tabla) no se probó. **CORREGIDO el 05/10 (Pablo):** en producción un solo 429 marcaba a Gemini
+> caracteres desde el 05/10, `ERROR_MAX` en `bot-llm.ts`). `wa_agente_modelos.rpm_limit` decía **30** (default de sql/045) y era incorrecto para este modelo (15): **corregido el 05/10 sólo en el id 29** (UPDATE con el sí de Pablo,
+> verificado). No cambia nada porque sólo lo lee `_shared/llm.ts`, que es código muerto. Las otras filas gratis (13, 15, 20, 21, 27) siguen en 30: su tope real no está medido. El tope diario (1.500 en la tabla) no se probó. **CORREGIDO el 05/10 (Pablo):** en producción un solo 429 marcaba a Gemini
 > `caido` por 5 minutos (`COOLDOWN_MS`) aunque Google libera la cuota en ~33 s, y en esos 5 minutos todo iba a Sonnet, con costo. Ahora `cooldownParaError` (`bot-llm.ts`) deja caído el
 > tiempo que pide Google en el error ("retry in 33 s" o `retryDelay`), con **piso de 60 s y tope de 5 min**. La cuota por día (`PerDay`) y los demás errores (401/403/404/5xx, timeout) siguen en 5 min.
 > Pruebas sin red: `deno run --allow-env tests/bot-llm-cooldown.test.ts`. ⚠ Si el 429 es por día y Google no lo dice en los primeros 800 caracteres del error, se lo trata como por minuto:
