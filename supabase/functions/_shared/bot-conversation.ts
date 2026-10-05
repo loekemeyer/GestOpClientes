@@ -15,6 +15,7 @@ import {
   callModel,
   esCulpaDelRequest,
   logIntento,
+  cooldownParaError,
   logUsage,
   markModelDown,
   type NormMsg,
@@ -1371,7 +1372,7 @@ export async function runConversation(
         // (401/403/404/429/5xx/timeout). Un 400/413/422 es del request → no cooldown,
         // así no dejamos caído un modelo bueno por un payload puntual.
         if (!esCulpaDelRequest(lastStatus)) {
-          markModelDown(cand.id, emsg).catch(() => {});
+          markModelDown(cand.id, emsg, cooldownParaError(lastStatus, emsg)).catch(() => {});
         }
       }
     }
