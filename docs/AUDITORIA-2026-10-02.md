@@ -99,8 +99,16 @@ deploy con la misma consulta de `function_edge_logs` de la sección 1.
 1. **`lk_factura-check` no tiene ningún gate** (`lk_factura-check/index.ts:701`, `serve` sin `requireAdmin` ni
    `x-lk-secret`; CORS `*`). Cualquiera con la URL dispara envíos al número de redirección, reclama grupos en
    `wa_grupo_listo` (un claim falso deja el grupo "enviado" y el aviso real no sale) y escribe `wa_shadow_log` /
-   `wa_sim_inbox`. Lo llaman el trigger de ISIS por pg_net y `lk_notif-sim` sin header: cerrarlo obliga a tocar los dos
-   callers. **Alto.** [Seguro]
+   `wa_sim_inbox`. **Alto.** [Seguro]
+   **EN CURSO (05/10).** Los llamadores son TRES, no dos (el tercero no estaba en el informe): el trigger
+   `wa_factura_notificar` (Gestión, sobre `isis_lk.documentos` e `isis_ch.documentos`), el cron `wa_barrido_avisos` de Gestión
+   (jobid 69, cada 15 min) y `lk_notif-sim`; ninguno mandaba header. Y `handleGrupo` (`mode:"grupo"`) no tiene llamador conocido
+   en el repo: si existe uno externo (n8n, por ejemplo) sólo aparece en los logs del modo `log`.
+   Diseño: secreto aleatorio en el Vault de GESTIÓN (`lk_factura_check_secret`, no se copia ni se muestra); la edge lo lee con
+   `wa_factura_check_secret()` (sólo service_role). Llave `app_settings.wa_factura_check_gate` en tres escalones: sin fila =
+   apagado · `log` = registra lo que no trae secreto válido y lo deja pasar · `1` = 401 (falla cerrada). Código en `main`
+   con la llave apagada (sin efecto); SQL de Gestión en `sql/isis_wa_factura_check_gate.sql`, pendiente del "sí" de Pablo.
+   Pasos: código (hecho) → SQL de Gestión → llave en `log` un día → llave en `1`. Pruebas: `tests/gate-factura-check.test.ts`.
 2. **XSS en el chat de prueba del dashboard**: `docs/index.html:1973` `div.innerHTML = text.replace(/\n/g,"<br>")` con la
    respuesta del modelo / de la FAQ. Un prompt injection que devuelva `<img onerror=…>` corre en la sesión de un admin
    logueado con Google. **Corregido el 02/10 (v0.26.12)**: `esc(text)` antes del replace. [Seguro]

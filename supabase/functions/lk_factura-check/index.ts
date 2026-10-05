@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { leerVersiones, nombreActivo } from "../_shared/plantillas-version.ts";
 import { CHEF_TITULAR } from "../_shared/plantillas-factura.ts";
+import { decidirGate, modoDeGate } from "./gate.ts";
 
 // lk_factura-check — Etapa 5 del pipeline de facturación (PaginaLK).
 //
@@ -16,7 +17,7 @@ import { CHEF_TITULAR } from "../_shared/plantillas-factura.ts";
 // prueba (tabla wa_sim_inbox en PaginaLK), NO a WhatsApp. Controlado por
 // app_settings.wa_factura_envio_modo ('modulo' = chat de prueba | 'whatsapp' = real).
 // Hoy sólo procesa clientes de PRUEBA (cuit 30999…); datos reales quedan dormant.
-// verify_jwt=false (lo llama pg_net desde ISIS).
+// verify_jwt=false (lo llama pg_net desde ISIS). Gate de secreto x-lk-secret: ver gate.ts (llave wa_factura_check_gate).
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -47,6 +48,43 @@ async function gp() {
 }
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+}
+
+// ── Gate del endpoint (auditoría 02/10/2026, 3.1.1) ──
+// Ver gate.ts: llave app_settings.wa_factura_check_gate ('0'/sin fila = apagado · 'log' = sólo registra · '1' = rechaza 401).
+// El secreto esperado vive en el Vault de GESTIÓN (lk_factura_check_secret) y se lee con wa_factura_check_secret() (sólo
+// service_role). Se cachea 5 minutos, y sólo cuando existe: una lectura fallida no se guarda.
+let _secretoGate: { valor: string; hasta: number } | null = null;
+async function secretoEsperado(): Promise<string | null> {
+  if (_secretoGate && _secretoGate.hasta > Date.now()) return _secretoGate.valor;
+  const g = await gp();
+  const { data, error } = await g.rpc("wa_factura_check_secret");
+  const v = !error && typeof data === "string" ? data : "";
+  if (!v) return null;
+  _secretoGate = { valor: v, hasta: Date.now() + 5 * 60_000 };
+  return v;
+}
+/** null = la llamada pasa; Response = rechazada. Con la llave apagada no hace nada. Ante un error propio, apagado = pasa. */
+async function gate(req: Request): Promise<Response | null> {
+  let modo;
+  try {
+    modo = modoDeGate(await getSetting("wa_factura_check_gate"));
+  } catch (e) {
+    console.error("[gate] no pude leer la llave, se deja pasar:", e instanceof Error ? e.message : e);
+    return null;
+  }
+  if (modo === "off") return null;
+  let esperado: string | null = null;
+  try {
+    esperado = await secretoEsperado();
+  } catch (e) {
+    console.error("[gate] no pude leer el secreto:", e instanceof Error ? e.message : e);
+  }
+  const d = decidirGate(modo, req.headers.get("x-lk-secret") ?? "", esperado);
+  if (d.registrar) {
+    console.warn(`[gate] ${d.pasa ? "PASA (modo log)" : "RECHAZADA"}: ${d.motivo} · ua=${(req.headers.get("user-agent") ?? "").slice(0, 60)} · ip=${(req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim()}`);
+  }
+  return d.pasa ? null : json({ error: "no autorizado" }, 401);
 }
 // Ventana de envío real: activo si HOY cae dentro de las 48h desde `wa_real_redirect_date`
 // (ese día Y el siguiente). Reemplaza el guard de "solo el día exacto" para que un envío
@@ -701,6 +739,8 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method === "GET") return new Response("ok");
+  const rechazo = await gate(req);
+  if (rechazo) return rechazo;
   try {
     const body = await req.json().catch(() => ({}));
     if (body.mode === "grupo") return await handleGrupo(body);

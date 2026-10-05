@@ -117,10 +117,26 @@ async function makeFacturaPdf(numero: string, total: number, cond: string, cuit:
   return await doc.save();
 }
 
+// Header x-lk-secret para lk_factura-check (gate, auditoría 02/10/2026): el secreto vive en el Vault de GESTIÓN y se lee con
+// wa_factura_check_secret() (sólo service_role). Se cachea 5 min. Si todavía no existe o falla la lectura, se llama sin
+// header, como siempre: la llave wa_factura_check_gate de lk_factura-check decide si eso pasa.
+let _secretoCheck: { v: string; hasta: number } | null = null;
+async function headersCheck(): Promise<Record<string, string>> {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  try {
+    if (!_secretoCheck || _secretoCheck.hasta < Date.now()) {
+      const { data, error } = await (await gp()).rpc("wa_factura_check_secret");
+      if (!error && typeof data === "string" && data) _secretoCheck = { v: data, hasta: Date.now() + 5 * 60_000 };
+    }
+    if (_secretoCheck) h["x-lk-secret"] = _secretoCheck.v;
+  } catch { /* sin secreto: se llama como siempre */ }
+  return h;
+}
+
 async function callCheck(source: string, cuit: string, fecha: string) {
   try {
     const res = await fetch(`${SB_URL}/functions/v1/lk_factura-check`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: await headersCheck(),
       body: JSON.stringify({ source, cuit, fecha }),
     });
     return await res.json();
@@ -263,11 +279,12 @@ serve(async (req) => {
     if (action === "real_sweep") {
       const { data: cuits } = await g.rpc("wa_cuits_facturados_dia", { p_fecha: today() });
       const results = [];
+      const hdrs = await headersCheck();
       for (const c of (cuits ?? [])) {
         let r;
         try {
           const res = await fetch(`${SB_URL}/functions/v1/lk_factura-check`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", headers: hdrs,
             body: JSON.stringify({ source: c.source, cuit: c.cuit, fecha: today() }),
           });
           r = await res.json();
