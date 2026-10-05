@@ -466,6 +466,13 @@ de Anthropic o a otro servicio pago. Hasta que Pablo diga otra cosa, **ninguna s
 `app_settings.llm_modelo_pruebas` hace que el simulador y el chat de prueba usen un modelo más barato (Haiku 4.5, un tercio del precio de Sonnet 4.6);
 el webhook nunca lo lee. Abarata, pero no reemplaza el estimativo ni el "sí".
 
+**Excepción — gasto US$ 0 (Pablo Olejavetzky, 05/10/2026: *"Todo lo que tenga gasto cero podés hacerlo sin consultarme, siempre va a ser sí"*):**
+lo que cuesta US$ 0 de verdad (hoy: el modelo de pruebas `gemini-3.5-flash-lite` en el plan gratis, `is_free_tier`) se corre **sin pedir el "sí"**.
+Se sigue leyendo `bot_token_usage` antes y después para confirmar que el gasto fue 0, y se informa el resultado. Si `llm_modelo_pruebas` pasa a un
+modelo pago, o una prueba cae a otro modelo, vuelve la regla de arriba (estimativo + "sí"). ⚠ Cubre sólo el **gasto**: las escrituras en la base
+(INSERT / UPDATE / DELETE) siguen pidiendo su "sí" en ese momento. Cuota del plan gratis medida el 05/10: **15 solicitudes por minuto** por modelo
+(unos 7 turnos de IA por minuto): una ráfaga mayor da 429 y falsea la prueba, así que se manda en tandas.
+
 ## Testing
 
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
