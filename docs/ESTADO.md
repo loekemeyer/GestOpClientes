@@ -63,6 +63,24 @@
 > ⚠ **No cubre** un pago anterior a la carga que el saldo todavía no refleja (ej. cliente 862: recibo del 01/10 por $11.687.939,34 y, en la carga del 02/10 18:26, dos facturas abiertas por
 > $11.736.332,17 en total): el recibo no se imputó a esas facturas, y eso es del armado del saldo, no de esta regla. Dato para decidir: sin carga nueva el saldo no se rearma, así que el aviso de las 9:05 usa lo de la noche anterior.
 >
+> **05/10 (Pablo): Informes › Proyección suma el total mensual (dashboard v0.27.5, `docs/gestop2.js` `prPintar`).** Bloque nuevo "Total mensual estimado: plantillas de Meta + IA" al final de
+> la pantalla: por cada base de consultas (jul–sep y ene–jun) y escenario de IA (como resuelve el bot hoy, si todo lo marcado "Agente" usa IA, si todo usa IA) muestra **plantillas de Meta +
+> IA (API) = total**, de mayor a menor. Las plantillas siguen el selector "Ver" (todos / sólo con teléfono) y la IA el selector "Modelo"; el rango de arriba cambia con los dos. Con los
+> datos del corte 05/10 y Sonnet: **US$ 34,50 a 47,52 por mes** con todos los clientes (plantillas US$ 31,49) y **US$ 29,08 a 42,10** sólo con teléfono (plantillas US$ 26,06). Haiku:
+> 32,81 a 38,51; Sonnet con caché: 33,84 a 44,01. Es un cálculo en el front sobre los datos que ya entrega `lk_conversaciones`: no hay backend nuevo ni gasto. El gasto real de IA es
+> US$ 0 mientras un modelo gratis esté primero en la cadena; el bloque lo aclara. Probado en el navegador (claro, oscuro y móvil) con el payload del servidor.
+>
+> **05/10 (Pablo): Informes › Proyección corregido (dashboard v0.27.4): Sonnet cuesta US$ 0,0251 por llamada, no 0,032.** El parámetro `usdPorLlamada.sonnet` de `datos-base.json`
+> salió de una corrida chica y sobreestimaba un 27 %. Medido con **534 llamadas reales de Sonnet 4.6** (`bot_token_usage`, simulador y webhook, 28/09–02/10): entrada 7.850 tokens
+> (mediana 8.598, de 4.125 a 11.735), salida 103, **US$ 0,0251** por llamada y el **93,8 % del costo es entrada**. "Sonnet con caché" pasó de 0,021 a **0,0196** (≈ −22 %: la segunda
+> llamada de un turno lee el prefijo de la primera; el −53 % sólo se alcanza con muchas consultas por minuto, porque el caché dura 5 minutos y a ~11 consultas por día casi nunca
+> cae otra dentro). Hoy el código no usa caché (0 `cache_control`): esos porcentajes son aritmética sobre tokens medidos, no una medición. Haiku (0,011) coincide con lo medido (0,0107, 43 llamadas).
+> **Estimativo si TODAS las consultas fueran a Sonnet** (339 por mes de la base jul–sep, 1,8 llamadas por consulta = US$ 0,0452 por consulta): **US$ 15,3 por mes sin caché**, US$ 12,0 con
+> caché dentro del turno y entre US$ 7,1 y US$ 8,8 con caché de prefijo entre turnos; con 190 consultas por mes (base ene–jun) US$ 8,6. Hoy, con sólo el 27 % por IA, la pantalla da
+> US$ 4,92 (incluye 51 saludos por mes a US$ 0,014). Escala casi lineal: 1.000 consultas por mes ≈ US$ 45, 3.000 ≈ US$ 136, 10.000 ≈ US$ 452 (sin caché). Se regeneró con
+> `node scripts/proyeccion-avisos/generar.mjs`; sólo cambiaron esos dos parámetros en `proyeccion-datos.ts`. Las etiquetas del selector de modelo ahora muestran 4 decimales (US$ 0,0251 en vez de 0,025) y los `?v=` de
+> `gestop2.css` y `gestop2.js` pasaron de 0.27.1 a 0.27.4 porque `gestop2.js` cambió en esta versión (v0.27.2 y v0.27.3 tocaron sólo `index.html`, por eso no se habían movido).
+>
 > **05/10 (Pablo): registro de CADA intento a un modelo de IA — tabla `bot_llm_intentos` (sql/126).** `bot_token_usage` sólo guardaba las llamadas
 > que salieron bien: no había forma de saber cuántas veces falló Gemini, con qué código ni cuánto tardó. Ahora `runConversation` escribe una fila
 > por intento con `logIntento` (`_shared/bot-llm.ts`): `funcion`, `modelo_id` (0 = respaldo de env, -1 = modelo de pruebas), `proveedor`, `modelo`,

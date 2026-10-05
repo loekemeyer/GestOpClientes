@@ -839,9 +839,9 @@ export const PROYECCION_DATOS = {
   "parametros": {
    "llamadasPorConsultaIa": 1.8,
    "usdPorLlamada": {
-    "sonnet": 0.032,
+    "sonnet": 0.0251,
     "haiku": 0.011,
-    "sonnetConCache": 0.021
+    "sonnetConCache": 0.0196
    },
    "usdPorSaludo": 0.014,
    "topeServicioGratisPorNumero": 1000
