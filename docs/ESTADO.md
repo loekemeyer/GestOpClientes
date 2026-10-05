@@ -4,6 +4,15 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): la base de PaginaLK se saturó de 10:36 a ~11:15 AR y el panel no dejaba entrar.** Google pasaba (auth es
+> ISIS, sano), pero la consulta de permiso a `gestop_users` volvía **504** y el panel decía *"Email no autorizado"* y cerraba la
+> sesión. En los logs: consultas triviales de catálogo (`pg_settings`, `pg_database_size`) tardando 10-20 s con sólo 6 sesiones
+> activas y sin `wait_event` → la máquina estaba sin CPU/IO, no había un candado ni una consulta trabada. Los crons de
+> sincronización con Virgilio pasaron de ~11 s a 54-125 s y pg_cron tiró `job startup timeout`. Causa de fondo **sin
+> confirmar** (las métricas de CPU y de presupuesto de disco están sólo en el dashboard de Supabase › Observability).
+> **v0.26.17:** si la base no contesta (error o 20 s sin respuesta) el panel lo dice, NO cierra la sesión de Google y ofrece
+> "Reintentar". *"Email no autorizado"* queda sólo para cuando la base contesta y el email no está.
+>
 > **05/10 (Pablo): mapa de copias entre bases + padrón de Chef con una sola lectura (sql/125).** Relevamiento de todos
 > los crons que copian datos entre bases: [Mapa de copias entre bases](https://claude.ai/artifact/AdXACio7NmBNa439QegciX)
 > (24 crons, origen → destino, frecuencia, quién usa cada copia, corridas y fallas de 7 días). Las bases son **cuatro**, no

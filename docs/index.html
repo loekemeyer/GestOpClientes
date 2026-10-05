@@ -381,7 +381,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.26.16">
+  <link rel="stylesheet" href="gestop2.css?v=0.26.17">
 </head>
 <body>
 
@@ -1457,14 +1457,29 @@ async function checkSession() {
   if (!session) return;
 
   const email = session.user.email;
+  const err = document.getElementById("loginError");
+  err.style.color = "var(--muted)";
+  err.textContent = "Verificando acceso…";
 
-  // Verificar email contra whitelist en gestop_users (PaginaLK)
-  const { data } = await sb
+  // Verificar email contra whitelist en gestop_users (PaginaLK).
+  // v0.26.17: el 05/10 (10:36–11:15 AR) la base de PaginaLK se saturó, esta consulta volvió 504 y el panel decía
+  // "Email no autorizado" y cerraba la sesión de Google. Una falla de la base NO es "no autorizado": se avisa y se
+  // deja la sesión, así "Reintentar" entra sin volver a pasar por Google. Tope de 20 s para no quedar colgado.
+  const { data, error } = await sb
     .from("gestop_users")
     .select("role")
     .eq("email", email)
+    .abortSignal(AbortSignal.timeout(20000))
     .maybeSingle();
+  err.style.color = "";
+  err.textContent = "";
 
+  if (error) {
+    err.innerHTML = "No se pudo verificar tu acceso: la base no respondió (" + esc(error.message || error.code || "sin respuesta")
+      + "). No es un problema de tu usuario. "
+      + '<a href="#" onclick="checkSession();return false" style="color:inherit;font-weight:600">Reintentar</a>';
+    return;
+  }
   if (data) {
     currentRole = data.role;
     currentEmail = email;
@@ -4714,7 +4729,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.16</div>
-<script src="gestop2.js?v=0.26.16"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.17</div>
+<script src="gestop2.js?v=0.26.17"></script>
 </body>
 </html>
