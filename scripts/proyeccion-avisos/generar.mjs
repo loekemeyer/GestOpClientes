@@ -89,7 +89,7 @@ for (const r of base.facturas) {
     const id = `pedido_${r.grupo}_${sufijo}${r.empresa === "chef" ? "_chef" : ""}`;
     const c = celda(id, r.mes);
     const f = filas.get(id);
-    f.etiqueta = `Factura ${GRUPO_FACT[r.grupo]} · ${sufijo === "s" ? "1 factura" : "varias facturas"}${r.empresa === "chef" ? " (Chef)" : ""}`;
+    f.etiqueta = `Factura ${GRUPO_FACT[r.grupo]} · ${sufijo === "s" ? "1 factura" : "varias facturas"}`;
     c.todos += n;
     if (r.conTel === null) { c.conTel = null; } else if (c.conTel !== null && r.conTel) c.conTel += n;
   }

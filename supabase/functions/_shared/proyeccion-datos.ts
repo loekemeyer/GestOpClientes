@@ -462,7 +462,7 @@ export const PROYECCION_DATOS = {
   },
   {
    "id": "pedido_contado_s_chef",
-   "etiqueta": "Factura contado · 1 factura (Chef)",
+   "etiqueta": "Factura contado · 1 factura",
    "grupo": "Factura y pago",
    "empresa": "chef",
    "porMes": {
@@ -495,7 +495,7 @@ export const PROYECCION_DATOS = {
   },
   {
    "id": "pedido_contado_p_chef",
-   "etiqueta": "Factura contado · varias facturas (Chef)",
+   "etiqueta": "Factura contado · varias facturas",
    "grupo": "Factura y pago",
    "empresa": "chef",
    "porMes": {
@@ -627,7 +627,7 @@ export const PROYECCION_DATOS = {
   },
   {
    "id": "pedido_credito_s_chef",
-   "etiqueta": "Factura crédito · 1 factura (Chef)",
+   "etiqueta": "Factura crédito · 1 factura",
    "grupo": "Factura y pago",
    "empresa": "chef",
    "porMes": {
@@ -693,7 +693,7 @@ export const PROYECCION_DATOS = {
   },
   {
    "id": "pedido_credito_p_chef",
-   "etiqueta": "Factura crédito · varias facturas (Chef)",
+   "etiqueta": "Factura crédito · varias facturas",
    "grupo": "Factura y pago",
    "empresa": "chef",
    "porMes": {
@@ -726,7 +726,7 @@ export const PROYECCION_DATOS = {
   },
   {
    "id": "pedido_echeq_s_chef",
-   "etiqueta": "Factura e-cheq · 1 factura (Chef)",
+   "etiqueta": "Factura e-cheq · 1 factura",
    "grupo": "Factura y pago",
    "empresa": "chef",
    "porMes": {

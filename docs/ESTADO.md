@@ -17,6 +17,7 @@
 > Storage, ni en Drive. (2) Gestión guarda ~4 semanas de estado de pedidos web: antes del 07/09 se supone el recorrido completo. (3) Sin
 > `pedido_reprogramado` (no hay historial de cambios de fecha antes del 28/09). (4) El repo es público: `datos-base.json` y
 > `proyeccion-datos.ts` son sólo agregados, como `scripts/plantillas-artifact/simulacion.json`. El CI deploya `lk_conversaciones` al llegar a `main`.
+> **v0.27.1:** la tabla de avisos por plantilla tiene una columna **Empresa** (Loeke / Chef); las 6 plantillas de factura de Chef (`pedido_*_chef`) van marcadas ahí y ya no llevan "(Chef)" en el nombre.
 >
 > **05/10 (Pablo): el aviso de cumpleaños de Planify pasa a una plantilla de UTILIDAD.** `planify_cumple-wa` (edge del
 > proyecto de Gestión `hrxfctzncixxqmpfhskv`, cron `planify_cumple_wa_diario` 11:00 UTC, **no está en ningún repo**) mandaba

@@ -1092,10 +1092,10 @@ function prPintar() {
   // Avisos por plantilla y mes (el servidor ya las manda de mayor a menor peso).
   const filas = r.plantillas.map((f) => {
     const p = prom(comp.map((m) => val(f.porMes[m.id])));
-    return `<tr><td>${gesc(f.etiqueta)}</td>${meses.map((m) => celN(val(f.porMes[m.id]))).join("")}${p === null ? `<td class="cero pr-sep">—</td><td class="cero">—</td>` : `<td class="pr-sep">${nfmt(Math.round(p))}</td><td>${prUsd(p * tarifa)}</td>`}</tr>`;
+    return `<tr><td>${gesc(f.etiqueta)}</td><td class="pr-emp">${f.empresa === "chef" ? "Chef" : "Loeke"}</td>${meses.map((m) => celN(val(f.porMes[m.id]))).join("")}${p === null ? `<td class="cero pr-sep">—</td><td class="cero">—</td>` : `<td class="pr-sep">${nfmt(Math.round(p))}</td><td>${prUsd(p * tarifa)}</td>`}</tr>`;
   }).join("");
-  const filaTotal = `<tr class="tot"><td>${conTel ? "Total (sin Chef)" : "Total"}</td>${meses.map((m) => celda(tot(m))).join("")}<td class="pr-sep">${nfmt(Math.round(promTot))}</td><td>${prUsd(promTot * tarifa)}</td></tr>
-    <tr><td>Costo del mes</td>${meses.map((m) => `<td>${prUsd(tot(m) * tarifa)}</td>`).join("")}<td class="pr-sep" colspan="2">${prUsd(promTot * tarifa)} por mes</td></tr>`;
+  const filaTotal = `<tr class="tot"><td colspan="2">${conTel ? "Total (sin Chef)" : "Total"}</td>${meses.map((m) => celda(tot(m))).join("")}<td class="pr-sep">${nfmt(Math.round(promTot))}</td><td>${prUsd(promTot * tarifa)}</td></tr>
+    <tr><td colspan="2">Costo del mes</td>${meses.map((m) => `<td>${prUsd(tot(m) * tarifa)}</td>`).join("")}<td class="pr-sep" colspan="2">${prUsd(promTot * tarifa)} por mes</td></tr>`;
   const sinSalir = meses.filter((m) => r.totales[m.id].falta > 0).map((m) => `${gesc(m.nombre)}: ${nfmt(r.totales[m.id].falta)}`).join(" · ");
 
   // US$ por mes, partido por tipo de aviso.
@@ -1144,7 +1144,7 @@ function prPintar() {
       <div class="sl-kpi"><span>Recordatorio de descuento</span><b>${recProm === null ? "—" : nfmt(Math.round(recProm))}</b><i>${recProm === null ? "" : `${pct(recProm, promTot)} de los avisos · ${prUsd(recProm * tarifa)} por mes`}</i></div>
     </div>
     <div class="sl-card"><h4>Avisos que dispararía cada plantilla, por mes (cantidad de mensajes)</h4>
-      <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Plantilla</th>${meses.map((m) => `<th>${gesc(m.nombre)}</th>`).join("")}<th class="pr-sep">Promedio por mes<br>(${gesc(rango)})</th><th>US$ por mes</th></tr></thead>
+      <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Plantilla</th><th class="pr-emp">Empresa</th>${meses.map((m) => `<th>${gesc(m.nombre)}</th>`).join("")}<th class="pr-sep">Promedio por mes<br>(${gesc(rango)})</th><th>US$ por mes</th></tr></thead>
       <tbody>${filas}${filaTotal}</tbody></table></div>
       ${sinSalir ? `<div class="nota">Aún sin salir (pedidos en curso, ya contados arriba): ${sinSalir}.</div>` : ""}
     </div>

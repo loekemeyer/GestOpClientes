@@ -335,6 +335,7 @@ button, select, input, textarea { font-family: inherit; }
 .pr-barras .b i { display: block; height: 100%; }
 .pr-barras b { text-align: right; }
 .sl-tab .pr-sep { border-left: 1px solid var(--line); }
+.sl-tab th.pr-emp, .sl-tab td.pr-emp { text-align: left; }
 .sl-tab td:first-child .nota { white-space: normal; max-width: 340px; text-align: left; }
 .pr-pct { color: var(--g-muted); font-size: 11px; }
 .pr-notas { margin: 0; padding-left: 18px; font-size: 12px; color: var(--g-muted); display: flex; flex-direction: column; gap: 4px; }
