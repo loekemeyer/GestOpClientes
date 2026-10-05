@@ -108,7 +108,9 @@ deploy con la misma consulta de `function_edge_logs` de la sección 1.
    `wa_factura_check_secret()` (sólo service_role). Llave `app_settings.wa_factura_check_gate` en tres escalones: sin fila =
    apagado · `log` = registra lo que no trae secreto válido y lo deja pasar · `1` = 401 (falla cerrada). Código en `main`
    con la llave apagada (sin efecto, deploy verde); SQL de Gestión en `sql/isis_wa_factura_check_gate.sql`, **aplicado el 05/10**.
-   Pasos: código (hecho) → SQL de Gestión (hecho) → llave en `log` un día → llave en `1`. Pruebas: `tests/gate-factura-check.test.ts`.
+   Pasos: código (hecho) → SQL de Gestión (hecho) → llave en `log` (**hecho 05/10 ~11:50 UTC**; dos llamadas de prueba sin secreto y con
+   secreto malo quedaron registradas como `[gate] PASA (modo log)`) → mirar los logs un ciclo de facturación → llave en `1`.
+   Pruebas: `tests/gate-factura-check.test.ts`.
 2. **XSS en el chat de prueba del dashboard**: `docs/index.html:1973` `div.innerHTML = text.replace(/\n/g,"<br>")` con la
    respuesta del modelo / de la FAQ. Un prompt injection que devuelva `<img onerror=…>` corre en la sesión de un admin
    logueado con Google. **Corregido el 02/10 (v0.26.12)**: `esc(text)` antes del replace. [Seguro]

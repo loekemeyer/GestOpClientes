@@ -1,7 +1,7 @@
 -- ISIS / Gestión (hrxfctzncixxqmpfhskv) — gate de secreto para lk_factura-check (auditoría 02/10/2026, hallazgo 3.1.1).
 -- NO aplicar en PaginaLK. ESTADO: pasos 1 a 4 APLICADOS en Gestión el 05/10/2026 con el "sí" de Pablo y verificados con SELECT
--- (1 secreto de 64 caracteres; wa_factura_check_secret() sólo para service_role; trigger y cron 69 con el header). Falta la llave
--- app_settings.wa_factura_check_gate en PaginaLK: primero 'log', después '1' (cada una con su "sí").
+-- (1 secreto de 64 caracteres; wa_factura_check_secret() sólo para service_role; trigger y cron 69 con el header). La llave
+-- app_settings.wa_factura_check_gate en PaginaLK está en 'log' desde el 05/10 ~11:50 UTC; falta '1' (con su propio "sí").
 --
 -- Problema: lk_factura-check (PaginaLK, verify_jwt = false) no tenía ningún gate. Cualquiera con la URL podía disparar envíos al
 -- número de redirección, reclamar grupos en wa_grupo_listo y escribir wa_shadow_log / wa_sim_inbox.
