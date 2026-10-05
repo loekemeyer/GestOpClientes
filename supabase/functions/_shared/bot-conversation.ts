@@ -8,6 +8,7 @@ import { ingresoEstimado, proximosIngresos, stockArticulo, stockNecesitaHumano, 
 import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
+import { sinCierreGenerico } from "./cierre.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
@@ -1397,7 +1398,9 @@ export async function runConversation(
 
     if (!res.toolCalls.length) {
       registrarUsos();
-      return { reply: res.text || "¿En qué más te puedo ayudar?", media: allMedia, herramientas: usadas, modelo: used.model };
+      // Pablo, 05/10: sin cierres de cortesía ("¿Necesitás algo más?"): ver _shared/cierre.ts y la regla CIERRE de agente-fijos.ts.
+      // El texto de respaldo (la IA no devolvió nada) tampoco cierra con "¿en qué más…?": pide que cuente la consulta.
+      return { reply: sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo."), media: allMedia, herramientas: usadas, modelo: used.model };
     }
 
     // El modelo pidió herramientas: las ejecutamos y devolvemos los resultados.

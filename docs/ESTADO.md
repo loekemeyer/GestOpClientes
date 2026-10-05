@@ -4,6 +4,19 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): el bot no cierra con "¿necesitás algo más?" (sin tocar `wa_faq` ni el front).** Pedido de Pablo: *"en todas las respuestas sacá el
+> 'te podemos ayudar en algo más', porque genera respuestas que no tienen sentido: si tiene más consultas las hace, si no se cortó la charla"*. El cierre lo
+> inventa cada modelo (Sonnet: "¿Necesitás algo más?", "¿Puedo ayudarte con algo más?"; Gemini: "¿Te podemos ayudar con algo más?"): el documento rector y
+> `wa_faq` NO lo piden (medido el 05/10: ninguna fila de `wa_faq` ni el rector tienen un cierre así; sólo saludos "¿En qué te puedo ayudar?" y la #19 "decime y te ayudo").
+> **Cambios:** (1) regla CIERRE en `REGLAS_OPERATIVAS` (`agente-fijos.ts`; el Panel la muestra sola por `fijos_get`); (2) filtro `_shared/cierre.ts`
+> `sinCierreGenerico`, aplicado al texto final de `runConversation` (así lo toman el webhook, el Simulador y el Chat de prueba): saca sólo la ÚLTIMA oración
+> cuando es un cierre genérico puro y deja las preguntas que piden un dato ("¿Agregamos 2 cajas?", "¿Querés agregar algo más al pedido?") y los saludos de
+> apertura; (3) el texto de respaldo cuando la IA no devuelve nada pasó de "¿En qué más te puedo ayudar?" a "Contame un poco más tu consulta así te ayudo.".
+> **Afuera a propósito:** las plantillas de Meta (`pedido_entregado` dice "si falta algo, avisanos por acá": cambiarlo exige otra aprobación), el menú de vinculación
+> ("💬 Cualquier otra consulta" es una opción, no un cierre) y el saludo de Chef ("¿En qué te ayudo?" abre la charla). **Pruebas sin red y sin IA (US$ 0):**
+> `deno run tests/cierre.test.ts` (28 casos con respuestas reales de Sonnet y Gemini; en esta sesión se corrió con Node 22 `--experimental-strip-types`, no había Deno).
+> **No se probó con Gemini en vivo:** el CI deploya al llegar a `main`; recién ahí el simulador muestra la regla en el prompt (el filtro funciona aunque el modelo la ignore).
+>
 > **05/10 (Pablo): respuesta al cliente nuevo — el "sí" a la oferta de registro y "me gustaría ser cliente" arrancan el alta; el Chat de prueba usa el mismo flujo.**
 > Captura del Chat de prueba: *"Hola me gustaría ser cliente"* → el saludo ofrecía registrar; *"Si, registrame por favor"* → *"necesito identificarte… si todavía no sos cliente decime
 > soy nuevo"*. **Esa segunda respuesta NO la daba el bot real:** salía de `lk_chat-test`, que tenía una copia vieja del alta (otro regex, otras preguntas; ya lo decía la nota del 28/09).

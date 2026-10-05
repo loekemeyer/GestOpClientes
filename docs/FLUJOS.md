@@ -300,6 +300,11 @@ BOT: (agente, derivar_a_persona motivo excepcion_minimo) Lo consulto con tu vend
 IA (`agente-fijos.ts`): tono cordial sin muletillas (2.4); nunca asumir que el cliente se equivocó (1.9); código
 inactivo = "discontinuado" + parecidos con link de foto (2.5, `buscar_productos`); anular con el estado y motivo
 `anulacion_pedido`. El resumen del pedido por WhatsApp dice a nombre de qué razón social y CUIT va (2.12).
+**Sin cierre de cortesía (Pablo, 05/10):** la IA contesta y termina; no cierra con "¿Necesitás algo más?" ni "cualquier consulta
+avisame" (si tiene otra consulta la hace; si no, la charla termina). Dos capas: la regla CIERRE de `agente-fijos.ts` y el filtro
+`_shared/cierre.ts` (`sinCierreGenerico`) sobre el texto final, que saca sólo la última oración cuando es un cierre genérico puro y
+no toca las preguntas que piden un dato o una confirmación ("¿Agregamos 2 cajas?"). No aplica a los saludos de apertura ni a las
+plantillas de Meta (`pedido_entregado` dice "si falta algo, avisanos por acá": cambiarlo exige otra aprobación de Meta).
 
 ## Flujo 3: Nuevo pedido (30/09: precarga por WhatsApp, `sql/112`)
 
