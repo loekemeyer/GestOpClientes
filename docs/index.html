@@ -381,7 +381,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.26.14">
+  <link rel="stylesheet" href="gestop2.css?v=0.26.15">
 </head>
 <body>
 
@@ -402,6 +402,7 @@
 <div class="app" id="app">
   <nav class="sidebar sb2">
     <div class="sb-logo"><img src="assets/logo.png" alt="Loekemeyer"><div>GestOp</div></div>
+    <button class="sb-plegar" id="sbPlegar" onclick="sbPlegar()" title="Ocultar el menú" aria-label="Ocultar el menú">«</button>
     <div class="sb-mods" id="sbModulos"></div>
     <div id="esperaBanner" class="espera-banner" style="display:none;" onclick="abrirPrimeraEspera(event)" title="Abrir la charla más urgente"></div>
     <div class="spacer"></div>
@@ -445,6 +446,8 @@
       </div>
     </header>
     <div class="pages">
+    <!-- Page: Inicio (Luis, 05/10) — primera pantalla después del login, la arma gestop2.js -->
+    <div class="page" id="pageInicio"><div class="ini" id="iniRoot"></div></div>
     <!-- Page: Chat -->
     <div class="page active" id="pageChat">
       <!-- Tab bar: Chat de prueba (sandbox) | Conversaciones (reales) -->
@@ -4709,7 +4712,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.14</div>
-<script src="gestop2.js?v=0.26.14"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.26.15</div>
+<script src="gestop2.js?v=0.26.15"></script>
 </body>
 </html>

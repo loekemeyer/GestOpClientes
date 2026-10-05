@@ -57,22 +57,28 @@ button, select, input, textarea { font-family: inherit; }
 .sb2 .user-info { padding: 12px 16px; border-top: 1px solid #38383b; color: #aba497; font-size: 12px; }
 .sb2 .user-info b { color: #f1ead8; display: block; font-size: 13px; }
 .sb2 .user-info a { color: #aba497 !important; }
-/* Barra que se esconde sola (Luis, 02/10): en la computadora queda a la vista una tira de 12 px y la barra sale al pasar
-   el mouse, por encima del contenido (no lo empuja). Abre a los 0,1 s y cierra a los 0,3 s, así un paso rápido del mouse por
-   el borde no la dispara ni la cierra de golpe. Con el teclado (Tab) también sale: :focus-visible, no :focus, porque un clic
-   deja el foco en el botón y la barra quedaría abierta tapando la bandeja. La tira se pinta si hay gente esperando
-   (sb-espera / sb-urgente, de pintarEsperaBanner), porque el aviso de espera queda adentro de la barra escondida.
+/* Barra lateral (Luis, 05/10): al entrar se ve ABIERTA, como siempre; el botón « la pliega y » la vuelve a fijar.
+   Plegada (#app.sb-plegada) queda una tira de 12 px y la barra sale al pasar el mouse, por encima del contenido (no lo
+   empuja). Abre a los 0,1 s y cierra a los 0,3 s, así un paso rápido del mouse por el borde no la dispara ni la cierra de
+   golpe. Con el teclado (Tab) también sale: :focus-visible, no :focus, porque un clic deja el foco en el botón y la barra
+   quedaría abierta tapando la bandeja. La tira se pinta si hay gente esperando (sb-espera / sb-urgente, de
+   pintarEsperaBanner), porque el aviso de espera queda adentro de la barra escondida. No se recuerda entre entradas: Luis
+   pidió verla abierta al entrar. (02/10 era al revés: escondida siempre, sin botón.)
    Debajo de 1100 px la barra ya no se muestra (se navega con el selector del encabezado). */
+.app .sidebar.sb2 { position: relative; }
+.sb2 .sb-plegar { position: absolute; top: 12px; right: 8px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  padding: 0; background: transparent; border: 1px solid #4a4a4d; color: #c9c2b3; border-radius: 2px; cursor: pointer; font-size: 14px; font-weight: 700; }
+.sb2 .sb-plegar:hover { color: #f7efdc; border-color: #c9c2b3; }
 @media (min-width: 1101px) {
-  .app .sidebar.sb2 { --riel: 12px; position: fixed; top: 0; bottom: 0; left: 0; z-index: 1400;
+  .app.sb-plegada .sidebar.sb2 { --riel: 12px; position: fixed; top: 0; bottom: 0; left: 0; z-index: 1400;
     transform: translateX(calc(-100% + var(--riel))); transition: transform .18s ease .3s, box-shadow .18s ease .3s; }
-  .app .sidebar.sb2:hover, .app .sidebar.sb2:has(:focus-visible) { transform: none; box-shadow: 10px 0 40px rgba(0,0,0,.35); transition-delay: .1s; }
-  .app .sidebar.sb2::after { content: "›"; position: absolute; top: 0; right: 0; bottom: 0; width: var(--riel); display: flex; align-items: center;
+  .app.sb-plegada .sidebar.sb2:hover, .app.sb-plegada .sidebar.sb2:has(:focus-visible) { transform: none; box-shadow: 10px 0 40px rgba(0,0,0,.35); transition-delay: .1s; }
+  .app.sb-plegada .sidebar.sb2::after { content: "›"; position: absolute; top: 0; right: 0; bottom: 0; width: var(--riel); display: flex; align-items: center;
     justify-content: center; background: #212122; color: #aba497; font-size: 13px; font-weight: 700; pointer-events: none; transition: opacity .15s ease .3s; }
-  .app .sidebar.sb2.sb-espera::after { background: #8a5a00; color: #f7efdc; }
-  .app .sidebar.sb2.sb-urgente::after { background: #9b1c22; color: #f7efdc; }
-  .app .sidebar.sb2:hover::after, .app .sidebar.sb2:has(:focus-visible)::after { opacity: 0; transition-delay: .1s; }
-  .app .main.main2 { margin-left: 12px; }
+  .app.sb-plegada .sidebar.sb2.sb-espera::after { background: #8a5a00; color: #f7efdc; }
+  .app.sb-plegada .sidebar.sb2.sb-urgente::after { background: #9b1c22; color: #f7efdc; }
+  .app.sb-plegada .sidebar.sb2:hover::after, .app.sb-plegada .sidebar.sb2:has(:focus-visible)::after { opacity: 0; transition-delay: .1s; }
+  .app.sb-plegada .main.main2 { margin-left: 12px; }
 }
 
 /* ── Columna principal: llave + header + páginas ─────────────────────── */
@@ -423,3 +429,36 @@ html.dark .chat-messages { background-image: none; }
   .bl-add-row { flex-wrap: wrap; }
   .bl-add-row input:first-child { flex: 1 1 100%; }
 }
+
+/* ── Inicio (Luis, 05/10: "una pantalla de inicio para que no sea tan chocante") ─────────────────────────────────────
+   Primera pantalla después del login: saludo, lo que espera a una persona, tareas, envíos de hoy, últimas charlas y accesos.
+   Sólo usa datos que el panel ya trae (lk_conversaciones list, lk_alertas, lk_vinculaciones, la llave): nada que cobre.
+   Entra con un fundido corto; la animación está en el contenedor, así el refresco de cada 45 s no la repite. */
+#pageInicio.active { display: block; min-width: 0; overflow-y: auto; animation: iniEntra .35s ease both; }
+@keyframes iniEntra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #pageInicio.active { animation: none; } }
+.ini { padding: 28px 28px 32px; display: flex; flex-direction: column; gap: 18px; color: var(--ink); max-width: 1040px; }
+.ini-hola h2 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -.01em; }
+.ini-hola p { margin: 4px 0 0; color: var(--g-muted); font-size: 14px; }
+.ini-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.ini-card { text-align: left; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--line); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 4px; cursor: pointer; color: var(--ink); font: inherit; border-radius: 2px; }
+.ini-card:hover { border-color: var(--ink); }
+.ini-card.urg { border-top-color: var(--accent); }
+.ini-card.ok { border-top-color: var(--ok-fg); }
+.ini-card span { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--g-muted); }
+.ini-card b { font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ini-card i { font-style: normal; font-size: 12px; color: var(--g-muted); }
+.ini-card em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--accent-tx); margin-top: 6px; }
+.ini-conv { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 4px 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line2);
+  cursor: pointer; font-size: 13px; }
+.ini-conv:last-child { border-bottom: 0; }
+.ini-conv:hover b { text-decoration: underline; }
+.ini-conv .tx { grid-column: 1 / -1; color: var(--g-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ini-mods { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.ini-mod { text-align: left; background: var(--surface); border: 1px solid var(--line); padding: 10px 12px; cursor: pointer; color: var(--ink); font: inherit;
+  border-radius: 2px; display: flex; flex-direction: column; gap: 2px; }
+.ini-mod:hover { border-color: var(--ink); }
+.ini-mod b { font-size: 14px; }
+.ini-mod i { font-style: normal; font-size: 12px; color: var(--g-muted); }
+@media (max-width: 760px) { .ini { padding: 16px 12px; } .ini-hola h2 { font-size: 20px; } .ini-card b { font-size: 24px; } }

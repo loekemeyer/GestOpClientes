@@ -4,17 +4,21 @@
 /* global authedInvoke, currentRole, currentEmail, sb, showConfigTab, showAgenteTab, switchChatTab, esc, loadAlertas, pintarBadgeAlertas */
 
 var G = {
-  mod: "com", sec: "conv", abiertos: { com: true },
+  mod: "ini", sec: "inicio", abiertos: { com: true },
   esperando: 0, alertas: 0, vinculos: 0, consultas: 0,
   llave: null, miNombre: null,
   slDias: 7, tareas: [], tareaSel: null, filtroTipo: "todas", resueltasHoy: 0,
-  convs: [], convSel: null, hilo: null, ficha: null, filtroEstado: "todas", filtroTema: "", filtroEspera: 0, buscar: "",
+  convs: [], convsOk: false, convSel: null, hilo: null, ficha: null, filtroEstado: "todas", filtroTema: "", filtroEspera: 0, buscar: "",
 };
 const esAdmin = () => currentRole === "admin";
 const gesc = (s) => (typeof esc === "function" ? esc(String(s ?? "")) : String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
 
 // ── Módulos y secciones (mismo orden que el diseño) ─────────────────────────
 const MODULOS = [
+  // Inicio (Luis, 05/10): módulo de una sola página, sin pestañas (solo: true).
+  { id: "ini", nombre: "Inicio", titulo: "Inicio", solo: true, secciones: [
+    { id: "inicio", nombre: "Inicio", abrir: () => irPagina("inicio") },
+  ] },
   { id: "com", nombre: "Comunicaciones", titulo: "Centro de mensajes", secciones: [
     { id: "conv", nombre: "Conversaciones", admin: true, badge: () => G.esperando, abrir: () => irPagina("conv") },
     { id: "tareas", nombre: "Tareas", admin: true, badge: () => G.alertas + G.vinculos, abrir: () => irPagina("tareas") },
@@ -52,13 +56,14 @@ function abrirDash(i) {
 const visibles = (m) => m.secciones.filter((s) => !s.admin || esAdmin());
 
 // Página → módulo/sección, así el menú queda sincronizado aunque otra función llame a showPage().
-const PAGINA_A = { conv: ["com", "conv"], tareas: ["com", "tareas"], salientes: ["com", "salientes"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
+const PAGINA_A = { inicio: ["ini", "inicio"], conv: ["com", "conv"], tareas: ["com", "tareas"], salientes: ["com", "salientes"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
 
 // ── showPage extendido: suma la página nueva del Centro de mensajes ─────────
 const _showPageViejo = showPage;
 function irPagina(p) {
-  const nueva = p === "conv" || p === "tareas" || p === "salientes";
+  const nueva = p === "inicio" || p === "conv" || p === "tareas" || p === "salientes";
   _showPageViejo(nueva ? "__ninguna__" : p);
+  document.getElementById("pageInicio")?.classList.toggle("active", p === "inicio");
   document.getElementById("pageConv").classList.toggle("active", p === "conv");
   document.getElementById("pageTareas")?.classList.toggle("active", p === "tareas");
   document.getElementById("pageSalientes")?.classList.toggle("active", p === "salientes");
@@ -66,6 +71,7 @@ function irPagina(p) {
   G.mod = m;
   if (s) G.sec = s;
   G.abiertos[m] = true;
+  if (p === "inicio") inCargar();
   if (p === "conv") cmCargar();
   if (p === "tareas") tkCargar();
   if (p === "salientes") slCargar();
@@ -88,6 +94,7 @@ function renderNav() {
     box.innerHTML = mods.map((m) => {
       const abierto = !!G.abiertos[m.id];
       const actual = G.mod === m.id;
+      if (m.solo) return `<div><button class="sb-mod${actual ? " cerrado-actual" : ""}" onclick="navSec('${m.id}','${m.secciones[0].id}')">${gesc(m.nombre)}</button></div>`;
       const pend = visibles(m).reduce((n, s) => n + (s.badge ? Number(s.badge()) || 0 : 0), 0);
       const secs = abierto ? `<div class="sb-secs">${visibles(m).map((s) => {
         const b = s.badge ? Number(s.badge()) || 0 : 0;
@@ -102,7 +109,7 @@ function renderNav() {
   if (tit) tit.textContent = m.titulo || m.nombre;
   const tabs = document.getElementById("modTabs");
   if (tabs) {
-    tabs.innerHTML = visibles(m).map((s) => {
+    tabs.innerHTML = m.solo ? "" : visibles(m).map((s) => {
       const b = s.badge ? Number(s.badge()) || 0 : 0;
       return `<button class="mod-tab${G.sec === s.id ? " activa" : ""}" onclick="navSec('${m.id}','${s.id}')">${gesc(s.nombre)}${b ? `<span class="g-badge">${b}</span>` : ""}</button>`;
     }).join("");
@@ -111,6 +118,16 @@ function renderNav() {
   if (sel) {
     sel.innerHTML = mods.map((x) => `<option value="${x.id}"${x.id === G.mod ? " selected" : ""}>${gesc(x.nombre.toUpperCase())}</option>`).join("");
   }
+  if (inicioVisible()) pintarInicio();
+}
+// Barra lateral (Luis, 05/10): arranca abierta en cada entrada; « la pliega a la tira que sale con el mouse y » la fija.
+function sbPlegar() {
+  const plegada = document.getElementById("app").classList.toggle("sb-plegada");
+  const b = document.getElementById("sbPlegar");
+  if (!b) return;
+  b.textContent = plegada ? "»" : "«";
+  b.title = plegada ? "Dejar el menú fijo" : "Ocultar el menú";
+  b.setAttribute("aria-label", b.title);
 }
 function navMod(id) {
   if (G.mod === id) { G.abiertos[id] = !G.abiertos[id]; renderNav(); return; }
@@ -194,6 +211,7 @@ function pintarLlave() {
     <span class="lk-hoy">Hoy: ${l.hoy.enviados} enviados · ${l.hoy.fallidos} fallidos · ${l.hoy.retenidos} retenidos</span>
     ${esAdmin() ? `<button onclick="modalLlave()">Cambiar modo…</button>` : ""}`;
   el.style.display = "flex";
+  if (inicioVisible()) pintarInicio();
 }
 var _llaveElegida = null;
 function modalLlave() {
@@ -291,6 +309,7 @@ async function cmCargar() {
   try {
     const d = await conv({ action: "list" });
     G.convs = d.items || [];
+    G.convsOk = true;
     G.esperando = G.convs.filter((c) => c.estado_ui === "esperando").length;
     cmPintarBandeja();
     renderNav();
@@ -593,13 +612,13 @@ function alEntrar() {
     sb.from("gestop_users").select("username").eq("email", currentEmail).maybeSingle().then(({ data }) => {
       G.miNombre = (data?.username && String(data.username).trim()) || currentEmail;
       if (u) u.innerHTML = `<b>${gesc(G.miNombre)}</b>Administración · admin`;
+      if (inicioVisible()) pintarInicio();
     });
   }
   cargarLlave();
   if (esAdmin()) tkContarVinculos();
-  if (!new URLSearchParams(location.search).get("charla")) {
-    if (esAdmin()) irPagina("conv"); else navSec("com", "pruebas");
-  }
+  // Se entra por Inicio (Luis, 05/10); antes caía directo en Conversaciones (o en Pruebas sin admin).
+  if (!new URLSearchParams(location.search).get("charla")) irPagina("inicio");
   renderNav();
 }
 const _showAppViejo = showApp;
@@ -616,6 +635,7 @@ function pollTick() {
   cargarLlave();
   if (document.getElementById("pageTareas")?.classList.contains("active")) { if (!document.getElementById("gModal")) tkCargar(); }
   else tkContarVinculos();
+  if (inicioVisible()) cmCargar();
   if (document.getElementById("pageConv").classList.contains("active")) {
     cmCargar();
     const escribiendo = (document.getElementById("cmTexto")?.value || "").length > 0;
@@ -1086,4 +1106,51 @@ async function tkDecidirAlta(decision) {
     G.tareaSel = null; tkVolver();
     await tkCargar();
   } catch (e) { b.disabled = false; b.textContent = "Reintentar"; toast("No se pudo: " + e.message); }
+}
+
+// ── Inicio (Luis, 05/10: "una pantalla de inicio para que no sea tan chocante") ────────────────────────────────────
+// Sólo usa lo que el panel ya trae (lk_conversaciones list, lk_alertas, lk_vinculaciones, la llave): nada que cobre.
+// Se repinta con renderNav() y pintarLlave(), o sea cada vez que llega un dato o un badge cambia.
+function inicioVisible() { return !!document.getElementById("pageInicio")?.classList.contains("active"); }
+// Llave, alertas y vinculaciones ya las trae el arranque y el refresco de cada 45 s; acá sólo falta la bandeja.
+function inCargar() {
+  pintarInicio();
+  if (esAdmin()) cmCargar();
+}
+function pintarInicio() {
+  const root = document.getElementById("iniRoot");
+  if (!root) return;
+  const tz = "America/Argentina/Buenos_Aires";
+  const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hour12: false }).format(new Date()));
+  const saludo = h < 12 ? "Buenos días" : h < 20 ? "Buenas tardes" : "Buenas noches";
+  // La cuenta compartida se llama "admin": ese nombre no se usa para saludar.
+  const nom = G.miNombre && !/@|^admin$/i.test(G.miNombre) ? `, ${gesc(G.miNombre)}` : "";
+  let dia = new Intl.DateTimeFormat("es-AR", { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  dia = dia.charAt(0).toUpperCase() + dia.slice(1);
+  const hola = `<div class="ini-hola"><h2>${saludo}${nom}</h2><p>${gesc(dia)} · ${esAdmin() ? "esto es lo que hay para atender." : "elegí por dónde empezar."}</p></div>`;
+  const mods = MODULOS.filter((m) => !m.solo && (!m.admin || esAdmin())).map((m) =>
+    `<button class="ini-mod" onclick="navMod('${m.id}')"><b>${gesc(m.nombre)}</b><i>${visibles(m).map((x) => gesc(x.nombre)).join(" · ")}</i></button>`).join("");
+  const accesos = `<section class="sl-card"><h4>Ir a</h4><div class="ini-mods">${mods}</div></section>`;
+  if (!esAdmin()) { root.innerHTML = hola + accesos; return; }
+
+  const n = (v, ok) => (ok ? String(v) : "…");
+  const esp = G.convs.filter((c) => c.estado_ui === "esperando");
+  const vieja = esp.reduce((m, c) => Math.max(m, sinResponder(c)), 0);
+  const cEsp = `<button class="ini-card ${G.convsOk ? (esp.length ? "urg" : "ok") : ""}" onclick="navSec('com','conv')"><span>Esperando a una persona</span>
+    <b>${n(esp.length, G.convsOk)}</b><i>${!G.convsOk ? "cargando…" : esp.length ? `la más vieja espera hace ${dur(vieja)}` : "nadie esperando: al día"}</i><em>Ir a Conversaciones →</em></button>`;
+  const tareas = (G.alertas || 0) + (G.vinculos || 0);
+  const cTar = `<button class="ini-card ${tareas ? "urg" : "ok"}" onclick="navSec('com','tareas')"><span>Tareas pendientes</span>
+    <b>${tareas}</b><i>${G.vinculos || 0} teléfono${G.vinculos === 1 ? "" : "s"} para verificar · ${G.alertas || 0} aviso${G.alertas === 1 ? "" : "s"} para atender</i><em>Ir a Tareas →</em></button>`;
+  const l = G.llave;
+  const cEnv = `<button class="ini-card" onclick="navSec('com','salientes')"><span>Envíos de hoy</span>
+    <b>${l ? l.hoy.enviados : "…"}</b><i>${l ? `enviados · ${l.hoy.fallidos} fallido${l.hoy.fallidos === 1 ? "" : "s"} · ${l.hoy.retenidos} retenido${l.hoy.retenidos === 1 ? "" : "s"} · llave en ${(LLAVE[l.modo] || LLAVE["0"]).nombre}` : "cargando…"}</i><em>Ir a Salientes →</em></button>`;
+  const ult = G.convs.slice().sort((a, b) => (RANGO[a.estado_ui] - RANGO[b.estado_ui]) || String(b.last_at).localeCompare(String(a.last_at))).slice(0, 5);
+  const filas = ult.map((c) => {
+    const min = sinResponder(c);
+    return `<div class="ini-conv" onclick="abrirCharla('${gesc(c.phone)}')"><b>${nombreConv(c) ? gesc(nombreConv(c)) : "<i>No identificado</i>"}</b>
+      <span class="est ${c.estado_ui}">${ESTADO_TXT[c.estado_ui]}</span><span class="${min ? edad(min) : ""}" style="font-size:12px">${min ? `hace ${dur(min)}` : c.last_at ? hora(c.last_at) : ""}</span>
+      <div class="tx">${gesc(textoUltimo(c))}</div></div>`;
+  }).join("");
+  const charlas = `<section class="sl-card"><h4>Últimas conversaciones</h4>${G.convsOk ? (filas || `<div class="nota">Todavía no hay conversaciones.</div>`) : `<div class="nota">Cargando…</div>`}</section>`;
+  root.innerHTML = hola + `<div class="ini-cards">${cEsp}${cTar}${cEnv}</div>` + charlas + accesos;
 }
