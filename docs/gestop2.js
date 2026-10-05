@@ -1069,7 +1069,7 @@ function slPintar() {
 // Sólo lectura: no llama a Meta ni a la IA.
 const prUsd = (n, d = 2) => "US$ " + Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
 const prDec = (n, d = 1) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
-const PR_MODELOS = { sonnet: "Sonnet 4.6 (el de producción hoy)", haiku: "Haiku 4.5", sonnetConCache: "Sonnet 4.6 con caché de prompt (≈ −35 %)" };
+const PR_MODELOS = { sonnet: "Sonnet 4.6 (el de producción hoy)", haiku: "Haiku 4.5", sonnetConCache: "Sonnet 4.6 con caché de prompt (≈ −22 %)" };
 const PR_GRUPOS = [["Seguimiento del pedido", "var(--accent)"], ["Factura y pago", "var(--warn)"], ["Recordatorio", "var(--g-muted)"]];
 async function prCargar() {
   const root = document.getElementById("prRoot");
@@ -1155,7 +1155,7 @@ function prPintar() {
         <div class="sl-scroll"><table class="sl-tab"><thead><tr><th></th>${meses.map((m) => `<th>${gesc(m.nombre)}</th>`).join("")}</tr></thead><tbody>${filasPed}</tbody></table></div></div>
     </div>
     <div class="sl-card"><h4>Gasto de IA con la base de consultas del WhatsApp de ventas (por mes de 30 días)</h4>
-      <div class="sl-top">Modelo <select onchange="G.prModelo=this.value;prPintar()">${Object.entries(PR_MODELOS).map(([k, t]) => `<option value="${k}"${k === G.prModelo ? " selected" : ""}>${gesc(t)} · ${prUsd(X.usdPorLlamada[k], 3)} por llamada</option>`).join("")}</select>
+      <div class="sl-top">Modelo <select onchange="G.prModelo=this.value;prPintar()">${Object.entries(PR_MODELOS).map(([k, t]) => `<option value="${k}"${k === G.prModelo ? " selected" : ""}>${gesc(t)} · ${prUsd(X.usdPorLlamada[k], 4)} por llamada</option>`).join("")}</select>
         <span>${prDec(ll)} llamadas a la IA por consulta que la usa</span></div>
       <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Base de consultas</th><th>Consultas<br>por mes</th><th>Respuesta fija hoy<br>(sin IA)</th><th>Con IA hoy</th><th>Respuesta fija<br>según el estudio</th><th>Con IA según<br>el estudio</th></tr></thead><tbody>${tablaIaA}</tbody></table></div>
       <div class="sl-scroll"><table class="sl-tab"><thead><tr><th>Base de consultas</th><th>Llamadas a la IA<br>por mes (hoy)</th><th class="pr-sep">Gasto de API<br>por mes (hoy)</th><th>Si todo lo marcado<br>"Agente" usa IA</th><th>Si todo usa IA</th><th class="pr-sep">Respuestas de WhatsApp<br>por mes</th></tr></thead><tbody>${tablaIaB}</tbody></table></div>
