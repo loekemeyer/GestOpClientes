@@ -4,6 +4,18 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-05.
 >
+> **05/10 (Pablo): Gemini gratis vuelve a ser el #1 de la cadena de producción — PRUEBA DE LÍMITES.** `wa_agente_modelos` id 29
+> (`gemini-3.5-flash-lite`, plan gratis) pasó de `prioridad = NULL` a **1** (UPDATE con el sí de Pablo, 05/10 16:18 UTC). La cadena de charla
+> queda **Gemini #1 → Sonnet 4.6 #2 (id 1) → Haiku 4.5 #3 (id 45)** + el respaldo duro de env (Sonnet). OJO: `resolveChain` NO filtra por
+> `tarea`, así que el Haiku #3 (el de `parse_comprobante`) también entra a la charla; sólo `lk_parse-comprobante` filtra por tarea y no cambia.
+> Motivo: Pablo quiere ver las limitaciones de Gemini en el uso real; asume que los datos del cliente viajen al plan gratis de Google (que
+> los usa para mejorar sus productos). Hoy el bot sólo le contesta a la lista de prueba (Thomy y Damián de Chef: `wa_bot_solo_whitelist` = 1).
+> **Qué mirar:** (1) velocidad: en pruebas Gemini tardó 15–20 s por vuelta con herramientas el 09/09 y menos de 7 s el 01/10; no se guarda la
+> duración de cada llamada en `bot_token_usage`, así que no hay medición de producción; (2) cuántos turnos caen a Sonnet: `select model,
+> count(*) from bot_token_usage where function_name='lk_whatsapp-webhook' and created_at > '2026-10-05 16:18+00' group by 1` (Gemini va en
+> US$ 0 por su flag `is_free_tier`); (3) `wa_agente_modelos.estado/ultimo_error` de id 29 (429 o 503 lo marcan `caido` con cooldown).
+> **Volver atrás:** `update wa_agente_modelos set prioridad = null, updated_at = now() where id = 29;` (o desde Configuración del agente › Modelos).
+>
 > **05/10 (Pablo): Informes › Proyección de avisos y gasto (dashboard v0.27.0, sólo admin).** Módulo nuevo "Informes": cuántos avisos
 > dispararían mes a mes los disparadores (registro del pedido, cambios de estado, retiro y salida web, facturas, recordatorio de descuento)
 > y cuánto gastaría la IA con la base de consultas del WhatsApp de ventas. `lk_conversaciones` action `proyeccion` → `_shared/proyeccion.ts`
@@ -771,7 +783,7 @@ el killswitch, sin ningún consumidor de esa cola.
     artículos de cocina" (falso, son mayoristas), mandó a derivar un CV y los códigos de barras, y a "¿cómo me registro?"
     le contestó "entrá a la web y completá el formulario" a un cliente ya registrado. 34 de 61 no usan IA: idénticas.
     **No se evaluó en producción**: el webhook ve la cadena y los datos del cliente viajan al plan gratis de Google (lo
-    usa para mejorar sus productos). **Gemini salió de la cadena de producción el 01/10** (`wa_agente_modelos` id 29,
+    usa para mejorar sus productos). **Gemini salió de la cadena de producción el 01/10 (el 05/10 volvió como #1, ver la nota de arriba)** (`wa_agente_modelos` id 29,
     `prioridad = NULL`): la cadena es Sonnet #2 → Haiku #3; Gemini queda sólo como modelo de pruebas.
   - **Dónde más falla el bot (01/10, 61 frases, un evaluador):** la capa FIJA (FAQ + `pedidoDeCambio`) falla más que la IA:
     13 de 34 frases no salen bien (38 %), contra 5 o 6 de 27 con Sonnet o Gemini. Por consultas reales afectadas (volumen del
