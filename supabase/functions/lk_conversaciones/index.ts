@@ -68,6 +68,7 @@ const MOTIVO: Record<string, string> = {
   reclamo: "Reclamo", pago: "Pago o importe", cambio_pedido: "Cambio de pedido", pedido_no_encontrado: "Pedido que no aparece", entrega: "Consulta de entrega",
   alta_cliente: "Alta de cliente", llm_timeout: "El bot no respondió", llm_error: "El bot falló", faq_no_match: "Pregunta sin respuesta",
   cliente_chef: "Cliente de Chef", devolucion: "Devolución de mercadería",
+  pedido_mail: "Pedido por mail",
 };
 // deno-lint-ignore no-explicit-any
 function motivoAlerta(a: any): string {

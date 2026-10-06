@@ -136,6 +136,7 @@ del dato `cobranzas` de la ficha Empresas (WhatsApp o mail; Chef vacío no cae a
 | manda una imagen o PDF que habla de pago ("comprobante", "transferí") | texto de la plantilla `comprobante_recibido` (Loekemeyer) o `comprobante_recibido_chef` (cliente sólo de Chef) con el dato de Cobranzas; alerta `comprobante_recibido` | `handleAdjunto` (webhook) + `respuestaComprobante` (`empresas.ts`) |
 | "¿recibieron el pago?" y no figura en los últimos 7 días | el mensaje de siempre + "Para consultas sobre tus pagos podés comunicarte con Cobranzas: …" (las empresas en las que tiene cuenta) | `pagoRegistrado` (`faq.ts`) |
 | "ya pagué" (cliente de Chef) | "Le paso a Cobranzas…" + el dato de Cobranzas de Chef | `chef.ts` |
+| pide pagar en otra fecha ("¿se podrá efectuar el pago el próximo viernes?", "¿les puedo pagar la semana que viene?"; 06/10, m64) | "Le paso tu consulta a Cobranzas para que te confirme por acá si se puede pagar en esa fecha"; no promete nada. Antes salían los medios de pago (#15) sin contestar lo que preguntó. Detector `pidePagarDespues` (`faq.ts`): verbo de pagar + fecha futura. Si el cliente contesta un recordatorio de descuento, sigue mandando `responderRecordatorio` ("Posterga", arriba); "ya pagué", "el viernes pasado" y "¿recibieron el pago?" siguen su camino | `pago` (`pidePagarDespues`, `faq.ts`) |
 | algo de pagos que va a una persona (IA, motivo `pago`) | la IA le pasa `datos_cobranzas` tal cual | `derivar_a_persona` (`bot-conversation.ts`) |
 
 Las plantillas están definidas en `plantillas-meta.ts` y **todavía no están subidas a Meta**: dentro de las 24 h el texto sale como
@@ -262,6 +263,7 @@ BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el vier
 
 | Fila | Mensaje | Respuesta |
 |---|---|---|
+| 2.6 | "Pasé por mail un pedido para un cliente pero me vino dos veces rechazado. ¿Te llegó a vos?" | Chequea duplicados en la web como siempre; si no hay y el mensaje nombra mail o correo (`pedidoPorMailRepetido`, `faq.ts`): "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido. Una persona revisa el mail y te escribe por acá" + alerta `pedido_mail` (🟡, 120 min) para Ventas. Sin mail, el mensaje de siempre ("si ves uno de más en la web…"). |
 | 2.9 | "Anulá todo el pedido" | No es un cambio: dice en qué estado está el pedido (sin preparar / programado / facturado) y deriva con motivo `anulacion_pedido` (urgente). Con más de un pedido abierto y sin fecha, pregunta cuál. |
 | 3.3 | "¿Cierran para almorzar?" | "El depósito cierra para almorzar de 12 a 13" + horario completo. |
 | 3.4 | "Estoy llegando, ¿me esperan?" | "¡Te esperamos!" + dirección y horario. |

@@ -122,6 +122,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (customer && RE_PAGO_RECIBIDO.test(text) && !/comprobante/i.test(text)) {
     return await pagoRegistrado(await ctxPagosDeCliente(customer), text);
   }
+  // Pablo, 06/10 (m64): "¿Se podrá efectuar el pago el próximo viernes?" / "¿les puedo pagar la semana que viene?" → lo ve Cobranzas.
+  if (customer && pidePagarDespues(text)) {
+    return { reply: "Gracias por avisarnos. Le paso tu consulta a Cobranzas para que te confirme por acá si se puede pagar en esa fecha. 🙏",
+      intent: "pago_otra_fecha", automation_level: "needs_human", topic: "Quiere pagar en otra fecha",
+      alerta: { motivo: "pago", urgente: false, detalle: `Pide pagar en otra fecha: ${text.slice(0, 200)}` } };
+  }
   if (customer && vaALaIA(text)) return null;
   // Pablo, 30/09 (3.3 y 3.4): horario del depósito, con el corte del almuerzo. "¿Cierran para almorzar?" contestaba "no tengo
   // ese dato"; "Estoy llegando, ¿me esperan?" preguntaba qué necesitaba.
@@ -196,6 +202,11 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
         `No anulamos nada por nuestra cuenta: una persona revisa cuál queda y te confirma por acá.`,
         intent: "pedido_duplicado", automation_level: "semi_auto",
         alerta: { motivo: "cambio_pedido", urgente: true, pedidos: d.ids, detalle: "Posible pedido duplicado" } };
+    }
+    if (pedidoPorMailRepetido(text)) {
+      return { reply: "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido.\nUna persona revisa el mail y te escribe por acá. 🙏",
+        intent: "pedido_mail", automation_level: "needs_human", topic: "Pedido enviado por mail que no se cargó",
+        alerta: { motivo: "pedido_mail", urgente: false, detalle: `Pedido enviado por mail que no aparece (sin duplicados en la web): ${text.slice(0, 200)}` } };
     }
     return { reply: "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido (mismo importe cargado dos veces).\n" +
       "Si ves uno de más en la web, decinos de qué fecha es y lo revisamos.", intent: "pedido_duplicado", automation_level: "semi_auto" };
@@ -444,6 +455,9 @@ const RE_NUEVA_DIRECCION = /(cambi\S*\s+(de\s+|la\s+|mi\s+)?(direcci[oó]n|domic
 const RE_DIRECCION_ENTREGA = /(mi|la)\s+direcci[oó]n\s+de\s+(entrega|env[ií]o)|a\s+d[oó]nde\s+(me\s+)?(lo|la|los|las)?\s*(mand|env[ií]|entreg|despach|llev)|a\s+qu[eé]\s+(sucursal|direcci[oó]n|expreso|transporte)|d[oó]nde\s+(me\s+)?(lo\s+)?entregan|por\s+qu[eé]\s+(expreso|transporte)|qu[eé]\s+(expreso|transporte)\s+(me\s+)?(lo\s+)?(lleva|mand|us)/i;
 
 // A dónde va cada pedido abierto del cliente: sucursal de entrega cargada en la web y, si sale por expreso, cuál.
+// Pablo, 06/10 (corrección m63): "Pasé por mail un pedido para un cliente pero me vino dos veces rechazado. ¿Te llegó a vos?" cae acá por
+// "dos veces", pero habla de un pedido por MAIL, que el bot no puede ver: además del chequeo de duplicados deja una alerta para Ventas.
+const RE_POR_MAIL = /\b(e-?mails?|mails?|correos?|gmail|hotmail|outlook)(?![a-záéíóúñ])/i;
 const RE_DUPLICADO = /((pedido|confirm|carg|compra)[^.?!]{0,40}(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez|tres veces)|(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez)[^.?!]{0,40}(pedido|confirm|carg))/i;
 const RE_CLAVE = /((olvid|recuper|resete|blanque|cambi|perd|nueva|bloque|no\s+(me\s+)?(acuerdo|recuerdo))[^.?!]{0,40}(contrase|\bclave|password|usuario)|(contrase|\bclave|password|usuario)[^.?!]{0,40}(olvid|no\s+(me\s+)?(anda|funciona|toma|deja|acuerdo|recuerdo|entra)|incorrect|inv[aá]lid|bloque)|no\s+(puedo|logro|me\s+deja)\s+(entrar|ingresar|loguear)[^.?!]{0,30}(web|p[aá]gina|sistema|cuenta)?|(necesito|pasame|pas[aá]s|mandame|dame|no\s+tengo)\s+(mi\s+|el\s+|un\s+|la\s+)?(usuario|\bclave|contrase)|\b(saber|cu[aá]l\s+es|record[aá]me|decime)\s+(cu[aá]l\s+es\s+)?(mi\s+|la\s+)?(usuario|\bclave|contrase))/i;
 const RE_SUCURSAL_WEB = /(no\s+(me\s+)?(deja|puedo|aparece|figura|sale)[^.?!]{0,30}sucursal|sucursal[^.?!]{0,30}no\s+(me\s+)?(deja|aparece|figura|sale|puedo))/i;
@@ -486,6 +500,14 @@ const RE_ETIQUETA = /(c[oó]digos?\s+de\s+barras?|\betiquet\w*|\bean\b)[^?]{0,60
 // Sólo cuando el CLIENTE devuelve ("devolver", "devolvemos", "devuelvo", "devolución"); no "devolveme la llamada" ni "me devolvieron".
 const RE_DEVOLUCION = /\bdevoluci[oó]n(es)?\b|\bdevolv(er|emos|eremos|erle|erles|erlo|erla|erlos|erlas)(?![a-záéíóúñ])|\bdevuelvo\b|\b(les|le|te)\s+devuelvo\b/i;
 const RE_DEVOLVER_OTRA_COSA = /\bdevolv\w*[^.?!]{0,25}\b(llamad\w*|llamar|mensaje|mail|correo|visita)\b|\b(llamad\w*|mensaje|mail)[^.?!]{0,25}\bdevolv/i;
+// Pablo, 06/10 (corrección m64): "Hola, ¿se podrá efectuar el pago el próximo viernes?" salía con la respuesta fija #15 (medios de pago y CBU)
+// y no contestaba lo que preguntó. Pide pagar en otra fecha: lo decide Cobranzas (motivo pago). Sólo mira hacia adelante: "ya pagué el
+// viernes", "el viernes pasado" o "¿recibieron el pago?" (pagoRegistrado) siguen su camino; "hoy" no cuenta (es el descuento por pagar hoy).
+const RE_PAGAR = /\b(pagar(les|te|lo|la|los|las)?|pagamos|pagaremos|pagar[eé]|abonar(les|te)?|abonamos|abonaremos|abonar[eé]|(les|te)\s+pago|(efectuar|hacer|realizar|hacemos|hago|haremos)\s+(el|este|un)\s+pago|transferir(les|te)?|transferimos|depositar(les|te)?|depositamos)(?![a-záéíóúñ])/i;
+const RE_OTRA_FECHA = /\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|ma[nñ]ana|pasado\s+ma[nñ]ana|(la\s+)?semana\s+(que\s+viene|pr[oó]xima|entrante)|pr[oó]xim[oa]\s+(semana|mes|lunes|martes|mi[eé]rcoles|jueves|viernes)|m[aá]s\s+adelante|fin\s+de\s+mes|(la\s+)?quincena|el\s+\d{1,2}(?:\s*\/\s*\d{1,2}|\s+de\s+[a-záéíóú]+)?)(?![a-záéíóúñ])/i;
+const RE_FECHA_PASADA = /\b(ayer|anteayer|pasad[oa]|anterior|ya\s+(pagu|transfer|deposit|abon))/i;
+export const pedidoPorMailRepetido = (text: string): boolean => RE_DUPLICADO.test(text) && RE_POR_MAIL.test(text);
+export const pidePagarDespues = (text: string): boolean => RE_PAGAR.test(text) && RE_OTRA_FECHA.test(text) && !RE_FECHA_PASADA.test(text);
 export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
