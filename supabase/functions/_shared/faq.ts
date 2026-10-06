@@ -15,6 +15,8 @@ import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
+import { textoFechaRetiro } from "./fecha-retiro.ts";
+import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
 
@@ -179,6 +181,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     return { reply: "Disculpá el inconveniente. Le paso a una persona del equipo para que revise el etiquetado y te escriba por acá. Si podés, mandanos una foto de la etiqueta. 🙏",
       intent: "error_etiqueta", automation_level: "needs_human", topic: "Error de etiqueta o código de barras",
       alerta: { motivo: "reclamo", detalle: `Error de etiqueta / código de barras: ${text.slice(0, 200)}` } };
+  }
+  // Pablo, 06/10 (m17): "Cargué todo por unidad y después lo edité por caja" → fijo + alerta para Ventas (cambio_pedido); sin repreguntar si es de la web.
+  if (customer && avisaErrorDeCarga(text)) {
+    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa cómo quedó cargado tu pedido y te escribe por acá. 🙏",
+      intent: "error_de_carga", automation_level: "needs_human", topic: "Error de carga de un pedido",
+      alerta: { motivo: "cambio_pedido", detalle: `Avisa un error de carga de un pedido ya hecho: ${text.slice(0, 250)}` } };
   }
   // Pablo, 06/10 (m60): "recuerden que recibimos hasta las 14 hs" → el bot contesta lo mismo que antes y deja una nota para Ventas (motivo nota_cliente).
   if (customer && avisaHorarioRecepcion(text)) {
@@ -357,6 +365,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
           yaSaluda: yaSaluda(lookupReply),
         };
       }
+      // Pablo, 06/10 (m72): precio o stock de un artículo que nombró y no se halló por código → lo busca la IA, no la respuesta estática de abajo.
+      if ((top.db_lookup_type === "product_price" || top.db_lookup_type === "product_stock") && hayNombreDeArticulo(text)) return null;
       // Si el lookup no aplica, caemos a respuesta estática de más abajo
     }
   }
@@ -548,6 +558,14 @@ export const pidePagarDespues = (text: string): boolean => RE_PAGAR.test(text) &
 // contesta lo mismo y deja una tarea para Ventas con el texto, que la anota donde corresponda (camino 1; guardarla en un campo de la ficha queda pendiente).
 // Hace falta el verbo de recepción + un horario ("hasta las 14", "de 8 a 14", "horario de recepción 9 a 13"): "recibimos 59 de 60" o "¿hasta qué hora reciben?" no.
 const RE_HORARIO_RECEPCION = /\b(recibimos|reciben|recibe|recepcionamos|descargamos|atendemos|abrimos|cerramos)(?![a-záéíóúñ])[^.?!]{0,40}\b(hasta|desde|a\s+partir\s+de|antes\s+de|despu[eé]s\s+de)\s+(las\s+)?\d{1,2}|\b(recibimos|reciben|recepcionamos|descargamos|atendemos|abrimos)(?![a-záéíóúñ])[^.?!]{0,30}\bde\s+\d{1,2}(?::\d{2})?\s*(hs?)?\s*a\s*(las\s+)?\d{1,2}|\bhorario\s+de\s+(recepci[oó]n|descarga|entrega)s?\b[^.?!]{0,40}\d{1,2}/i;
+// Pablo, 06/10 (corrección m17): "Cargué todo por unidad y después lo edité por caja" → el bot repreguntaba "¿está hablando de un pedido que ya hizo en la web?"
+// ("está hablando claramente de un pedido que ya hizo"). Es el aviso de un error de carga de un pedido ya hecho: el bot no puede saber qué quedó mal
+// cargado, así que contesta fijo y deja una alerta para Ventas (cambio_pedido). Hace falta unidad Y caja con un verbo de carga/edición, o una equivocación
+// con pedido/carga/cantidad: "ya cargué el pedido" o "puse 10 cajas" solos no cuentan.
+const RE_CARGA_EDICION = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|cambi[eé]|cambiamos|puse|pusimos)(?![a-záéíóúñ])/i;
+const RE_EQUIVOCACION_DE_CARGA = /\b(me\s+equivoqu[eé]|nos\s+equivocamos|me\s+confund[ií]|nos\s+confundimos)(?![a-záéíóúñ])[^.?!]{0,60}\b(pedido|carga|cargar|unidad(es)?|cajas?|cantidad(es)?)\b/i;
+export const avisaErrorDeCarga = (text: string): boolean =>
+  (/\bunidad(es)?\b/i.test(text) && /\bcajas?\b/i.test(text) && RE_CARGA_EDICION.test(text)) || RE_EQUIVOCACION_DE_CARGA.test(text);
 export const avisaHorarioRecepcion = (text: string): boolean => RE_HORARIO_RECEPCION.test(text);
 export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
@@ -747,7 +765,8 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     const conFecha = t?.fecha_entrega && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado");
     if (conFecha) {
       if (m.modo === "expreso") { line += `: el ${conDia(t.fecha_entrega)} lo entregamos en el expreso *${m.expreso}*`; hayExpreso = true; }
-      else if (m.modo === "retira") line += `: lo podés retirar desde el ${conDia(t.fecha_entrega)}`;
+      // Pablo, 06/10 (m21, m25): "sacar el retirar" cuando pregunta cuándo se entrega → "programado para el lunes 05/10".
+      else if (m.modo === "retira") line += textoFechaRetiro(rawStatus, conDia(t.fecha_entrega));
       else line += `: sale el ${conDia(t.fecha_entrega)}`;
     } else if (!t?.fecha_entrega && m.modo === "expreso" && rawStatus !== "entregado") {
       line += ` (va por el expreso *${m.expreso}*)`;
@@ -1226,7 +1245,9 @@ async function articuloDeLaFrase(message: string): Promise<{ cod: string; descri
 
 async function lookupProductPrice(customer: NonNullable<Customer>, message: string): Promise<string | null> {
   const p = await articuloDeLaFrase(message);
-  if (!p) return `¿De qué artículo? Pasame el código o el nombre y te digo el precio.`;
+  // Pablo, 06/10 (m72): "Me refiero al automate" → pedía "el código o el nombre" aunque ya lo había dicho. Si nombró un artículo y no se encontró por código
+  // (la búsqueda por nombre, wa_product_match, está rota y mira sólo activos), lo toma la IA; sólo se pregunta si no nombró nada.
+  if (!p) return hayNombreDeArticulo(message) ? null : `¿De qué artículo? Pasame el código o el nombre y te digo el precio.`;
   const basePrice = Number(p.list_price);
   const iva = basePrice * 0.21;
   const withIva = basePrice + iva;
@@ -1241,7 +1262,7 @@ async function lookupProductStock(customer: NonNullable<Customer>, message: stri
   // wa_product_match no devuelve: contestaba "sin stock" a todo.
   const p = await articuloDeLaFrase(message);
   if (!p) {
-    return `¿Qué artículo te interesa? Pasame el código o el nombre y te confirmo si hay stock.`;
+    return hayNombreDeArticulo(message) ? null : `¿Qué artículo te interesa? Pasame el código o el nombre y te confirmo si hay stock.`;
   }
   try {
     const st = await stockArticulo(p.cod);

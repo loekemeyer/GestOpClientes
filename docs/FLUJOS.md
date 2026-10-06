@@ -230,7 +230,7 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 > **28/09 (Pablo):** la respuesta de estado nombra cada pedido por su fecha (nunca el número), saca los
 > anulados/borrados/no enviados y depende del modo de entrega: *expreso* → "el jueves 01/10 lo entregamos en el
 > expreso X" + "los tiempos de viaje los maneja el expreso: consultalo con ellos" (a un cliente de expreso nunca se
-> le ofrece retirar); *retira* → "lo podés retirar desde…"; *reparto* → "sale el…". Sin fecha → "todavía sin fecha
+> le ofrece retirar); *retira* → "programado para el lunes 05/10" (desde el 06/10, m21 y m25: se sacó el "retirar"; el aviso de que ya está listo sale aparte); *reparto* → "sale el…". Sin fecha → "todavía sin fecha
 > de salida".
 >
 > **30/09 (Pablo):** sólo lista los pedidos que **faltan entregar** (de los últimos 30 días); los demás los da por
@@ -269,8 +269,8 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 CLIENTE: ¿Sabés cuándo me entregan el pedido?
 BOT: Garbarino Franco Tomas, estos son tus pedidos que faltan entregar:
 
-     1️⃣ Pedido del 30/09 — 🚚 programado: lo podés retirar desde el lunes 05/10
-     2️⃣ Pedido del 25/09 — 🧾 facturado, listo para salir: lo podés retirar desde el miércoles 30/09
+     1️⃣ Pedido del 30/09 — 🚚 programado para el lunes 05/10
+     2️⃣ Pedido del 25/09 — 🧾 facturado, listo para salir: programado para el miércoles 30/09
 
      Los demás pedidos ya están entregados. Si tu consulta es por otro pedido, confirmame de qué fecha es y lo reviso.
 CLIENTE: El del 14/09
@@ -282,9 +282,11 @@ BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el vier
 | Fila | Mensaje | Respuesta |
 |---|---|---|
 | 1.8 | "Quería consultar qué período de tiempo están contemplando para entregas" | "El plazo de entrega hoy es de 14 días hábiles desde que hacés el pedido" + sus pedidos por entregar con la entrega estimada, si tiene (`textoPlazo`, `plazo-entrega.ts`; 06/10, Pablo: "14 días hábiles fijo", no el cálculo por modo de `wa_fecha_estimada`). Antes mostraba sólo los pedidos y no decía el plazo. |
+| 5.4 | "Te consulto, ¿me dirías el precio de lista? Me refiero al automate" | Si nombró un artículo y no se lo halló por código, ya no pregunta "¿De qué artículo? Pasame el código o el nombre": lo toma la IA (`buscar_productos`), que sabe decir que está discontinuado (`hayNombreDeArticulo`, `articulo-nombre.ts`; 06/10, m72). Sólo se sigue preguntando si no nombró nada ("¿cuánto sale?"). Vale también para el stock. La herramienta `buscar_productos` ahora también reconoce un discontinuado por NOMBRE (antes sólo por código): "automate" → "Automate (cód. 597) está discontinuado" + parecidos activos, y no la "Bombilla Autolimpiante" que sugería la búsqueda por trigramas. **Causa:** la búsqueda por nombre de la respuesta fija (RPC `wa_product_match`) falla en cada llamada por un error de tipos y además sólo mira artículos activos. |
 | 1.5 | "Por favor recuerden que recibimos hasta las 14 hs, por lo que deben llegar un ratito antes" | "Anotado, gracias por avisarnos. Le voy a comentar al equipo para que lo tengan en cuenta." + alerta `nota_cliente` (🟢, 240 min) para Ventas con el texto del cliente (`avisaHorarioRecepcion`, `faq.ts`; 06/10, m60). Antes la IA decía lo mismo pero no dejaba nada: el horario no le llegaba a nadie. Hace falta un verbo de recepción + un horario ("hasta las 14", "de 8 a 14"). Guardarlo como observación en un campo de la ficha del cliente queda pendiente (Pablo eligió, por ahora, sólo la alerta). |
 | 1.7 | "En el caso que se confirme, ¿hay posibilidades de entrega rápida?" | "Una persona de Ventas revisa si se puede acelerar la entrega y te escribe por acá en un momento" + alerta `entrega` (🟡, 120 min) para Ventas (`pideEntregaRapida`, `faq.ts`; 06/10: "todas las dudas pasan por Ventas primero"). Hace falta una palabra de entrega junto a una de apuro ("entrega rápida/urgente", "adelantar la entrega", "que llegue antes"); "¿cuándo llega mi pedido?", "¿puede estar para el viernes?" y "no me llegó" siguen su camino. Antes salía la lista de pedidos pendientes (#1) sin contestar si se podía acelerar. |
 | 2.2 | "Paso un pedidito. ¿Puede estar para el viernes?" | "Hoy la entrega estimada es de 14 días hábiles: si hacés el pedido hoy, sería el martes 27/10. Para la fecha que necesitás lo consulta una persona de Ventas y te escribe por acá. ¿Qué artículos necesitás?" + alerta `entrega` (🟡, 120 min) para Ventas. La fecha cuenta lunes a viernes sin feriados ni puentes del calendario de Planify. Hace falta pasar/hacer un pedido NUEVO y "¿puede estar para el X?" (`pedidoParaFecha`, `faq.ts`; 06/10, m62); "¿puede llegar el viernes mi pedido?" de un pedido ya hecho sigue en la lista. Antes la IA contestaba "no puedo prometerte una fecha" sin dar ninguna. |
+| 2.12 | "Cargué todo por unidad y después lo edité por caja" | "Gracias por avisarnos. Una persona de Ventas revisa cómo quedó cargado tu pedido y te escribe por acá. 🙏" + alerta `cambio_pedido` (🔴 por defecto) para Ventas con el mensaje (`avisaErrorDeCarga`, `faq.ts`; 06/10, m17). Antes la IA repreguntaba "¿está hablando de un pedido que ya hizo en la web, o de algo que quiere hacer ahora?". Hace falta unidad Y caja con un verbo de carga/edición, o una equivocación con pedido/carga/cantidad: "ya cargué el pedido" o "puse 10 cajas" solos no cuentan. |
 | 2.6 | "Pasé por mail un pedido para un cliente pero me vino dos veces rechazado. ¿Te llegó a vos?" | Chequea duplicados en la web como siempre; si no hay y el mensaje nombra mail o correo (`pedidoPorMailRepetido`, `faq.ts`): "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido. Una persona revisa el mail y te escribe por acá" + alerta `pedido_mail` (🟡, 120 min) para Ventas. Sin mail, el mensaje de siempre ("si ves uno de más en la web…"). |
 | 2.9 | "Anulá todo el pedido" | No es un cambio: dice en qué estado está el pedido (sin preparar / programado / facturado) y deriva con motivo `anulacion_pedido` (urgente). Con más de un pedido abierto y sin fecha, pregunta cuál. |
 | 3.3 | "¿Cierran para almorzar?" | "El depósito cierra para almorzar de 12 a 13" + horario completo. |

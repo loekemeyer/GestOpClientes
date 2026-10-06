@@ -17,6 +17,7 @@ import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } f
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
+import { palabraDeBusqueda, raizDeBusqueda } from "./articulo-nombre.ts";
 import {
   callModel,
   esCulpaDelRequest,
@@ -94,8 +95,20 @@ async function codigosDiscontinuados(query: string) {
   const codigos = [...new Set((query.match(/\b\d{2,4}[a-z]?\b/gi) ?? []).map((c) => c.toUpperCase()))];
   if (!codigos.length) return [];
   const { data: inact } = await supabase.from("products").select("cod, description, category").in("cod", codigos).eq("active", false);
+  return await conParecidos((inact ?? []) as Array<{ cod: string; description: string; category: string }>);
+}
+// Pablo, 06/10 (m72): "el precio de lista del automate" → "Automate" (cód. 597) está inactivo y la búsqueda de activos devolvía otra cosa
+// ("Bombilla Autolimpiante"). Si el cliente NOMBRÓ un artículo inactivo y ningún activo lleva esa palabra, es un discontinuado (como con el código).
+async function discontinuadosPorNombre(query: string, activos: Array<{ description?: string }>) {
+  const palabra = (() => { const w = palabraDeBusqueda(query); return w ? raizDeBusqueda(w) : null; })();
+  if (!palabra || /\b\d{2,4}[a-z]?\b/i.test(query)) return []; // con un código ya lo resolvió codigosDiscontinuados
+  if (activos.some((a) => sinTildes(String(a.description ?? "")).includes(sinTildes(palabra)))) return [];
+  const { data: inact } = await supabase.from("products").select("cod, description, category").eq("active", false).ilike("description", `%${palabra}%`).limit(3);
+  return await conParecidos((inact ?? []) as Array<{ cod: string; description: string; category: string }>);
+}
+async function conParecidos(inact: Array<{ cod: string; description: string; category: string }>) {
   const out = [];
-  for (const p of (inact ?? []) as Array<{ cod: string; description: string; category: string }>) {
+  for (const p of inact) {
     const raiz = (w: string) => w.replace(/s$/, "");
     const palabras = new Set(sinTildes(p.description).split(/\s+/).filter((w) => w.length > 3).map(raiz));
     const { data: mismos } = await supabase.from("products").select("cod, description, uxb").eq("active", true).eq("category", p.category).limit(60);
@@ -837,7 +850,12 @@ async function executeTool(
       if (error) return { data: { error: error.message } };
       // Pablo, 30/09 (2.5): un código que existe pero está inactivo es "discontinuado", no "no encontré". Se le ofrecen los
       // activos más parecidos de su categoría, con el link de la foto para que el cliente confirme.
-      const discontinuados = await codigosDiscontinuados(String(input.query ?? ""));
+      let discontinuados = await codigosDiscontinuados(String(input.query ?? ""));
+      if (!discontinuados.length) {
+        // Por NOMBRE (m72): si el cliente nombró un artículo inactivo y ningún activo lo lleva, se contesta sólo el discontinuado (no lo parecido por trigramas).
+        discontinuados = await discontinuadosPorNombre(String(input.query ?? ""), (data ?? []) as Array<{ description?: string }>);
+        if (discontinuados.length) return { data: { discontinuados, regla: REGLA_DISCONTINUADO } };
+      }
       if (!data?.length) {
         if (discontinuados.length) return { data: { discontinuados, regla: REGLA_DISCONTINUADO } };
         return { data: { mensaje: `No encontré productos para "${input.query}".` } };
