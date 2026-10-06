@@ -42,6 +42,9 @@ const MODULOS = [
     // v0.27.8 (Pablo, 06/10): el panel existía (pestaña "deriv") pero el rediseño dejó la barra vieja de pestañas oculta y el menú no lo
     // listaba: no se llegaba desde ningún lado. Sólo admin (lk_alertas exige admin).
     { id: "deriv", nombre: "Derivaciones", admin: true, abrir: () => cfg("deriv") },
+    // v0.27.17 (Pablo, 06/10: "tenemos que agregar poder modificar el horario desde la configuración"): el horario de atención se edita dentro de
+    // Derivaciones, junto a los tiempos de respuesta, y quedaba escondido. Entrada propia: abre Derivaciones y baja hasta el horario.
+    { id: "horario", nombre: "Horario de atención", admin: true, abrir: () => { cfg("deriv"); G.sec = "horario"; irAlHorario(); } },
   ] },
   { id: "ag", nombre: "Configuración del agente", admin: true, secciones: [
     { id: "fijas", nombre: "Reglas fijas", abrir: () => ag("fijas") },
@@ -56,6 +59,17 @@ const MODULOS = [
   ] },
 ];
 function cfg(tab) { irPagina("config"); showConfigTab(tab); }
+// Derivaciones se pinta cuando contesta el servidor: se espera (hasta 4 s) a que exista el bloque del horario y se baja hasta él.
+function irAlHorario() {
+  let n = 0;
+  const t = setInterval(() => {
+    const el = document.getElementById("derivHorario");
+    if ((el && el.querySelector("[data-h]")) || ++n > 40) {
+      clearInterval(t);
+      if (el && el.querySelector("[data-h]")) el.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, 100);
+}
 function ag(tab) { irPagina("agente"); showAgenteTab(tab); }
 function abrirDash(i) {
   const ds = document.querySelectorAll("#pageDash details.dash-section");
