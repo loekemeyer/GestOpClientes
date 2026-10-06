@@ -6,7 +6,7 @@ import { SIM } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
-import { leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_shared/pedido-archivo.ts";
+import { compararCotizadorConWeb, leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { atenderNoCliente } from "../_shared/alta.ts";
 import { pedidoEnCurso, runConversation } from "../_shared/bot-conversation.ts";
 import { atenderClienteChef } from "../_shared/chef.ts";
@@ -310,7 +310,9 @@ serve(async (req) => {
       const key = Deno.env.get("ANTHROPIC_API_KEY") ?? (await getSetting("ANTHROPIC_API_KEY")) ?? "";
       const r = await leerPedidoArchivo(bytes, String(body.mime ?? ""), key, null, body.nombre ?? null);
       const arts = r.lineas.length ? await resolverArticulos(r.lineas, key, null) : [];
-      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, articulos: arts, mensaje: arts.length ? textoConfirmacion(arts, { cotizador: r.cotizador === true, seguir: true, condicion_code: r.condicion_code }) : null,
+      const cmp = await compararCotizadorConWeb(r.hoja).catch(() => null);
+      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, articulos: arts, comparacion_precios: cmp ? { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } : null,
+        mensaje: arts.length ? textoConfirmacion(arts, { cotizador: r.cotizador === true, seguir: true, condicion_code: r.condicion_code, comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null }) : null,
         cotizador: r.cotizador === true, condicion_code: r.condicion_code ?? null });
     }
 

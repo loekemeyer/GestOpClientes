@@ -9,6 +9,7 @@
 
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 import { supabase } from "./supabase.ts";
+import { type CotizadorLeido, compararConWeb, leerHojaCotizador, textoComparacion } from "./cotizador-precios.ts";
 
 // Pablo Olejavetzky, 05/10: leer un cotizador o una orden de compra es una toma de pedido: "no podemos fallar ahí". Antes usaba Haiku 4.5.
 // Sonnet 4.6 cuesta 3 veces más por archivo (US$ 3 / 15 por millón de tokens de entrada / salida, en vez de 1 / 5).
@@ -53,7 +54,7 @@ Respondé SOLO JSON: {"lineas":[{"cod":"501"|null,"descripcion":"...","cantidad"
 
 /** Lee el archivo con la IA. Devuelve las líneas o un error (el llamador sigue con la tarea igual). */
 export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey: string, phone: string | null,
-  nombre?: string | null): Promise<{ lineas: LineaLeida[]; error?: string; cotizador?: boolean; condicion_code?: number | null }> {
+  nombre?: string | null): Promise<{ lineas: LineaLeida[]; error?: string; cotizador?: boolean; condicion_code?: number | null; hoja?: CotizadorLeido | null }> {
   // deno-lint-ignore no-explicit-any
   let content: any[];
   const m = mime.toLowerCase();
@@ -78,7 +79,14 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
       }
       if (lineas.length) {
         const condicion_code = [...codigos.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-        return { lineas: lineas.slice(0, MAX_LINEAS), cotizador: true, condicion_code };
+        // Pablo, 06/10 (m41): el cotizador trae además los PRECIOS y el total: se leen de la hoja "Cotizador …" para compararlos con la web.
+        let hoja: CotizadorLeido | null = null;
+        try {
+          const nombreHoja = libro.SheetNames.find((h: string) => /^cotizador/i.test(h));
+          // deno-lint-ignore no-explicit-any
+          if (nombreHoja) hoja = leerHojaCotizador(XLSX.utils.sheet_to_json(libro.Sheets[nombreHoja], { header: 1, defval: "" }) as any[][]);
+        } catch (e) { console.error("[pedido-archivo] hoja de precios del cotizador:", e instanceof Error ? e.message : e); }
+        return { lineas: lineas.slice(0, MAX_LINEAS), cotizador: true, condicion_code, hoja };
       }
     }
     const texto = libro.SheetNames.slice(0, 3).map((h) => `# Hoja ${h}\n` + XLSX.utils.sheet_to_csv(libro.Sheets[h], { FS: ";" }))
@@ -200,13 +208,28 @@ export async function resolverArticulos(lineas: LineaLeida[], apiKey = "", phone
   });
 }
 
+/** Compara los precios del cotizador con los de la web (products.list_price, por UNIDAD). null si el cotizador no trae la hoja de precios. */
+export async function compararCotizadorConWeb(hoja: CotizadorLeido | null | undefined):
+  Promise<{ texto: string; diferencias: ReturnType<typeof compararConWeb>["diferencias"]; total_cotizador: number | null; version: string | null } | null> {
+  if (!hoja) return null;
+  const pedidas = hoja.filas.filter((f) => f.cajas > 0);
+  if (!pedidas.length) return null;
+  const { data } = await supabase.from("products").select("cod, list_price, uxb, active").in("cod", pedidas.map((f) => f.cod));
+  const web: Record<string, { pu: number; uxb: number; activo: boolean }> = {};
+  for (const r of (data ?? []) as Array<{ cod: string; list_price: number | string | null; uxb: number | null; active: boolean | null }>) {
+    web[String(r.cod).toUpperCase()] = { pu: Number(r.list_price) || 0, uxb: Number(r.uxb) || 1, activo: r.active === true };
+  }
+  const { pedidos, diferencias } = compararConWeb(hoja, web);
+  return { texto: textoComparacion(hoja, diferencias, pedidos), diferencias, total_cotizador: hoja.total, version: hoja.version };
+}
+
 const cj = (n: number | null) => `${n} ${n === 1 ? "caja" : "cajas"}`;
 
 /** Mensaje al cliente con lo que se leyó. */
 /** `seguir` (pedidos por WhatsApp prendidos): con el "sí" el bot sigue con forma de pago y entrega en vez de derivar. */
 const FORMA_COT: Record<number, string> = { 8: "Contado (25%)", 9: "15 a 30 días (20%)", 10: "31 a 45 días (15%)",
   11: "46 a 60 días (10%)", 12: "E-cheq a 90 días (5%)", 13: "E-cheq a 120 días (sin descuento)", 18: "Prefiero no decidir ahora" };
-export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: boolean; seguir?: boolean; condicion_code?: number | null } = {}): string {
+export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: boolean; seguir?: boolean; condicion_code?: number | null; comparacion?: { texto: string; hayDiferencias: boolean } | null } = {}): string {
   const ok = arts.filter((a) => a.estado !== "no_encontrado");
   const no = arts.filter((a) => a.estado === "no_encontrado");
   const lineas = ok.slice(0, 40).map((a) => a.opciones?.length
@@ -216,13 +239,16 @@ export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: bo
   if (ok.length > 40) t += `\n… y ${ok.length - 40} artículos más.`;
   if (no.length) t += `\n\nNo encontramos: ${no.slice(0, 10).map((a) => `"${a.original}"`).join(", ")}.`;
   if (opts.condicion_code && FORMA_COT[opts.condicion_code]) t += `\n\nForma de pago marcada en el cotizador: *${FORMA_COT[opts.condicion_code]}*.`;
+  if (opts.comparacion) t += `\n\n${opts.comparacion.texto}`;
   if (arts.some((a) => a.opciones?.length)) {
     if (arts.some((a) => a.estado === "dudoso" && !a.opciones?.length)) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
     return t + `\n\nDecinos cuál querés en las líneas con ❓ (con el código alcanza) y cualquier otro cambio.${opts.seguir ? "" : " Una persona lo carga."}`;
   }
   if (arts.some((a) => a.estado === "dudoso")) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
-  return t + (opts.seguir ? `\n\n¿Está bien? Respondé *sí* y seguimos con la forma de pago y la entrega, o decinos qué cambiar.`
-    : `\n\n¿Está bien? Respondé *sí* y una persona lo carga, o decinos qué cambiar.`);
+  // Pablo, 06/10 (m41): con la comparación de precios se le pide que confirme ARTÍCULO Y VALOR ("como si fuera un pedido por WhatsApp").
+  const pregunta = opts.comparacion ? (opts.comparacion.hayDiferencias ? "¿Confirmás los artículos y los valores de la web?" : "¿Confirmás los artículos y los valores?") : "¿Está bien?";
+  return t + (opts.seguir ? `\n\n${pregunta} Respondé *sí* y seguimos con la forma de pago y la entrega, o decinos qué cambiar.`
+    : `\n\n${pregunta} Respondé *sí* y una persona lo carga, o decinos qué cambiar.`);
 }
 
 const RE_SI = /^\s*(s[ií]|si+|dale|ok|okey|correcto|est[aá] bien|perfecto|confirmo|as[ií] est[aá] bien|todo bien)\b[\s!.👍✅]*$/i;
