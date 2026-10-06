@@ -13,6 +13,7 @@ import { timeoutDeModelo } from "./timeouts.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
+import { mailEscritoPorElCliente, REGLA_MAIL_NO_ESCRITO } from "./mail-gate.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -189,8 +190,8 @@ const BOT_TOOLS: ToolDef[] = [
   {
     // Pablo, 29/09: cambio de mail con aprobación de una persona (lk_alertas mail_cambiar).
     name: "solicitar_cambio_mail",
-    description: "Pide cambiar el mail de la cuenta del cliente; una persona lo aprueba. Antes confirmale el mail nuevo (\"¿Cambio tu mail a nombre@dominio.com?\") y recién con su sí, llamala.",
-    input_schema: { type: "object", properties: { mail: { type: "string", description: "Mail nuevo, confirmado con el cliente" } }, required: ["mail"] },
+    description: "Pide cambiar el mail de la cuenta del cliente; una persona lo aprueba. El mail lo tiene que haber ESCRITO el cliente: si no te lo dio, pedíselo; nunca lo armes ni lo deduzcas. Confirmale el mail nuevo (\"¿Cambio tu mail a nombre@dominio.com?\") y recién con su sí, llamala.",
+    input_schema: { type: "object", properties: { mail: { type: "string", description: "Mail nuevo, tal cual lo escribió el cliente y confirmado con él" } }, required: ["mail"] },
   },
   {
     name: "consultar_mis_pedidos",
@@ -565,6 +566,12 @@ async function executeTool(
     case "solicitar_cambio_mail": {
       const mail = String(input.mail ?? "").trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return { data: { error: "Ese mail no parece válido: pedíselo de nuevo." } };
+      // Compuerta de servidor (Pablo, 06/10): el mail tiene que figurar en lo que escribió el cliente; el modelo no puede inventarlo
+      // (Gemini lo armó con la razón social en 2 de 2 corridas del caso 9.4). Ver mail-gate.ts. No se loguea el mail, sólo el teléfono.
+      if (!mailEscritoPorElCliente({ mail, textoCliente: ctx.userText, historial: ctx.historial })) {
+        console.warn(`[gate-mail] solicitar_cambio_mail bloqueado (mail no escrito por el cliente) …${phone.slice(-4)}`);
+        return { data: { ok: false, no_cargado: true, regla: REGLA_MAIL_NO_ESCRITO } };
+      }
       const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
       if (!cli?.[0]?.customer_id) return { data: { error: "No identifiqué la cuenta de este número. Derivá con derivar_a_persona." } };
       await notificarHumano({

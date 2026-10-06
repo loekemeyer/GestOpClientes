@@ -17,6 +17,7 @@ const estados = MEDIDAS_SEGURIDAD.map((m) => m.estado);
 igual("las activas van antes que las pendientes", estados.lastIndexOf("activa") < estados.indexOf("pendiente"), true);
 igual("el Panel recibe la misma lista", fijosParaPanel().medidas, MEDIDAS_SEGURIDAD);
 igual("la compuerta de confirmar_pedido figura como activa", MEDIDAS_SEGURIDAD.find((m) => m.medida === "Compuerta de confirmar_pedido")?.estado, "activa");
+igual("la compuerta de solicitar_cambio_mail figura como activa", MEDIDAS_SEGURIDAD.find((m) => m.medida === "Compuerta de solicitar_cambio_mail")?.estado, "activa");
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo ok");

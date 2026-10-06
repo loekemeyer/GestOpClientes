@@ -4,6 +4,18 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
+> **06/10 (Pablo): compuerta de `solicitar_cambio_mail` — el mail tiene que estar escrito por el cliente (`_shared/mail-gate.ts`, `tests/mail-gate.test.ts`, 29 casos).**
+> Origen: el Simulador con Gemini 3.5 Flash-Lite (US$ 0) sobre las 71 frases del artifact "Respuestas del bot por causa" (caso 9.4 / m76: *"noté que está cargada una dirección de correo que
+> ya no tengo. Te envío la correcta…"* sin ninguna dirección en el mensaje). **2 de 2 corridas el modelo inventó el mail a partir de la razón social** (`contacto@garbarinofranco.com.ar` y
+> `garbarinofrancotomas@gmail.com`), llamó a `solicitar_cambio_mail` y le dijo al cliente *"pedí que cambien tu mail a …"*; la tarea `cambio_datos` quedaba con un mail falso para que una persona lo aplicara.
+> **Ahora** `executeTool` revisa, antes de crear la tarea, que el mail figure letra por letra (sin importar mayúsculas, con o sin punto final) en un mensaje del cliente: el de este turno o uno de las
+> últimas 12 h (la ventana de "charla nueva" de la IA). Un mail que sólo aparece en lo que dijo el bot no vale. Si no, devuelve `no_cargado` + la regla (pedirle que lo escriba completo) y loguea
+> `[gate-mail]` sin el mail. Falla cerrado. También cambian la descripción de la herramienta y la regla de prompt de `agente-fijos.ts` ("nunca lo armes ni lo deduzcas") y la tabla de medidas del Panel
+> (nueva activa "Compuerta de solicitar_cambio_mail"; sin cambio en `docs/index.html`, sale por `lk_agente-modelos`).
+> **Límites:** no verifica que quien escribe sea el dueño de la cuenta (sigue pendiente "Cambio de mail con verificación"); un mail dictado ("juan arroba gmail punto com") no pasa; un mail dentro de un
+> archivo o audio que el cliente mandó cuenta como escrito por él. **Estado:** probado sin red (29 casos) y type-check sin errores nuevos; **la verificación en el Simulador (9.4, Gemini gratis) queda para después
+> del deploy a `main`** (el CI deploya las edge functions sólo ahí).
+>
 > **06/10 (Pablo): medidas de seguridad del agente — la 1.ª hecha (compuerta de `confirmar_pedido`) y la lista completa en el Panel (dashboard v0.27.21).**
 > Pedido: *"arrancá por el punto uno y andá actualizando todas estas medidas en la página"*. Punto de partida: el bloque "Seguridad (anti-jailbreak)" es una regla de prompt, o sea la capa más débil
 > (un jailbreak la rompe); lo que protege de verdad está en el código (firma de Meta, teléfono del webhook sin id de cliente en las herramientas, tope 20/h, whitelist, 5 vueltas por turno).
@@ -812,6 +824,7 @@ el killswitch, sin ningún consumidor de esa cola.
   inserta en `customer_delivery_addresses` (slot siguiente, `pending_isis=true`) y avisa al cliente por la cola.
   "Cambié de dirección" ya no cae en la FAQ #4 (`RE_NUEVA_DIRECCION` → IA).
 - **Cambio de mail** (29/09): `solicitar_cambio_mail` → tarea `cambio_datos` con `mail_nuevo` → "Cambiar mail" (`mail_cambiar`).
+  Desde el 06/10 el mail tiene que figurar en un mensaje que escribió el cliente (compuerta `_shared/mail-gate.ts`, ver la nota de arriba).
 - **Simulador › 📱 Número nuevo** (29/09): corre el alta real (`_shared/alta.ts`, movido del webhook sin cambios) con el
   número falso 5490000000099; el estado vive en `wa_prospect_leads` de ese número y una charla nueva cancela la anterior.
   Un CUIT que ya es cliente no pide vinculación real. "Crear cliente y mandar acceso" sobre un alta 🧪 hace los controles
