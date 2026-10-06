@@ -200,6 +200,11 @@
     #derivList .al-tabla select { max-width: 175px; padding: 0.25rem 0.4rem; font-size: 0.8rem; }
     #derivList .al-tabla select[data-f="destino"] { width: 155px; }
     #derivList .al-tabla select[data-f="nivel"] { width: 150px; margin-bottom: 2px; }
+    /* v0.27.11: el motivo agregado a mano tenía anchos fijos (150 + 240 px) y la tabla pasaba de 820 a 1.034 px: Sector/Persona quedaban cortados. */
+    #derivList .dv-fluido { width: 100%; min-width: 110px; box-sizing: border-box; font: inherit; font-size: 0.8rem; padding: 0.3rem 0.45rem; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
+    #derivList .dv-falta { border-color: var(--g-danger, #c0392b); box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25); }
+    #derivList tr.dv-nuevo td { background: rgba(155, 28, 28, 0.06); }
+    #derivList .al-tabla td .hint code { overflow-wrap: anywhere; } /* la clave larga del motivo nuevo no debe ensanchar la tabla */
     #derivList .dv-quien label { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
     #derivList .dv-quien label:last-child { margin-bottom: 0; }
     #derivList .dv-quien label span { flex: none; width: 46px; font-size: 0.72rem; color: var(--muted); }
@@ -3866,27 +3871,27 @@ function pintarDerivaciones() {
   const fila = (m) => {
     const ex = m.extra;
     const nombreCel = ex
-      ? `<input data-f="nombre" value="${esc(ex.nombre)}" placeholder="Nombre" style="width:150px"><div class="hint">clave <code>${esc(m.categoria)}</code></div>`
+      ? `<input data-f="nombre" class="dv-fluido" oninput="this.classList.remove('dv-falta')" value="${esc(ex.nombre)}" placeholder="Nombre"><div class="hint">clave <code>${esc(m.categoria)}</code> <button class="config-btn small" title="Quitar este motivo" onclick="derivQuitar('${esc(m.categoria)}')">✕ Quitar</button></div>`
       : `<b>${esc(m.label)}</b>`;
     const origenCel = ex
-      ? `<textarea data-f="cuando" rows="2" style="width:240px" placeholder="Cuándo tiene que derivarlo la IA">${esc(ex.cuando)}</textarea>`
+      ? `<textarea data-f="cuando" class="dv-fluido" rows="3" oninput="this.classList.remove('dv-falta')" placeholder="Cuándo lo deriva la IA" title="Le dice a la IA cuándo derivar este motivo. Ej.: el cliente pide factura A o un duplicado">${esc(ex.cuando)}</textarea>`
       : esc(m.origen);
-    const venceCel = ex ? `<input data-f="min" type="number" min="1" value="${ex.min}" style="width:70px"> min` : durTexto(m.minutos * 60000);
+    const venceCel = ex ? `<input data-f="min" type="number" min="1" max="43200" value="${ex.min}" style="width:58px"> min` : durTexto(m.minutos * 60000);
     // v0.27.9 (Pablo, 06/10): con 8 columnas la tabla medía 872 px en un contenedor de 820 y la columna Sector quedaba cortada.
     // Semáforo y vencimiento van juntos, y Sector y Persona apilados en una sola columna ("Para quién").
     // v0.27.10: primero el sector; la persona es opcional y se elige entre las de ese sector. Persona elegida = va sólo a ella
     // (destino() en _shared/derivaciones-destino.ts).
     const conPlanify = m.destino === "planify";
-    return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
+    return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}${m.nuevo ? ' class="dv-nuevo"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
       <td style="white-space:nowrap;">${semaforoSel(m)}<div class="hint">vence ${venceCel}</div></td>
       <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select></td>
       <td class="dv-quien">
         <label><span>Sector</span><select data-f="department_id" onchange="derivCambioSector(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
         <label><span>Persona</span><select data-f="employee_id"${conPlanify ? "" : " disabled"}>${derivPersonasOpts(m.department_id, m.employee_id)}</select></label>
       </td>
-      <td>${ex ? `<button class="config-btn small" title="Quitar motivo" onclick="derivQuitar('${esc(m.categoria)}')">✕</button>` : ""}</td></tr>`;
+    </tr>`;
   };
-  box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo<br>y vence</th><th>A dónde va</th><th>Para quién</th><th></th></tr>` +
+  box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo<br>y vence</th><th>A dónde va</th><th>Para quién</th></tr>` +
     data.motivos.map(fila).join("") +
     `</table><div class="hint" style="margin-top:0.4rem;"><b>Sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda. <b>Sector + persona</b>: va sólo a esa persona (las del desplegable son las de ese sector). <b>Sólo persona</b>: va a ella. <b>Ninguno</b>: va a quien esté por defecto. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.<br><b>Semáforo</b>: "Auto" es el de siempre (un mensaje apurado o molesto lo sube a 🔴); si lo fijás, queda fijo para ese motivo. 🔴 es urgente: abre tarea en Planify aunque el motivo diga "Sólo Tareas". Un cambio vale para alertas nuevas y para cómo se ven las abiertas; las tareas que ya están en Planify no se tocan.</div>
     <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
@@ -3933,8 +3938,14 @@ function derivAgregar() {
   derivLeerForm();
   if (DERIV.motivos.some((m) => m.categoria === clave)) { alert("Ya existe un motivo con ese nombre."); return; }
   DERIV.motivos.push({ categoria: clave, label: nombre, origen: "", nivel: "amarillo", nivel_auto: "amarillo", nivel_fijo: null, minutos: 120, de_ia: true,
-    destino: "planify", employee_id: null, department_id: null, extra: { clave, nombre, cuando: "", min: 120 } });
+    destino: "planify", employee_id: null, department_id: null, extra: { clave, nombre, cuando: "", min: 120 }, nuevo: true });
   pintarDerivaciones();
+  // El motivo nuevo queda al final de la lista: se lo muestra y se pone el foco en lo único obligatorio que falta.
+  const tr = document.querySelector(`#derivList tr[data-cat="${clave}"]`);
+  tr?.scrollIntoView({ block: "center", behavior: "smooth" });
+  tr?.querySelector('[data-f="cuando"]')?.focus({ preventScroll: true });
+  const st = document.getElementById("derivStatus");
+  st.textContent = "Completá «Cuándo pasa» (le dice a la IA cuándo derivar) y apretá Guardar."; st.className = "config-status";
 }
 function derivQuitar(clave) {
   if (!confirm("¿Quitar este motivo? La IA deja de derivarlo cuando guardes.")) return;
@@ -3945,6 +3956,20 @@ function derivQuitar(clave) {
 async function saveDerivaciones() {
   const st = document.getElementById("derivStatus");
   derivLeerForm();
+  // Los motivos agregados a mano necesitan nombre, "cuándo derivarlo" y un vencimiento de 1 minuto a 30 días (lk_alertas lo exige): se avisa
+  // acá, señalando el campo, en vez de guardar a ciegas y recibir el rechazo del servidor.
+  for (const m of DERIV.motivos.filter((x) => x.extra)) {
+    const falta = !m.extra.nombre.trim() ? ["nombre", "Falta el nombre del motivo nuevo."]
+      : !m.extra.cuando.trim() ? ["cuando", `Falta «Cuándo pasa» en «${m.extra.nombre}»: es lo que la IA lee para saber cuándo derivarlo.`]
+      : !(m.extra.min >= 1 && m.extra.min <= 43200) ? ["min", `El vencimiento de «${m.extra.nombre}» tiene que estar entre 1 minuto y 30 días (43.200 min).`] : null;
+    if (!falta) continue;
+    const campo = document.querySelector(`#derivList tr[data-cat="${m.categoria}"] [data-f="${falta[0]}"]`);
+    campo?.classList.add("dv-falta");
+    campo?.scrollIntoView({ block: "center" });
+    campo?.focus({ preventScroll: true });
+    st.textContent = "✗ " + falta[1]; st.className = "config-status err";
+    return;
+  }
   const motivos = {}, extra = [];
   for (const m of DERIV.motivos) {
     motivos[m.categoria] = { destino: m.destino, employee_id: m.employee_id, department_id: m.department_id, nivel: m.nivel_fijo || null };
