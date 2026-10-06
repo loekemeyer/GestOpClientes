@@ -196,6 +196,13 @@
     .al-tabla { border-collapse: collapse; font-size: 0.8rem; }
     .al-tabla th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 10px 3px 0; white-space: nowrap; }
     .al-tabla td { padding: 5px 10px 5px 0; border-top: 1px solid var(--border); vertical-align: top; }
+    /* v0.27.9: columna "Para quién" de Derivaciones: Sector y Persona apilados, con su rótulo. */
+    #derivList .al-tabla select { max-width: 175px; padding: 0.25rem 0.4rem; font-size: 0.8rem; }
+    #derivList .al-tabla select[data-f="destino"] { width: 155px; }
+    #derivList .dv-quien label { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
+    #derivList .dv-quien label:last-child { margin-bottom: 0; }
+    #derivList .dv-quien label span { flex: none; width: 46px; font-size: 0.72rem; color: var(--muted); }
+    #derivList .dv-quien select { flex: 1; min-width: 0; }
     .al-vencida td:first-child { border-left: 3px solid var(--danger); padding-left: 6px; }
     .al-pill { display: inline-block; padding: 0 6px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
     .al-pill.vencida { background: var(--bad-bg); color: var(--g-danger); }
@@ -3856,22 +3863,31 @@ function pintarDerivaciones() {
       ? `<textarea data-f="cuando" rows="2" style="width:240px" placeholder="Cuándo tiene que derivarlo la IA">${esc(ex.cuando)}</textarea>`
       : esc(m.origen);
     const venceCel = ex ? `<input data-f="min" type="number" min="1" value="${ex.min}" style="width:70px"> min` : durTexto(m.minutos * 60000);
+    // v0.27.9 (Pablo, 06/10): con 8 columnas la tabla medía 872 px en un contenedor de 820 y la columna Sector quedaba cortada.
+    // Semáforo y vencimiento van juntos, y Persona y Sector apilados en una sola columna ("Para quién"). Con sector elegido la persona
+    // se atenúa: en producción gana el sector (destino() en _shared/derivaciones.ts).
+    const conPlanify = m.destino === "planify", conSector = !!m.department_id;
     return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
-      <td style="white-space:nowrap;">${NIVEL_TXT[m.nivel] || ""}</td><td style="white-space:nowrap;">${venceCel}</td>
+      <td style="white-space:nowrap;">${NIVEL_TXT[m.nivel] || ""}<div class="hint">vence ${venceCel}</div></td>
       <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select></td>
-      <td><select data-f="employee_id"${m.destino === "planify" ? "" : " disabled"}>${opt(data.empleados, m.employee_id, "— por defecto —")}</select></td>
-      <td><select data-f="department_id"${m.destino === "planify" ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></td>
+      <td class="dv-quien">
+        <label><span>Sector</span><select data-f="department_id" onchange="derivCambioDestino(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
+        <label><span>Persona</span><select data-f="employee_id"${conPlanify && !conSector ? "" : " disabled"}${conPlanify && conSector ? ' title="Con sector elegido, gana el sector"' : ""}>${opt(data.empleados, m.employee_id, "— por defecto —")}</select></label>
+      </td>
       <td>${ex ? `<button class="config-btn small" title="Quitar motivo" onclick="derivQuitar('${esc(m.categoria)}')">✕</button>` : ""}</td></tr>`;
   };
-  box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo</th><th>Vence</th><th>A dónde va</th><th>Persona</th><th>Sector</th><th></th></tr>` +
+  box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo<br>y vence</th><th>A dónde va</th><th>Para quién</th><th></th></tr>` +
     data.motivos.map(fila).join("") +
-    `</table><div class="hint" style="margin-top:0.4rem;">Si elegís sector, gana el sector. "Lo responde el bot": la IA no lo deriva, salvo urgencia.</div>
+    `</table><div class="hint" style="margin-top:0.4rem;"><b>Con sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda; la persona elegida se ignora. <b>Sin sector</b>: va a la persona. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.</div>
     <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
     <span class="hint">Un motivo nuevo que la IA puede derivar. Rige al guardar.</span></div>`;
 }
 function derivCambioDestino(sel) {
-  const tr = sel.closest("tr"), p = sel.value === "planify";
-  tr.querySelectorAll('[data-f="employee_id"],[data-f="department_id"]').forEach((x) => { x.disabled = !p; });
+  const tr = sel.closest("tr"), p = tr.querySelector('[data-f="destino"]').value === "planify";
+  const sec = tr.querySelector('[data-f="department_id"]'), emp = tr.querySelector('[data-f="employee_id"]');
+  sec.disabled = !p;
+  emp.disabled = !p || !!sec.value; // con sector elegido, gana el sector
+  emp.title = p && sec.value ? "Con sector elegido, gana el sector" : "";
 }
 function derivLeerForm() {
   // Vuelca lo editado en DERIV (para no perderlo al agregar o quitar filas).
@@ -4761,7 +4777,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.8</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.9</div>
 <script src="gestop2.js?v=0.27.8"></script>
 </body>
 </html>
