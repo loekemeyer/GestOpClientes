@@ -529,6 +529,13 @@ branch:** o **pusheás a `main` automáticamente**, o preguntás explícito **"�
 Nunca dar por cerrada una tanda dejándola solo en la rama sin avisar. (El CI deploya las edge
 functions únicamente al mergear a `main`.)
 
+⚠ **Pablo Olejavetzky, 06/10/2026: *"Siempre pushea a main este tipo de cambios, no preguntes"*.** Vale para los cambios de
+lógica del bot que salen de las correcciones del artifact (edge functions, `faq.ts` y afines, con sus pruebas, docs y artifacts):
+se pushean a `main` solos, con las pruebas pasando y tras `git fetch` + verificar que `origin/main` es ancestro. **No cubre**
+escrituras en la base (INSERT / UPDATE / DELETE: siguen pidiendo su "sí" con el SQL), ni gastos (regla de gasto), ni cambios de
+fondo que Pablo no pidió. Después del push: esperar el deploy, probar en el Simulador (gasto US$ 0) y republicar **los dos**
+artifacts (Plantillas y Recorrido de un pedido web), también por pedido suyo del 06/10.
+
 ### Zonas de responsabilidad
 
 | Zona | Archivos | Quién modifica |
