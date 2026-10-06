@@ -230,7 +230,7 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 > **28/09 (Pablo):** la respuesta de estado nombra cada pedido por su fecha (nunca el número), saca los
 > anulados/borrados/no enviados y depende del modo de entrega: *expreso* → "el jueves 01/10 lo entregamos en el
 > expreso X" + "los tiempos de viaje los maneja el expreso: consultalo con ellos" (a un cliente de expreso nunca se
-> le ofrece retirar); *retira* → "lo podés retirar desde…"; *reparto* → "sale el…". Sin fecha → "todavía sin fecha
+> le ofrece retirar); *retira* → "programado para el lunes 05/10" (desde el 06/10, m21 y m25: se sacó el "retirar"; el aviso de que ya está listo sale aparte); *reparto* → "sale el…". Sin fecha → "todavía sin fecha
 > de salida".
 >
 > **30/09 (Pablo):** sólo lista los pedidos que **faltan entregar** (de los últimos 30 días); los demás los da por
@@ -269,8 +269,8 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 CLIENTE: ¿Sabés cuándo me entregan el pedido?
 BOT: Garbarino Franco Tomas, estos son tus pedidos que faltan entregar:
 
-     1️⃣ Pedido del 30/09 — 🚚 programado: lo podés retirar desde el lunes 05/10
-     2️⃣ Pedido del 25/09 — 🧾 facturado, listo para salir: lo podés retirar desde el miércoles 30/09
+     1️⃣ Pedido del 30/09 — 🚚 programado para el lunes 05/10
+     2️⃣ Pedido del 25/09 — 🧾 facturado, listo para salir: programado para el miércoles 30/09
 
      Los demás pedidos ya están entregados. Si tu consulta es por otro pedido, confirmame de qué fecha es y lo reviso.
 CLIENTE: El del 14/09

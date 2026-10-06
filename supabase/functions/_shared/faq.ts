@@ -15,6 +15,7 @@ import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
+import { textoFechaRetiro } from "./fecha-retiro.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
 
@@ -747,7 +748,8 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     const conFecha = t?.fecha_entrega && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado");
     if (conFecha) {
       if (m.modo === "expreso") { line += `: el ${conDia(t.fecha_entrega)} lo entregamos en el expreso *${m.expreso}*`; hayExpreso = true; }
-      else if (m.modo === "retira") line += `: lo podés retirar desde el ${conDia(t.fecha_entrega)}`;
+      // Pablo, 06/10 (m21, m25): "sacar el retirar" cuando pregunta cuándo se entrega → "programado para el lunes 05/10".
+      else if (m.modo === "retira") line += textoFechaRetiro(rawStatus, conDia(t.fecha_entrega));
       else line += `: sale el ${conDia(t.fecha_entrega)}`;
     } else if (!t?.fecha_entrega && m.modo === "expreso" && rawStatus !== "entregado") {
       line += ` (va por el expreso *${m.expreso}*)`;

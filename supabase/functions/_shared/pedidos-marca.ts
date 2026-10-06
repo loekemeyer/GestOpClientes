@@ -21,6 +21,7 @@ import { getGestionClient, supabase } from "./supabase.ts";
 import { pedidosAnulados } from "./pedidos-anulados.ts";
 import { cuitNorm } from "./empresas.ts";
 import { RE_ESTADO_PEDIDO, RE_INGRESO, RE_NO_LLEGO, RE_PLAZO_ENTREGA } from "./faq.ts";
+import { textoFechaRetiro } from "./fecha-retiro.ts";
 
 export type Marca = "lk" | "chef" | "ambas";
 
@@ -137,7 +138,7 @@ export function textoPedidosChef(
       const cuando = p.entregado_at ?? p.fecha_entrega;
       if (cuando) l += ` el ${conDia(String(cuando))}`;
     } else if (CON_FECHA.has(estado) && p.fecha_entrega && p.fecha_entrega >= hoy) {
-      l += p.retiro ? `: lo podés retirar desde el ${conDia(p.retiro)}` : `: sale el ${conDia(p.fecha_entrega)}`;
+      l += p.retiro ? textoFechaRetiro(estado, conDia(p.retiro)) : `: sale el ${conDia(p.fecha_entrega)}`; // m21, m25 (06/10): sin "retirar"
     }
     return l;
   });
