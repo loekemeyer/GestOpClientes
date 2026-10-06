@@ -907,12 +907,14 @@
             <div class="config-row">
               <label>Consultas de IA por número / hora:</label>
               <input type="number" id="cfgRLLimit" min="1" max="200" value="20">
-              <span class="hint">Tope de consultas al agente antes de bloquear</span>
+              <span class="hint">Tope de consultas al agente antes de hacer una pausa. Se reinicia cada hora en punto.</span>
             </div>
             <div class="config-row" style="align-items:flex-start;">
               <label>Aviso al toparse:</label>
-              <textarea id="cfgRLMsg" rows="2" style="flex:1;min-width:240px;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Estamos con problemas en este momento, probá contactarte de vuelta en una hora."></textarea>
+              <textarea id="cfgRLMsg" rows="4" style="flex:1;min-width:240px;padding:0.4rem;border: 1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:inherit;" placeholder="Recibimos muchas consultas seguidas desde este número (el máximo es {{limite}} por hora), así que hacemos una pausa. Podés volver a escribirnos en {{espera}}, a partir de las {{hora}}. Si fue sin querer, no te preocupes: se reactiva solo."></textarea>
             </div>
+            <!-- v0.27.19 (Pablo, 06/10): el aviso dice cuánto esperar; el tope se reinicia a la hora en punto y puede haber sido un error del cliente. -->
+            <p class="hint" style="margin:-0.2rem 0 0.5rem 0;line-height:1.5;">Variables que se completan solas: <code>{{limite}}</code> (consultas por hora), <code>{{espera}}</code> (cuánto falta, por ejemplo "25 minutos") y <code>{{hora}}</code> (cuándo se reinicia, hora de Argentina). Se avisa una sola vez por hora y número; el resto de ese rato el bot no contesta.</p>
             <div style="margin-top:0.8rem; display:flex; align-items:center;">
               <button class="config-btn primary" onclick="saveRateLimitConfig()">💾 Guardar</button>
               <span class="config-status" id="rlSaveStatus"></span>
@@ -4964,7 +4966,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.18</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.19</div>
 <script src="gestop2.js?v=0.27.17"></script>
 </body>
 </html>

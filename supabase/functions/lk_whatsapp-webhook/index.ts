@@ -29,6 +29,7 @@ import {
 import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
+import { mensajeTope } from "../_shared/tope-ia.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
@@ -852,7 +853,7 @@ async function blacklistRow(phone: string): Promise<{ avisado_at: string | null 
  * mensaje de más dispara otro aviso y el tope termina generando más tráfico del
  * que corta. Se mira `bot_historial_chat` para saber en cuál está.
  */
-async function pasoElTope(phone: string): Promise<{ avisar: boolean } | null> {
+async function pasoElTope(phone: string): Promise<{ avisar: boolean; limite: number } | null> {
   const habilitado = Number((await getSetting("wa_rate_limit_enabled")) ?? "0") === 1;
   if (!habilitado) return null;
   const limite = Number(await getSetting("wa_rate_limit_per_hour")) || 20;
@@ -871,7 +872,7 @@ async function pasoElTope(phone: string): Promise<{ avisar: boolean } | null> {
     .order("window_start", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return { avisar: Number(fila?.msg_count ?? 0) === limite + 1 };
+  return { avisar: Number(fila?.msg_count ?? 0) === limite + 1, limite };
 }
 
 
@@ -1312,8 +1313,9 @@ async function handleMessage(
   const rateLimited = await pasoElTope(phone);
   if (rateLimited) {
     if (rateLimited.avisar) {
-      // Editable desde el Panel (app_settings.wa_rate_limit_msg); fallback al default.
-      const aviso = (await getSetting("wa_rate_limit_msg"))?.trim() || `Estamos con problemas en este momento, probá contactarte de vuelta en una hora.`;
+      // Editable desde el Panel (app_settings.wa_rate_limit_msg, con {{limite}}, {{espera}} y {{hora}}). Sin texto guardado sale el de
+      // _shared/tope-ia.ts, que dice cuánto esperar: el contador se reinicia a la hora en punto y puede haber sido un error del cliente.
+      const aviso = mensajeTope(await getSetting("wa_rate_limit_msg"), rateLimited.limite, new Date());
       await enviarTexto(cfg, phone, aviso);
       await saveMessage(phone, "assistant", aviso);
     }
