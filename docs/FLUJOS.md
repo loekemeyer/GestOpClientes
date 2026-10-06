@@ -241,8 +241,9 @@ código de la frase ("¿tienen stock del 506?") y responde con el stock real (`_
 > "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" van a esta respuesta fija
 > (`RE_ESTADO_PEDIDO`) y no a la IA, que convertía "hace 10 días" en una fecha equivocada. Con fecha explícita ("el
 > pedido del 17/9") sigue la IA, que tiene prohibido convertir referencias relativas en fechas (`agente-fijos.ts`).
-> "¿Qué plazo de entrega manejan?" (`RE_PLAZO_ENTREGA`) → la misma lista con la *entrega estimada* de la confirmación
-> (`wa_fecha_estimada`) en los pedidos sin fecha; sin pedidos por entregar sigue el flujo normal. No se pregunta si le
+> "¿Qué plazo de entrega manejan?" (`RE_PLAZO_ENTREGA`) → desde el 06/10 (m61) primero el plazo general, **"14 días hábiles desde que hacés el pedido"**
+> (fijo, `_shared/plazo-entrega.ts`), y debajo la lista con la *entrega estimada* de la confirmación
+> (`wa_fecha_estimada`) en los pedidos sin fecha; sin pedidos por entregar, sólo el plazo general. No se pregunta si le
 > llegó la confirmación (con la llave en "prueba" no le llega a ningún cliente).
 > "Figura el 30/09 pero en el detalle dice 13/10" (`RE_FECHAS_NO_COINCIDEN`) → "una persona revisa las fechas y te
 > confirma" + alerta `entrega`. Regla fija de la IA: nunca asumir que el cliente se equivocó.
@@ -280,7 +281,9 @@ BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el vier
 
 | Fila | Mensaje | Respuesta |
 |---|---|---|
+| 1.8 | "Quería consultar qué período de tiempo están contemplando para entregas" | "El plazo de entrega hoy es de 14 días hábiles desde que hacés el pedido" + sus pedidos por entregar con la entrega estimada, si tiene (`textoPlazo`, `plazo-entrega.ts`; 06/10, Pablo: "14 días hábiles fijo", no el cálculo por modo de `wa_fecha_estimada`). Antes mostraba sólo los pedidos y no decía el plazo. |
 | 1.7 | "En el caso que se confirme, ¿hay posibilidades de entrega rápida?" | "Una persona de Ventas revisa si se puede acelerar la entrega y te escribe por acá en un momento" + alerta `entrega` (🟡, 120 min) para Ventas (`pideEntregaRapida`, `faq.ts`; 06/10: "todas las dudas pasan por Ventas primero"). Hace falta una palabra de entrega junto a una de apuro ("entrega rápida/urgente", "adelantar la entrega", "que llegue antes"); "¿cuándo llega mi pedido?", "¿puede estar para el viernes?" y "no me llegó" siguen su camino. Antes salía la lista de pedidos pendientes (#1) sin contestar si se podía acelerar. |
+| 2.2 | "Paso un pedidito. ¿Puede estar para el viernes?" | "Hoy la entrega estimada es de 14 días hábiles: si hacés el pedido hoy, sería el martes 27/10. Para la fecha que necesitás lo consulta una persona de Ventas y te escribe por acá. ¿Qué artículos necesitás?" + alerta `entrega` (🟡, 120 min) para Ventas. La fecha cuenta lunes a viernes sin feriados ni puentes del calendario de Planify. Hace falta pasar/hacer un pedido NUEVO y "¿puede estar para el X?" (`pedidoParaFecha`, `faq.ts`; 06/10, m62); "¿puede llegar el viernes mi pedido?" de un pedido ya hecho sigue en la lista. Antes la IA contestaba "no puedo prometerte una fecha" sin dar ninguna. |
 | 2.6 | "Pasé por mail un pedido para un cliente pero me vino dos veces rechazado. ¿Te llegó a vos?" | Chequea duplicados en la web como siempre; si no hay y el mensaje nombra mail o correo (`pedidoPorMailRepetido`, `faq.ts`): "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido. Una persona revisa el mail y te escribe por acá" + alerta `pedido_mail` (🟡, 120 min) para Ventas. Sin mail, el mensaje de siempre ("si ves uno de más en la web…"). |
 | 2.9 | "Anulá todo el pedido" | No es un cambio: dice en qué estado está el pedido (sin preparar / programado / facturado) y deriva con motivo `anulacion_pedido` (urgente). Con más de un pedido abierto y sin fecha, pregunta cuál. |
 | 3.3 | "¿Cierran para almorzar?" | "El depósito cierra para almorzar de 12 a 13" + horario completo. |
