@@ -4,6 +4,21 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
+> **06/10 (Pablo): el cliente nuevo puede mandar la constancia de inscripción (PDF de ARCA) y el bot la lee, sin IA (`_shared/constancia.ts` + `_shared/alta.ts`).**
+> Pedido: *"sí, implementala"* (la alternativa a pedirle los datos a la API de ARCA, que exige certificado digital). El alta ofrece *"Si tenés la constancia de inscripción de ARCA en PDF,
+> mandámela y me ahorrás varias preguntas"* (en `ALTA_INTRO` y en el aviso de CUIT no encontrado). **Cómo funciona:** el webhook (`handleAdjunto`), sólo para quien NO es cliente (ni de LK ni de Chef),
+> baja el PDF, reconstruye las líneas por posición con `unpdf` (import dinámico, no pesa en el arranque) y `parseConstancia` saca CUIT (con dígito verificador), razón social, condición de IVA y domicilio
+> fiscal. **Siempre le muestra lo leído y espera su "sí"** (la constancia es pública y el lector no está validado): con *sí* completa CUIT, razón social e IVA y salta a *nombre de contacto*; al llegar
+> a la dirección de entrega propone el domicilio fiscal (*sí* → llena dirección, localidad, provincia y CP y salta 4 pasos; si no, la pide). *No* u otra cosa → se descarta y sigue a mano. Si el CUIT ya es
+> cliente de Loekemeyer o de Chef → vinculación con revisión humana (`tryRegister`), no alta. Si no hay alta abierta, la abre con el CUIT. **Sin columnas nuevas:** el estado es una entrada
+> `role: "constancia"` (`pendiente` / `aplicada` / `descartada`) dentro de `wa_prospect_leads.raw_messages`; el PDF queda en el bucket `wa-comprobantes` (ruta en la entrada). Pasos que ya están cargados se
+> saltan (`skip` en razón social, IVA, localidad, provincia y CP).
+> **Límites (leer antes de confiar):** (1) ⚠ **NO se probó con una constancia real**, sólo con PDF sintéticos armados con `pdf-lib` (tests/constancia.test.ts, 37 casos). Las etiquetas salen de cómo se arman
+> estos PDF: con una real puede fallar. Cuando falla devuelve null y todo sigue como antes (se guarda y lo revisa una persona), así que el riesgo es perder el atajo, no romper el alta. **Falta:** una
+> constancia real (de la empresa, sin subirla al repo: es público) para correr `leerConstancia` y ajustar etiquetas. (2) Sólo PDF **con texto**; foto o escaneo no se leen (leerlos exige IA, con estimativo y "sí"
+> de Pablo). Con un alta en curso, un archivo que no se puede leer ahora repite la pregunta pendiente (antes dejaba parado al cliente). (3) No prueba identidad ni vigencia (una constancia vieja no avisa una baja:
+> eso lo da la API de ARCA, `arca_padron` en PaginaLK, hoy vacía). (4) El Simulador y el Chat de prueba no mandan archivos: sólo se prueba con tests o con un WhatsApp real de un número no cliente de la whitelist.
+> `validaCuit` / `extractCuit` se mudaron a `_shared/cuit.ts` (alta.ts los re-exporta). Sin cambio en `wa_faq` ni en el front (la versión visible del dashboard no cambia). Pruebas: `deno run --allow-env --allow-net --allow-read tests/constancia.test.ts`.
 > **06/10 (Pablo): la base de PaginaLK pasó de Nano a Micro, y `sync_web_ocultos_virgilio()` dejó de reconstruir la caché de precios 4 veces por corrida.**
 > **1) Micro.** Lo hizo Pablo en Supabase; la base arrancó de nuevo el 06/10 a las 09:44 AR (`pg_postmaster_start_time`). Se la midió sin responder (SQL y REST con timeout) a las
 > 08:39 y a las 08:51 AR; el arranque nuevo fue a las 09:44, o sea hasta 65 minutos de corte en horario laboral si fue continuo (el tramo 08:51 a 09:44 no se midió). `shared_buffers` 32.768 páginas

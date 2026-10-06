@@ -38,7 +38,8 @@ import { audioActivo, audioEco, textoEco, transcribirAudio } from "../_shared/tr
 import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
-import { ALTA_INTRO, crearLead, esAfirmacion, extractCuit, getPendingLead, handleAltaStep, iniciaAlta, MSG_CUIT_INVALIDO, MSG_NO_CLIENTE, RE_ALTA_START, tryRegister, ultimoMensajeDelBot } from "../_shared/alta.ts";
+import { ALTA_INTRO, crearLead, esAfirmacion, extractCuit, getPendingLead, handleAltaStep, iniciaAlta, MSG_CUIT_INVALIDO, MSG_CUIT_NO_ENCONTRADO, MSG_NO_CLIENTE, procesarConstancia, promptActual, RE_ALTA_START, tryRegister, ultimoMensajeDelBot } from "../_shared/alta.ts";
+import { leerConstancia } from "../_shared/constancia.ts";
 
 // Auditoría de performance (02/10/2026): este webhook leía app_settings ~17 veces por mensaje, un viaje a la base cada una
 // (3 ó 4 sólo en loadConfig, antes de mirar el mensaje). Ahora la tabla (40 filas, 8 KB) se lee ENTERA una vez por mensaje
@@ -257,12 +258,7 @@ async function handleRegistration(
       // No está en el sistema → arrancar la toma de datos. El CUIT ya validado
       // (módulo 11) queda guardado en el lead. Un solo mensaje: ofrecer + 1er campo.
       await crearLead(phone, text, cuit);
-      await send(
-        `No te encontré como cliente con ese CUIT. 🤔\n\n` +
-        `Si querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. ` +
-        `Te pregunto de a uno (para cortar, escribí *cancelar*):\n\n` +
-        `📋 ¿Cuál es tu *razón social*?`,
-      );
+      await send(MSG_CUIT_NO_ENCONTRADO);
       break;
     }
 
@@ -631,6 +627,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   const codCliente = customer?.cod_cliente ? String(customer.cod_cliente) : null;
   let comprobanteId: string | null = null;
   let falla: string | null = null;
+  let storagePath: string | null = null;
   let archivo: { bytes: Uint8Array; mime: string } | null = null;
   if (!msg.mediaId) falla = "sin_media_id";
   else {
@@ -638,7 +635,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
       const download = await downloadMediaFromMeta(msg.mediaId, cfg.waToken);
       archivo = { bytes: download.bytes, mime: download.mime };
       const ext = extFromMime(download.mime) || extFromFilename(msg.mediaFilename) || "bin";
-      const storagePath = `${codCliente ?? phone}/${new Date().toISOString().slice(0, 7)}/${msg.msgId}.${ext}`;
+      storagePath = `${codCliente ?? phone}/${new Date().toISOString().slice(0, 7)}/${msg.msgId}.${ext}`;
       const up = await supabase.storage.from("wa-comprobantes").upload(storagePath, download.bytes,
         { contentType: download.mime, upsert: true });
       if (up.error) throw new Error("upload_bucket: " + up.error.message);
@@ -659,6 +656,27 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   if (comprobanteId && clase === "pago" && Number((await getSetting("wa_comprobantes_activo")) ?? "0") === 1) {
     triggerParser(comprobanteId).catch((e) =>
       console.error("[adjunto] trigger parser falló:", e instanceof Error ? e.message : e));
+  }
+
+  // Pablo, 06/10: la constancia de inscripción de ARCA (PDF con texto) de alguien que todavía no es cliente se lee por REGLAS, sin IA
+  // (_shared/constancia.ts): el bot le muestra lo que leyó, y con su "sí" completa CUIT, razón social e IVA del alta (_shared/alta.ts).
+  // Si no se puede leer (foto, escaneo, otro PDF), sigue como siempre: lo guarda y lo revisa una persona. Con un alta en curso, además,
+  // se le repite la pregunta que quedó pendiente: antes mandar un archivo lo dejaba parado en el mismo paso.
+  let leadEnCurso: Awaited<ReturnType<typeof getPendingLead>> = null;
+  if (!customer && !chef) {
+    try {
+      leadEnCurso = await getPendingLead(phone);
+      const esPdf = mime === "application/pdf" || /\.pdf$/i.test(msg.mediaFilename ?? "");
+      if (esPdf && archivo) {
+        const datos = await leerConstancia(archivo.bytes);
+        if (datos) {
+          await procesarConstancia(phone, datos, storagePath, responder);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error("[adjunto] constancia:", e instanceof Error ? e.message : e);
+    }
   }
 
   // Pablo, 29/09: un Excel, CSV, foto o PDF de un cliente que no es reclamo ni pago se lee como PEDIDO: la IA arma la lista,
@@ -682,6 +700,10 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
     }
   }
 
+  if (leadEnCurso) {
+    const sig = promptActual(leadEnCurso);
+    if (sig) respuestaFinal += `\n\nMientras tanto seguimos con el alta:\n${sig}`;
+  }
   await responder(respuestaFinal);
   await alerta(tipoAlerta, {
     ...(motivoFinal ? { motivo: motivoFinal } : {}), ...lectura,
