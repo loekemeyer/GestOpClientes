@@ -3864,30 +3864,45 @@ function pintarDerivaciones() {
       : esc(m.origen);
     const venceCel = ex ? `<input data-f="min" type="number" min="1" value="${ex.min}" style="width:70px"> min` : durTexto(m.minutos * 60000);
     // v0.27.9 (Pablo, 06/10): con 8 columnas la tabla medía 872 px en un contenedor de 820 y la columna Sector quedaba cortada.
-    // Semáforo y vencimiento van juntos, y Persona y Sector apilados en una sola columna ("Para quién"). Con sector elegido la persona
-    // se atenúa: en producción gana el sector (destino() en _shared/derivaciones.ts).
-    const conPlanify = m.destino === "planify", conSector = !!m.department_id;
+    // Semáforo y vencimiento van juntos, y Sector y Persona apilados en una sola columna ("Para quién").
+    // v0.27.10: primero el sector; la persona es opcional y se elige entre las de ese sector. Persona elegida = va sólo a ella
+    // (destino() en _shared/derivaciones-destino.ts).
+    const conPlanify = m.destino === "planify";
     return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
       <td style="white-space:nowrap;">${NIVEL_TXT[m.nivel] || ""}<div class="hint">vence ${venceCel}</div></td>
       <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select></td>
       <td class="dv-quien">
-        <label><span>Sector</span><select data-f="department_id" onchange="derivCambioDestino(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
-        <label><span>Persona</span><select data-f="employee_id"${conPlanify && !conSector ? "" : " disabled"}${conPlanify && conSector ? ' title="Con sector elegido, gana el sector"' : ""}>${opt(data.empleados, m.employee_id, "— por defecto —")}</select></label>
+        <label><span>Sector</span><select data-f="department_id" onchange="derivCambioSector(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
+        <label><span>Persona</span><select data-f="employee_id"${conPlanify ? "" : " disabled"}>${derivPersonasOpts(m.department_id, m.employee_id)}</select></label>
       </td>
       <td>${ex ? `<button class="config-btn small" title="Quitar motivo" onclick="derivQuitar('${esc(m.categoria)}')">✕</button>` : ""}</td></tr>`;
   };
   box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo<br>y vence</th><th>A dónde va</th><th>Para quién</th><th></th></tr>` +
     data.motivos.map(fila).join("") +
-    `</table><div class="hint" style="margin-top:0.4rem;"><b>Con sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda; la persona elegida se ignora. <b>Sin sector</b>: va a la persona. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.</div>
+    `</table><div class="hint" style="margin-top:0.4rem;"><b>Sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda. <b>Sector + persona</b>: va sólo a esa persona (las del desplegable son las de ese sector). <b>Sólo persona</b>: va a ella. <b>Ninguno</b>: va a quien esté por defecto. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.</div>
     <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
     <span class="hint">Un motivo nuevo que la IA puede derivar. Rige al guardar.</span></div>`;
 }
 function derivCambioDestino(sel) {
-  const tr = sel.closest("tr"), p = tr.querySelector('[data-f="destino"]').value === "planify";
-  const sec = tr.querySelector('[data-f="department_id"]'), emp = tr.querySelector('[data-f="employee_id"]');
-  sec.disabled = !p;
-  emp.disabled = !p || !!sec.value; // con sector elegido, gana el sector
-  emp.title = p && sec.value ? "Con sector elegido, gana el sector" : "";
+  const tr = sel.closest("tr"), p = sel.value === "planify";
+  tr.querySelectorAll('[data-f="employee_id"],[data-f="department_id"]').forEach((x) => { x.disabled = !p; });
+}
+// Personas que se pueden elegir para un motivo: con sector elegido, sólo las de ese sector (employees.department_id de Planify); sin sector,
+// todas (hay 22 personas activas sin sector). La ya guardada se mantiene aunque no sea del sector, para no perderla en silencio.
+// Si lk_alertas todavía no manda department_id (versión vieja) no se puede filtrar y se muestran todas.
+function derivPersonasOpts(sectorId, selId) {
+  const todas = DERIV.empleados || [];
+  const filtra = !!sectorId && todas.some((e) => "department_id" in e);
+  const del = filtra ? todas.filter((e) => Number(e.department_id) === Number(sectorId)) : todas;
+  const fuera = selId && !del.some((e) => e.id === Number(selId)) ? todas.find((e) => e.id === Number(selId)) : null;
+  const o = (e, sufijo) => `<option value="${e.id}"${Number(selId) === e.id ? " selected" : ""}>${esc(e.nombre)}${sufijo || ""}</option>`;
+  return `<option value="">${sectorId ? "— todo el sector —" : "— por defecto —"}</option>` + del.map((e) => o(e)).join("") + (fuera ? o(fuera, " (otro sector)") : "");
+}
+function derivCambioSector(sel) {
+  const emp = sel.closest("tr").querySelector('[data-f="employee_id"]'), actual = Number(emp.value);
+  const todas = DERIV.empleados || [];
+  const sigue = !sel.value || !todas.some((e) => "department_id" in e) || todas.some((e) => e.id === actual && Number(e.department_id) === Number(sel.value));
+  emp.innerHTML = derivPersonasOpts(sel.value, sigue ? actual : ""); // si la persona no es del sector nuevo, se limpia
 }
 function derivLeerForm() {
   // Vuelca lo editado en DERIV (para no perderlo al agregar o quitar filas).
@@ -4777,7 +4792,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.9</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.10</div>
 <script src="gestop2.js?v=0.27.8"></script>
 </body>
 </html>

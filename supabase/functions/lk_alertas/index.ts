@@ -145,7 +145,7 @@ serve(async (req) => {
       try {
         const g = await getGestionClient("planify");
         const [e, d] = await Promise.all([
-          g.from("employees").select("id, nombre").eq("activo", true).order("nombre"),
+          g.from("employees").select("id, nombre, department_id").eq("activo", true).order("nombre"), // department_id: el panel filtra las personas por sector
           g.from("departments").select("id, nombre").eq("activo", true).order("nombre"),
         ]);
         empleados = e.data ?? []; sectores = d.data ?? [];

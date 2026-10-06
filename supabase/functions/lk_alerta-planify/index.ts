@@ -17,10 +17,10 @@ const CATEGORIAS_LABEL = (c: string) => CORTO[c] ?? CATEGORIAS[c]?.label ?? c;
 //   {"employee_id": 64, "categorias": ["escalation", …], "department_id"?: 8, "broadcast"?: true}.
 //   Id de la tarea → contexto.planify_task_id.
 // Cartel (Pablo, 28/09): las tareas salen con broadcast=true → Planify abre el aviso centrado que no se
-// cierra con la ✕ y tiene "✋ Me encargo yo" (planify_claim_task). Con department_id (ej. 8 Ventas) le
-// aparece a todo el sector y gana el primero; sin department_id, a la persona de employee_id.
+// cierra con la ✕ y tiene "✋ Me encargo yo" (planify_claim_task). Sólo con sector (ej. 8 Ventas) le aparece a todo
+// el sector y gana el primero; con persona elegida (sola o dentro de un sector), a esa persona (06/10: la persona gana).
 // Destino según la llave de envío (Pablo, 28/09): en prueba (wa_envio_automatico ≠ '1') va SIEMPRE a
-// employee_id (quien desarrolla); en producción ('1') a department_id si está, si no a employee_id.
+// employee_id (quien desarrolla); en producción ('1') ver destino() en _shared/derivaciones-destino.ts.
 // Semáforo en el nombre: 🔴 / 🟡 / 🟢 (ver nivel() en _shared/alertas-vencimiento.ts).
 
 const SECRET_NAME = "LK_FN_CRON_SECRET";

@@ -9,8 +9,8 @@
 //   }
 // destino: "planify" = Tareas + tarea en Planify · "tareas" = sólo Centro de mensajes › Tareas ·
 //          "bot" = lo responde el bot: la IA NO deriva ese motivo (sólo los motivos que deriva la IA).
-// En producción (llave '1'): sector (department_id) si lo tiene → le aparece a todo el sector y gana el primero
-// que toca "Me encargo yo"; si no, la persona (employee_id). Lo urgente (🔴) va a Planify aunque diga otra cosa.
+// En producción (llave '1'), ver derivaciones-destino.ts: persona elegida (sola o dentro de un sector) → esa persona; sólo sector → le aparece
+// a todo el sector y gana el primero que toca "Me encargo yo". Lo urgente (🔴) va a Planify aunque diga otra cosa.
 // Sin fila, rige la config vieja app_settings.wa_alertas_planify (employee_id, categorias, department_id).
 import { supabase } from "./supabase.ts";
 import { CATEGORIAS, type MotivoExtra, registrarExtras } from "./alertas-vencimiento.ts";
@@ -108,15 +108,4 @@ export async function motivosIA(): Promise<Array<{ clave: string; cuando: string
   return todos.filter((m) => d.motivos[m.clave]?.destino !== "bot");
 }
 
-/** Destino en Planify de una alerta, o null si sólo va a Tareas. */
-export function destino(d: Derivaciones, cat: string, esUrgente: boolean, produccion: boolean):
-  { employee_id: number } | { department_id: number } | null {
-  const r = d.motivos[cat] ?? d.motivos.otro;
-  if (cat === "whitelist_gate") return null;
-  if (!r?.planify && !esUrgente) return null;
-  if (!produccion) return d.prueba_employee_id ? { employee_id: d.prueba_employee_id } : null;
-  const dep = r?.department_id ?? (r?.employee_id ? null : d.defecto.department_id);
-  if (dep) return { department_id: dep };
-  const emp = r?.employee_id ?? d.defecto.employee_id;
-  return emp ? { employee_id: emp } : null;
-}
+export { destino } from "./derivaciones-destino.ts";
