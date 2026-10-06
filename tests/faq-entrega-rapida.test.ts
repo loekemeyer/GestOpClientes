@@ -15,7 +15,7 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
 // Pide acelerar o adelantar: lo ve Ventas.
 for (const t of [
   "En el caso que se confirme, ¿hay posibilidades de entrega rápida?", "¿Pueden hacer una entrega urgente?", "Necesito envío express",
-  "¿Se puede adelantar la entrega?", "¿Podrían adelantar mi pedido?", "¿Hay forma de que llegue antes?", "¿Pueden entregarlo antes del viernes?",
+  "¿Se puede adelantar la entrega?", "¿Podrían adelantar mi pedido?", "¿Hay forma de que llegue antes?", "¿Pueden entregarlo antes del viernes?", "Necesito que llegue antes",
   "¿Se puede mandar lo antes posible?", "Hay chance de entrega rápida?", "adelantame la fecha por favor",
 ]) igual(`deriva: ${t}`, pideEntregaRapida(t), true);
 
@@ -24,6 +24,7 @@ for (const t of [
   "¿Cuándo llega mi pedido?", "¿Puede estar para el viernes?", "No me llegó el pedido, lo necesito urgente", "¿Qué plazo de entrega están manejando?",
   "Hace 10 días hice un pedido, quería saber el estado", "Hola, buen día", "¿Cuánto tarda el envío a Rosario?", "Quiero hacer un pedido",
   "Avísenme antes de salir", "¿Tienen entrega a domicilio?",
+  "Por favor recuerden que recibimos hasta las 14 hs, por lo que deben llegar un ratito antes", "Tienen que llegar antes de las 14", "El camión debe salir antes de las 8",
 ]) igual(`no deriva: ${t}`, pideEntregaRapida(t), false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
