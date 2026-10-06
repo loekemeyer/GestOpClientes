@@ -1,6 +1,7 @@
 import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase, getSetting } from "../_shared/supabase.ts";
+import { mensajeTope, TOPE_MSG_DEFAULT } from "../_shared/tope-ia.ts";
 import { canonPhone } from "../_shared/wa-api.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
 import { handleFaq } from "../_shared/faq.ts";
@@ -102,7 +103,8 @@ serve(async (req) => {
         const { data: blocked } = await supabase
           .rpc("wa_check_rate_limit", { p_phone: testPhone, p_limit: rlLimit });
         if (blocked === true) {
-          return json({ reply: `⏳ Límite de mensajes alcanzado (${rlLimit}/hora). Intentá más tarde.`, rateLimited: true });
+          // Mismo texto que recibiría un cliente real (Panel › Rate Limit), con la espera ya calculada.
+          return json({ reply: mensajeTope(await getSetting("wa_rate_limit_msg"), rlLimit, new Date()), rateLimited: true });
         }
       }
     }
@@ -281,7 +283,7 @@ function menuText(nombre?: string): string {
 
 // Textos por defecto de los avisos (el webhook usa los mismos como fallback si el setting
 // está vacío). Editables desde el Panel → se guardan en app_settings.
-const DEFAULT_RL_MSG = "Estamos con problemas en este momento, probá contactarte de vuelta en una hora.";
+const DEFAULT_RL_MSG = TOPE_MSG_DEFAULT; // lleva {{limite}}, {{espera}} y {{hora}}: se reemplazan al enviarlo (_shared/tope-ia.ts)
 const DEFAULT_BL_MSG = "Estamos momentáneamente fuera de servicio.";
 
 async function handleConfigGet() {
