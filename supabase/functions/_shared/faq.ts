@@ -122,6 +122,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (customer && RE_PAGO_RECIBIDO.test(text) && !/comprobante/i.test(text)) {
     return await pagoRegistrado(await ctxPagosDeCliente(customer), text);
   }
+  // Pablo, 06/10 (m64): "¿Se podrá efectuar el pago el próximo viernes?" / "¿les puedo pagar la semana que viene?" → lo ve Cobranzas.
+  if (customer && pidePagarDespues(text)) {
+    return { reply: "Gracias por avisarnos. Le paso tu consulta a Cobranzas para que te confirme por acá si se puede pagar en esa fecha. 🙏",
+      intent: "pago_otra_fecha", automation_level: "needs_human", topic: "Quiere pagar en otra fecha",
+      alerta: { motivo: "pago", urgente: false, detalle: `Pide pagar en otra fecha: ${text.slice(0, 200)}` } };
+  }
   if (customer && vaALaIA(text)) return null;
   // Pablo, 30/09 (3.3 y 3.4): horario del depósito, con el corte del almuerzo. "¿Cierran para almorzar?" contestaba "no tengo
   // ese dato"; "Estoy llegando, ¿me esperan?" preguntaba qué necesitaba.
@@ -486,6 +492,13 @@ const RE_ETIQUETA = /(c[oó]digos?\s+de\s+barras?|\betiquet\w*|\bean\b)[^?]{0,60
 // Sólo cuando el CLIENTE devuelve ("devolver", "devolvemos", "devuelvo", "devolución"); no "devolveme la llamada" ni "me devolvieron".
 const RE_DEVOLUCION = /\bdevoluci[oó]n(es)?\b|\bdevolv(er|emos|eremos|erle|erles|erlo|erla|erlos|erlas)(?![a-záéíóúñ])|\bdevuelvo\b|\b(les|le|te)\s+devuelvo\b/i;
 const RE_DEVOLVER_OTRA_COSA = /\bdevolv\w*[^.?!]{0,25}\b(llamad\w*|llamar|mensaje|mail|correo|visita)\b|\b(llamad\w*|mensaje|mail)[^.?!]{0,25}\bdevolv/i;
+// Pablo, 06/10 (corrección m64): "Hola, ¿se podrá efectuar el pago el próximo viernes?" salía con la respuesta fija #15 (medios de pago y CBU)
+// y no contestaba lo que preguntó. Pide pagar en otra fecha: lo decide Cobranzas (motivo pago). Sólo mira hacia adelante: "ya pagué el
+// viernes", "el viernes pasado" o "¿recibieron el pago?" (pagoRegistrado) siguen su camino; "hoy" no cuenta (es el descuento por pagar hoy).
+const RE_PAGAR = /\b(pagar(les|te|lo|la|los|las)?|pagamos|pagaremos|pagar[eé]|abonar(les|te)?|abonamos|abonaremos|abonar[eé]|(les|te)\s+pago|(efectuar|hacer|realizar|hacemos|hago|haremos)\s+(el|este|un)\s+pago|transferir(les|te)?|transferimos|depositar(les|te)?|depositamos)(?![a-záéíóúñ])/i;
+const RE_OTRA_FECHA = /\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|ma[nñ]ana|pasado\s+ma[nñ]ana|(la\s+)?semana\s+(que\s+viene|pr[oó]xima|entrante)|pr[oó]xim[oa]\s+(semana|mes|lunes|martes|mi[eé]rcoles|jueves|viernes)|m[aá]s\s+adelante|fin\s+de\s+mes|(la\s+)?quincena|el\s+\d{1,2}(?:\s*\/\s*\d{1,2}|\s+de\s+[a-záéíóú]+)?)(?![a-záéíóúñ])/i;
+const RE_FECHA_PASADA = /\b(ayer|anteayer|pasad[oa]|anterior|ya\s+(pagu|transfer|deposit|abon))/i;
+export const pidePagarDespues = (text: string): boolean => RE_PAGAR.test(text) && RE_OTRA_FECHA.test(text) && !RE_FECHA_PASADA.test(text);
 export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
