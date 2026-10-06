@@ -369,6 +369,13 @@ Al mostrar un artículo usa el precio del cliente (lista − dto por volumen). E
 pedido por archivo ("Recibimos tu cotizador. Leímos esto: …"); con pedidos prendidos, el "sí" sigue el mismo circuito y
 se precarga con origen **"Cotizador" y el 2% web** (como en la web). Cualquier otro archivo sigue con origen
 "WhatsApp". Al precargar se cierra la tarea "Pedido por archivo" para que nadie lo cargue dos veces.
+**Cotizador: precios contra la web (Pablo, 06/10, m41).** El cotizador trae además los precios y el total: al recibirlo el bot lee la hoja
+"Cotizador …" (`_shared/cotizador-precios.ts`: versión, `$ x Uni`, `Uni x Caja`, "No Disponible", "Total a Abonar") y compara los artículos
+PEDIDOS (cajas > 0) con `products.list_price` y `uxb`. El mensaje agrega qué no coincide (precio por caja del cotizador vs. el de la web, unidades
+por caja distintas, artículo que ya no está en la web, "No Disponible" que la web sí vende), el total que figura en el cotizador y pide
+**"¿Confirmás los artículos y los valores de la web?"** (sin diferencias: "✅ Los precios … coinciden" y "¿Confirmás los artículos y los valores?"),
+igual que un pedido por WhatsApp. Una planilla sin esa hoja sigue como siempre ("¿Está bien?"). Se compara contra el precio base (lista), no contra el
+final con descuento por plazo y 2 % web. ⚠ Una cadena con lista propia de precios dispararía una falsa alarma: a vigilar.
 
 ### (viejo)
 

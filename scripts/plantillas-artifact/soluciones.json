@@ -113,7 +113,7 @@
       "consultas": 67,
       "estado": "parcial",
       "previene": [],
-      "bot": "La lista vigente es la de la web; explica el cotizador.",
+      "bot": "La lista vigente es la de la web; explica el cotizador. Si el cliente MANDA el cotizador, el bot compara sus precios con los de la web y le pide que confirme artículo y valor.",
       "deriva": "Pedido de Excel o de códigos de barras: se puede sumar como motivo nuevo en Configuración › Derivaciones.",
       "falta": "Definir qué archivo se manda (lista en Excel, códigos de barras) y quién lo manda.",
       "ejemplo": "«¿Sigue vigente la lista de septiembre 2025?»",

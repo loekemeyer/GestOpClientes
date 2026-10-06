@@ -4,6 +4,12 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
+> **06/10 (Pablo, corrección m41): cuando el cliente MANDA el cotizador, el bot compara sus precios con los de la web y le pide confirmar artículo y valor (`_shared/cotizador-precios.ts`, `tests/cotizador-precios.test.ts`).**
+> Origen: el cotizador Excel trae también los precios y la forma de pago, y se usa desactualizado (el de prueba de Pablo dice "Septiembre 2025": el 512 a $22.200 la caja contra $46.080 en la web).
+> `leerPedidoArchivo` devuelve además `hoja` (la hoja "Cotizador …": versión, `$ x Uni`, `Uni x Caja`, "No Disponible", total); `compararCotizadorConWeb` la cruza con `products` (precio base `list_price` y `uxb`) y
+> `textoConfirmacion` agrega el bloque + "¿Confirmás los artículos y los valores de la web?". La lectura guarda `comparacion_precios` en el contexto de la alerta `pedido_archivo`. Sin la hoja: el flujo de siempre.
+> Falta (queda abierto): el caso "el cliente PIDE el cotizador" (recordarle que ahora se pide por la web: link, usuario y clave), y decidir qué pasa con una cadena con lista propia (falsa alarma).
+>
 > **06/10 (Pablo): compuerta de `solicitar_cambio_mail` — el mail tiene que estar escrito por el cliente (`_shared/mail-gate.ts`, `tests/mail-gate.test.ts`, 29 casos).**
 > Origen: el Simulador con Gemini 3.5 Flash-Lite (US$ 0) sobre las 71 frases del artifact "Respuestas del bot por causa" (caso 9.4 / m76: *"noté que está cargada una dirección de correo que
 > ya no tengo. Te envío la correcta…"* sin ninguna dirección en el mensaje). **2 de 2 corridas el modelo inventó el mail a partir de la razón social** (`contacto@garbarinofranco.com.ar` y
