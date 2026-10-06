@@ -391,6 +391,34 @@ BOT: Hola {nombre}! Hace 95 días que no nos hacés un pedido.
      [template: reactivacion_cliente]
 ```
 
+## Flujo 7: Cliente que escribe fuera del horario de atención (06/10/2026)
+
+El bot contesta las 24 horas. Lo que cambia fuera del horario telefónico (por defecto lunes a viernes de 9 a 17 h, editable en
+Configuración › Derivaciones) es qué se le dice al cliente cuando su consulta queda esperando a una persona:
+
+```
+CLIENTE (sábado 11:00): Me llegó la mercadería rota
+BOT: Lamentamos lo ocurrido… (respuesta de siempre; la consulta se deriva y abre tarea en Planify)
+BOT: Ahora estamos fuera del horario de atención (lunes a viernes de 9 a 17 h). Tu consulta quedó
+     registrada y te respondemos el lunes desde las 9 h.
+```
+
+- El aviso lo manda `_shared/fuera-de-horario.ts` DESPUÉS de procesar el mensaje: dentro de horario no hace nada ni consulta la base;
+  fuera de horario mira si ese turno dejó una alerta que espera a una persona (no avisa de comprobantes, adjuntos ni fallas de la IA) y
+  manda UN mensaje aparte, una vez cada 12 h por número.
+- Los tiempos de respuesta del semáforo (🔴 20 min · 🟡 2 h · 🟢 4 h) cuentan sólo dentro del horario: una alerta 🔴 del viernes 16:50
+  vence el lunes 9:10 (`_shared/horario.ts`, `sumarMinutosHabiles`).
+- Si una persona le contesta pasadas las 24 h del último mensaje del cliente, WhatsApp sólo deja mandar una plantilla: botón
+  **Reabrir con plantilla** de Centro de mensajes (plantilla `retomar_consulta`). La plantilla no abre la ventana: la abre la respuesta del
+  cliente o el botón «Retomar consulta».
+
+```
+PERSONA (lunes 9:30, ventana cerrada): [Reabrir con plantilla]
+BOT/PLANTILLA: Hola {razón social}, te escribimos de Loekemeyer por la consulta que nos hiciste.
+     Retomamos la conversación: respondé este mensaje o tocá el botón y seguimos por acá.
+     [botón: Retomar consulta]
+```
+
 ## Manejo de errores
 
 ```

@@ -212,6 +212,10 @@
     #derivList .dv-x { padding: 2px 7px; }
     #derivTiempos .dv-tiempo { margin-right: 0.8rem; white-space: nowrap; }
     #derivTiempos input { width: 70px; }
+    #derivHorario .dv-dia { margin-right: 0.5rem; white-space: nowrap; cursor: pointer; }
+    #derivHorario input[type="time"] { width: 110px; }
+    #derivHorario .dv-fer input { width: 280px; }
+    #derivHorario .dv-dias { white-space: nowrap; }
     #derivList .al-tabla td .hint code { overflow-wrap: anywhere; } /* la clave larga del motivo nuevo no debe ensanchar la tabla */
     #derivList .dv-quien label { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
     #derivList .dv-quien label:last-child { margin-bottom: 0; }
@@ -402,7 +406,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.27.8">
+  <link rel="stylesheet" href="gestop2.css?v=0.27.14">
 </head>
 <body>
 
@@ -1039,6 +1043,7 @@
             <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">Todo va a <b>Tareas</b>. Acá elegís si además abre tarea en <b>Planify</b> y para quién. Lo 🔴 urgente va siempre.</p>
             <div id="derivPrueba" class="config-row" style="margin-bottom:0.6rem;"></div>
             <div id="derivTiempos" class="config-row" style="margin-bottom:0.6rem;"></div>
+            <div id="derivHorario" class="config-row" style="margin-bottom:0.6rem;flex-wrap:wrap;"></div>
             <div id="derivList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
             <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.7rem;">
               <button class="config-btn primary" onclick="saveDerivaciones()">Guardar</button>
@@ -3850,7 +3855,16 @@ function pintarDerivaciones() {
   const tm = data.tiempos || { rojo: 20, amarillo: 120, verde: 240 }, tdef = data.tiempos_defecto || { rojo: 20, amarillo: 120, verde: 240 };
   document.getElementById("derivTiempos").innerHTML = `<label>⏱️ Tiempo de respuesta de cada semáforo:</label>` +
     ["rojo", "amarillo", "verde"].map((n) => `<span class="dv-tiempo">${{ rojo: "🔴", amarillo: "🟡", verde: "🟢" }[n]} <input type="number" min="1" max="43200" data-t="${n}" value="${tm[n]}" oninput="derivRefrescarVence()"> min <small class="hint" data-th="${n}"></small></span>`).join("") +
-    `<span class="hint">Por defecto: ${["rojo", "amarillo", "verde"].map((n) => durTexto(tdef[n] * 60000)).join(" · ")}. Pasado ese tiempo la alerta figura vencida.</span>`;
+    `<span class="hint">Por defecto: ${["rojo", "amarillo", "verde"].map((n) => durTexto(tdef[n] * 60000)).join(" · ")}. Pasado ese tiempo la alerta figura vencida (se cuenta en tiempo de atención, ver el horario de abajo).</span>`;
+  // Horario de atención telefónica (06/10, Pablo: lunes a viernes de 9 a 17): los tiempos cuentan sólo dentro de él y fuera de él el bot avisa.
+  const hr = data.horario || { dias: [1, 2, 3, 4, 5], desde: "09:00", hasta: "17:00", feriados: [], solo_en_horario: true };
+  const NOM_DIA = { 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábado", 7: "domingo" };
+  document.getElementById("derivHorario").innerHTML = `<label>🕘 Horario de atención telefónica:</label>
+    <span class="dv-dias">${[[1, "L"], [2, "M"], [3, "X"], [4, "J"], [5, "V"], [6, "S"], [7, "D"]].map(([n, t]) => `<label class="dv-dia" title="${NOM_DIA[n]}"><input type="checkbox" data-dia="${n}"${hr.dias.includes(n) ? " checked" : ""}> ${t}</label>`).join("")}</span>
+    de <input type="time" data-h="desde" value="${esc(hr.desde)}"> a <input type="time" data-h="hasta" value="${esc(hr.hasta)}">
+    <label class="dv-dia" style="flex-basis:100%"><input type="checkbox" data-h="solo"${hr.solo_en_horario ? " checked" : ""}> Los tiempos de respuesta cuentan sólo dentro del horario (fuera de él, el reloj espera a la próxima apertura)</label>
+    <label class="dv-fer" style="flex-basis:100%">Feriados sin atención: <input type="text" data-h="feriados" value="${esc((hr.feriados || []).join(", "))}" placeholder="AAAA-MM-DD, AAAA-MM-DD"></label>
+    <span class="hint" style="flex-basis:100%">Si un cliente escribe fuera de este horario y el bot lo pasa a una persona, le avisa cuándo se le va a responder. Es el horario telefónico: el del depósito (9 a 12 y 13 a 16:30) es otro dato.</span>`;
   const destOpt = (m) => [["planify", "Planify + Tareas"], ["tareas", "Sólo Tareas"], ...(m.de_ia ? [["bot", "Lo responde el bot"]] : [])]
     .map(([v, t]) => `<option value="${v}"${m.destino === v ? " selected" : ""}>${t}</option>`).join("");
   const fila = (m) => {
@@ -3958,6 +3972,16 @@ function derivLeerForm() {
   });
   DERIV.prueba_employee_id = document.getElementById("derivPruebaEmp")?.value || null;
   if (document.querySelector("#derivTiempos [data-t]")) DERIV.tiempos = derivLeerTiempos();
+  if (document.querySelector("#derivHorario [data-h]")) DERIV.horario = derivLeerHorario();
+}
+function derivLeerHorario() {
+  const q = (k) => document.querySelector(`#derivHorario [data-h="${k}"]`);
+  return {
+    dias: [...document.querySelectorAll("#derivHorario [data-dia]")].filter((x) => x.checked).map((x) => Number(x.dataset.dia)),
+    desde: q("desde")?.value || "", hasta: q("hasta")?.value || "",
+    feriados: (q("feriados")?.value || "").split(/[\s,;]+/).filter(Boolean),
+    solo_en_horario: !!q("solo")?.checked,
+  };
 }
 // Tiempo de respuesta por semáforo (06/10): lo manda el semáforo de la alerta, no el motivo. Se edita arriba de la tabla.
 const derivLeerTiempos = () => Object.fromEntries(["rojo", "amarillo", "verde"].map((n) => [n, Math.round(Number(document.querySelector(`#derivTiempos [data-t="${n}"]`)?.value))]));
@@ -4007,6 +4031,17 @@ async function saveDerivaciones() {
   derivLeerForm();
   // Los motivos agregados a mano necesitan nombre, "cuándo derivarlo" y un vencimiento de 1 minuto a 30 días (lk_alertas lo exige): se avisa
   // acá, señalando el campo, en vez de guardar a ciegas y recibir el rechazo del servidor.
+  const hz = DERIV.horario || {};
+  const malHorario = !(hz.dias || []).length ? ["dia", "Elegí al menos un día de atención."]
+    : !/^\d\d:\d\d$/.test(hz.desde || "") || !/^\d\d:\d\d$/.test(hz.hasta || "") ? ["desde", "Completá la hora de apertura y la de cierre del horario de atención."]
+    : hz.desde >= hz.hasta ? ["hasta", "La hora de cierre tiene que ser posterior a la de apertura."]
+    : (hz.feriados || []).find((f) => !/^\d{4}-\d{2}-\d{2}$/.test(f) || new Date(f + "T00:00:00Z").toISOString().slice(0, 10) !== f) ? ["feriados", `Feriado inválido: «${(hz.feriados || []).find((f) => !/^\d{4}-\d{2}-\d{2}$/.test(f) || new Date(f + "T00:00:00Z").toISOString().slice(0, 10) !== f)}» (usá AAAA-MM-DD, separados por coma).`] : null;
+  if (malHorario) {
+    const campo = document.querySelector(malHorario[0] === "dia" ? "#derivHorario [data-dia]" : `#derivHorario [data-h="${malHorario[0]}"]`);
+    campo?.focus();
+    st.textContent = "✗ " + malHorario[1]; st.className = "config-status err";
+    return;
+  }
   const malTiempo = ["rojo", "amarillo", "verde"].find((n) => !(DERIV.tiempos?.[n] >= 1 && DERIV.tiempos[n] <= 43200));
   if (malTiempo) {
     const campo = document.querySelector(`#derivTiempos [data-t="${malTiempo}"]`);
@@ -4042,7 +4077,7 @@ async function saveDerivaciones() {
     if (m.extra) extra.push({ clave: m.categoria, nombre: m.extra.nombre, cuando: m.extra.cuando, min: m.extra.min });
   }
   st.textContent = "Guardando…"; st.className = "config-status";
-  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: DERIV.prueba_employee_id, motivos, extra, tiempos: DERIV.tiempos });
+  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: DERIV.prueba_employee_id, motivos, extra, tiempos: DERIV.tiempos, horario: DERIV.horario });
   if (error || !data?.ok) { st.textContent = "✗ " + (data?.error || error?.message || "Error"); st.className = "config-status err"; return; }
   st.textContent = "✓ Guardado"; st.className = "config-status ok";
   loadDerivaciones();
@@ -4893,7 +4928,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.13</div>
-<script src="gestop2.js?v=0.27.8"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.14</div>
+<script src="gestop2.js?v=0.27.14"></script>
 </body>
 </html>

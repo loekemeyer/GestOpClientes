@@ -361,6 +361,13 @@
       "estado": "prueba",
       "para": "Chef · E-cheq · varias facturas",
       "sale": "Cuando se factura un pedido de Chef en Gestión. Sin alias: titular y CBU. Se retiene hasta que Meta la apruebe."
+    },
+    "retomar_consulta": {
+      "grupo": "complementarias",
+      "orden": 4,
+      "estado": "prueba",
+      "para": "Loekemeyer · cliente que escribió hace más de 24 h y una persona quiere retomar su consulta",
+      "sale": "A mano: botón «Reabrir con plantilla» de Centro de mensajes, cuando pasaron más de 24 h del último mensaje del cliente (el sábado escribe, el lunes una persona le contesta). Mandarla no abre la ventana: la abre la respuesta del cliente o el botón «Retomar consulta». La charla queda en modo humano. Pedida a Meta el 06/10 como UTILITY; si Meta la reclasifica como MARKETING cuesta más. Sin aprobar todavía."
     }
   }
 }

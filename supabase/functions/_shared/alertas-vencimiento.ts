@@ -4,6 +4,7 @@
 
 import { supabase } from "./supabase.ts";
 import { nivelAuto, nivelDe, nivelFijo, registrarNiveles, registrarTiempos, tiempoDeNivel, type Nivel, urgenteDe } from "./semaforo.ts";
+import { horarioVigente, registrarHorario, sumarMinutosHabiles } from "./horario.ts";
 
 export const SETTING_VENCIMIENTO = "wa_alertas_vencimiento";
 
@@ -72,6 +73,7 @@ export async function vencimientos(): Promise<Record<string, number>> {
     registrarExtras(w?.extra);
     registrarNiveles(w?.motivos); // semáforos fijados en Derivaciones (06/10)
     registrarTiempos(w?.tiempos); // tiempo de respuesta de cada semáforo (06/10)
+    registrarHorario(w?.horario); // horario de atención telefónica: los tiempos cuentan sólo dentro de él (06/10)
   } catch { /* sin extras ni semáforos fijos */ }
   const base = Object.fromEntries(Object.entries(CATEGORIAS).map(([k, v]) => [k, v.min]));
   const data = filas?.find((r) => r.key === SETTING_VENCIMIENTO);
@@ -103,6 +105,11 @@ export function nivel(a: any): Nivel {
 // deno-lint-ignore no-explicit-any
 export function minutosDeVencimiento(a: any): number {
   return tiempoDeNivel(nivel(a));
+}
+/** Cuándo vence una alerta: sus minutos de respuesta contados en tiempo de ATENCIÓN (horario de Derivaciones; si no manda, corridos). */
+// deno-lint-ignore no-explicit-any
+export function venceAtDe(a: any): Date {
+  return sumarMinutosHabiles(new Date(a.created_at), minutosDeVencimiento(a), horarioVigente());
 }
 /** Semáforo "Auto" de un motivo (el de siempre, sin el fijado a mano): es lo que muestra Derivaciones al lado de "Auto". */
 export function nivelAutoDeMotivo(cat: string): Nivel {

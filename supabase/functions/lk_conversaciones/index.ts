@@ -7,13 +7,16 @@ import { proyeccion } from "../_shared/proyeccion.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
 import { sinAnulados } from "../_shared/pedidos-anulados.ts";
 import { cadenasListaPropia } from "../_shared/cadenas.ts";
+import { ERRORES_META } from "../_shared/errores-meta.ts";
+import { leerVersiones, nombreActivo } from "../_shared/plantillas-version.ts";
+import { renderPlantilla } from "../_shared/plantillas-meta.ts";
 
 // lk_conversaciones — Bandeja de atención humana (PaginaLK), integrada al bot real.
 //
 // Usa las piezas del bot: bot_historial_chat (historial) y bot_conversaciones (modo bot/humano,
 // que el webhook lk_whatsapp-webhook YA respeta). El estado del ticket (abierto/pendiente/
 // resuelto) y "leído" viven en wa_human_control (sólo UI). Acciones:
-//   list / thread / send / toggle_human / set_estado / mark_read / seed_demo.
+//   list / thread / send / reabrir / toggle_human / set_estado / mark_read / seed_demo.  (reabrir = plantilla `retomar_consulta` fuera de las 24 h)
 // Centro de mensajes (rediseño, dashboard v0.19): tomar / devolver / resolver / ficha / llave_get / llave_set.
 //   Estado de cada conversación (bandeja): esperando (hay una alerta abierta y nadie la tomó) · humano
 //   (modo humano) · resuelta (wa_human_control.estado='resuelto' y sin alerta abierta) · bot (el resto).
@@ -445,6 +448,53 @@ serve(async (req) => {
       await sb.rpc("bot_conv_set_modo", { p_telefono: phone, p_modo: "humano", p_agente_nombre: quienEnvia, p_motivo: "respuesta manual", p_horas: 8 });
       await sb.from("wa_human_control").upsert({ phone, last_read_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "phone" });
       return json({ ok: true, phone, wamid });
+    }
+
+    // ── Reabrir con plantilla (Pablo, 06/10: "deberíamos tener una plantilla de reactivación") ──
+    // Pasadas las 24 h del último mensaje del cliente WhatsApp sólo deja mandar una plantilla aprobada. `retomar_consulta` (plantillas-meta.ts)
+    // es el texto neutro para retomar una consulta. Mandarla NO abre la ventana: se abre cuando el cliente contesta o toca el botón. Pasa
+    // por la misma llave de envío que todo (wa_puede_enviar + wa-guard). Deja la charla en modo humano, como `send`.
+    if (action === "reabrir") {
+      const phone = canon(body.phone);
+      if (!phone) return json({ error: "phone requerido" }, 400);
+      const { data: lastIn } = await sb.from("bot_historial_chat").select("creado_en")
+        .eq("telefono", phone).eq("rol", "user").order("creado_en", { ascending: false }).limit(1).maybeSingle();
+      const inb = lastIn?.creado_en ? new Date(lastIn.creado_en).getTime() : 0;
+      if (inb && (Date.now() - inb) < DAY) {
+        return json({ error: "ventana_abierta", note: "La ventana de 24 h sigue abierta: mandá un mensaje normal, no hace falta plantilla." }, 409);
+      }
+      const envio = await estadoEnvio(phone);
+      if (!envio.puede) return json({ error: "envio_cortado", note: envio.motivo }, 403);
+      const token = await metaToken(), phoneId = await waPhoneId();
+      if (!token || !phoneId) return json({ error: "faltan credenciales WhatsApp" }, 500);
+      let nombre = String(body.nombre ?? "").trim();
+      if (!nombre) {
+        const { data: cli } = await sb.rpc("wa_identify_customer", { p_phone: phone });
+        nombre = String(cli?.[0]?.customer_name ?? cli?.[0]?.business_name ?? "").trim();
+      }
+      nombre = (nombre.replace(/\s+/g, " ") || "cliente").slice(0, 100); // Meta no acepta saltos de línea ni espacios largos en un dato
+      const nombrePlantilla = nombreActivo(await leerVersiones(sb), "retomar_consulta");
+      let wamid: string | null = null, sendErr: string | null = null;
+      try {
+        const res = await fetch(`${META_API}/${phoneId}/messages`, {
+          method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ messaging_product: "whatsapp", to: phone, type: "template", template: {
+            name: nombrePlantilla, language: { code: "es_AR" }, components: [{ type: "body", parameters: [{ type: "text", text: nombre }] }] } }),
+        });
+        const d = await res.json();
+        if (!res.ok) {
+          sendErr = ERRORES_META[Number(d?.error?.code)] ?? d?.error?.message ?? `HTTP ${res.status}`;
+          console.error("lk_conversaciones reabrir: Meta rechazó", res.status, JSON.stringify(d?.error ?? d));
+        } else wamid = d?.messages?.[0]?.id ?? null;
+      } catch (e) { sendErr = String(e); }
+      if (sendErr) return json({ error: "envio: " + sendErr }, 502);
+      const texto = renderPlantilla("retomar_consulta", { "1": nombre }) ?? `[template: ${nombrePlantilla}]`;
+      await sb.rpc("bot_guardar_mensaje", { p_telefono: phone, p_rol: "assistant", p_contenido: texto });
+      const quienEnvia = await nombreUsuario(gate.email);
+      await sb.from("wa_conversations").insert({ phone, direction: "out", body: texto, msg_type: "template", intent: "humano:" + quienEnvia, wa_msg_id: wamid });
+      await sb.rpc("bot_conv_set_modo", { p_telefono: phone, p_modo: "humano", p_agente_nombre: quienEnvia, p_motivo: "reabierta con plantilla", p_horas: 8 });
+      await sb.from("wa_human_control").upsert({ phone, last_read_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "phone" });
+      return json({ ok: true, phone, wamid, plantilla: nombrePlantilla, texto });
     }
 
     return json({ error: "action desconocida" }, 400);

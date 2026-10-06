@@ -28,6 +28,7 @@ import {
 } from "../_shared/bot-conversation.ts";
 import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
+import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
@@ -1362,6 +1363,17 @@ async function handleMessage(
   ]);
 }
 
+// Fuera del horario de atención, si el turno dejó una alerta que espera a una persona, se le avisa al cliente cuándo se le responde
+// (Pablo, 06/10). Dentro de horario no hace nada ni consulta la base. Ver _shared/fuera-de-horario.ts.
+async function conAvisoFueraDeHorario(phone: string, cfg: Config, trabajo: () => Promise<void>): Promise<void> {
+  const desde = new Date();
+  await trabajo();
+  await avisarFueraDeHorario(phone, desde, async (texto) => {
+    await enviarTexto(cfg, phone, texto);
+    await saveMessage(phone, "assistant", texto);
+  });
+}
+
 // ─── Edge Function entry point ──────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -1468,13 +1480,13 @@ Deno.serve(async (req: Request) => {
                 await saveMessage(msg.from, "assistant", eco);
               } catch (e) { console.error("[audio] eco falló:", e instanceof Error ? e.message : e); }
             }
-            await handleMessage(msg.from, a.texto, msg.msgId, msg.name, cfg, firstSeenAdj);
+            await conAvisoFueraDeHorario(msg.from, cfg, () => handleMessage(msg.from, a.texto!, msg.msgId, msg.name, cfg, firstSeenAdj));
             return new Response("OK", { status: 200 });
           }
-          await handleAdjunto(msg, cfg, a.intentado ? MSG_AUDIO_NO_ENTENDIDO : undefined);
+          await conAvisoFueraDeHorario(msg.from, cfg, () => handleAdjunto(msg, cfg, a.intentado ? MSG_AUDIO_NO_ENTENDIDO : undefined));
           return new Response("OK", { status: 200 });
         }
-        await handleAdjunto(msg, cfg);
+        await conAvisoFueraDeHorario(msg.from, cfg, () => handleAdjunto(msg, cfg));
         return new Response("OK", { status: 200 });
       }
 
@@ -1508,7 +1520,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Procesar (Meta tolera hasta 20s de respuesta)
-      await handleMessage(msg.from, msg.text, msg.msgId, msg.name, cfg, firstSeen);
+      await conAvisoFueraDeHorario(msg.from, cfg, () => handleMessage(msg.from, msg.text, msg.msgId, msg.name, cfg, firstSeen));
     } catch (e) {
       console.error("Error procesando mensaje:", e);
     }

@@ -196,6 +196,24 @@ export const PLANTILLAS: PlantillaMeta[] = [
     body: "Recibimos tu comprobante de pago de Chef.\nCobranzas lo revisa y te confirma por este medio.\nPara consultas sobre tus pagos podés comunicarte con Cobranzas: {{1}}\nGracias.",
     ejemplos: ["cobranzas@chefsrl.com"],
   },
+
+  // ── Retomar una consulta pasadas las 24 h (Pablo, 06/10: "deberíamos tener una plantilla de reactivación") ──
+  // WhatsApp sólo deja mandar texto libre dentro de las 24 h del último mensaje del cliente. Si escribió un sábado y una persona le
+  // contesta el lunes (o más tarde), el único camino es una plantilla aprobada. Esta la manda a mano una persona desde Centro de mensajes
+  // (botón "Reabrir con plantilla"): abre otra ventana de 24 h cuando el cliente contesta o toca el botón. NO es una campaña ni la
+  // "reactivación de inactivos" (bot_reactivacion_*, que está apagada): es seguimiento de una consulta que el cliente ya hizo.
+  // Texto neutro a propósito (sirve cualquier día y hora, y no promete nada concreto) y atada a "la consulta que nos hiciste", para que Meta
+  // la tome como UTILITY y no como MARKETING (que cuesta más y exige otro consentimiento): si la reclasifica, se avisa en el panel de Plantillas.
+  {
+    name: "retomar_consulta",
+    language: ES, category: UT,
+    disparo: "Manual: una persona retoma una charla cuando pasaron más de 24 h del último mensaje del cliente (Centro de mensajes › Reabrir con plantilla).",
+    variables: ["nombre del cliente (razón social)"],
+    body: "Hola {{1}}, te escribimos de Loekemeyer por la consulta que nos hiciste.\nRetomamos la conversación: respondé este mensaje o tocá el botón y seguimos por acá.",
+    ejemplos: ["Chef S.R.L."],
+    // El botón le llega al webhook como texto; la charla queda en modo humano (lo pone "Reabrir con plantilla"), así que el bot no contesta.
+    botones: ["Retomar consulta"],
+  },
 ];
 
 /** Payload de `components` que espera Meta para crear/editar. */

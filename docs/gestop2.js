@@ -461,7 +461,14 @@ function cmCaja(estado, mia) {
   const ult = ultimoEntrante();
   const restan = ult ? 24 * 60 - minDesde(ult) : -1;
   if (restan <= 0) {
-    return `<div class="aviso-ambar">${ult ? `Pasaron ${dur(minDesde(ult))} desde el último mensaje del cliente.` : "El cliente todavía no escribió."} WhatsApp sólo permite mandar plantillas aprobadas fuera de las 24 horas. Mandar una plantilla a mano desde acá llega en una próxima etapa; mientras tanto, los avisos de pedidos salen solos.</div>`;
+    // v0.27.14 (Pablo, 06/10): antes decía "mandar una plantilla a mano llega en una próxima etapa". Ahora se puede: plantilla retomar_consulta.
+    const base = `${ult ? `Pasaron ${dur(minDesde(ult))} desde el último mensaje del cliente.` : "El cliente todavía no escribió."} WhatsApp sólo permite mandar plantillas aprobadas fuera de las 24 horas.`;
+    const re = ultimaReapertura();
+    if (re && minDesde(re.created_at) < 24 * 60) {
+      return `<div class="aviso-ambar">${base} <b>La plantilla ya salió hace ${dur(minDesde(re.created_at))}</b>: cuando el cliente conteste o toque el botón se abre la ventana y podés escribirle.</div>`;
+    }
+    return `<div class="aviso-ambar">${base}</div>
+      <div class="fila"><span class="info">Mandale la plantilla «retomar consulta»: cuando conteste se abre otra ventana de 24 h.</span><button class="g-btn prim" onclick="cmPrepararReapertura()">Reabrir con plantilla</button></div>`;
   }
   const envio = G.hilo?.envio || {};
   if (envio.puede === false) {
@@ -471,6 +478,38 @@ function cmCaja(estado, mia) {
   return `<div class="info">Respondés como ${gesc(G.miNombre)} · el bot está pausado · ventana de 24 h: quedan ${dur(restan)}</div>
     <textarea id="cmTexto" placeholder="Escribí la respuesta…"></textarea>
     <div class="fila"><span></span><button class="g-btn prim" onclick="cmPrepararEnvio()">Enviar…</button></div>`;
+}
+// ── Reabrir con plantilla (v0.27.14) ──
+// El texto de abajo es el de la plantilla `retomar_consulta` (supabase/functions/_shared/plantillas-meta.ts): si se cambia allá, se cambia acá.
+const TXT_REABRIR = /Retomamos la conversación: respondé este mensaje/;
+// Última plantilla de reapertura mandada DESPUÉS del último mensaje del cliente (mandarla no abre la ventana: la abre la respuesta del cliente).
+function ultimaReapertura() {
+  const ult = ultimoEntrante();
+  const r = [...(G.hilo?.messages || [])].reverse().find((m) => m.direction === "out" && TXT_REABRIR.test(m.body || ""));
+  return r && (!ult || new Date(r.created_at) > new Date(ult)) ? r : null;
+}
+function cmPrepararReapertura() {
+  const c = cmConvActual(), envio = G.hilo?.envio || {};
+  const nombre = (nombreConv(c) || "").replace(/\s+/g, " ").trim() || "cliente";
+  const texto = `Hola ${nombre}, te escribimos de Loekemeyer por la consulta que nos hiciste.\nRetomamos la conversación: respondé este mensaje o tocá el botón y seguimos por acá.`;
+  const nota = envio.puede ? `<div class="nota" style="background:var(--ok-bg);color:var(--ok-fg)">Llave en ${LLAVE[envio.llave]?.nombre || envio.llave}: la plantilla sale al cliente apenas confirmes.</div>`
+    : `<div class="nota" style="background:var(--wait-bg);color:var(--wait-fg)">La plantilla no va a salir: ${gesc(envio.motivo || "")}</div>`;
+  modal(`<h3>Reabrir con plantilla</h3>
+    <div class="kv"><span>Para</span><span><b>${gesc(nombreConv(c) || "No identificado")}</b> · +${gesc(c.phone)}</span><span>Canal</span><span>WhatsApp · plantilla aprobada (fuera de las 24 h)</span></div>
+    <div class="texto">${gesc(texto)}</div>
+    <div class="hint" style="margin:6px 0">Lleva un botón «Retomar consulta». La conversación queda a tu nombre y el bot no contesta.</div>${nota}
+    <div class="botones"><button class="g-btn" onclick="cerrarModal()">Cancelar</button><button class="g-btn prim" id="cmReabrirOk" onclick="cmReabrir()"${envio.puede ? "" : " disabled"}>Enviar plantilla</button></div>`);
+}
+async function cmReabrir() {
+  const b = document.getElementById("cmReabrirOk");
+  b.disabled = true; b.textContent = "Enviando…";
+  try {
+    await conv({ action: "reabrir", phone: G.convSel, nombre: nombreConv(cmConvActual()) || "" });
+    cerrarModal();
+    toast("Plantilla enviada. Cuando el cliente conteste se abre la ventana.");
+    await cmCargarHilo(true);
+    cmCargar();
+  } catch (e) { b.textContent = "Reintentar"; b.disabled = false; toast("No se pudo enviar: " + e.message); }
 }
 function cmPrepararEnvio() {
   const texto = (document.getElementById("cmTexto")?.value || "").trim();

@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
-import { CATEGORIAS, categoria, MAX_TIEMPO_MIN, minutosDeVencimiento, nivel, nivelAutoDeMotivo, nivelFijo, SETTING_VENCIMIENTO, tiempoDeNivel, TIEMPOS_DEFECTO, tiemposVigentes, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
+import { CATEGORIAS, categoria, MAX_TIEMPO_MIN, nivel, nivelAutoDeMotivo, nivelFijo, SETTING_VENCIMIENTO, tiempoDeNivel, TIEMPOS_DEFECTO, tiemposVigentes, urgente, venceAtDe, vencimientos } from "../_shared/alertas-vencimiento.ts";
+import { HORARIO_DEFECTO, horarioVigente, validarHorario } from "../_shared/horario.ts";
 import { esNivel } from "../_shared/semaforo.ts";
 import { derivaciones, MAX_TAMBIEN, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
@@ -31,7 +32,7 @@ async function bloqueoPrueba(a: any): Promise<string | null> {
 //        → Configuración › Derivaciones: a dónde va cada motivo (app_settings.wa_derivaciones, _shared/derivaciones.ts)
 //
 // Vencimiento (06/10, Pablo): lo manda el SEMÁFORO de la alerta — 🔴 20 min, 🟡 2 h, 🟢 4 h por defecto, editable en Derivaciones
-// (app_settings.wa_derivaciones.tiempos). vence_at = created_at + minutosDeVencimiento(alerta). Los minutos por categoría de
+// (app_settings.wa_derivaciones.tiempos). vence_at = venceAtDe(alerta): sus minutos contados en tiempo de atención (horario telefónico, 06/10). Los minutos por categoría de
 // app_settings.wa_alertas_vencimiento (config_get / config_save) quedaron SIN USO para vence_at; se conservan por compatibilidad.
 // "Ruido" = whitelist_gate (números fuera de la lista de prueba): no se muestra salvo que se pida.
 
@@ -157,7 +158,7 @@ serve(async (req) => {
       const extras = new Map(der.extra.map((e) => [e.clave, e]));
       return json({
         ok: true, llave: llave?.value ?? "0", prueba_employee_id: der.prueba_employee_id, defecto: der.defecto,
-        empleados, sectores, tiempos: tiemposVigentes(), tiempos_defecto: TIEMPOS_DEFECTO,
+        empleados, sectores, tiempos: tiemposVigentes(), tiempos_defecto: TIEMPOS_DEFECTO, horario: horarioVigente(), horario_defecto: HORARIO_DEFECTO,
         motivos: Object.entries(CATEGORIAS).filter(([k]) => k !== "whitelist_gate").map(([k, c]) => ({
           categoria: k, label: c.label, nivel: niv(k), nivel_auto: nivelAutoDeMotivo(k), nivel_fijo: nivelFijo(k), minutos: tiempoDeNivel(niv(k)),
           origen: extras.has(k) ? "La IA deriva: " + (extras.get(k)!.cuando || c.label) : ORIGEN[k] ?? "",
@@ -217,8 +218,16 @@ serve(async (req) => {
           tiempos[n] = m;
         }
       }
+      // Horario de atención telefónica (06/10): días, apertura/cierre, feriados y si los tiempos cuentan sólo dentro de él. Si el panel no lo
+      // manda (versión vieja) se conserva el vigente.
+      let horario = horarioVigente();
+      if (body.horario !== undefined && body.horario !== null) {
+        const r = validarHorario(body.horario);
+        if (!r.ok) return json({ ok: false, error: r.error }, 400);
+        horario = r.horario;
+      }
       const { error } = await supabase.from("app_settings")
-        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra, tiempos }) }, { onConflict: "key" });
+        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra, tiempos, horario }) }, { onConflict: "key" });
       if (error) return json({ ok: false, error: error.message }, 200);
       console.log(`lk_alertas: derivaciones actualizadas por ${gate.email}`);
       return json({ ok: true });
@@ -279,7 +288,7 @@ serve(async (req) => {
       const ahora = Date.now();
       const alertas = (data ?? []).map((a) => {
         const cat = categoria(a);
-        const venceAt = new Date(new Date(a.created_at).getTime() + minutosDeVencimiento(a) * 60_000);
+        const venceAt = venceAtDe(a);
         const ctx = a.contexto ?? {};
         return {
           id: a.id, tipo: a.tipo, categoria: cat, label: (ctx.simulador ? "🧪 Prueba · " : "") + CATEGORIAS[cat].label,
