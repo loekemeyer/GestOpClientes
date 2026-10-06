@@ -199,6 +199,7 @@
     /* v0.27.9: columna "Para quién" de Derivaciones: Sector y Persona apilados, con su rótulo. */
     #derivList .al-tabla select { max-width: 175px; padding: 0.25rem 0.4rem; font-size: 0.8rem; }
     #derivList .al-tabla select[data-f="destino"] { width: 155px; }
+    #derivList .al-tabla select[data-f="nivel"] { width: 150px; margin-bottom: 2px; }
     #derivList .dv-quien label { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
     #derivList .dv-quien label:last-child { margin-bottom: 0; }
     #derivList .dv-quien label span { flex: none; width: 46px; font-size: 0.72rem; color: var(--muted); }
@@ -3833,6 +3834,14 @@ function showConfigTab(tab) {
 // Destino por motivo en un desplegable: Planify / sólo Tareas / lo responde el bot (sólo los que deriva la IA).
 // "+ Agregar motivo" suma un motivo nuevo que la IA puede derivar (clave, nombre, cuándo, vencimiento).
 const NIVEL_TXT = { rojo: "🔴 urgente", amarillo: "🟡 pronto", verde: "🟢 puede esperar" };
+// v0.27.11 (Pablo, 06/10): el semáforo de cada motivo se puede fijar a mano. "Auto" = el de siempre (nivel_auto: el del motivo, que un mensaje
+// apurado o molesto puede subir a 🔴). Fijado manda sobre todo. Se guarda en wa_derivaciones.motivos[motivo].nivel (_shared/semaforo.ts).
+function semaforoSel(m) {
+  const fijo = m.nivel_fijo || "", auto = m.nivel_auto || m.nivel || "verde";
+  const o = (v, t) => `<option value="${v}"${fijo === v ? " selected" : ""}>${t}</option>`;
+  return `<select data-f="nivel" title="Auto = el de siempre (el emoji muestra cuál es); un mensaje apurado o molesto lo sube a 🔴. Si lo fijás, queda fijo para este motivo.">` +
+    o("", "Auto " + NIVEL_TXT[auto].slice(0, 2)) + o("rojo", NIVEL_TXT.rojo) + o("amarillo", NIVEL_TXT.amarillo) + o("verde", NIVEL_TXT.verde) + `</select>`;
+}
 let DERIV = null;
 async function loadDerivaciones() {
   const box = document.getElementById("derivList");
@@ -3869,7 +3878,7 @@ function pintarDerivaciones() {
     // (destino() en _shared/derivaciones-destino.ts).
     const conPlanify = m.destino === "planify";
     return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
-      <td style="white-space:nowrap;">${NIVEL_TXT[m.nivel] || ""}<div class="hint">vence ${venceCel}</div></td>
+      <td style="white-space:nowrap;">${semaforoSel(m)}<div class="hint">vence ${venceCel}</div></td>
       <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select></td>
       <td class="dv-quien">
         <label><span>Sector</span><select data-f="department_id" onchange="derivCambioSector(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
@@ -3879,7 +3888,7 @@ function pintarDerivaciones() {
   };
   box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo<br>y vence</th><th>A dónde va</th><th>Para quién</th><th></th></tr>` +
     data.motivos.map(fila).join("") +
-    `</table><div class="hint" style="margin-top:0.4rem;"><b>Sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda. <b>Sector + persona</b>: va sólo a esa persona (las del desplegable son las de ese sector). <b>Sólo persona</b>: va a ella. <b>Ninguno</b>: va a quien esté por defecto. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.</div>
+    `</table><div class="hint" style="margin-top:0.4rem;"><b>Sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda. <b>Sector + persona</b>: va sólo a esa persona (las del desplegable son las de ese sector). <b>Sólo persona</b>: va a ella. <b>Ninguno</b>: va a quien esté por defecto. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.<br><b>Semáforo</b>: "Auto" es el de siempre (un mensaje apurado o molesto lo sube a 🔴); si lo fijás, queda fijo para ese motivo. 🔴 es urgente: abre tarea en Planify aunque el motivo diga "Sólo Tareas". Un cambio vale para alertas nuevas y para cómo se ven las abiertas; las tareas que ya están en Planify no se tocan.</div>
     <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
     <span class="hint">Un motivo nuevo que la IA puede derivar. Rige al guardar.</span></div>`;
 }
@@ -3911,6 +3920,7 @@ function derivLeerForm() {
     if (!m) return;
     const v = (f) => tr.querySelector(`[data-f="${f}"]`)?.value;
     m.destino = v("destino"); m.employee_id = v("employee_id") || null; m.department_id = v("department_id") || null;
+    m.nivel_fijo = v("nivel") || null;
     if (m.extra) { m.extra.nombre = v("nombre") || ""; m.extra.cuando = v("cuando") || ""; m.extra.min = Number(v("min")) || 120; m.label = m.extra.nombre; }
   });
   DERIV.prueba_employee_id = document.getElementById("derivPruebaEmp")?.value || null;
@@ -3922,7 +3932,7 @@ function derivAgregar() {
   if (!/^[a-z][a-z0-9_]{2,40}$/.test(clave)) { alert("El nombre tiene que empezar con una letra y tener al menos 3 caracteres."); return; }
   derivLeerForm();
   if (DERIV.motivos.some((m) => m.categoria === clave)) { alert("Ya existe un motivo con ese nombre."); return; }
-  DERIV.motivos.push({ categoria: clave, label: nombre, origen: "", nivel: "amarillo", minutos: 120, de_ia: true,
+  DERIV.motivos.push({ categoria: clave, label: nombre, origen: "", nivel: "amarillo", nivel_auto: "amarillo", nivel_fijo: null, minutos: 120, de_ia: true,
     destino: "planify", employee_id: null, department_id: null, extra: { clave, nombre, cuando: "", min: 120 } });
   pintarDerivaciones();
 }
@@ -3937,7 +3947,7 @@ async function saveDerivaciones() {
   derivLeerForm();
   const motivos = {}, extra = [];
   for (const m of DERIV.motivos) {
-    motivos[m.categoria] = { destino: m.destino, employee_id: m.employee_id, department_id: m.department_id };
+    motivos[m.categoria] = { destino: m.destino, employee_id: m.employee_id, department_id: m.department_id, nivel: m.nivel_fijo || null };
     if (m.extra) extra.push({ clave: m.categoria, nombre: m.extra.nombre, cuando: m.extra.cuando, min: m.extra.min });
   }
   st.textContent = "Guardando…"; st.className = "config-status";
@@ -4792,7 +4802,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.10</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.11</div>
 <script src="gestop2.js?v=0.27.8"></script>
 </body>
 </html>

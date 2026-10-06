@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
-import { CATEGORIAS, categoria, nivel, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
+import { CATEGORIAS, categoria, nivel, nivelAutoDeMotivo, nivelFijo, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
+import { esNivel } from "../_shared/semaforo.ts";
 import { derivaciones, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
 import { COD_CLIENTE_PRUEBA } from "../_shared/cliente-prueba.ts";
@@ -26,7 +27,7 @@ async function bloqueoPrueba(a: any): Promise<string | null> {
 //        llave) y cierra la alerta y su tarea de Planify.
 //   {action:"adjunto", comprobante_id} → link firmado (10 min) al archivo del comprobante (bucket privado)
 //   {action:"config_get"} / {action:"config_save", vencimientos:{categoria: minutos}}
-//   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{destino, employee_id, department_id}}, extra:[…]}
+//   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{destino, employee_id, department_id, nivel?}}, extra:[…]}
 //        → Configuración › Derivaciones: a dónde va cada motivo (app_settings.wa_derivaciones, _shared/derivaciones.ts)
 //
 // Vencimiento: minutos por CATEGORÍA (contexto.motivo si lo hay, si no el tipo), guardados en
@@ -151,13 +152,13 @@ serve(async (req) => {
         empleados = e.data ?? []; sectores = d.data ?? [];
       } catch (e) { console.error("lk_alertas derivaciones: Planify no respondió", e); }
       const { data: llave } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
-      const niv = (cat: string) => nivel({ tipo: cat, contexto: { motivo: cat } });
+      const niv = (cat: string) => nivel({ tipo: cat, contexto: { motivo: cat } }); // el que rige: el fijado a mano o, si no, el "Auto"
       const extras = new Map(der.extra.map((e) => [e.clave, e]));
       return json({
         ok: true, llave: llave?.value ?? "0", prueba_employee_id: der.prueba_employee_id, defecto: der.defecto,
         empleados, sectores,
         motivos: Object.entries(CATEGORIAS).filter(([k]) => k !== "whitelist_gate").map(([k, c]) => ({
-          categoria: k, label: c.label, nivel: niv(k), minutos: v[k],
+          categoria: k, label: c.label, nivel: niv(k), nivel_auto: nivelAutoDeMotivo(k), nivel_fijo: nivelFijo(k), minutos: v[k],
           origen: extras.has(k) ? "La IA deriva: " + (extras.get(k)!.cuando || c.label) : ORIGEN[k] ?? "",
           de_ia: MOTIVOS_IA.includes(k) || extras.has(k), extra: extras.get(k) ?? null, ...der.motivos[k],
         })),
@@ -191,7 +192,10 @@ serve(async (req) => {
         const dest = String(r.destino ?? "");
         if (!["planify", "tareas", "bot"].includes(dest)) return json({ ok: false, error: `Destino inválido en ${k}` }, 400);
         if (dest === "bot" && !esIA.has(k)) return json({ ok: false, error: `${k} no lo deriva la IA: no puede quedar en "lo responde el bot".` }, 400);
-        motivos[k] = { destino: dest, employee_id: e, department_id: d };
+        // Semáforo fijado a mano (06/10): "" / null = Auto, el de siempre.
+        const nv = r.nivel === undefined || r.nivel === null || r.nivel === "" ? null : r.nivel;
+        if (nv !== null && !esNivel(nv)) return json({ ok: false, error: `Semáforo inválido en ${k}` }, 400);
+        motivos[k] = { destino: dest, employee_id: e, department_id: d, ...(nv ? { nivel: nv } : {}) };
       }
       const { error } = await supabase.from("app_settings")
         .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra }) }, { onConflict: "key" });

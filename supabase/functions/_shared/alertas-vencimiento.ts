@@ -3,7 +3,7 @@
 // calculan el mismo vencimiento. Minutos por categoría editables en app_settings.wa_alertas_vencimiento.
 
 import { supabase } from "./supabase.ts";
-import { esUrgente } from "./humor-reglas.ts";
+import { nivelAuto, nivelDe, nivelFijo, registrarNiveles, type Nivel, urgenteDe } from "./semaforo.ts";
 
 export const SETTING_VENCIMIENTO = "wa_alertas_vencimiento";
 
@@ -67,7 +67,11 @@ export function registrarExtras(extra: unknown): MotivoExtra[] {
 
 export async function vencimientos(): Promise<Record<string, number>> {
   const { data: filas } = await supabase.from("app_settings").select("key, value").in("key", [SETTING_VENCIMIENTO, "wa_derivaciones"]);
-  try { registrarExtras(JSON.parse(filas?.find((r) => r.key === "wa_derivaciones")?.value ?? "{}")?.extra); } catch { /* sin extras */ }
+  try {
+    const w = JSON.parse(filas?.find((r) => r.key === "wa_derivaciones")?.value ?? "{}");
+    registrarExtras(w?.extra);
+    registrarNiveles(w?.motivos); // semáforos fijados en Derivaciones (06/10)
+  } catch { /* sin extras ni semáforos fijos */ }
   const base = Object.fromEntries(Object.entries(CATEGORIAS).map(([k, v]) => [k, v.min]));
   const data = filas?.find((r) => r.key === SETTING_VENCIMIENTO);
   try {
@@ -77,28 +81,23 @@ export async function vencimientos(): Promise<Record<string, number>> {
   return base;
 }
 
-// Urgencia de una alerta: la que se guardó al crearla (contexto.urgente, ver alertas.ts) o, para las
-// alertas viejas que no la tienen, por categoría + texto.
-const CATEGORIAS_URGENTES = new Set(["cliente_molesto", "respuesta_aviso_cambio", "comprobante_error", "cambio_pedido"]);
+// Urgencia y semáforo de una alerta (Pablo, 28/09): 🔴 rojo = urgente (cliente molesto, cambio/cancelación de pedido, comprobante
+// con error, reclamo o apuro en el texto) · 🟡 amarillo = una persona tiene que contestar pronto (pidió hablar con alguien, consulta de
+// stock sin disponibilidad) · 🟢 verde = puede esperar (comprobante recibido, alta de cliente, el resto). Desde el 06/10 cada motivo puede
+// tener su semáforo fijado en Configuración › Derivaciones; la lógica vive en semaforo.ts (pura, con pruebas).
+export type { Nivel };
+export { nivelFijo, registrarNiveles };
+export const SEMAFORO: Record<Nivel, string> = { rojo: "🔴", amarillo: "🟡", verde: "🟢" };
 // deno-lint-ignore no-explicit-any
 export function urgente(a: any): boolean {
-  const ctx = a?.contexto ?? {};
-  if (typeof ctx.urgente === "boolean") return ctx.urgente;
-  const texto = String(ctx.texto_recibido ?? ctx.texto ?? "");
-  return CATEGORIAS_URGENTES.has(categoria(a)) || (texto ? esUrgente(texto) : false);
+  return urgenteDe(categoria(a), a?.contexto ?? {});
 }
-
-// Semáforo (Pablo, 28/09): 🔴 rojo = urgente (cliente molesto, cambio/cancelación de pedido, comprobante
-// con error, reclamo o apuro en el texto) · 🟡 amarillo = una persona tiene que contestar pronto (pidió
-// hablar con alguien, consulta de stock sin disponibilidad) · 🟢 verde = puede esperar (comprobante
-// recibido, alta de cliente, el resto).
-export type Nivel = "rojo" | "amarillo" | "verde";
-export const SEMAFORO: Record<Nivel, string> = { rojo: "🔴", amarillo: "🟡", verde: "🟢" };
-const CATEGORIAS_AMARILLAS = new Set(["escalation", "consulta_stock", "faq_no_match", "llm_timeout", "llm_error",
-  "reclamo", "pago", "pedido_no_encontrado", "entrega", "adjunto_recibido", "acceso_web", "reseteo_clave", "pedido_archivo", "pedido_whatsapp"]);
 // deno-lint-ignore no-explicit-any
 export function nivel(a: any): Nivel {
-  if (urgente(a)) return "rojo";
   const cat = categoria(a);
-  return CATEGORIAS_AMARILLAS.has(cat) || CATEGORIAS[cat]?.extra ? "amarillo" : "verde";
+  return nivelDe(cat, a?.contexto ?? {}, !!CATEGORIAS[cat]?.extra);
+}
+/** Semáforo "Auto" de un motivo (el de siempre, sin el fijado a mano): es lo que muestra Derivaciones al lado de "Auto". */
+export function nivelAutoDeMotivo(cat: string): Nivel {
+  return nivelAuto(cat, {}, !!CATEGORIAS[cat]?.extra);
 }
