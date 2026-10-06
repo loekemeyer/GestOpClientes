@@ -9,6 +9,7 @@
 //   }
 // destino: "planify" = Tareas + tarea en Planify · "tareas" = sólo Centro de mensajes › Tareas ·
 //          "bot" = lo responde el bot: la IA NO deriva ese motivo (sólo los motivos que deriva la IA).
+// Varios destinos (06/10): motivos[motivo].tambien = [{employee_id, department_id}, …] suma destinos al principal; cada uno abre su tarea.
 // En producción (llave '1'), ver derivaciones-destino.ts: persona elegida (sola o dentro de un sector) → esa persona; sólo sector → le aparece
 // a todo el sector y gana el primero que toca "Me encargo yo". Lo urgente (🔴) va a Planify aunque diga otra cosa.
 // Sin fila, rige la config vieja app_settings.wa_alertas_planify (employee_id, categorias, department_id).
@@ -50,7 +51,12 @@ export const ORIGEN: Record<string, string> = {
 };
 
 export type Destino = "planify" | "tareas" | "bot";
-export type Regla = { destino: Destino; planify: boolean; employee_id: number | null; department_id: number | null };
+/** Un destino en Planify: una persona, o un sector (le aparece a todos y gana quien toca "Me encargo yo"). */
+export type Blanco = { employee_id: number | null; department_id: number | null };
+// "También a" (Pablo, 06/10: "qué pasa si hay algún mensaje que tenga que derivarlo a varios lugares"): destinos ADICIONALES al principal.
+// Cada destino abre su propia tarea en Planify para la misma alerta. Tope: el principal + 4.
+export const MAX_TAMBIEN = 4;
+export type Regla = { destino: Destino; planify: boolean; employee_id: number | null; department_id: number | null; tambien: Blanco[] };
 export type Derivaciones = {
   prueba_employee_id: number | null;
   broadcast: boolean;
@@ -60,6 +66,17 @@ export type Derivaciones = {
 };
 
 const num = (v: unknown) => (Number(v) > 0 ? Number(v) : null);
+/** Lee la lista "también a" de la config: descarta lo vacío y lo que pasa del tope. */
+function leerTambien(v: unknown): Blanco[] {
+  if (!Array.isArray(v)) return [];
+  const out: Blanco[] = [];
+  for (const x of v) {
+    const e = num((x as Blanco | null)?.employee_id), d = num((x as Blanco | null)?.department_id);
+    if (e || d) out.push({ employee_id: e, department_id: d });
+    if (out.length >= MAX_TAMBIEN) break;
+  }
+  return out;
+}
 // Van a Planify si nadie lo cambió en Configuración › Derivaciones. cliente_chef (sql/115): el bot no le contesta nada
 // más que saldo y datos de pago, así que si queda sólo en Tareas nadie lo ve a tiempo.
 const SIEMPRE_DEF = new Set([...MOTIVOS_IA, "cliente_chef"]);
@@ -87,7 +104,7 @@ export async function derivaciones(usarCache = false): Promise<Derivaciones> {
       : catsViejas.includes(cat) || SIEMPRE_DEF.has(cat) || esIA.has(cat) ? "planify" : "tareas";
     if (destino === "bot" && !esIA.has(cat)) destino = "tareas";
     if (cat === "whitelist_gate") destino = "tareas";
-    motivos[cat] = { destino, planify: destino === "planify", employee_id: num(g?.employee_id), department_id: num(g?.department_id) };
+    motivos[cat] = { destino, planify: destino === "planify", employee_id: num(g?.employee_id), department_id: num(g?.department_id), tambien: leerTambien(g?.tambien) };
   }
   const d: Derivaciones = {
     prueba_employee_id: num(nuevo.prueba_employee_id) ?? num(viejo.employee_id),
@@ -109,4 +126,4 @@ export async function motivosIA(): Promise<Array<{ clave: string; cuando: string
   return todos.filter((m) => d.motivos[m.clave]?.destino !== "bot");
 }
 
-export { destino } from "./derivaciones-destino.ts";
+export { destino, destinosDe } from "./derivaciones-destino.ts";

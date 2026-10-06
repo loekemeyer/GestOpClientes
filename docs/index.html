@@ -204,6 +204,12 @@
     #derivList .dv-fluido { width: 100%; min-width: 110px; box-sizing: border-box; font: inherit; font-size: 0.8rem; padding: 0.3rem 0.45rem; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
     #derivList .dv-falta { border-color: var(--g-danger, #c0392b); box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25); }
     #derivList tr.dv-nuevo td { background: rgba(155, 28, 28, 0.06); }
+    /* v0.27.12: destinos adicionales ("También a") dentro de "Para quién". */
+    #derivList .dv-mas { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+    #derivList .dv-tb { display: flex; align-items: center; gap: 4px; margin: 0 0 4px; }
+    #derivList .dv-tb span { flex: none; width: 46px; font-size: 0.72rem; color: var(--muted); }
+    #derivList .dv-tb select { flex: 1; min-width: 0; }
+    #derivList .dv-x { padding: 2px 7px; }
     #derivList .al-tabla td .hint code { overflow-wrap: anywhere; } /* la clave larga del motivo nuevo no debe ensanchar la tabla */
     #derivList .dv-quien label { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
     #derivList .dv-quien label:last-child { margin-bottom: 0; }
@@ -3888,18 +3894,21 @@ function pintarDerivaciones() {
       <td class="dv-quien">
         <label><span>Sector</span><select data-f="department_id" onchange="derivCambioSector(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
         <label><span>Persona</span><select data-f="employee_id"${conPlanify ? "" : " disabled"}>${derivPersonasOpts(m.department_id, m.employee_id)}</select></label>
+        <div class="dv-mas">${(m.tambien || []).map((t) => `<label class="dv-tb"><span>También</span><select data-f="tambien"${conPlanify ? "" : " disabled"} onchange="this.classList.remove('dv-falta')">${derivDestinoOpts(t)}</select><button type="button" class="config-btn small dv-x" title="Quitar este destino" onclick="derivTambienQuitar(this)"${conPlanify ? "" : " disabled"}>✕</button></label>`).join("")}<button type="button" class="config-btn small dv-add" onclick="derivTambienAgregar(this)"${conPlanify && (m.tambien || []).length < DERIV_MAX_TAMBIEN ? "" : " disabled"}>+ otro destino</button></div>
       </td>
     </tr>`;
   };
   box.innerHTML = `<table class="al-tabla"><tr><th>Motivo</th><th>Cuándo pasa</th><th>Semáforo<br>y vence</th><th>A dónde va</th><th>Para quién</th></tr>` +
     data.motivos.map(fila).join("") +
-    `</table><div class="hint" style="margin-top:0.4rem;"><b>Sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda. <b>Sector + persona</b>: va sólo a esa persona (las del desplegable son las de ese sector). <b>Sólo persona</b>: va a ella. <b>Ninguno</b>: va a quien esté por defecto. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.<br><b>Semáforo</b>: "Auto" es el de siempre (un mensaje apurado o molesto lo sube a 🔴); si lo fijás, queda fijo para ese motivo. 🔴 es urgente: abre tarea en Planify aunque el motivo diga "Sólo Tareas". Un cambio vale para alertas nuevas y para cómo se ven las abiertas; las tareas que ya están en Planify no se tocan.</div>
+    `</table><div class="hint" style="margin-top:0.4rem;"><b>Sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda. <b>Sector + persona</b>: va sólo a esa persona (las del desplegable son las de ese sector). <b>Sólo persona</b>: va a ella. <b>Ninguno</b>: va a quien esté por defecto. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.<br><b>+ otro destino</b>: la misma alerta abre una tarea en Planify por cada destino (sector entero o una persona), y se da por atendida cuando se cierran todas. Con la llave en prueba cada tarea va a la persona de prueba, con una línea "Para:" que dice a quién iría. <b>Semáforo</b>: "Auto" es el de siempre (un mensaje apurado o molesto lo sube a 🔴); si lo fijás, queda fijo para ese motivo. 🔴 es urgente: abre tarea en Planify aunque el motivo diga "Sólo Tareas". Un cambio vale para alertas nuevas y para cómo se ven las abiertas; las tareas que ya están en Planify no se tocan.</div>
     <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
     <span class="hint">Un motivo nuevo que la IA puede derivar. Rige al guardar.</span></div>`;
 }
 function derivCambioDestino(sel) {
   const tr = sel.closest("tr"), p = sel.value === "planify";
-  tr.querySelectorAll('[data-f="employee_id"],[data-f="department_id"]').forEach((x) => { x.disabled = !p; });
+  tr.querySelectorAll('[data-f="employee_id"],[data-f="department_id"],[data-f="tambien"],.dv-x').forEach((x) => { x.disabled = !p; });
+  const mas = tr.querySelector(".dv-add");
+  if (mas) mas.disabled = !p || tr.querySelectorAll('[data-f="tambien"]').length >= DERIV_MAX_TAMBIEN;
 }
 // Personas que se pueden elegir para un motivo: con sector elegido, sólo las de ese sector (employees.department_id de Planify); sin sector,
 // todas (hay 22 personas activas sin sector). La ya guardada se mantiene aunque no sea del sector, para no perderla en silencio.
@@ -3911,6 +3920,45 @@ function derivPersonasOpts(sectorId, selId) {
   const fuera = selId && !del.some((e) => e.id === Number(selId)) ? todas.find((e) => e.id === Number(selId)) : null;
   const o = (e, sufijo) => `<option value="${e.id}"${Number(selId) === e.id ? " selected" : ""}>${esc(e.nombre)}${sufijo || ""}</option>`;
   return `<option value="">${sectorId ? "— todo el sector —" : "— por defecto —"}</option>` + del.map((e) => o(e)).join("") + (fuera ? o(fuera, " (otro sector)") : "");
+}
+// Varios destinos (06/10, Pablo): "+ otro destino" suma una tarea de Planify más por la misma alerta. Cada destino extra es UN desplegable:
+// "todo el sector" (le aparece a todos y gana quien toca "Me encargo yo") o una persona puntual. Valor: "d<sector>" / "e<persona>".
+const DERIV_MAX_TAMBIEN = 4;
+function derivDestinoOpts(t) {
+  const sec = DERIV.sectores || [], emps = DERIV.empleados || [];
+  const val = t && t.employee_id ? "e" + t.employee_id : t && t.department_id ? "d" + t.department_id : "";
+  const op = (v, txt) => `<option value="${v}"${v === val ? " selected" : ""}>${esc(txt)}</option>`;
+  let h = op("", "— elegí a quién —");
+  if (sec.length) h += `<optgroup label="Todo el sector">` + sec.map((x) => op("d" + x.id, x.nombre)).join("") + `</optgroup>`;
+  if (!emps.some((e) => "department_id" in e)) return h + `<optgroup label="Personas">` + emps.map((e) => op("e" + e.id, e.nombre)).join("") + `</optgroup>`;
+  for (const x of sec) {
+    const del = emps.filter((e) => Number(e.department_id) === x.id);
+    if (del.length) h += `<optgroup label="Personas de ${esc(x.nombre)}">` + del.map((e) => op("e" + e.id, e.nombre)).join("") + `</optgroup>`;
+  }
+  const sin = emps.filter((e) => !sec.some((x) => x.id === Number(e.department_id)));
+  if (sin.length) h += `<optgroup label="Personas sin sector">` + sin.map((e) => op("e" + e.id, e.nombre)).join("") + `</optgroup>`;
+  return h;
+}
+const derivLeerDestino = (v) => (!v ? { employee_id: null, department_id: null } : v[0] === "e" ? { employee_id: Number(v.slice(1)), department_id: null } : { employee_id: null, department_id: Number(v.slice(1)) });
+function derivTambienAgregar(btn) {
+  const tr = btn.closest("tr"), cat = tr.dataset.cat;
+  derivLeerForm();
+  const m = DERIV.motivos.find((x) => x.categoria === cat);
+  if (!m) return;
+  m.tambien = m.tambien || [];
+  if (m.tambien.length >= DERIV_MAX_TAMBIEN) return;
+  m.tambien.push({ employee_id: null, department_id: null });
+  pintarDerivaciones();
+  const sels = document.querySelectorAll(`#derivList tr[data-cat="${cat}"] [data-f="tambien"]`);
+  sels[sels.length - 1]?.focus();
+}
+function derivTambienQuitar(btn) {
+  const tr = btn.closest("tr"), cat = tr.dataset.cat;
+  const i = [...tr.querySelectorAll('[data-f="tambien"]')].indexOf(btn.closest("label").querySelector("select"));
+  derivLeerForm();
+  const m = DERIV.motivos.find((x) => x.categoria === cat);
+  if (m && i >= 0) m.tambien.splice(i, 1);
+  pintarDerivaciones();
 }
 function derivCambioSector(sel) {
   const emp = sel.closest("tr").querySelector('[data-f="employee_id"]'), actual = Number(emp.value);
@@ -3926,6 +3974,7 @@ function derivLeerForm() {
     const v = (f) => tr.querySelector(`[data-f="${f}"]`)?.value;
     m.destino = v("destino"); m.employee_id = v("employee_id") || null; m.department_id = v("department_id") || null;
     m.nivel_fijo = v("nivel") || null;
+    m.tambien = [...tr.querySelectorAll('[data-f="tambien"]')].map((x) => derivLeerDestino(x.value));
     if (m.extra) { m.extra.nombre = v("nombre") || ""; m.extra.cuando = v("cuando") || ""; m.extra.min = Number(v("min")) || 120; m.label = m.extra.nombre; }
   });
   DERIV.prueba_employee_id = document.getElementById("derivPruebaEmp")?.value || null;
@@ -3958,6 +4007,16 @@ async function saveDerivaciones() {
   derivLeerForm();
   // Los motivos agregados a mano necesitan nombre, "cuándo derivarlo" y un vencimiento de 1 minuto a 30 días (lk_alertas lo exige): se avisa
   // acá, señalando el campo, en vez de guardar a ciegas y recibir el rechazo del servidor.
+  for (const m of DERIV.motivos) {
+    const i = (m.tambien || []).findIndex((t) => !t.employee_id && !t.department_id);
+    if (i < 0) continue;
+    const campo = document.querySelectorAll(`#derivList tr[data-cat="${m.categoria}"] [data-f="tambien"]`)[i];
+    campo?.classList.add("dv-falta");
+    campo?.scrollIntoView({ block: "center" });
+    campo?.focus({ preventScroll: true });
+    st.textContent = `✗ Elegí a quién va el destino adicional de «${m.label}» o quitalo.`; st.className = "config-status err";
+    return;
+  }
   for (const m of DERIV.motivos.filter((x) => x.extra)) {
     const falta = !m.extra.nombre.trim() ? ["nombre", "Falta el nombre del motivo nuevo."]
       : !m.extra.cuando.trim() ? ["cuando", `Falta «Cuándo pasa» en «${m.extra.nombre}»: es lo que la IA lee para saber cuándo derivarlo.`]
@@ -3972,7 +4031,7 @@ async function saveDerivaciones() {
   }
   const motivos = {}, extra = [];
   for (const m of DERIV.motivos) {
-    motivos[m.categoria] = { destino: m.destino, employee_id: m.employee_id, department_id: m.department_id, nivel: m.nivel_fijo || null };
+    motivos[m.categoria] = { destino: m.destino, employee_id: m.employee_id, department_id: m.department_id, nivel: m.nivel_fijo || null, tambien: m.tambien || [] };
     if (m.extra) extra.push({ clave: m.categoria, nombre: m.extra.nombre, cuando: m.extra.cuando, min: m.extra.min });
   }
   st.textContent = "Guardando…"; st.className = "config-status";
@@ -4827,7 +4886,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.11</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.12</div>
 <script src="gestop2.js?v=0.27.8"></script>
 </body>
 </html>

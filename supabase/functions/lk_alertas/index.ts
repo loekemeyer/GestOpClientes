@@ -3,7 +3,7 @@ import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
 import { CATEGORIAS, categoria, nivel, nivelAutoDeMotivo, nivelFijo, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
 import { esNivel } from "../_shared/semaforo.ts";
-import { derivaciones, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
+import { derivaciones, MAX_TAMBIEN, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
 import { COD_CLIENTE_PRUEBA } from "../_shared/cliente-prueba.ts";
 import { minimoGeneral, SETTING_MINIMO } from "../_shared/minimo.ts";
@@ -27,7 +27,7 @@ async function bloqueoPrueba(a: any): Promise<string | null> {
 //        llave) y cierra la alerta y su tarea de Planify.
 //   {action:"adjunto", comprobante_id} → link firmado (10 min) al archivo del comprobante (bucket privado)
 //   {action:"config_get"} / {action:"config_save", vencimientos:{categoria: minutos}}
-//   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{destino, employee_id, department_id, nivel?}}, extra:[…]}
+//   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{destino, employee_id, department_id, nivel?, tambien?:[{employee_id, department_id}]}}, extra:[…]}
 //        → Configuración › Derivaciones: a dónde va cada motivo (app_settings.wa_derivaciones, _shared/derivaciones.ts)
 //
 // Vencimiento: minutos por CATEGORÍA (contexto.motivo si lo hay, si no el tipo), guardados en
@@ -195,7 +195,17 @@ serve(async (req) => {
         // Semáforo fijado a mano (06/10): "" / null = Auto, el de siempre.
         const nv = r.nivel === undefined || r.nivel === null || r.nivel === "" ? null : r.nivel;
         if (nv !== null && !esNivel(nv)) return json({ ok: false, error: `Semáforo inválido en ${k}` }, 400);
-        motivos[k] = { destino: dest, employee_id: e, department_id: d, ...(nv ? { nivel: nv } : {}) };
+        // Varios destinos (06/10): "también a" = destinos adicionales, cada uno abre su tarea en Planify. Persona y sector a la vez: gana la persona.
+        const tb = r.tambien === undefined || r.tambien === null ? [] : r.tambien;
+        if (!Array.isArray(tb) || tb.length > MAX_TAMBIEN) return json({ ok: false, error: `Demasiados destinos adicionales en ${k} (máximo ${MAX_TAMBIEN}).` }, 400);
+        const tambien: Array<{ employee_id: number | null; department_id: number | null }> = [];
+        for (const t of tb as Array<Record<string, unknown>>) {
+          const te = id(t?.employee_id), td = id(t?.department_id);
+          if (Number.isNaN(te) || Number.isNaN(td)) return json({ ok: false, error: `Destino adicional inválido en ${k}` }, 400);
+          if (te === null && td === null) return json({ ok: false, error: `Falta elegir a quién va el destino adicional de ${k}.` }, 400);
+          tambien.push({ employee_id: te, department_id: td });
+        }
+        motivos[k] = { destino: dest, employee_id: e, department_id: d, ...(nv ? { nivel: nv } : {}), ...(tambien.length ? { tambien } : {}) };
       }
       const { error } = await supabase.from("app_settings")
         .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra }) }, { onConflict: "key" });
