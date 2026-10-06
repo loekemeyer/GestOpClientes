@@ -37,6 +37,23 @@ BOT: ¡Genial! Te tomo los datos para registrarte. 📋 Te voy a ir preguntando 
      🔢 ¿Cuál es tu CUIT? (11 números, con o sin guiones)
 ```
 
+**Constancia de inscripción (06/10, `_shared/constancia.ts`):** el alta ofrece que mande el PDF de ARCA. Si lo manda (y es un PDF con texto), el bot lo lee por reglas, sin IA, y le muestra lo que leyó;
+con su *sí* se saltan CUIT, razón social e IVA, y en la dirección se le propone el domicilio fiscal. Si el CUIT ya es cliente (Loekemeyer o Chef) va a vinculación con revisión humana. Foto o escaneo: se guarda y
+lo revisa una persona, y el bot repite la pregunta que quedó pendiente.
+
+```
+BOT: ¡Genial! Te tomo los datos para registrarte. 📋 … 📄 Si tenés la constancia de inscripción de ARCA en PDF, mandámela y me ahorrás varias preguntas.
+CLIENTE: (manda constancia.pdf)
+BOT: Leí tu constancia de inscripción. 📄
+     • CUIT: 30-71234567-8
+     • Razón social: EJEMPLO COMERCIAL S.A.
+     • Condición frente al IVA: Responsable inscripto
+     ¿Son correctos? Respondé sí y sigo con el resto de los datos, o no y los cargamos a mano.
+CLIENTE: sí
+BOT: Perfecto, ya tengo tus datos fiscales. ✅ 👤 ¿Nombre de contacto? (nombre y apellido)
+```
+(…más adelante, en la dirección: *"¿Entregamos en tu domicilio fiscal, Av Ejemplo 1234, Rosario, Santa Fe (CP 2000)? Respondé sí, o pasame la dirección de entrega"*.)
+
 ## Flujo 1c: Cliente que sólo le compra a Chef (01/10, sql/115-116, `_shared/chef.ts`)
 
 Un solo número para Loekemeyer y Chef (D008). Si `wa_identify_customer` no encuentra un cliente de LK, el webhook

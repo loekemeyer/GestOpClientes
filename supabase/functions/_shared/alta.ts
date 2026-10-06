@@ -3,6 +3,11 @@
 // El webhook y el simulador usan exactamente este mismo código.
 import { supabase } from "./supabase.ts";
 import { SIM } from "./simulacion.ts";
+import { extractCuit, formatoCuit, validaCuit } from "./cuit.ts";
+import { type ConstanciaDatos, textoConfirmaConstancia, textoDomicilio } from "./constancia.ts";
+
+// Siguen saliendo de acá para el resto del código (se mudaron a cuit.ts para que constancia.ts los use sin un import circular).
+export { extractCuit, validaCuit };
 
 export interface RegisterResult {
   request_id: number;
@@ -27,34 +32,6 @@ export async function tryRegister(phone: string, cuit: string): Promise<Register
   return data[0];
 }
 
-/**
- * Extrae un CUIT válido del texto, independiente del formato que use el
- * cliente ("20-12345678-9", "20/12345678/9", "cuit20123456789", "cuit: 20
- * 12345678 9", etc.). Se limpian TODOS los no-dígitos y se recorren ventanas
- * de 11 dígitos exigiendo dígito verificador (módulo 11) correcto — evita
- * falsos positivos con teléfonos de 10-11 dígitos o CUITs mal tipeados.
- */
-export function validaCuit(cuit: string): boolean {
-  if (!/^\d{11}$/.test(cuit)) return false;
-  const mult = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
-  let sum = 0;
-  for (let i = 0; i < 10; i++) sum += Number(cuit[i]) * mult[i];
-  const mod = 11 - (sum % 11);
-  const dv = mod === 11 ? 0 : mod === 10 ? 9 : mod;
-  return dv === Number(cuit[10]);
-}
-
-export function extractCuit(text: string): string | null {
-  const digits = text.replace(/\D/g, "");
-  if (digits.length < 11) return null;
-  // Ventana móvil de 11 dígitos: el primer candidato que pase módulo 11 gana.
-  for (let i = 0; i + 11 <= digits.length; i++) {
-    const cand = digits.slice(i, i + 11);
-    if (validaCuit(cand)) return cand;
-  }
-  return null;
-}
-
 // ─── Alta de cliente nuevo (no-cliente sin CUIT en sistema) ────────
 // Toma de datos paso a paso, 0 tokens (determinístico, sin IA). Se dispara
 // cuando un no-cliente acepta registrarse (o su CUIT no está en el sistema).
@@ -66,19 +43,40 @@ export function extractCuit(text: string): string | null {
 export const ALTA_INTRO =
   `¡Genial! Te tomo los datos para registrarte. 📋\n\n` +
   `Te voy a ir preguntando de a uno. Si querés cortar, escribí *cancelar*.\n\n` +
+  `📄 Si tenés la *constancia de inscripción* de ARCA en PDF, mandámela y me ahorrás varias preguntas.\n\n` +
   `🔢 ¿Cuál es tu *CUIT*? (11 números, con o sin guiones)`;
+
+// Cuando el CUIT que pasó el cliente no está en el sistema (arranca el alta con el CUIT ya cargado). Webhook, Simulador y Chat de prueba.
+export const MSG_CUIT_NO_ENCONTRADO =
+  `No te encontré como cliente con ese CUIT. 🤔\n\n` +
+  `Si querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. ` +
+  `Te pregunto de a uno (para cortar, escribí *cancelar*).\n\n` +
+  `📄 Si tenés la *constancia de inscripción* de ARCA en PDF, mandámela y completo yo los datos fiscales.\n\n` +
+  `📋 ¿Cuál es tu *razón social*?`;
+
+// El CUIT ya es de un cliente (Loekemeyer o Chef): no es un alta, es vincular el número, y lo confirma una persona (sql/072, sql/116).
+export const MSG_CUIT_YA_CLIENTE =
+  "Ese CUIT ya es cliente nuestro 👍 Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por acá.";
 
 // Pablo, 29/09 (alta mixta): los 10 datos acordados, en este orden. El CUIT se pide sólo si el alta arrancó sin él
 // (con "registrarme"); si vino de cuit_not_found ya está validado. El vendedor, el código y el descuento los completa
 // quien aprueba desde Tareas (lk_alertas alta_crear), que además crea el acceso a la web.
 // deno-lint-ignore no-explicit-any
 type AltaLead = any;
-type AltaParse = { value: unknown } | { error: string };
-const ALTA_STEPS: { field: string; prompt: string; skip?: (l: AltaLead) => boolean; parse?: (t: string, phone: string) => AltaParse }[] = [
+// `extra`: otros campos que la misma respuesta completa (el "sí, entregamos en el domicilio fiscal" llena también localidad, provincia y CP).
+type AltaParse = { value: unknown; extra?: Record<string, unknown> } | { error: string };
+type AltaPaso = {
+  field: string; prompt: string;
+  /** Texto propio según el lead (ej. proponer el domicilio fiscal de la constancia); null = usar `prompt`. */
+  promptDe?: (l: AltaLead) => string | null;
+  skip?: (l: AltaLead) => boolean;
+  parse?: (t: string, phone: string, l: AltaLead) => AltaParse;
+};
+const ALTA_STEPS: AltaPaso[] = [
   { field: "cuit", prompt: "🔢 ¿Cuál es tu *CUIT*? (11 números, con o sin guiones)", skip: (l) => !!l.cuit,
     parse: (t) => { const c = extractCuit(t); return c ? { value: c } : { error: "Ese CUIT no parece válido 🤔 Revisá que tenga los 11 números bien copiados y pasámelo de nuevo." }; } },
-  { field: "razon_social", prompt: "📋 ¿Cuál es tu *razón social*?" },
-  { field: "condicion_iva", prompt: "🧾 ¿Condición frente al IVA? (*Responsable inscripto*, *Monotributo* o *Exento*)",
+  { field: "razon_social", prompt: "📋 ¿Cuál es tu *razón social*?", skip: (l) => !!l.razon_social },
+  { field: "condicion_iva", prompt: "🧾 ¿Condición frente al IVA? (*Responsable inscripto*, *Monotributo* o *Exento*)", skip: (l) => !!l.condicion_iva,
     parse: (t) => /inscrip|\bri\b|responsable/i.test(t) ? { value: "Responsable inscripto" }
       : /monot/i.test(t) ? { value: "Monotributo" } : /exent/i.test(t) ? { value: "Exento" }
       : { error: "No te entendí 🤔 Escribí *Responsable inscripto*, *Monotributo* o *Exento*." } },
@@ -90,10 +88,21 @@ const ALTA_STEPS: { field: string; prompt: string; skip?: (l: AltaLead) => boole
   { field: "mail", prompt: "📧 ¿*Mail*? (ej: nombre@dominio.com)",
     parse: (t) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t.trim()) ? { value: t.trim() }
       : { error: "Ese mail no parece válido 🤔 Debería ser algo tipo *nombre@dominio.com*. ¿Me lo pasás de nuevo?" } },
-  { field: "direccion", prompt: "📍 Dirección de *entrega*: ¿calle y número?" },
-  { field: "localidad", prompt: "📍 ¿*Localidad*?" },
-  { field: "provincia", prompt: "📍 ¿*Provincia*?" },
-  { field: "codigo_postal", prompt: "📍 ¿*Código postal*?",
+  { field: "direccion", prompt: "📍 Dirección de *entrega*: ¿calle y número?",
+    // Si el cliente mandó la constancia y confirmó sus datos, se le propone entregar en el domicilio fiscal (no siempre es el mismo).
+    promptDe: (l) => { const d = domicilioDeConstancia(l); return d ? `📍 ¿Entregamos en tu domicilio fiscal, *${textoDomicilio(d)}*? Respondé *sí*, o pasame la dirección de *entrega* (calle y número).` : null; },
+    parse: (t, _phone, l) => {
+      const d = domicilioDeConstancia(l);
+      if (!d) return { value: t.trim() };
+      if (esConfirmacion(t) || /^\W*(la misma|misma|el mismo|mismo|igual|ah[ií]|en el fiscal)\b/i.test(t)) {
+        return { value: d.calle, extra: { localidad: d.localidad, provincia: d.provincia, codigo_postal: d.codigoPostal } };
+      }
+      if (RE_NIEGA.test(t)) return { error: "Dale 👍 Pasame la dirección de *entrega* (calle y número)." };
+      return { value: t.trim() };
+    } },
+  { field: "localidad", prompt: "📍 ¿*Localidad*?", skip: (l) => !!l.localidad },
+  { field: "provincia", prompt: "📍 ¿*Provincia*?", skip: (l) => !!l.provincia },
+  { field: "codigo_postal", prompt: "📍 ¿*Código postal*?", skip: (l) => !!l.codigo_postal,
     parse: (t) => { const m = t.toUpperCase().match(/\b([A-Z]?\d{4}[A-Z]{0,3})\b/); return m ? { value: m[1] } : { error: "No encontré el código postal 🤔 Son 4 números (ej: *1417*)." }; } },
   { field: "expreso_nombre", prompt: "🚚 ¿Te lo mandamos por *expreso* (interior)? Decime cuál. Si recibís en CABA o GBA, escribí *no*.",
     parse: (t) => /^(no|ninguno|no\s+uso|reparto|caba|gba)\b/i.test(t.trim()) ? { value: null } : { value: t.trim() } },
@@ -105,6 +114,83 @@ function altaProximoPaso(desde: number, lead: AltaLead): number {
   let i = desde;
   while (i < ALTA_STEPS.length && ALTA_STEPS[i].skip?.(lead)) i++;
   return i;
+}
+
+// ─── Constancia de inscripción (PDF de ARCA) ─────────────────────────────────────────────────────────────────────────────────
+// Pablo, 06/10. El cliente la manda por WhatsApp (el webhook la lee con _shared/constancia.ts, por reglas, 0 tokens) y el bot le
+// muestra lo que leyó. Ese estado vive en `wa_prospect_leads.raw_messages`, como una entrada más con `role: "constancia"` (sin columnas
+// nuevas): `pendiente` (esperando el "sí"), `aplicada` (completó CUIT, razón social e IVA) o `descartada` (dijo que no, o contestó otra cosa).
+// deno-lint-ignore no-explicit-any
+type EntradaMsg = any;
+const mensajesDe = (l: AltaLead): EntradaMsg[] => Array.isArray(l?.raw_messages) ? l.raw_messages : [];
+
+/** La constancia que se le mostró y todavía no confirmó: sólo si es lo ÚLTIMO del lead (lo que escribe ahora la contesta). */
+function constanciaPendiente(l: AltaLead): EntradaMsg | null {
+  const m = mensajesDe(l);
+  const ult = m[m.length - 1];
+  return ult?.role === "constancia" && ult.estado === "pendiente" ? ult : null;
+}
+
+/** Domicilio fiscal de la última constancia confirmada, mientras no haya dirección de entrega cargada. */
+function domicilioDeConstancia(l: AltaLead): ConstanciaDatos["domicilio"] {
+  if (l?.direccion) return null;
+  const m = mensajesDe(l);
+  for (let i = m.length - 1; i >= 0; i--) {
+    if (m[i]?.role === "constancia" && m[i].estado === "aplicada") return m[i].datos?.domicilio ?? null;
+  }
+  return null;
+}
+
+/** "Sí" a lo que se le mostró: una afirmación corta, o "correcto" / "está bien". */
+export function esConfirmacion(text: string): boolean {
+  return esAfirmacion(text) || /^\W*(est[aá] bien|as[ií] es|son correctos|todo bien)\W*$/i.test(text.trim());
+}
+const RE_NIEGA = /^\W*(no|nop|nope|incorrecto|incorrectos|est[aá] mal|no son|no es)\b/i;
+
+/** Lo que se le pregunta ahora (o null si el alta ya está completa). Sirve para no dejarlo parado cuando manda algo que no es una respuesta. */
+export function promptActual(l: AltaLead): string | null {
+  const i = altaProximoPaso(l.alta_step ?? 0, l);
+  return i < ALTA_STEPS.length ? (ALTA_STEPS[i].promptDe?.(l) ?? ALTA_STEPS[i].prompt) : null;
+}
+
+/** ¿Este CUIT ya es de un cliente de Loekemeyer o de Chef? (el alta no aplica: se vincula el número con revisión humana) */
+export async function cuitYaEsCliente(cuit: string): Promise<boolean> {
+  const { data: lk } = await supabase.from("customers").select("id").eq("cuit", cuit).limit(1);
+  if (lk?.length) return true;
+  const { data: ch } = await supabase.from("bot_cuentas").select("razon_social").eq("empresa", "CH").eq("cuit", cuit).limit(1);
+  return !!ch?.length;
+}
+
+/**
+ * Llegó una constancia de un no-cliente y se la pudo leer (_shared/constancia.ts). Si el CUIT ya es cliente, va a vinculación; si no,
+ * se le muestra lo que se leyó y se espera su "sí" (nada se usa sin confirmar: el PDF es público y la lectura no está validada con una
+ * constancia real). Con un alta en curso suma la constancia a ese lead; sin alta, la abre con el CUIT.
+ */
+export async function procesarConstancia(
+  phone: string,
+  d: ConstanciaDatos,
+  archivo: string | null,
+  send: (reply: string) => Promise<void>,
+): Promise<void> {
+  const lead = await getPendingLead(phone);
+  if (await cuitYaEsCliente(d.cuit)) {
+    if (lead) await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", lead.id);
+    if (!SIM.activo) await tryRegister(phone, d.cuit);   // el simulador no pide vinculaciones reales
+    await send(MSG_CUIT_YA_CLIENTE);
+    return;
+  }
+  if (lead?.cuit && lead.cuit !== d.cuit) {
+    await send(`El CUIT de la constancia (${formatoCuit(d.cuit)}) no es el que me pasaste antes (${formatoCuit(lead.cuit)}). ` +
+      `Revisá cuál es el correcto y mandame la constancia de nuevo, o escribime el CUIT.`);
+    return;
+  }
+  const entrada = { role: "constancia", estado: "pendiente", datos: d, archivo, desdeConstancia: !lead, ts: new Date().toISOString() };
+  if (lead) {
+    await supabase.from("wa_prospect_leads").update({ raw_messages: [...mensajesDe(lead), entrada], updated_at: new Date().toISOString() }).eq("id", lead.id);
+  } else {
+    await crearLead(phone, "[constancia de inscripción]", d.cuit, [entrada]);
+  }
+  await send(textoConfirmaConstancia(d));
 }
 
 export const MSG_ALTA_COMPLETA =
@@ -141,7 +227,7 @@ export const RE_ALTA_START =
 // dijo el bot fue ofrecer el registro. Misma regla que el punto 11 de la auditoría: frases explícitas, no palabras sueltas.
 const RE_OFERTA_REGISTRO = /que te registre|te registro|registrarme|registrarte|te tomo los datos/i;
 const AFIRMA_SI = new Set(["si", "sii", "siii", "dale", "daale", "ok", "okey", "okay", "bueno", "claro", "perfecto", "obvio",
-  "quiero", "vamos", "adelante", "hagamoslo", "anotame"]);
+  "quiero", "vamos", "adelante", "hagamoslo", "anotame", "correcto", "correctos", "exacto"]);
 const AFIRMA_RELLENO = new Set(["de", "una", "por", "favor", "porfa", "me", "gustaria", "quisiera", "registrame", "registrarme", "genial"]);
 const RE_AFIRMA_EMOJI = /^(?:\s*[👍👌✅🙌🤝]\s*)+$/u;
 
@@ -222,7 +308,7 @@ export async function atenderNoCliente(
     }
     await crearLead(phone, text, cuit);
     return {
-      respuestas: ["No te encontré como cliente con ese CUIT. 🤔\n\nSi querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. Te pregunto de a uno (para cortar, escribí *cancelar*):\n\n📋 ¿Cuál es tu *razón social*?"],
+      respuestas: [MSG_CUIT_NO_ENCONTRADO],
       via: "alta (arranca con CUIT)",
     };
   }
@@ -316,6 +402,35 @@ export async function notificarAltaVendedor(phone: string, lead: Record<string, 
   }
 }
 
+/** Guarda lo contestado y avanza: pregunta lo que sigue, o cierra el alta y avisa al vendedor si ya no falta nada. */
+async function guardarYAvanzar(
+  phone: string,
+  // deno-lint-ignore no-explicit-any
+  lead: any,
+  messages: EntradaMsg[],
+  campos: Record<string, unknown>,
+  desde: number,
+  send: (reply: string) => Promise<void>,
+  prefijo = "",
+): Promise<void> {
+  const actualizado = { ...lead, ...campos, raw_messages: messages };
+  const siguiente = altaProximoPaso(desde, actualizado);
+  const completo = siguiente >= ALTA_STEPS.length;
+  await supabase.from("wa_prospect_leads")
+    .update({
+      ...campos,
+      alta_step: siguiente,
+      raw_messages: messages,
+      ...(completo ? { status: "complete" } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", lead.id);
+
+  if (!completo) { await send(prefijo + (ALTA_STEPS[siguiente].promptDe?.(actualizado) ?? ALTA_STEPS[siguiente].prompt)); return; }
+  await notificarAltaVendedor(phone, actualizado);
+  await send(MSG_ALTA_COMPLETA);
+}
+
 /** Enruta la respuesta del cliente al campo del alta que corresponda. */
 export async function handleAltaStep(
   phone: string,
@@ -332,9 +447,39 @@ export async function handleAltaStep(
     return;
   }
 
-  const step = altaProximoPaso(lead.alta_step ?? 0, lead);
   const messages = Array.isArray(lead.raw_messages) ? [...lead.raw_messages] : [];
-  messages.push({ role: "user", content: text, ts: new Date().toISOString() });
+  const mensajeCliente = { role: "user", content: text, ts: new Date().toISOString() };
+  let reset: Record<string, unknown> = {};   // campos que se vuelven a dejar vacíos si se descarta la constancia
+
+  // La constancia que se le mostró y todavía no contestó: "sí" la aplica (CUIT, razón social, IVA); "no" u otra cosa la descarta.
+  const pend = constanciaPendiente(lead);
+  if (pend) {
+    const entrada = messages[messages.length - 1];
+    if (esConfirmacion(text)) {
+      const d: ConstanciaDatos = entrada.datos;
+      const relleno: Record<string, unknown> = {};
+      if (!lead.cuit) relleno.cuit = d.cuit;
+      if (!lead.razon_social) relleno.razon_social = d.razonSocial;
+      if (!lead.condicion_iva && d.condicionIva) relleno.condicion_iva = d.condicionIva;
+      messages[messages.length - 1] = { ...entrada, estado: "aplicada" };
+      messages.push(mensajeCliente);
+      await guardarYAvanzar(phone, lead, messages, relleno, lead.alta_step ?? 0, send, "Perfecto, ya tengo tus datos fiscales. ✅\n\n");
+      return;
+    }
+    messages[messages.length - 1] = { ...entrada, estado: "descartada" };
+    // Si el alta nació de la constancia, el CUIT que trajo se saca (si no, el bot nunca se lo volvería a pedir).
+    if (entrada.desdeConstancia) { reset = { cuit: null }; lead = { ...lead, cuit: null }; }
+    // Dijo que no, o contestó otra cosa: la constancia se deja de lado y se vuelve a preguntar el paso en curso. Lo que escribió NO se toma
+    // como respuesta (si el alta nació de la constancia, el paso en curso es el CUIT y un texto cualquiera daría "CUIT inválido").
+    messages.push(mensajeCliente);
+    await supabase.from("wa_prospect_leads").update({ ...reset, raw_messages: messages, updated_at: new Date().toISOString() }).eq("id", lead.id);
+    const sig = promptActual({ ...lead, raw_messages: messages });
+    await send((RE_NIEGA.test(text) ? "Listo, seguimos a mano. 👍" : "Dejo la constancia de lado y seguimos a mano. 👍") + (sig ? `\n\n${sig}` : ""));
+    return;
+  }
+
+  const step = altaProximoPaso(lead.alta_step ?? 0, lead);
+  messages.push(mensajeCliente);
 
   if (step >= ALTA_STEPS.length) {
     // Ya estaba completo (mensaje tardío) — no re-notificar.
@@ -343,41 +488,20 @@ export async function handleAltaStep(
   }
   const paso = ALTA_STEPS[step];
   if (!text.trim()) { await send("Se me quedó vacío 🤔 ¿Me lo repetís?"); return; }
-  const r: AltaParse = paso.parse ? paso.parse(text, phone) : { value: text.trim() };
+  const r: AltaParse = paso.parse ? paso.parse(text, phone, lead) : { value: text.trim() };
   if ("error" in r) { await send(r.error); return; }   // dato mal → se repregunta el MISMO campo
 
   // CUIT que ya es cliente: no es un alta, es vincular el número (lo aprueba una persona, sql/072).
   // Pablo, 05/10: antes sólo miraba Loekemeyer (`customers`). Un cliente que sólo le compra a Chef (399 filas del padrón, 05/10) que contestaba
   // "sí" / "registrarme" y después pasaba su CUIT hacía el alta entera como si fuera nuevo. `tryRegister` ya sabe vincular a Chef (sql/116).
-  if (paso.field === "cuit") {
-    const { data: ya0 } = await supabase.from("customers").select("id").eq("cuit", String(r.value)).limit(1);
-    const { data: yaCh } = ya0?.length ? { data: [] } : await supabase.from("bot_cuentas").select("razon_social")
-      .eq("empresa", "CH").eq("cuit", String(r.value)).limit(1);
-    const ya = ya0?.length ? ya0 : yaCh;
-    if (ya?.length) {
-      await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", lead.id);
-      if (!SIM.activo) await tryRegister(phone, String(r.value));   // el simulador no pide vinculaciones reales
-      await send("Ese CUIT ya es cliente nuestro 👍 Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por acá.");
-      return;
-    }
+  if (paso.field === "cuit" && await cuitYaEsCliente(String(r.value))) {
+    await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", lead.id);
+    if (!SIM.activo) await tryRegister(phone, String(r.value));   // el simulador no pide vinculaciones reales
+    await send(MSG_CUIT_YA_CLIENTE);
+    return;
   }
 
-  const actualizado = { ...lead, [paso.field]: r.value };
-  const siguiente = altaProximoPaso(step + 1, actualizado);
-  const completo = siguiente >= ALTA_STEPS.length;
-  await supabase.from("wa_prospect_leads")
-    .update({
-      [paso.field]: r.value,
-      alta_step: siguiente,
-      raw_messages: messages,
-      ...(completo ? { status: "complete" } : {}),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", lead.id);
-
-  if (!completo) { await send(ALTA_STEPS[siguiente].prompt); return; }
-  await notificarAltaVendedor(phone, actualizado);
-  await send(MSG_ALTA_COMPLETA);
+  await guardarYAvanzar(phone, lead, messages, { ...reset, [paso.field]: r.value, ...(r.extra ?? {}) }, step + 1, send);
 }
 
 /** Crea el lead (status='pending', alta_step=0). No envía nada: el caller
@@ -386,7 +510,7 @@ export async function handleAltaStep(
  * v14.13 — idempotente. Antes insertaba sin mirar si el teléfono ya tenía un alta abierta, que
  * es exactamente cómo se llegaba a las dos filas `pending` que dejaban el alta en loop.
  */
-export async function crearLead(phone: string, text: string, cuit: string | null): Promise<void> {
+export async function crearLead(phone: string, text: string, cuit: string | null, extraMensajes: EntradaMsg[] = []): Promise<void> {
   const abierto = await getPendingLead(phone);
   if (abierto) {
     console.log(`[alta] ${phone} ya tenía un alta abierta (lead ${abierto.id}); no se crea otra.`);
@@ -397,7 +521,7 @@ export async function crearLead(phone: string, text: string, cuit: string | null
     cuit,
     alta_step: 0,
     status: "pending",
-    raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }],
+    raw_messages: [{ role: "user", content: text, ts: new Date().toISOString() }, ...extraMensajes],
   });
   // 23505 = chocó con el índice único parcial de sql/059: otra entrega del mismo mensaje
   // ganó la carrera. No es un error: el alta ya existe.
