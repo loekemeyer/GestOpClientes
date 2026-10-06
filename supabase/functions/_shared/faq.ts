@@ -16,6 +16,7 @@ import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type Fact
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
 import { textoFechaRetiro } from "./fecha-retiro.ts";
+import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
 
@@ -358,6 +359,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
           yaSaluda: yaSaluda(lookupReply),
         };
       }
+      // Pablo, 06/10 (m72): precio o stock de un artículo que nombró y no se halló por código → lo busca la IA, no la respuesta estática de abajo.
+      if ((top.db_lookup_type === "product_price" || top.db_lookup_type === "product_stock") && hayNombreDeArticulo(text)) return null;
       // Si el lookup no aplica, caemos a respuesta estática de más abajo
     }
   }
@@ -1228,7 +1231,9 @@ async function articuloDeLaFrase(message: string): Promise<{ cod: string; descri
 
 async function lookupProductPrice(customer: NonNullable<Customer>, message: string): Promise<string | null> {
   const p = await articuloDeLaFrase(message);
-  if (!p) return `¿De qué artículo? Pasame el código o el nombre y te digo el precio.`;
+  // Pablo, 06/10 (m72): "Me refiero al automate" → pedía "el código o el nombre" aunque ya lo había dicho. Si nombró un artículo y no se encontró por código
+  // (la búsqueda por nombre, wa_product_match, está rota y mira sólo activos), lo toma la IA; sólo se pregunta si no nombró nada.
+  if (!p) return hayNombreDeArticulo(message) ? null : `¿De qué artículo? Pasame el código o el nombre y te digo el precio.`;
   const basePrice = Number(p.list_price);
   const iva = basePrice * 0.21;
   const withIva = basePrice + iva;
@@ -1243,7 +1248,7 @@ async function lookupProductStock(customer: NonNullable<Customer>, message: stri
   // wa_product_match no devuelve: contestaba "sin stock" a todo.
   const p = await articuloDeLaFrase(message);
   if (!p) {
-    return `¿Qué artículo te interesa? Pasame el código o el nombre y te confirmo si hay stock.`;
+    return hayNombreDeArticulo(message) ? null : `¿Qué artículo te interesa? Pasame el código o el nombre y te confirmo si hay stock.`;
   }
   try {
     const st = await stockArticulo(p.cod);
