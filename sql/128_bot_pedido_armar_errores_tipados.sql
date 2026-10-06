@@ -1,4 +1,4 @@
--- 127 — bot_pedido_armar: los errores ya no tiran una excepción (Pablo Olejavetzky, 06/10/2026).
+-- 128 — bot_pedido_armar: los errores ya no tiran una excepción (Pablo Olejavetzky, 06/10/2026).
 -- Aplicada 06/10/2026 a PaginaLK (kwkclwhmoygunqmlegrg) con el "sí" de Pablo Olejavetzky. Verificado por SELECT: 8 literales con ::text, 0 pelados,
 --   permisos intactos (anon y authenticated no ejecutan) y 5 de los 8 puntos probados con 6 entradas (slot, pago, el caso real slot+pago,
 --   sin artículos, sin entrega, origen) devuelven {ok:false, errores:[…]} en vez de lanzar. Sin probar: las 2 ramas de retiro (fecha o franja) y el

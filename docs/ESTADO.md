@@ -4,7 +4,7 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
-> **06/10 (Pablo): `bot_pedido_armar` lanzaba una excepción en vez de devolver sus errores — arreglado (`sql/127`, aplicada a PaginaLK).** Lo destapó el Simulador al probar la compuerta: el modelo mandó una dirección que no era de la
+> **06/10 (Pablo): `bot_pedido_armar` lanzaba una excepción en vez de devolver sus errores — arreglado (`sql/128`, aplicada a PaginaLK; se renumeró: el 127 lo usó otra sesión para `sync_web_ocultos_virgilio`).** Lo destapó el Simulador al probar la compuerta: el modelo mandó una dirección que no era de la
 > cuenta (slot 2) y la función reventó con `22P02 malformed array literal`. Causa: en PostgreSQL 17 `text[] || 'literal'` (el literal sin tipo) se lee como un array; 8 líneas de `sql/112` y `113` concatenaban literales pelados
 > (`forma_de_pago_invalida`, `origen_invalido`, `sin_articulos`, `falta_entrega`, `sucursal_invalida`, `falta_fecha_o_franja_de_retiro`, `franja_invalida` y el aviso de escala); las ramas con `format(...)` andaban. Efecto: el agente decía
 > "No pude armar el pedido" y derivaba a una persona con alerta urgente en vez de resolverlo con el cliente. Arreglo: `::text` en esos 8 literales (misma firma, permisos intactos). Registrado en auditoría ("bot_pedido_armar lanza
