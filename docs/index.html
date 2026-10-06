@@ -381,7 +381,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.27.6">
+  <link rel="stylesheet" href="gestop2.css?v=0.27.7">
 </head>
 <body>
 
@@ -1450,6 +1450,13 @@ let skipRateLimit = false;
 // --- Auth (Google OAuth via Supabase) ---
 async function doGoogleLogin() {
   document.getElementById("loginError").textContent = "";
+  // v0.27.7 (Pablo, 06/10): el link "Abrir la charla" de la alarma de Planify trae ?charla=<teléfono>. Google devuelve a la página SIN
+  // query (redirectTo la saca a propósito: la lista de URLs permitidas de Supabase no la incluye), así que el teléfono se guarda
+  // acá y se lee al volver (showApp). Vale 10 minutos: un login común de más tarde no abre una charla vieja.
+  try {
+    const charla = new URLSearchParams(location.search).get("charla");
+    if (charla) localStorage.setItem("gestop_charla_pendiente", JSON.stringify({ tel: charla, t: Date.now() }));
+  } catch (_) { /* sin almacenamiento: se pierde el link, no se rompe el login */ }
   const { error } = await sbAuth.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: window.location.href.split("#")[0].split("?")[0] }
@@ -1528,8 +1535,17 @@ function showApp() {
     showStartScreen();
   }
   // Link directo a una charla (?charla=<teléfono>): lo traen las tareas de Planify de las alertas.
-  const charla = new URLSearchParams(location.search).get("charla");
+  // v0.27.7: (1) si el link pasó por el login de Google, el teléfono quedó guardado (doGoogleLogin); (2) se deja anotado en
+  // window.__charlaDeLink ANTES de sacar el parámetro de la URL, porque alEntrar (gestop2.js) decidía "ir a Inicio" mirando la URL
+  // y, como acá ya se había borrado, pisaba la charla con Inicio incluso con la sesión abierta.
+  let charla = new URLSearchParams(location.search).get("charla");
+  try {
+    const g = JSON.parse(localStorage.getItem("gestop_charla_pendiente") || "null");
+    localStorage.removeItem("gestop_charla_pendiente");   // se usa una sola vez, haya o no parámetro
+    if (!charla && g?.tel && Date.now() - Number(g.t) < 10 * 60_000) charla = String(g.tel);
+  } catch (_) { /* sin almacenamiento: queda el parámetro de la URL */ }
   if (charla && isAdmin) {
+    window.__charlaDeLink = charla;
     history.replaceState(null, "", location.pathname);
     abrirCharla(charla).catch(() => {});
   }
@@ -4745,7 +4761,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.6</div>
-<script src="gestop2.js?v=0.27.6"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.7</div>
+<script src="gestop2.js?v=0.27.7"></script>
 </body>
 </html>

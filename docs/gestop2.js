@@ -625,7 +625,8 @@ function alEntrar() {
   cargarLlave();
   if (esAdmin()) tkContarVinculos();
   // Se entra por Inicio (Luis, 05/10); antes caía directo en Conversaciones (o en Pruebas sin admin).
-  if (!new URLSearchParams(location.search).get("charla")) irPagina("inicio");
+  // v0.27.7: el link de una alarma (?charla=) ya fue sacado de la URL por showApp; lo que cuenta es window.__charlaDeLink.
+  if (!window.__charlaDeLink && !new URLSearchParams(location.search).get("charla")) irPagina("inicio");
   renderNav();
 }
 const _showAppViejo = showApp;
