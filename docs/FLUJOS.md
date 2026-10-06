@@ -305,6 +305,8 @@ avisame" (si tiene otra consulta la hace; si no, la charla termina). Dos capas: 
 `_shared/cierre.ts` (`sinCierreGenerico`) sobre el texto final, que saca sólo la última oración cuando es un cierre genérico puro y
 no toca las preguntas que piden un dato o una confirmación ("¿Agregamos 2 cajas?"). No aplica a los saludos de apertura ni a las
 plantillas de Meta (`pedido_entregado` dice "si falta algo, avisanos por acá": cambiarlo exige otra aprobación de Meta).
+**Ejemplos aprobados (Pablo, 06/10):** las correcciones que el dueño aprueba (`wa_agente_evals`, estado `aplicada`: respuesta modelo y/o regla) llegan al agente como guía cuando entra
+una consulta parecida (`_shared/ejemplos-aprobados.ts`). Sólo el agente IA: la capa fija se cambia en código o en `wa_faq`. Procedimiento en `CLAUDE.md`.
 
 ## Flujo 3: Nuevo pedido (30/09: precarga por WhatsApp, `sql/112`)
 

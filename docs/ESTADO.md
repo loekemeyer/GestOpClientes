@@ -2,7 +2,17 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-10-05.
+> Última actualización: 2026-10-06.
+>
+> **06/10 (Pablo): el bot lee como guía las correcciones APROBADAS del artifact / de Evaluación (`wa_agente_evals.estado = 'aplicada'`).** Pedido: *"cuando vaya guardando la data, que el bot
+> aprenda de ahí"*. **Lo que NO es:** guardar en el artifact no cambia nada (su colección `correcciones` es del artifact; el bot no la lee). **Cómo es:** (1) `_shared/ejemplos-aprobados.ts`
+> (puro, `tests/ejemplos-aprobados.test.ts`): para cada consulta que llega al AGENTE elige hasta 3 ejemplos aprobados parecidos por palabras (≥ 2 en común y coseno ≥ 0,5: sobre las 82 frases
+> del estudio sólo trae ejemplo para sus propias consultas y variantes, 0 falsos positivos) y los agrega al prompt como guía (`respuesta_corregida` = respuesta modelo, `nota_esperada` =
+> "qué debería hacer"); los datos siguen saliendo de las herramientas. (2) `bot-conversation.ts` los lee de `wa_agente_evals` (estado `aplicada` y `activo`) con caché de 5 min por instancia y nunca rompe el
+> turno si la lectura falla. (3) Procedimiento "pasá las correcciones" en `CLAUDE.md` (leer el artifact, clasificar, mostrar el SQL exacto, "sí", verificar). **Límite que cambia el diseño:** sólo llega al agente
+> IA; las consultas de la capa fija (`wa_faq`, `faq.ts`, `respuesta-aviso.ts`) necesitan un cambio de código. De las **18 correcciones** de Pablo del 05/10 (19:04 a 19:55 UTC), 9 son de casos con IA y 9 de
+> respuestas fijas; **de las 9 con IA sólo 2 traen una respuesta modelo limpia** (2.1 y 2.4; la 1.7 también trae un texto limpio pero es de la capa fija, y va por código): el resto son reglas, funcionalidades ("guardar la nota con un check a logística"), datos que faltan ("14 días hábiles", "cómo
+> funcionan las devoluciones") o texto en la caja equivocada. Hasta que Pablo diga "sí" a un SQL, no hay filas `aplicada` y el bot no cambia.
 >
 > **05/10 (Pablo): modelo FIJO (Claude Sonnet 4.6) para cotizadores y toma de pedidos: ya no pasan por la cadena (Gemini #1).** Pedido de Pablo: *"podemos usar algún LLM fijo
 > cuando se envían los cotizadores y para tomar pedidos, en este caso sería Sonnet, no podemos fallar ahí"*. **Antes:** (1) el LECTOR de archivos (`pedido-archivo.ts`:

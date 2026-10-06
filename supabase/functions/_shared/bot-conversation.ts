@@ -10,6 +10,7 @@ import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
+import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
@@ -1260,6 +1261,26 @@ export function notaDeTiempo(rawHistory: Array<{ rol: string; contenido: string;
   return lineas.join("\n");
 }
 
+// Pablo, 05/10: lo que el dueño corrigió y APROBÓ (wa_agente_evals.estado = 'aplicada') llega al agente como guía cuando entra una
+// consulta parecida: ver _shared/ejemplos-aprobados.ts. Se lee una vez cada 5 minutos por instancia (una aprobación nueva tarda
+// hasta ese tiempo en notarse) y NUNCA rompe el turno: si la lectura falla, el agente sigue sin ejemplos.
+let ejemplosMemo: { hasta: number; filas: EjemploAprobado[] } | null = null;
+async function ejemplosAprobados(): Promise<EjemploAprobado[]> {
+  if (ejemplosMemo && ejemplosMemo.hasta > Date.now()) return ejemplosMemo.filas;
+  try {
+    const { data, error } = await supabase.from("wa_agente_evals")
+      .select("clave, pregunta, respuesta_corregida, nota_esperada").eq("estado", "aplicada").eq("activo", true).limit(200);
+    if (error) throw new Error(error.message);
+    const filas = (data ?? []).map((r: { clave: string | null; pregunta: string | null; respuesta_corregida: string | null; nota_esperada: string | null }) =>
+      ({ clave: String(r.clave ?? ""), pregunta: String(r.pregunta ?? ""), respuesta: r.respuesta_corregida, nota: r.nota_esperada }));
+    ejemplosMemo = { hasta: Date.now() + 5 * 60_000, filas };
+    return filas;
+  } catch (e) {
+    console.error("[ejemplosAprobados]", e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
 export async function runConversation(
   userText: string,
   phone: string,
@@ -1271,13 +1292,15 @@ export async function runConversation(
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
-  const [rawHistory, promptBase, herramientas, chain] = await Promise.all([
+  const [rawHistory, promptBase, herramientas, chain, ejemplos] = await Promise.all([
     loadHistory(phone, 16),
     buildSystemPrompt(customerName, codCliente, dtoVol),
     herramientasDelTurno(),
     resolveChain(),
+    ejemplosAprobados(),
   ]);
-  const systemPrompt = promptBase + "\n\n" + notaDeTiempo(rawHistory, userText);
+  const bloqueAprobados = bloqueEjemplos(elegirEjemplos(userText, ejemplos));
+  const systemPrompt = promptBase + "\n\n" + notaDeTiempo(rawHistory, userText) + (bloqueAprobados ? "\n\n" + bloqueAprobados : "");
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
   // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor
   // en cualquier iteración sin romper el formato.
