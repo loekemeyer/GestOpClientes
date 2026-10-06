@@ -21,9 +21,11 @@ export function modeloFijoDePedidos(valor: string | null | undefined): string | 
  *  el cliente ("contado", "sí") sigue siendo del pedido. Es el mismo criterio que usa `pedidoEnCurso` (bot-conversation.ts).
  *  Pablo, 06/10: el agente confirma los artículos con cualquier verbo ("¿Confirmo 10 cajas de X (cód. 998E)…?", no sólo "¿Confirmás…?"):
  *  con el verbo solo, "10 cajas no, 10 unidades" caía en la FAQ #21 (mínimo / por unidad). Por eso también vale el formato fijo
- *  "N cajas de <descripción> (cód. X)" que el agente usa para confirmar (agente-fijos.ts, paso 1). */
+ *  "N cajas de <descripción> (cód. X)" que el agente usa para confirmar (agente-fijos.ts, paso 1).
+ *  Pablo, 06/10 (tarea "10 cajas no, 10 unidades"): el agente también redondea unidades a cajas con "…serían 2 cajas (12 unidades). ¿Te parece bien que
+ *  carguemos 2 cajas?" (verbos cargar/agregar/sumar/anotar + N cajas, y "serían N cajas"); sin eso la corrección caía en la FAQ #43. */
 export const RE_BOT_EN_PEDIDO =
-  /(le[ií]mos esto|recibimos tu cotizador|te tomo el pedido|qu[eé] art[ií]culos (necesit|quer)|algo m[aá]s\?|confirm(?:o|[aá]s|amos)\s+\d+\s+cajas|\d+\s+cajas?\s+de\s[^()\n?]*\(c[oó]d\.?\s*[\w-]+\)|formas? de pago|resumen (de|del) (tu )?pedido|tu pedido:|confirm(á|as)\s+(el pedido|con un s[ií])|¿?con cu[aá]l (vas|pag)|direcci[oó]n de entrega|¿(a )?d[oó]nde (lo )?(enviamos|entregamos)|franja|d[ií]a de retiro)/i;
+  /(le[ií]mos esto|recibimos tu cotizador|te tomo el pedido|qu[eé] art[ií]culos (necesit|quer)|algo m[aá]s\?|confirm(?:o|[aá]s|amos)\s+\d+\s+cajas|(?:carg(?:o|amos|uemos)|agreg(?:o|amos|uemos)|sumo|sumamos|anoto)\s+\d+\s+cajas?|ser[ií]an\s+\d+\s+cajas?|\d+\s+cajas?\s+de\s[^()\n?]*\(c[oó]d\.?\s*[\w-]+\)|formas? de pago|resumen (de|del) (tu )?pedido|tu pedido:|confirm(á|as)\s+(el pedido|con un s[ií])|¿?con cu[aá]l (vas|pag)|direcci[oó]n de entrega|¿(a )?d[oó]nde (lo )?(enviamos|entregamos)|franja|d[ií]a de retiro)/i;
 
 /** El cliente quiere pedir, mandó un cotizador o una orden de compra, o dice cantidades. Amplio a propósito: un falso positivo sólo
  *  cuesta una llamada a Sonnet; un falso negativo deja un pedido en manos del modelo gratis. Sin `\b` después de letras con tilde. */

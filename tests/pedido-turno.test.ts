@@ -60,14 +60,23 @@ const CONFIRMA_ARTICULOS = [
   "¿Confirmás 10 cajas de Abrelatas Doble Engranaje Mgo Acacia (cód. 998E)?",
   "¿Te anoto 3 cajas de Pelapapas Inox (cód. 505)?",
   "Encontré 6 cajas de Sacacorchos Alas (cód. 067). ¿Es ese?",
+  // Caso real del Simulador (06/10, cliente 4028): el agente redondea unidades a cajas y pregunta con otro verbo.
+  "El abrelatas a manija (cód. 501) viene en cajas de 6 unidades. Para 10 unidades serían 2 cajas (12 unidades). ¿Te parece bien que carguemos 2 cajas?",
+  "¿Te agrego 3 cajas?",
+  "Listo, cargo 4 cajas y seguimos. ¿Algo más?",
+  "Para 20 unidades serían 4 cajas, ¿va así?",
 ];
 for (const c of CONFIRMA_ARTICULOS) igual(`pedido en curso tras: ${c.slice(0, 45)}`, ultimoDelBotEsDePedido(botPregunta(c, 1), AHORA), true);
 igual("'10 cajas no, 10 unidades' tras confirmar artículos: sigue en el pedido", esTurnoDePedido("no, que sean 10 unidades", botPregunta(CONFIRMA_ARTICULOS[0], 1), AHORA), true);
+igual("'10 cajas no, 10 unidades' tras 'serían 2 cajas… ¿carguemos 2 cajas?': sigue en el pedido (no cae en la FAQ)", esTurnoDePedido("10 cajas no, 10 unidades", botPregunta(CONFIRMA_ARTICULOS[4], 1), AHORA), true);
 // Respuestas que NO son de pedido siguen sin frenar la FAQ (sin "N cajas de … (cód. X)" ni verbo de confirmar + cajas)
 const NO_ES_PEDIDO = [
   "El mínimo de compra con envío es $500.000 y retirando $300.000.",
   "El abrelatas rojo cuesta $2.500 la caja y viene de a 12 unidades.",
   "Tu pedido del 30/09 sale el lunes.",
+  "Cada caja trae 12 unidades y se vende por caja cerrada.",
+  "Las cajas se cargan en el camión el día de la entrega.",
+  "El pedido mínimo serían $500.000 con envío.",
 ];
 for (const c of NO_ES_PEDIDO) igual(`no es pedido en curso: ${c.slice(0, 45)}`, ultimoDelBotEsDePedido(botPregunta(c, 1), AHORA), false);
 
