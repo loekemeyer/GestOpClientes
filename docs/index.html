@@ -415,13 +415,22 @@
 
 <!-- Login -->
 <div class="login-overlay" id="loginOverlay">
-  <!-- Fotos de producto de fondo (Pablo, 06/10): abrelatas Loekemeyer, propios en docs/assets (15-20 KB c/u). Sólo decoración. -->
-  <div class="login-fotos" aria-hidden="true">
-    <img class="lf lf-1" src="assets/login-abrelata-501.webp" alt="" draggable="false" onerror="this.remove()">
-    <img class="lf lf-2" src="assets/login-abrelata-998e.webp" alt="" draggable="false" onerror="this.remove()">
-    <img class="lf lf-3" src="assets/login-abrelata-506.webp" alt="" draggable="false" onerror="this.remove()">
+  <!-- Escena de fondo (Pablo, 06/10, v0.27.18): luz, aros, disco y tres abrelatas Loekemeyer en abanico (propios, docs/assets, 21-24 KB c/u). Sólo decoración. -->
+  <div class="login-escena" aria-hidden="true">
+    <div class="le-luz"></div>
+    <div class="le-aro le-aro-2"></div>
+    <div class="le-aro le-aro-1"></div>
+    <div class="le-disco"></div>
+    <div class="le-piso"></div>
+    <div class="login-fotos">
+      <img class="lf lf-2" src="assets/login-abrelata-998e.webp" alt="" draggable="false" onerror="this.remove()">
+      <img class="lf lf-3" src="assets/login-abrelata-506.webp" alt="" draggable="false" onerror="this.remove()">
+      <img class="lf lf-1" src="assets/login-abrelata-501.webp" alt="" draggable="false" onerror="this.remove()">
+    </div>
   </div>
+  <div class="le-grano" aria-hidden="true"></div>
   <div class="login-box">
+    <img class="lb-logo" src="assets/logo.png" alt="Loekemeyer" onerror="this.remove()">
     <h2>GestOp</h2>
     <p>Bot WhatsApp — Loekemeyer</p>
     <button onclick="doGoogleLogin()" class="google-btn">
@@ -431,6 +440,23 @@
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
+
+<script>
+// Parallax leve del fondo del login (v0.27.18). Sólo con mouse, pantalla ancha y sin "reducir movimiento"; si algo falta, no hace nada.
+(function () {
+  var o = document.getElementById("loginOverlay");
+  if (!o || !window.matchMedia || !matchMedia("(pointer: fine) and (min-width: 901px) and (prefers-reduced-motion: no-preference)").matches) return;
+  var raf = 0;
+  o.addEventListener("pointermove", function (e) {
+    if (raf) return;
+    raf = requestAnimationFrame(function () {
+      raf = 0; var r = o.getBoundingClientRect();
+      o.style.setProperty("--mx", ((e.clientX - r.left) / r.width - 0.5).toFixed(3));
+      o.style.setProperty("--my", ((e.clientY - r.top) / r.height - 0.5).toFixed(3));
+    });
+  });
+})();
+</script>
 
 <!-- App -->
 <div class="app" id="app">
@@ -4938,7 +4964,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.17</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.18</div>
 <script src="gestop2.js?v=0.27.17"></script>
 </body>
 </html>

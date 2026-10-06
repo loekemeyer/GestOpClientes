@@ -364,50 +364,127 @@ html.dark .chat-messages { background-image: none; }
 .cm-ficha div.agendar { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .cm-ficha .agendar input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
 
-/* Login con fondo (v0.24.1, Pablo 29/09: "me lastima verlo tan pelado"): base tinta, luz bordó arriba a la
-   izquierda, reflejo ámbar abajo, trama diagonal fina y la tarjeta crema con sombra. Mismo look en claro y oscuro. */
+/* Login (v0.27.18, Pablo 06/10: "esa imagen de fondo es horrible, parece copia y pega, hacé algo moderno").
+   Antes: tres recortes inclinados con sombra dura sobre un degradé plano (el packaging negro se perdía en el fondo negro).
+   Ahora es una ESCENA: base tinta con luz bordó y reflejo ámbar, trama y grano finos, un disco de luz y aros detrás de los
+   productos (separan el packaging oscuro del fondo), los tres abrelatas en abanico con profundidad (el del medio al frente,
+   los de atrás más oscuros), sombra de apoyo suave en el piso y flotación lenta. La tarjeta es de vidrio con el logo.
+   Los productos y la escena son decoración (aria-hidden): si una foto no carga se saca sola (onerror) y el resto queda.
+   Escritorio: escena a la izquierda y tarjeta a la derecha. Hasta 900 px: una columna, escena de fondo atenuada.
+   Hasta 560 px: sólo luz y trama. Con movimiento reducido no hay animaciones. Paleta de la marca: crema #f1ead8 y bordó #661317. */
 .login-overlay {
+  --crema: #f1ead8; --bordo: #661317; --h: clamp(260px, min(64vh, 30vw), 580px);
+  display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr); align-items: center;
+  overflow: hidden; isolation: isolate;
   background:
-    radial-gradient(900px 620px at 12% 8%, rgba(158, 32, 38, 0.55), transparent 62%),
-    radial-gradient(760px 520px at 92% 96%, rgba(170, 118, 30, 0.22), transparent 60%),
-    repeating-linear-gradient(135deg, rgba(241, 234, 216, 0.035) 0 1px, transparent 1px 18px),
-    #18181a;
+    radial-gradient(1000px 700px at 26% 52%, rgba(158, 32, 38, 0.50), transparent 64%),
+    radial-gradient(760px 520px at 96% 100%, rgba(170, 118, 30, 0.20), transparent 62%),
+    radial-gradient(600px 420px at 100% 0%, rgba(102, 19, 23, 0.35), transparent 70%),
+    #121214;
+}
+.login-overlay::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(241, 234, 216, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(241, 234, 216, 0.055) 1px, transparent 1px);
+  background-size: 56px 56px; background-position: center;
+  -webkit-mask-image: radial-gradient(ellipse 62% 78% at 30% 50%, #000 12%, transparent 72%);
+  mask-image: radial-gradient(ellipse 62% 78% at 30% 50%, #000 12%, transparent 72%);
 }
 .login-overlay::after {
   content: "Loekemeyer Hnos · mayorista de artículos de cocina y bazar";
-  position: absolute; bottom: 22px; left: 0; right: 0; text-align: center;
-  color: rgba(241, 234, 216, 0.45); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  position: absolute; bottom: 22px; left: 0; right: 0; text-align: center; z-index: 2;
+  color: rgba(241, 234, 216, 0.42); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase;
 }
-.login-box {
-  background: #fffdf7; color: #212122; width: min(340px, calc(100vw - 32px)); padding: 2.2rem 2rem 2rem;
-  border-radius: 14px; border-top: 4px solid #661317;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25);
-}
-.login-box h2 { font-size: 1.8rem; letter-spacing: -0.01em; color: #661317; }
-.login-box p { color: #5f5b53; }
-.login-box .google-btn { background: #fffdf7; color: #212122; border-color: #ddd4bf; }
-.login-box .google-btn:hover { background: #efe8d6; }
 
-/* Login con fotos de producto (v0.27.6, Pablo 06/10: "ponele una foto de fondo de Loekemeyer, abrelatas, algún producto nuestro").
-   Tres abrelatas de la línea, con su packaging, a los costados de la tarjeta (el chico sólo en pantallas de 1400 px o más): inclinados, con sombra y la luz bordó/ámbar de
-   atrás. Son decoración: la tarjeta queda arriba (z-index) y en pantallas angostas no se muestran. Si una foto no carga se
-   saca sola (onerror) y el fondo queda como estaba. */
-.login-fotos { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.login-fotos .lf {
-  position: absolute; top: 50%; height: min(60vh, 540px); width: auto; user-select: none;
-  filter: drop-shadow(0 26px 34px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
-  animation: lf-in 0.9s ease-out both;
+/* Escena (columna izquierda) */
+.login-escena { position: relative; z-index: 1; height: 100%; min-height: 0; pointer-events: none; }
+.login-escena > * { position: absolute; left: 50%; top: 50%; }
+.le-grano {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.login-fotos .lf-1 { right: calc(50% + 210px); transform: translateY(-50%) rotate(-8deg); }
-.login-fotos .lf-2 { left: calc(50% + 210px); transform: translateY(-46%) rotate(7deg); animation-delay: 0.12s; }
-.login-fotos .lf-3 { left: calc(50% + 560px); height: min(38vh, 340px); top: 66%; transform: translateY(-50%) rotate(15deg); opacity: 0.6; animation-delay: 0.24s; }
-.login-box { position: relative; z-index: 2; }
-.login-overlay::after { z-index: 2; }
+.le-luz {
+  width: calc(var(--h) * 1.9); height: calc(var(--h) * 1.5); transform: translate(-50%, -52%);
+  background: radial-gradient(closest-side, rgba(214, 74, 70, 0.34), rgba(158, 32, 38, 0.16) 46%, transparent 74%);
+  filter: blur(14px);
+}
+.le-aro { border-radius: 50%; border: 1px solid rgba(241, 234, 216, 0.10); transform: translate(-50%, -50%); }
+.le-aro-1 { width: calc(var(--h) * 1.18); height: calc(var(--h) * 1.18); }
+.le-aro-2 { width: calc(var(--h) * 1.62); height: calc(var(--h) * 1.62); border-color: rgba(241, 234, 216, 0.06); }
+.le-disco {
+  width: calc(var(--h) * 1.02); height: calc(var(--h) * 1.02); border-radius: 50%; transform: translate(-50%, -50%);
+  background:
+    radial-gradient(circle at 32% 24%, rgba(241, 234, 216, 0.26), rgba(241, 234, 216, 0.07) 46%, rgba(241, 234, 216, 0.02) 70%),
+    linear-gradient(160deg, rgba(158, 32, 38, 0.30), rgba(18, 18, 20, 0.0) 70%);
+  border: 1px solid rgba(241, 234, 216, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), 0 40px 90px rgba(0, 0, 0, 0.35);
+}
+.le-piso {
+  top: calc(50% + var(--h) * 0.50); width: calc(var(--h) * 1.25); height: calc(var(--h) * 0.075); transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.30) 55%, transparent); filter: blur(7px);
+}
+
+/* Productos en abanico: el del medio al frente (501), los de atrás más oscuros y chicos */
+.login-fotos { position: absolute !important; inset: 0 !important; pointer-events: none; translate: calc(var(--mx, 0) * -16px) calc(var(--my, 0) * -11px); transition: translate 0.35s ease-out; }
+.le-luz { translate: calc(var(--mx, 0) * 26px) calc(var(--my, 0) * 18px); transition: translate 0.5s ease-out; }
+.le-aro-1 { translate: calc(var(--mx, 0) * 9px) calc(var(--my, 0) * 6px); transition: translate 0.5s ease-out; }
+.le-aro-2 { translate: calc(var(--mx, 0) * 4px) calc(var(--my, 0) * 3px); transition: translate 0.5s ease-out; }
+.login-fotos .lf {
+  position: absolute; left: 50%; top: 50%; width: auto; user-select: none; -webkit-user-drag: none;
+  animation: lf-in 0.9s ease-out both, lf-flota 8s ease-in-out infinite;
+}
+.login-fotos .lf-1 {
+  height: var(--h); z-index: 3; transform: translate(-50%, -50%) rotate(-3deg);
+  filter: drop-shadow(0 22px 26px rgba(0, 0, 0, 0.50)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+  -webkit-box-reflect: below 4px linear-gradient(transparent 74%, rgba(255, 255, 255, 0.08));
+  animation-delay: 0.18s, 0s;
+}
+.login-fotos .lf-2 {
+  height: calc(var(--h) * 0.86); z-index: 2; transform: translate(calc(-50% - var(--h) * 0.43), calc(-50% + var(--h) * 0.03)) rotate(-9deg);
+  filter: brightness(0.74) saturate(0.95) drop-shadow(0 20px 22px rgba(0, 0, 0, 0.55));
+  animation-delay: 0.06s, -3s; animation-duration: 0.9s, 9.5s;
+}
+.login-fotos .lf-3 {
+  height: calc(var(--h) * 0.80); z-index: 2; transform: translate(calc(-50% + var(--h) * 0.45), calc(-50% + var(--h) * 0.05)) rotate(8deg);
+  filter: brightness(0.66) saturate(0.95) drop-shadow(0 20px 22px rgba(0, 0, 0, 0.55));
+  animation-delay: 0.3s, -5s; animation-duration: 0.9s, 10.5s;
+}
 @keyframes lf-in { from { opacity: 0; } }
-@media (max-width: 1400px) { .login-fotos .lf-3 { display: none; } }
-@media (max-width: 1080px) { .login-fotos .lf-1 { right: calc(50% + 190px); } .login-fotos .lf-2 { left: calc(50% + 190px); } }
-@media (max-width: 760px) { .login-fotos { display: none; } }
-@media (prefers-reduced-motion: reduce) { .login-fotos .lf { animation: none; } }
+@keyframes lf-flota { 0%, 100% { translate: 0 0; } 50% { translate: 0 -9px; } }
+
+/* Tarjeta de vidrio (columna derecha) */
+.login-box {
+  position: relative; z-index: 3; justify-self: center; width: min(372px, calc(100vw - 32px)); padding: 2.4rem 2.1rem 2rem;
+  color: var(--crema); text-align: center; border-radius: 22px; border: 1px solid rgba(241, 234, 216, 0.16); border-top: 1px solid rgba(241, 234, 216, 0.28);
+  background: linear-gradient(160deg, rgba(241, 234, 216, 0.11), rgba(241, 234, 216, 0.04));
+  -webkit-backdrop-filter: blur(22px) saturate(1.25); backdrop-filter: blur(22px) saturate(1.25);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: lb-in 0.7s cubic-bezier(.2, .8, .2, 1) both;
+}
+.login-box .lb-logo { display: block; width: 168px; max-width: 70%; height: auto; margin: 0 auto 1.35rem; }
+.login-box h2 { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.02em; color: var(--crema); margin-bottom: 0.35rem; }
+.login-box p { color: rgba(241, 234, 216, 0.62); margin-bottom: 1.7rem; font-size: 0.92rem; }
+.login-box .google-btn {
+  height: 46px; border: 0; border-radius: 11px; background: #fffdf7; color: #212122; font-weight: 600;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.08); transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.login-box .google-btn:hover { background: #fff; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42), inset 0 -1px 0 rgba(0, 0, 0, 0.08); }
+.login-box .google-btn:focus-visible { outline: 2px solid var(--crema); outline-offset: 3px; }
+.login-box .login-error { color: #ffb4a8; }
+@keyframes lb-in { from { opacity: 0; transform: translateY(10px); } }
+
+/* Pantallas medianas y chicas */
+@media (max-width: 900px) {
+  .login-overlay { grid-template-columns: minmax(0, 1fr); justify-items: center; align-items: end; padding-bottom: clamp(56px, 12vh, 120px); --h: clamp(220px, 34vh, 400px); }
+  .login-escena { position: absolute; inset: 0 0 auto 0; height: 60%; }
+}
+@media (max-width: 560px), (max-height: 560px) and (max-width: 900px) {
+  .login-overlay { align-items: center; padding-bottom: 0; }
+  .login-escena { inset: 0; height: auto; }
+  .login-escena .login-fotos, .login-escena .le-disco, .login-escena .le-piso, .login-escena .le-aro { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .login-fotos .lf, .login-box { animation: none; } }
 
 /* ── Botones unificados (Pablo, 29/09: "botones desordenados") ─────────────────────────────────────────────
    Había dos sistemas: .config-btn (páginas viejas: sin borde, gris del navegador, radio 6px) y .g-btn (rediseño:
