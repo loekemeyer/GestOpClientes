@@ -9,6 +9,7 @@ import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
+import { timeoutDeModelo } from "./timeouts.ts";
 import { casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
@@ -1388,7 +1389,8 @@ export async function runConversation(
       if (cand.id === -2) await new Promise((r) => setTimeout(r, 1500));   // reintento del modelo fijo de pedidos (candidatosDePedido)
       const t0 = performance.now();
       try {
-        res = await callModel(cand, systemPrompt, herramientas, history, 30_000);
+        // Pablo, 06/10: Gemini con tope corto (8 s) para que un cuelgue de Google no le cueste 30 s al cliente: ver _shared/timeouts.ts.
+        res = await callModel(cand, systemPrompt, herramientas, history, timeoutDeModelo(cand.provider));
         used = cand;
         logIntento({
           funcion: fuente, modeloId: cand.id, proveedor: cand.provider, modelo: cand.model, tarea: "conversacion",
