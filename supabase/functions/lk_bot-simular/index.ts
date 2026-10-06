@@ -6,7 +6,7 @@ import { SIM } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
-import { compararCotizadorConWeb, leerPedidoArchivo, resolverArticulos, textoConfirmacion } from "../_shared/pedido-archivo.ts";
+import { compararCotizadorConWeb, leerPedidoArchivo, resolverArticulos, sucursalesDelCliente, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { atenderNoCliente } from "../_shared/alta.ts";
 import { pedidoEnCurso, runConversation } from "../_shared/bot-conversation.ts";
 import { atenderClienteChef } from "../_shared/chef.ts";
@@ -311,8 +311,15 @@ serve(async (req) => {
       const r = await leerPedidoArchivo(bytes, String(body.mime ?? ""), key, null, body.nombre ?? null);
       const arts = r.lineas.length ? await resolverArticulos(r.lineas, key, null) : [];
       const cmp = await compararCotizadorConWeb(r.hoja).catch(() => null);
+      // `cod_cliente` (opcional): con él se prueba también la pregunta de a cuál de sus direcciones de entrega va el pedido.
+      let sucursales: Awaited<ReturnType<typeof sucursalesDelCliente>> = [];
+      if (body.cod_cliente) {
+        const { data: cli } = await supabase.from("customers").select("id").eq("cod_cliente", Number(body.cod_cliente)).maybeSingle();
+        sucursales = await sucursalesDelCliente(cli?.id).catch(() => []);
+      }
       return json({ ok: true, lineas: r.lineas, error: r.error ?? null, articulos: arts, comparacion_precios: cmp ? { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } : null,
-        mensaje: arts.length ? textoConfirmacion(arts, { cotizador: r.cotizador === true, seguir: true, condicion_code: r.condicion_code, comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null }) : null,
+        sucursales: sucursales.length > 1 ? sucursales : null,
+        mensaje: arts.length ? textoConfirmacion(arts, { cotizador: r.cotizador === true, seguir: true, condicion_code: r.condicion_code, comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null, sucursales }) : null,
         cotizador: r.cotizador === true, condicion_code: r.condicion_code ?? null });
     }
 

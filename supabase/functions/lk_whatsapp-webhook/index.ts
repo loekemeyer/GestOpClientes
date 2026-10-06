@@ -37,7 +37,7 @@ import { datosEmpresas, respuestaComprobante } from "../_shared/empresas.ts";
 import { audioActivo, audioEco, textoEco, transcribirAudio } from "../_shared/transcribir.ts";
 import { conEtiqueta, puertaMarca } from "../_shared/marca.ts";
 import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
-import { compararCotizadorConWeb, esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, textoConfirmacion } from "../_shared/pedido-archivo.ts";
+import { compararCotizadorConWeb, esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, sucursalesDelCliente, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, esAfirmacion, extractCuit, getPendingLead, handleAltaStep, iniciaAlta, MSG_CUIT_INVALIDO, MSG_CUIT_NO_ENCONTRADO, MSG_NO_CLIENTE, procesarConstancia, promptActual, RE_ALTA_START, tryRegister, ultimoMensajeDelBot } from "../_shared/alta.ts";
 import { leerConstancia } from "../_shared/constancia.ts";
 
@@ -692,10 +692,13 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
         const cotizador = r.cotizador === true || /cotiz/i.test(msg.caption ?? "");
         // Pablo, 06/10 (m41): el cotizador trae los precios: se comparan con los de la web y se le pide confirmar artículo y valor.
         const cmp = await compararCotizadorConWeb(r.hoja).catch((e) => { console.error("[adjunto] comparación de precios:", e instanceof Error ? e.message : e); return null; });
+        // Pablo, 06/10 (m41): con varias direcciones de entrega hay que preguntarle para cuál es el pedido ("eso es muy importante").
+        const sucursales = await sucursalesDelCliente(customer.customer_id).catch(() => []);
         respuestaFinal = textoConfirmacion(arts, { cotizador, seguir: await pedidosWaHabilitados(), condicion_code: r.condicion_code,
-          comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null });
+          comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null, sucursales });
         motivoFinal = "pedido_archivo";
         lectura = { articulos: arts, cotizador, ...(r.condicion_code ? { condicion_code: r.condicion_code } : {}),
+          ...(sucursales.length > 1 ? { sucursales_ofrecidas: sucursales.map((x) => x.slot) } : {}),
           ...(cmp ? { comparacion_precios: { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } } : {}) };
       } else lectura = { lectura_error: r.error ?? "no se encontraron líneas de pedido" };
     } catch (e) {

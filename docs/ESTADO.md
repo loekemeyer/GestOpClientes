@@ -4,10 +4,13 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
-> **06/10 (Pablo, corrección m41): cuando el cliente MANDA el cotizador, el bot compara sus precios con los de la web y le pide confirmar artículo y valor (`_shared/cotizador-precios.ts`, `tests/cotizador-precios.test.ts`).**
+> **06/10 (Pablo, corrección m41): cuando el cliente MANDA el cotizador, el bot compara sus precios con los de la web EN SILENCIO y sólo avisa si no coinciden; si el cliente tiene varias direcciones de entrega, le pregunta para cuál es el pedido (`_shared/cotizador-precios.ts`, `_shared/pedido-archivo.ts`, `tests/cotizador-precios.test.ts`, `tests/pedido-archivo-texto.test.ts`).**
 > Origen: el cotizador Excel trae también los precios y la forma de pago, y se usa desactualizado (el de prueba de Pablo dice "Septiembre 2025": el 512 a $22.200 la caja contra $46.080 en la web).
-> `leerPedidoArchivo` devuelve además `hoja` (la hoja "Cotizador …": versión, `$ x Uni`, `Uni x Caja`, "No Disponible", total); `compararCotizadorConWeb` la cruza con `products` (precio base `list_price` y `uxb`) y
-> `textoConfirmacion` agrega el bloque + "¿Confirmás los artículos y los valores de la web?". La lectura guarda `comparacion_precios` en el contexto de la alerta `pedido_archivo`. Sin la hoja: el flujo de siempre.
+> `leerPedidoArchivo` devuelve además `hoja` (la hoja "Cotizador …": versión, `$ x Uni`, `Uni x Caja`, "No Disponible", total); `compararCotizadorConWeb` la cruza con `products` (precio base `list_price` y `uxb`).
+> **Si todo coincide, el mensaje no dice nada de precios** ("no hace falta explicarle que coincide, solamente tenés que chequearlo vos"): queda "¿Confirmás los artículos y los valores?". Si algo no coincide agrega SÓLO lo que difiere
+> (+ el total del cotizador) y pregunta "¿Confirmás los artículos y los valores de la web?". **Varias direcciones** (216 de 1.247 cuentas, hasta 19; `customer_delivery_addresses`): el mensaje las lista con su `slot` y pregunta
+> "¿Para cuál es este pedido?"; pide el número en la respuesta y la regla del agente (`REGLA_PEDIDOS_WA` paso 3) ya no elige ninguna por su cuenta. Una sola dirección: no pregunta nada. La alerta `pedido_archivo` guarda `comparacion_precios` y `sucursales_ofrecidas`.
+> El Simulador (`leer_archivo`) acepta `cod_cliente` para probar la pregunta de direcciones. Sin la hoja de precios: el flujo de siempre.
 > Falta (queda abierto): el caso "el cliente PIDE el cotizador" (recordarle que ahora se pide por la web: link, usuario y clave), y decidir qué pasa con una cadena con lista propia (falsa alarma).
 >
 > **06/10 (Pablo): compuerta de `solicitar_cambio_mail` — el mail tiene que estar escrito por el cliente (`_shared/mail-gate.ts`, `tests/mail-gate.test.ts`, 29 casos).**
