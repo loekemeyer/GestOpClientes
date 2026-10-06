@@ -1,5 +1,5 @@
 // Agregar artículos a un pedido que YA ENTRÓ EN ARMADO o está facturado (Pablo Olejavetzky, 06/10/2026: "que consulte a logística
-// derivando"). Antes, solicitar_agregado_pedido le contestaba al cliente "ya está en armado, no le podemos sumar" y no avisaba a nadie.
+// derivando"; esa misma tarde cambió: "todas las dudas pasan por Ventas primero, sacá a Logística del medio", así que ahora se consulta a Ventas). Antes, solicitar_agregado_pedido le contestaba al cliente "ya está en armado, no le podemos sumar" y no avisaba a nadie.
 // Ahora el bot NO decide que no se puede: deriva a una persona (alerta `cambio_pedido`, sin botón "Aplicar") con lo que el cliente pide
 // sumar, y al cliente le dice que lo está consultando, sin prometer que se va a poder. Un pedido ya ENTREGADO no se deriva: no hay a qué
 // sumarle nada, se carga uno nuevo en la web.
@@ -25,9 +25,9 @@ function situacion(estado: string): string {
   return estado === "facturado" ? "ya está facturado" : "ya está en armado";
 }
 
-/** Texto para el cliente: lo consultamos con logística, sin prometer. */
+/** Texto para el cliente: lo consultamos con Ventas, sin prometer. */
 export function textoClienteEnArmado(del: string, estado: string, items: ItemAgregado[]): string {
-  return `Tu pedido del ${del} ${situacion(estado)}, así que no lo puedo modificar yo. Le consulté a logística si pueden sumarle:\n` +
+  return `Tu pedido del ${del} ${situacion(estado)}, así que no lo puedo modificar yo. Le consulté a Ventas si pueden sumarle:\n` +
     items.map((a) => `• ${linea(a)}`).join("\n") +
     `\nTe confirmamos por acá si llegan a tiempo.`;
 }
@@ -46,7 +46,7 @@ export function textoClienteEntregado(del: string): string {
 
 // ── Una sola alerta por pedido y artículos (Pablo, 06/10) ──
 // En el simulador la IA (Gemini) llamó a la herramienta ANTES de la confirmación y otra vez con el "Sí, confirmo": dos tareas urgentes iguales
-// para logística. Mientras haya una alerta ABIERTA (pendiente o notificado) del mismo teléfono, del mismo pedido y con los mismos artículos y
+// para Ventas. Mientras haya una alerta ABIERTA (pendiente o notificado) del mismo teléfono, del mismo pedido y con los mismos artículos y
 // cajas, no se crea otra y al cliente se le da el mismo texto. Otro pedido, o otros artículos, sí crean la suya. Si la lectura de alertas
 // falla se crea igual: una repetida molesta menos que una consulta perdida.
 

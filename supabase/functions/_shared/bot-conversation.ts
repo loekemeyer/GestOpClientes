@@ -134,7 +134,7 @@ const BOT_TOOLS: ToolDef[] = [
     // esto chequea que el pedido no esté en armado y el stock, y deja la tarea con botón "Aplicar" (sql/099).
     name: "solicitar_agregado_pedido",
     description:
-      "Deja pedido un AGREGADO a un pedido que el cliente ya hizo (sumar artículos o subir cajas), para que una persona lo apruebe y se aplique. Sólo sirve para AGREGAR: para sacar, bajar cantidades o anular usá derivar_a_persona (motivo cambio_pedido). ANTES de usarla: (1) buscá cada artículo con buscar_productos; si hay más de uno posible, preguntale cuál; (2) confirmale con el cliente el código, la descripción y las cajas de cada uno y el pedido (por su fecha), por ejemplo \"¿Confirmo agregar 3 cajas de Pelador X (cód. 505) a tu pedido del 25/09?\"; (3) recién cuando diga que sí, llamala. Si devuelve sin_stock, pasale al cliente el texto y preguntale si igual lo quiere agregar; si insiste, volvé a llamarla con insiste=true. Si el pedido ya está en armado o facturado, ella misma lo deriva a logística (no lo apliques ni derives de nuevo). Pasale al cliente el texto_para_el_cliente que devuelve, tal cual.",
+      "Deja pedido un AGREGADO a un pedido que el cliente ya hizo (sumar artículos o subir cajas), para que una persona lo apruebe y se aplique. Sólo sirve para AGREGAR: para sacar, bajar cantidades o anular usá derivar_a_persona (motivo cambio_pedido). ANTES de usarla: (1) buscá cada artículo con buscar_productos; si hay más de uno posible, preguntale cuál; (2) confirmale con el cliente el código, la descripción y las cajas de cada uno y el pedido (por su fecha), por ejemplo \"¿Confirmo agregar 3 cajas de Pelador X (cód. 505) a tu pedido del 25/09?\"; (3) recién cuando diga que sí, llamala. Si devuelve sin_stock, pasale al cliente el texto y preguntale si igual lo quiere agregar; si insiste, volvé a llamarla con insiste=true. Si el pedido ya está en armado o facturado, ella misma lo deriva a Ventas (no lo apliques ni derives de nuevo). Pasale al cliente el texto_para_el_cliente que devuelve, tal cual.",
     input_schema: {
       type: "object",
       properties: {
@@ -590,7 +590,7 @@ async function executeTool(
       const del = (() => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(ord.created_at)); return `${p.slice(8, 10)}/${p.slice(5, 7)}`; })();
       const estado = String(est?.[0]?.status ?? "recibido");
       // Pablo, 29/09: se puede agregar hasta que el pedido entra en armado. Pablo, 06/10: después NO se le dice "no se puede": se
-      // deriva a logística (alerta cambio_pedido, sin botón Aplicar) y al cliente se le dice que se está consultando. Entregado: pedido nuevo.
+      // deriva a Ventas (alerta cambio_pedido, sin botón Aplicar; antes decía logística, 06/10) y al cliente se le dice que se está consultando. Entregado: pedido nuevo.
       const caso = casoDeAgregado(estado, !!ord.enviado_a_compras_at);
       if (caso === "entregado") {
         return { data: { texto_para_el_cliente: textoClienteEntregado(del), regla: "Pasale este texto tal cual. No derives." } };
@@ -606,7 +606,7 @@ async function executeTool(
         const { data: p } = await supabase.from("products").select("id, cod, description, uxb, list_price, active, badge_status")
           .eq("cod", cod).maybeSingle();
         if (!p || !p.active) return { data: { error: `No encontré el código ${cod} activo en la web. Buscalo con buscar_productos.` } };
-        // En armado el stock lo mira logística al contestar: no se le dice nada al cliente ni se arma la fila "Aplicar".
+        // En armado el stock lo mira Ventas al contestar: no se le dice nada al cliente ni se arma la fila "Aplicar".
         let st = null, ing = null, falta = false;
         if (caso === "normal") {
           try { st = await stockArticulo(p.cod); } catch (e) { console.error("agregado stock:", e); }
@@ -644,7 +644,7 @@ async function executeTool(
           });
         }
         return { data: { ok: true, derivado: true, texto_para_el_cliente: textoClienteEnArmado(del, estado, items),
-          regla: "Pasale este texto tal cual. Ya quedó derivado a logística: no derives de nuevo ni prometas que se va a poder." } };
+          regla: "Pasale este texto tal cual. Ya quedó derivado a Ventas: no derives de nuevo ni prometas que se va a poder." } };
       }
       if (sinStock.length && input.insiste !== true) {
         return { data: { sin_stock: true, texto_para_el_cliente: sinStock.join("\n") +
