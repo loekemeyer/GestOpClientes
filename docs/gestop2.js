@@ -39,6 +39,9 @@ const MODULOS = [
     { id: "pagos", nombre: "Descuentos", abrir: () => cfg("pagos") },
     { id: "plantillas", nombre: "Plantillas", abrir: () => cfg("plantillas") },
     { id: "vinculos", nombre: "Vinculaciones", badge: () => G.vinculos, abrir: () => cfg("vinculos") },
+    // v0.27.8 (Pablo, 06/10): el panel existía (pestaña "deriv") pero el rediseño dejó la barra vieja de pestañas oculta y el menú no lo
+    // listaba: no se llegaba desde ningún lado. Sólo admin (lk_alertas exige admin).
+    { id: "deriv", nombre: "Derivaciones", admin: true, abrir: () => cfg("deriv") },
   ] },
   { id: "ag", nombre: "Configuración del agente", admin: true, secciones: [
     { id: "fijas", nombre: "Reglas fijas", abrir: () => ag("fijas") },
@@ -48,6 +51,8 @@ const MODULOS = [
     { id: "consultas", nombre: "Consultas", badge: () => G.consultas, abrir: () => ag("consultas") },
     { id: "eval", nombre: "Evaluación", abrir: () => ag("eval") },
     { id: "modelos", nombre: "Modelos", abrir: () => ag("modelos") },
+    // v0.27.8: igual que Derivaciones, la pestaña "pedidos" no estaba en el menú nuevo.
+    { id: "pedidos", nombre: "Pedidos por WhatsApp", abrir: () => ag("pedidos") },
   ] },
 ];
 function cfg(tab) { irPagina("config"); showConfigTab(tab); }
@@ -120,6 +125,8 @@ function renderNav() {
       const b = s.badge ? Number(s.badge()) || 0 : 0;
       return `<button class="mod-tab${G.sec === s.id ? " activa" : ""}" onclick="navSec('${m.id}','${s.id}')">${gesc(s.nombre)}${b ? `<span class="g-badge">${b}</span>` : ""}</button>`;
     }).join("");
+    // v0.27.8: con 8 secciones (Configuración del agente) la activa podía quedar cortada al borde de la tira.
+    tabs.querySelector(".mod-tab.activa")?.scrollIntoView({ inline: "nearest", block: "nearest" });
   }
   const sel = document.getElementById("modSelect");
   if (sel) {
