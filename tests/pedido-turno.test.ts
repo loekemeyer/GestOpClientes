@@ -53,6 +53,24 @@ igual("'sí' después de una respuesta que no es de pedido", esTurnoDePedido("s�
 igual("mira el último mensaje del BOT aunque el último sea del cliente", ultimoDelBotEsDePedido(botPregunta("¿A dónde lo enviamos?", 4), AHORA), true);
 igual("historial vacío", ultimoDelBotEsDePedido(sinHistorial, AHORA), false);
 
+// ── 06/10: el bot confirma los artículos con distintos verbos; con cualquiera, lo que conteste el cliente sigue siendo del pedido ──
+// (caso real del Simulador: "10 cajas no, 10 unidades" contestaba la FAQ #21 de mínimo de compra)
+const CONFIRMA_ARTICULOS = [
+  "¿Confirmo 10 cajas de Abrelatas Doble Engranaje Mgo Acacia (cód. 998E) y las 2 cajas de Abrelatas Uña Rojo (cód. 506)?",
+  "¿Confirmás 10 cajas de Abrelatas Doble Engranaje Mgo Acacia (cód. 998E)?",
+  "¿Te anoto 3 cajas de Pelapapas Inox (cód. 505)?",
+  "Encontré 6 cajas de Sacacorchos Alas (cód. 067). ¿Es ese?",
+];
+for (const c of CONFIRMA_ARTICULOS) igual(`pedido en curso tras: ${c.slice(0, 45)}`, ultimoDelBotEsDePedido(botPregunta(c, 1), AHORA), true);
+igual("'10 cajas no, 10 unidades' tras confirmar artículos: sigue en el pedido", esTurnoDePedido("no, que sean 10 unidades", botPregunta(CONFIRMA_ARTICULOS[0], 1), AHORA), true);
+// Respuestas que NO son de pedido siguen sin frenar la FAQ (sin "N cajas de … (cód. X)" ni verbo de confirmar + cajas)
+const NO_ES_PEDIDO = [
+  "El mínimo de compra con envío es $500.000 y retirando $300.000.",
+  "El abrelatas rojo cuesta $2.500 la caja y viene de a 12 unidades.",
+  "Tu pedido del 30/09 sale el lunes.",
+];
+for (const c of NO_ES_PEDIDO) igual(`no es pedido en curso: ${c.slice(0, 45)}`, ultimoDelBotEsDePedido(botPregunta(c, 1), AHORA), false);
+
 // ── Modelo fijo: el de siempre, cambiable, y apagable ──
 igual("sin setting: Sonnet 4.6", modeloFijoDePedidos(null), MODELO_PEDIDOS);
 igual("setting vacío: Sonnet 4.6", modeloFijoDePedidos("  "), "claude-sonnet-4-6");
