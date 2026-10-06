@@ -75,8 +75,8 @@ igual("validar: feriado mal escrito → error", validarHorario({ ...HORARIO_DEFE
 igual("validar: más de 60 feriados → error", validarHorario({ ...HORARIO_DEFECTO, feriados: Array.from({ length: 61 }, (_, i) => `2027-01-${String((i % 28) + 1).padStart(2, "0")}`) }).ok, false);
 igual("validar: null → error", validarHorario(null).ok, false);
 igual("leer: nada guardado → por defecto", leerHorario(undefined), HORARIO_DEFECTO);
-igual("leer: se rescata lo bueno y se ignora lo malo", leerHorario({ dias: [2, 9], desde: "10:00", hasta: "09:00", feriados: ["2026-10-12", "basura"], solo_en_horario: "sí" }), { dias: [2], desde: "09:00", hasta: "17:00", feriados: ["2026-10-12"], solo_en_horario: true, incluir_puentes: false });
-igual("leer: lo guardado completo se respeta", leerHorario({ dias: [1, 2], desde: "08:00", hasta: "12:30", feriados: [], solo_en_horario: false }), { dias: [1, 2], desde: "08:00", hasta: "12:30", feriados: [], solo_en_horario: false, incluir_puentes: false });
+igual("leer: se rescata lo bueno y se ignora lo malo", leerHorario({ dias: [2, 9], desde: "10:00", hasta: "09:00", feriados: ["2026-10-12", "basura"], solo_en_horario: "sí" }), { dias: [2], desde: "09:00", hasta: "17:00", feriados: ["2026-10-12"], solo_en_horario: true, incluir_puentes: true });
+igual("leer: lo guardado completo se respeta", leerHorario({ dias: [1, 2], desde: "08:00", hasta: "12:30", feriados: [], solo_en_horario: false }), { dias: [1, 2], desde: "08:00", hasta: "12:30", feriados: [], solo_en_horario: false, incluir_puentes: true });
 registrarHorario({ dias: [1], desde: "10:00", hasta: "11:00", feriados: [], solo_en_horario: true });
 igual("registrar: queda vigente", horarioVigente().desde, "10:00");
 registrarHorario(null);
@@ -90,17 +90,19 @@ const CAL = [
   { fecha: "2026-12-07", nombre: "Puente turístico no laborable", tipo: "puente" },
   { fecha: "2026-12-08", nombre: "Día de la Inmaculada Concepción de María", tipo: "nacional" },
 ];
-igual("calendario: nacional y trasladable cuentan; el puente no, por defecto", feriadosDelCalendario({ incluir_puentes: false }, CAL), ["2026-10-12", "2026-11-09", "2026-12-08"]);
+igual("calendario: nacional y trasladable cuentan; el puente no, si incluir_puentes es false", feriadosDelCalendario({ incluir_puentes: false }, CAL), ["2026-10-12", "2026-11-09", "2026-12-08"]);
 igual("calendario: con incluir_puentes, el puente también", feriadosDelCalendario({ incluir_puentes: true }, CAL), ["2026-10-12", "2026-11-09", "2026-12-07", "2026-12-08"]);
 igual("calendario: filas inválidas se ignoran (fecha mala, null, sin tipo cuenta como feriado)", feriadosDelCalendario({ incluir_puentes: false }, [{ fecha: "12/10/2026" }, null as never, { fecha: "2026-02-31" }, { fecha: "2026-07-09" }]), ["2026-07-09"]);
 igual("calendario: sin filas ni lista → vacío", [feriadosDelCalendario({ incluir_puentes: false }, []), feriadosDelCalendario({ incluir_puentes: false }, undefined as never)], [[], []]);
-igual("conCalendario: junta manuales y calendario sin repetir, ordenados", conCalendario({ ...H, feriados: ["2026-10-12", "2026-11-02"] }, CAL).feriados, ["2026-10-12", "2026-11-02", "2026-11-09", "2026-12-08"]);
+igual("conCalendario: junta manuales y calendario sin repetir, ordenados (los puentes cuentan por defecto)", conCalendario({ ...H, feriados: ["2026-10-12", "2026-11-02"] }, CAL).feriados, ["2026-10-12", "2026-11-02", "2026-11-09", "2026-12-07", "2026-12-08"]);
+igual("conCalendario sin puentes (destildado)", conCalendario({ ...H, incluir_puentes: false, feriados: ["2026-10-12", "2026-11-02"] }, CAL).feriados, ["2026-10-12", "2026-11-02", "2026-11-09", "2026-12-08"]);
 igual("conCalendario no toca el horario original", (() => { const o = { ...H, feriados: ["2026-11-02"] }; conCalendario(o, CAL); return o.feriados; })(), ["2026-11-02"]);
 const HC = conCalendario(H, CAL); // el horario "efectivo" con el calendario
 igual("con el calendario, el lunes 12/10 ya no se atiende", dentroDeHorario(AR("2026-10-12T12:00"), HC), false);
 igual("con el calendario: viernes 16:50 + 🔴 20 min → martes 09:10 (el lunes es feriado)", fmt(sumarMinutosHabiles(AR("2026-10-09T16:50"), 20, HC)), "2026-10-13 09:10");
 igual("con el calendario: el aviso del sábado dice 'el martes'", textoCuando(AR("2026-10-10T11:00"), HC), "el martes desde las 9 h");
-igual("el puente 07/12 (lunes) no frena la atención por defecto", dentroDeHorario(AR("2026-12-07T12:00"), conCalendario(H, CAL)), true);
+igual("el puente 07/12 (lunes) no frena la atención si incluir_puentes se destilda", dentroDeHorario(AR("2026-12-07T12:00"), conCalendario({ ...H, incluir_puentes: false }, CAL)), true);
+igual("…y por defecto (ante la duda, cerrado) el puente 07/12 sí cuenta como día sin atención", dentroDeHorario(AR("2026-12-07T12:00"), conCalendario(H, CAL)), false);
 igual("…pero con incluir_puentes sí", dentroDeHorario(AR("2026-12-07T12:00"), conCalendario({ ...H, incluir_puentes: true }, CAL)), false);
 registrarCalendario(CAL);
 registrarHorario({ dias: [1, 2, 3, 4, 5], desde: "09:00", hasta: "17:00", feriados: ["2026-11-02"], solo_en_horario: true, incluir_puentes: false });
@@ -114,7 +116,10 @@ igual("registrar calendario descarta filas inválidas", calendarioVigente().map(
 registrarCalendario(null); registrarHorario(null);
 igual("validar: incluir_puentes se guarda", (() => { const r = validarHorario({ ...HORARIO_DEFECTO, incluir_puentes: true }); return r.ok ? r.horario.incluir_puentes : r; })(), true);
 igual("validar: incluir_puentes que no es sí/no → error", validarHorario({ ...HORARIO_DEFECTO, incluir_puentes: "sí" }).ok, false);
-igual("por defecto los puentes no cuentan", HORARIO_DEFECTO.incluir_puentes, false);
+igual("por defecto los puentes SÍ cuentan como cerrados (ante la duda, cerrado)", HORARIO_DEFECTO.incluir_puentes, true);
+igual("leer: sin nada guardado, los puentes cuentan; un horario guardado sin ese dato también", [leerHorario(undefined).incluir_puentes, leerHorario({ dias: [1, 2], desde: "08:00", hasta: "12:30" }).incluir_puentes], [true, true]);
+igual("leer: un false guardado se respeta", leerHorario({ dias: [1, 2], desde: "08:00", hasta: "12:30", incluir_puentes: false }).incluir_puentes, false);
+igual("validar: sin el dato, los puentes cuentan", (() => { const r = validarHorario({ dias: [1], desde: "09:00", hasta: "17:00" }); return r.ok ? r.horario.incluir_puentes : r; })(), true);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); const g = globalThis as { Deno?: { exit(c: number): never }; process?: { exit(c: number): never } }; (g.Deno ?? g.process)!.exit(1); }
 else console.log("\ntodo bien");

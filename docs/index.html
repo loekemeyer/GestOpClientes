@@ -3860,7 +3860,7 @@ function pintarDerivaciones() {
     ["rojo", "amarillo", "verde"].map((n) => `<span class="dv-tiempo">${{ rojo: "🔴", amarillo: "🟡", verde: "🟢" }[n]} <input type="number" min="1" max="43200" data-t="${n}" value="${tm[n]}" oninput="derivRefrescarVence()"> min <small class="hint" data-th="${n}"></small></span>`).join("") +
     `<span class="hint">Por defecto: ${["rojo", "amarillo", "verde"].map((n) => durTexto(tdef[n] * 60000)).join(" · ")}. Pasado ese tiempo la alerta figura vencida (se cuenta en tiempo de atención, ver el horario de abajo).</span>`;
   // Horario de atención telefónica (06/10, Pablo: lunes a viernes de 9 a 17): los tiempos cuentan sólo dentro de él y fuera de él el bot avisa.
-  const hr = data.horario || { dias: [1, 2, 3, 4, 5], desde: "09:00", hasta: "17:00", feriados: [], solo_en_horario: true };
+  const hr = data.horario || { dias: [1, 2, 3, 4, 5], desde: "09:00", hasta: "17:00", feriados: [], solo_en_horario: true, incluir_puentes: true };
   const NOM_DIA = { 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábado", 7: "domingo" };
   const cal = data.feriados_calendario || [];
   const fechaCorta = (f) => `${["dom", "lun", "mar", "mié", "jue", "vie", "sáb"][new Date(f + "T12:00:00Z").getUTCDay()]} ${f.slice(8, 10)}/${f.slice(5, 7)}`;
@@ -3871,9 +3871,9 @@ function pintarDerivaciones() {
     <div class="dv-cal" style="flex-basis:100%"><b>Feriados del calendario de Planify</b> (se leen solos, no hay que cargarlos): ${
       cal.length ? cal.map((f) => `<span class="dv-fer-i${f.tipo === "puente" && !hr.incluir_puentes ? " no-cuenta" : ""}" title="${esc(f.nombre || "")}${f.tipo === "puente" ? " — puente no laborable" : ""}">${fechaCorta(f.fecha)} · ${esc(f.nombre || "")}${f.tipo === "puente" ? " (puente)" : ""}</span>`).join("")
         : '<span class="hint">no se pudo leer ahora: mientras tanto sólo cuentan los que cargues acá abajo.</span>'}</div>
-    <label class="dv-dia" style="flex-basis:100%"><input type="checkbox" data-h="puentes"${hr.incluir_puentes ? " checked" : ""}> Contar también los «puentes turísticos no laborables» como días sin atención (hoy: ${hr.incluir_puentes ? "sí" : "no"})</label>
+    <label class="dv-dia" style="flex-basis:100%"><input type="checkbox" data-h="puentes"${hr.incluir_puentes ? " checked" : ""}> Contar también los «puentes turísticos no laborables» como días sin atención (ante la duda, cerrado: viene tildado)</label>
     <label class="dv-fer" style="flex-basis:100%">Otros días sin atención (a mano): <input type="text" data-h="feriados" value="${esc((hr.feriados || []).join(", "))}" placeholder="AAAA-MM-DD, AAAA-MM-DD"></label>
-    <span class="hint" style="flex-basis:100%">Si un cliente escribe fuera de este horario y el bot lo pasa a una persona, le avisa cuándo se le va a responder. Es el horario telefónico: el del depósito (9 a 12 y 13 a 16:30) es otro dato. Los feriados vienen del calendario de Planify (nacionales y trasladables); un puente no laborable sólo cuenta si lo tildás.</span>`;
+    <span class="hint" style="flex-basis:100%">Si un cliente escribe fuera de este horario y el bot lo pasa a una persona, le avisa cuándo se le va a responder. Es el horario telefónico: el del depósito (9 a 12 y 13 a 16:30) es otro dato. Los feriados vienen del calendario de Planify (nacionales y trasladables); los puentes no laborables también se dan por cerrados (podés destildarlo).</span>`;
   const destOpt = (m) => [["planify", "Planify + Tareas"], ["tareas", "Sólo Tareas"], ...(m.de_ia ? [["bot", "Lo responde el bot"]] : [])]
     .map(([v, t]) => `<option value="${v}"${m.destino === v ? " selected" : ""}>${t}</option>`).join("");
   const fila = (m) => {
@@ -4938,7 +4938,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.15</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.16</div>
 <script src="gestop2.js?v=0.27.14"></script>
 </body>
 </html>

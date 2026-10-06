@@ -17,11 +17,12 @@ export type Horario = {
   feriados: string[];
   /** true = los tiempos de respuesta cuentan sólo dentro del horario. */
   solo_en_horario: boolean;
-  /** true = los "puentes turísticos no laborables" del calendario de Planify también cuentan como días sin atención (por defecto no: no son feriado). */
+  /** true = los "puentes turísticos no laborables" del calendario de Planify también cuentan como días sin atención. Por defecto SÍ (Pablo, 06/10:
+   *  "ante la duda vos cerralo siempre"): un puente no es feriado y se podría abrir, pero ante la duda se da por cerrado. */
   incluir_puentes: boolean;
 };
 
-export const HORARIO_DEFECTO: Readonly<Horario> = { dias: [1, 2, 3, 4, 5], desde: "09:00", hasta: "17:00", feriados: [], solo_en_horario: true, incluir_puentes: false };
+export const HORARIO_DEFECTO: Readonly<Horario> = { dias: [1, 2, 3, 4, 5], desde: "09:00", hasta: "17:00", feriados: [], solo_en_horario: true, incluir_puentes: true };
 export const MAX_FERIADOS = 60;
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -44,7 +45,7 @@ export function validarHorario(v: unknown): { ok: true; horario: Horario } | { o
   if (malo !== undefined) return { ok: false, error: `Feriado inválido: «${String(malo)}» (usá AAAA-MM-DD).` };
   if (o.solo_en_horario !== undefined && typeof o.solo_en_horario !== "boolean") return { ok: false, error: "«Contar sólo en horario» tiene que ser sí o no." };
   if (o.incluir_puentes !== undefined && typeof o.incluir_puentes !== "boolean") return { ok: false, error: "«Contar los puentes» tiene que ser sí o no." };
-  return { ok: true, horario: { dias, desde, hasta, feriados: [...new Set(fer as string[])].sort(), solo_en_horario: o.solo_en_horario !== false, incluir_puentes: o.incluir_puentes === true } };
+  return { ok: true, horario: { dias, desde, hasta, feriados: [...new Set(fer as string[])].sort(), solo_en_horario: o.solo_en_horario !== false, incluir_puentes: o.incluir_puentes !== false } };
 }
 
 /** Lee lo guardado, sin quejarse: lo inválido o ausente queda en el valor por defecto. */
@@ -74,7 +75,8 @@ export const horarioVigente = (): Horario => ({ ...vigente, dias: [...vigente.di
 
 // ── Feriados del calendario de Planify (Pablo, 06/10: "hay un calendario en el Planify, podés tomar ahí la data") ──
 // planify.feriados (cron diario desde argentinadatos) trae `fecha`, `nombre` y `tipo`: "nacional", "trasladable" o "puente" (un puente turístico
-// NO LABORABLE: el comercio puede abrir, por eso sólo cuenta si el horario tiene `incluir_puentes`). Se leen en vivo (feriados.ts) y se suman a
+// NO LABORABLE: el comercio podría abrir, pero ante la duda se da por cerrado: cuenta mientras `incluir_puentes` siga en su valor por defecto, que es sí;
+// destildándolo en el panel deja de contar). Se leen en vivo (feriados.ts) y se suman a
 // los que se cargan a mano en `horario.feriados`; así no hay que mantenerlos en dos lados.
 export type FeriadoCalendario = { fecha: string; nombre?: string; tipo?: string };
 
