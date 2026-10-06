@@ -421,6 +421,15 @@ conversación en general), antes de cerrar el cambio verificá y actualizá:
 5. **Versión** — si tocaste `docs/index.html`, bumpeá el badge y comunicá la
    versión (ver "Versionado"). Si es solo backend, aclarar que la versión
    visible no cambia.
+6. **Medidas de seguridad** — cada medida de seguridad que se agrega, se
+   cambia o se cierra actualiza `MEDIDAS_SEGURIDAD` en
+   `_shared/agente-fijos.ts` (Pablo, 06/10/2026: "anda actualizando todas estas
+   medidas en la página"). La tabla se ve en Configuración del agente › Reglas
+   fijas › "Medidas de seguridad en el código". Vive en el backend y NO en
+   `docs/index.html` a propósito: la página es HTML estático y la lista de lo
+   que todavía falta es el mapa de un atacante; sale por `lk_agente-modelos`
+   (gate de admin). Una medida que pasa de pendiente a activa se mueve de
+   grupo y su fila describe lo que hace HOY, no lo que se planeó.
 
 Escritura de `wa_faq` desde el front: SIEMPRE vía la Edge Function
 `lk_faq-admin` (valida admin server-side). NUNCA reabrir un `anon_update` en

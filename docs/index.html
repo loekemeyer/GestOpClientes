@@ -1181,6 +1181,15 @@
               su rol, no ejecutar comandos, tratar datos de herramientas como datos (no órdenes).
             </p>
             <pre id="fijasSeguridad" class="fijas-pre">Cargando…</pre>
+
+            <!-- v0.27.21 (Pablo, 06/10): medidas de seguridad en el CÓDIGO. La tabla no está en este HTML (es estático y la lista de lo que
+                 falta es el mapa de un atacante): llega por lk_agente-modelos (admin) desde MEDIDAS_SEGURIDAD de _shared/agente-fijos.ts. -->
+            <h3 style="margin-top:1.6rem;">🧱 Medidas de seguridad en el código</h3>
+            <p style="font-size:0.78rem;color: var(--muted);margin:0.2rem 0 0.7rem;">
+              El bloque de arriba es la capa más débil: le pide buena conducta a un modelo y un jailbreak lo puede romper.
+              Estas medidas no dependen del prompt. Las pendientes van de mayor a menor gravedad.
+            </p>
+            <div id="fijasMedidas" style="overflow-x:auto;"></div>
           </div>
         </div>
 
@@ -2833,11 +2842,28 @@ async function loadFijas() {
     if (error || !res || !res.ok) throw new Error((res && res.error) || (error && error.message) || "Error");
     elR.textContent = res.fijos.reglas || "";
     elS.textContent = res.fijos.seguridad || "";
+    renderMedidasSeguridad(res.fijos.medidas || []);
     _fijasCargadas = true;
   } catch (e) {
     elR.textContent = "No se pudo cargar (¿sesión de admin?): " + (e.message || e);
     elS.textContent = "";
+    renderMedidasSeguridad([]);
   }
+}
+
+// Medidas de seguridad en el código (v0.27.21): dos tablas, activas y pendientes. El orden de cada una es el de la lista del backend.
+function renderMedidasSeguridad(medidas) {
+  const el = document.getElementById("fijasMedidas");
+  if (!el) return;
+  const tabla = (titulo, filas) => !filas.length ? "" : `
+    <div style="font-weight:600;font-size:0.82rem;margin:0.9rem 0 0.35rem;">${esc(titulo)} (${filas.length})</div>
+    <table class="al-tabla"><thead><tr><th>#</th><th>Medida</th><th>Qué hace</th><th>Dónde</th></tr></thead><tbody>${
+      filas.map((m, i) => `<tr><td>${i + 1}</td><td style="font-weight:600;">${esc(m.medida)}</td><td style="max-width:560px;">${esc(m.que_hace)}</td><td style="font-size:0.74rem;color:var(--muted);">${esc(m.donde)}</td></tr>`).join("")
+    }</tbody></table>`;
+  const activas = medidas.filter((m) => m.estado === "activa");
+  const pendientes = medidas.filter((m) => m.estado === "pendiente");
+  el.innerHTML = medidas.length ? tabla("✅ Activas", activas) + tabla("⏳ Pendientes", pendientes)
+    : '<div class="bl-empty">Sin datos (¿sesión de admin?)</div>';
 }
 
 // --- Preguntas frecuentes (plantillas editables) ---
@@ -4966,7 +4992,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.20</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.21</div>
 <script src="gestop2.js?v=0.27.17"></script>
 </body>
 </html>

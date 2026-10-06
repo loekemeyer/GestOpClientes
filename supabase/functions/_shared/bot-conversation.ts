@@ -12,6 +12,7 @@ import { sinCierreGenerico } from "./cierre.ts";
 import { timeoutDeModelo } from "./timeouts.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
+import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -382,7 +383,7 @@ const BOT_TOOLS: ToolDef[] = [
   },
   {
     name: "confirmar_pedido",
-    description: "Pedidos por WhatsApp: SOLO después de que el cliente vio el resumen de armar_pedido y dijo que sí. Mismos datos que armar_pedido. Deja el pedido cargado para que el equipo lo pase a preparación.",
+    description: "Pedidos por WhatsApp: SOLO después de que el cliente vio el resumen de armar_pedido y dijo que sí. Mismos datos que armar_pedido. Deja el pedido cargado para que el equipo lo pase a preparación. El sistema sólo la acepta si tu mensaje anterior fue ese resumen (tal cual, con el mismo total) y el cliente contestó un sí a secas; si no, devuelve no_cargado: seguí lo que dice regla.",
     input_schema: {
       type: "object",
       properties: {
@@ -508,6 +509,8 @@ async function executeTool(
   // deno-lint-ignore no-explicit-any
   input: Record<string, any>,
   phone: string,
+  // Lo que la compuerta de confirmar_pedido necesita para no fiarse del modelo (pedido-gate.ts): el mensaje de ahora y el historial.
+  ctx: { userText: string; historial: FilaHistorial[] } = { userText: "", historial: [] },
 ): Promise<ToolExecResult> {
   if (SIM.activo) {
     const efecto = HERRAMIENTAS_CON_EFECTO.has(name);
@@ -1002,16 +1005,19 @@ async function executeTool(
     case "armar_pedido":
     case "confirmar_pedido": {
       if (!(await pedidosWaHabilitados())) return { data: { error: "Los pedidos no se toman por WhatsApp: indicale que lo haga en loekemeyer.com." } };
-      const confirmar = name === "confirmar_pedido";
-      const guardar = confirmar && !SIM.activo;   // en el Simulador nunca se guarda
+      const confirmar = name === "confirmar_pedido";   // en el Simulador nunca se guarda (más abajo)
       const items = (Array.isArray(input.items) ? input.items : []).map((it: { cod: string; cajas: number }) =>
         ({ cod: String(it.cod ?? "").trim(), cajas: Number(it.cajas) }));
-      const { data: r, error } = await supabase.rpc("bot_pedido_armar", {
+      const armar = (p_guardar: boolean) => supabase.rpc("bot_pedido_armar", {
         p_telefono: phone, p_items: items, p_condicion_code: Number(input.condicion_code), p_slot: Number(input.slot),
         p_retiro_fecha: input.retiro_fecha || null, p_retiro_franja: input.retiro_franja || null,
-        p_observaciones: input.observaciones || null, p_guardar: guardar,
+        p_observaciones: input.observaciones || null, p_guardar,
         p_origen: input.origen === "Cotizador" ? "Cotizador" : "WhatsApp",
       });
+      // Al confirmar también se arma primero SIN guardar: la compuerta (pedido-gate.ts) decide con el resultado y recién ahí se guarda.
+      const primero = await armar(false);
+      const error = primero.error;
+      let r = primero.data;
       if (error) { console.error("bot_pedido_armar:", error.message); return { data: { error: "No pude armar el pedido. Derivá con derivar_a_persona (motivo escalation)." } }; }
       const pesos = (n: number) => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
       const EXPLICA: Record<string, string> = {
@@ -1060,9 +1066,26 @@ async function executeTool(
           regla: r?.ok ? "Mostrale el resumen tal cual (incluida la razón social a nombre de la que va) y pedile que confirme con un sí." : "Resolvé los errores con el cliente y volvé a armar." } };
       }
       if (!r?.ok) return { data: { ok: false, errores, regla: "No se cargó: resolvé los errores y volvé a armar el pedido." } };
+      // Compuerta de servidor (medida 1 de seguridad, Pablo 06/10): el modelo ya no decide solo que el cliente confirmó. Hace falta un
+      // sí a secas del cliente sobre el resumen exacto que vio (mismos artículos y total, de hace menos de 1 hora). Ver pedido-gate.ts.
+      const veredicto = evaluarConfirmacion({
+        textoCliente: ctx.userText, historial: ctx.historial,
+        cods: ((r.items ?? []) as Array<{ cod_art: string }>).map((x) => x.cod_art), totalTexto: pesos(r.total),
+      });
+      if (!veredicto.ok) {
+        console.warn(`[gate-pedido] confirmar_pedido bloqueado (${veredicto.motivo}) …${phone.slice(-4)}`);
+        return { data: { ok: false, no_cargado: true, regla: REGLA_BLOQUEO[veredicto.motivo] } };
+      }
       if (SIM.activo) {
         return { data: { ok: true, simulado: true, texto_para_el_cliente: "¡Listo! Recibimos tu pedido. Lo revisamos y te llega la confirmación por acá. 🙌" } };
       }
+      // Pasó la compuerta: ahora sí se guarda. Si entre los dos armados cambió el total (precio o stock), no se carga lo que el cliente no vio.
+      const g = await armar(true);
+      if (g.error || !g.data?.ok || Math.round(Number(g.data.total)) !== Math.round(Number(r.total))) {
+        if (g.error) console.error("bot_pedido_armar (guardar):", g.error.message);
+        return { data: { ok: false, no_cargado: true, regla: REGLA_BLOQUEO.resumen_distinto } };
+      }
+      r = g.data;
       // Precarga guardada. Modo directo: se confirma en el acto (salvo posible doble pedido, que queda para una persona).
       const cfg = await configPedidosWa();
       let directo: { ok: boolean; order_id?: number; error?: string } | null = null;
@@ -1469,7 +1492,7 @@ export async function runConversation(
 
     const results: { id: string; name: string; content: string }[] = [];
     for (const tc of res.toolCalls) {
-      const result = await executeTool(tc.name, tc.input ?? {}, phone);
+      const result = await executeTool(tc.name, tc.input ?? {}, phone, { userText, historial: rawHistory });
       if (result.media) allMedia.push(...result.media);
       auditTool(phone, tc.name, tc.input ?? {}, JSON.stringify(result.data).slice(0, 500)).catch(() => {});
       results.push({ id: tc.id, name: tc.name, content: JSON.stringify(result.data) });

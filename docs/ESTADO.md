@@ -4,6 +4,19 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
+> **06/10 (Pablo): medidas de seguridad del agente — la 1.ª hecha (compuerta de `confirmar_pedido`) y la lista completa en el Panel (dashboard v0.27.21).**
+> Pedido: *"arrancá por el punto uno y andá actualizando todas estas medidas en la página"*. Punto de partida: el bloque "Seguridad (anti-jailbreak)" es una regla de prompt, o sea la capa más débil
+> (un jailbreak la rompe); lo que protege de verdad está en el código (firma de Meta, teléfono del webhook sin id de cliente en las herramientas, tope 20/h, whitelist, 5 vueltas por turno).
+> **Compuerta (`_shared/pedido-gate.ts`, probada en `tests/pedido-gate.test.ts`, 83 casos):** antes, que el cliente hubiera visto el resumen y dicho "sí" era una regla de prompt (`agente-fijos.ts` paso 6):
+> un jailbreak o una orden escondida en un cotizador o un audio podía llamar a `confirmar_pedido` directo. Ahora `executeTool` arma primero SIN guardar y sólo guarda si se cumplen las tres: (1) lo que el
+> cliente escribió desde la última respuesta del bot es un sí a secas; (2) lo último que dijo el bot es el resumen; (3) ese resumen es de hace < 1 h e incluye el total y cada código que el servidor acaba de calcular.
+> Si no, la herramienta devuelve `no_cargado` + la regla para el modelo (no revela el mecanismo) y se loguea `[gate-pedido]`. Si entre los dos armados cambia el total, tampoco carga. Falla cerrado.
+> ⚠ **Las pruebas encontraron un agujero antes de salir:** "sí 5" pasaba como sí porque los dígitos se descartaban al normalizar. Hoy los dígitos y las letras de otros alfabetos bloquean.
+> ⚠ **Severidad real, corregida:** con `wa_pedidos_config.modo = "precarga"` (hoy) un pedido falso termina en `wa_pedido_precarga` esperando a una persona, no en un pedido cargado; con modo "directo" sí se carga solo.
+> **Costo operativo a mirar tras el deploy:** un "sí" con otra palabra ("sí, gracias por todo") bloquea y el agente vuelve a mostrar el resumen; si aparece mucho `[gate-pedido]` con motivo `sin_si`, ampliar el vocabulario.
+> **Tabla de medidas:** `MEDIDAS_SEGURIDAD` en `_shared/agente-fijos.ts` (7 activas, 9 pendientes por gravedad) → Configuración del agente › Reglas fijas › "Medidas de seguridad en el código". Sale por
+> `lk_agente-modelos` (admin) y no está en el HTML: la lista de lo que falta es el mapa de un atacante. Regla nueva en CLAUDE.md (punto 6 de la sincronización).
+>
 > **06/10 (Pablo): el cliente nuevo puede mandar la constancia de inscripción (PDF de ARCA) y el bot la lee, sin IA (`_shared/constancia.ts` + `_shared/alta.ts`).**
 > Pedido: *"sí, implementala"* (la alternativa a pedirle los datos a la API de ARCA, que exige certificado digital). El alta ofrece *"Si tenés la constancia de inscripción de ARCA en PDF,
 > mandámela y me ahorrás varias preguntas"* (en `ALTA_INTRO` y en el aviso de CUIT no encontrado). **Cómo funciona:** el webhook (`handleAdjunto`), sólo para quien NO es cliente (ni de LK ni de Chef),

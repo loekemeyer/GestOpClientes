@@ -349,7 +349,12 @@ Se prende en Configuración del agente › 🛒 Pedidos por WhatsApp (`app_setti
 defecto). Sólo números vinculados y aprobados. El agente: confirma artículos y cajas → pregunta SIEMPRE forma de pago
 (`opciones_de_pedido`) → pregunta SIEMPRE entrega (si retira, día hábil desde +3 hábiles y franja) → `armar_pedido`
 (misma cuenta y ficha que la web, **sin el 2% web**; stock; pedido parecido abierto en 7 días con ≥50% de artículos
-iguales → pregunta si es otro o el mismo) → muestra el resumen → con el "sí" `confirmar_pedido`. Eso deja una
+iguales → pregunta si es otro o el mismo) → muestra el resumen → con el "sí" `confirmar_pedido`. **El servidor valida ese
+"sí" (compuerta, `_shared/pedido-gate.ts`, Pablo 06/10):** sólo carga si lo que el cliente escribió desde la última
+respuesta del bot es un sí a secas (vocabulario de confirmación: "sí", "dale", "ok", "confirmo", 👍…; cualquier otra palabra,
+un número o un "pero" lo bloquea), si lo último que dijo el bot es el resumen (formato de `armar_pedido`), si ese resumen
+tiene menos de 1 hora y si incluye el total y cada código de artículo que el servidor acaba de calcular. Si no, la
+herramienta devuelve `no_cargado` y el agente vuelve a mostrar el resumen y pide el sí. Eso deja una
 **precarga** (`wa_pedido_precarga`, Gestión no la ve) y una tarea "Pedido por WhatsApp" con **Confirmar y enviar a
 Gestión** / **Descartar** (lk_alertas `pedido_confirmar`/`pedido_descartar`). Confirmar crea el pedido con su ficha
 (origen "WhatsApp"): retry-sheets lo manda al Sheet y al cliente le llega "pedido recibido". Modo "directo" confirma
