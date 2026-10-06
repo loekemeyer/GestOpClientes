@@ -433,6 +433,16 @@ BOT: No entendí. Podés preguntarme por:
      💬 O escribime tu consulta y te ayudo
 ```
 
+### Tope de consultas de IA por hora (Pablo, 06/10/2026, `_shared/tope-ia.ts`)
+
+El contador (`wa_check_rate_limit`) cuenta por **hora de reloj** y sólo los mensajes que llegan al agente de IA (no las respuestas fijas ni los flujos): por defecto 20 por número y hora.
+Al mensaje 21 el bot **no llama a la IA** y, una sola vez por hora y número:
+1. **Le avisa al cliente cuánto esperar**, con la hora en que se reinicia (editable en el Panel › Rate Limit, variables `{{limite}}`, `{{espera}}`, `{{hora}}`):
+   *"Recibimos muchas consultas seguidas desde este número (el máximo es 20 por hora), así que hacemos una pausa. Podés volver a escribirnos en 45 minutos, a partir de las 15:00. Si fue sin querer, no te preocupes: se reactiva solo."*
+2. **Deja una alerta para una persona** (motivo `tope_ia`, semáforo amarillo, va a Planify según Configuración › Derivaciones) con el último mensaje del cliente: puede haber sido un error suyo
+   (mensajes repetidos, un loop del teléfono) o una consulta real que quedó sin contestar.
+El resto de esa hora el bot no contesta a ese número (sin más avisos, para no generar más tráfico del que corta).
+
 ## Opt-out
 
 ```

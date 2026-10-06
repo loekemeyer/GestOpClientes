@@ -1,6 +1,6 @@
 // Pruebas del aviso de tope de consultas de IA (supabase/functions/_shared/tope-ia.ts). Lógica pura, sin red.
 // Correr: deno run tests/tope-ia.test.ts   (sale con código 1 si algo falla)
-import { esperaHastaProximaHora, mensajeTope, TOPE_MSG_DEFAULT } from "../supabase/functions/_shared/tope-ia.ts";
+import { contextoAlertaTope, esperaHastaProximaHora, mensajeTope, TOPE_MSG_DEFAULT } from "../supabase/functions/_shared/tope-ia.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -35,6 +35,17 @@ igual("texto viejo guardado, sin variables: sale tal cual", mensajeTope("Estamos
 igual("variable desconocida queda visible (se nota en el chat de prueba)", mensajeTope("Hola {{nombre}}", 20, utc("2026-10-06T17:15:00Z")), "Hola {{nombre}}");
 igual("el default tiene exactamente las 3 variables conocidas", (TOPE_MSG_DEFAULT.match(/\{\{[a-z_]+\}\}/g) ?? []).sort(), ["{{espera}}", "{{hora}}", "{{limite}}"]);
 igual("el default entra holgado en un mensaje de WhatsApp (< 400 caracteres)", TOPE_MSG_DEFAULT.length < 400, true);
+
+// ── Alerta para una persona (motivo tope_ia) ──
+const c = contextoAlertaTope(20, "necesito 50 cajas del 501", "Bazar Farimar", utc("2026-10-06T17:15:00Z"));
+igual("alerta: motivo tope_ia y límite", [c.motivo, c.limite], ["tope_ia", 20]);
+igual("alerta: dice a qué hora vuelve a poder escribir", String(c.detalle).includes("a las 15:00"), true);
+igual("alerta: dice el máximo", String(c.detalle).includes("máximo de 20 consultas por hora"), true);
+igual("alerta: guarda el último mensaje y la razón social", [c.texto_recibido, c.razon_social], ["necesito 50 cajas del 501", "Bazar Farimar"]);
+igual("alerta: el último mensaje se corta a 200 caracteres", String(contextoAlertaTope(20, "x".repeat(500), null, utc("2026-10-06T17:15:00Z")).texto_recibido).length, 200);
+igual("alerta: sin razón social queda null", contextoAlertaTope(20, "hola", undefined, utc("2026-10-06T17:15:00Z")).razon_social, null);
+igual("alerta: texto vacío no rompe", contextoAlertaTope(20, undefined as unknown as string, null, utc("2026-10-06T17:15:00Z")).texto_recibido, "");
+igual("alerta: no fija 'urgente' (lo decide notificarHumano por el texto)", "urgente" in c, false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo ok");
