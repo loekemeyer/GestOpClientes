@@ -1,6 +1,8 @@
 -- 127 — bot_pedido_armar: los errores ya no tiran una excepción (Pablo Olejavetzky, 06/10/2026).
--- ⚠ ESTADO: NO APLICADA TODAVÍA a PaginaLK (kwkclwhmoygunqmlegrg). Espera el "sí" de Pablo Olejavetzky (06/10/2026); al aplicarla,
---   cambiar esta línea por "Aplicada <fecha> a PaginaLK" y verificar en el Simulador con un slot inválido (cliente 4028, slot 2).
+-- Aplicada 06/10/2026 a PaginaLK (kwkclwhmoygunqmlegrg) con el "sí" de Pablo Olejavetzky. Verificado por SELECT: 8 literales con ::text, 0 pelados,
+--   permisos intactos (anon y authenticated no ejecutan) y 5 de los 8 puntos probados con 6 entradas (slot, pago, el caso real slot+pago,
+--   sin artículos, sin entrega, origen) devuelven {ok:false, errores:[…]} en vez de lanzar. Sin probar: las 2 ramas de retiro (fecha o franja) y el
+--   aviso de escala (hace falta un cliente con dirección de retiro o con escala activa).
 --
 -- DEFECTO: en PostgreSQL 17, `text[] || 'literal'` (el literal sin tipo) se interpreta como un ARRAY y lanza
 --   22P02 "malformed array literal". Las 8 líneas de abajo concatenaban un literal pelado, así que cuando el modelo
