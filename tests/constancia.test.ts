@@ -100,6 +100,13 @@ igual("constancia real: monotributista", parseConstancia(
 igual("el texto legal de la constancia ('exenta' de Ganancias) no la vuelve IVA exento", parseConstancia(
   LINEAS_REALES("PEREZ JUAN CARLOS", CUIT_F, ["No registra impuestos activos"], ["AV EJEMPLO 57", "1414-CIUDAD AUTONOMA BUENOS AIRES"]))?.condicionIva, null);
 
+igual("constancia real: nombre largo partido en dos líneas (lo de arriba del CUIT es el comienzo del nombre)", parseConstancia([
+  "AGENCIA DE RECAUDACION Y CONTROL ADUANERO", "CONSTANCIA DE INSCRIPCION", "EJEMPLO COMERCIAL E INDUSTRIAL DEL SUR", `SOCIEDAD ANONIMA CUIT: ${guiones(CUIT_J)}`,
+  "IMPUESTOS/REGIMENES NACIONALES REGISTRADOS Y FECHA DE ALTA", "IVA 03-2010", "****************************************************",
+])?.razonSocial, "EJEMPLO COMERCIAL E INDUSTRIAL DEL SUR SOCIEDAD ANONIMA");
+igual("constancia real: el nombre entero en la línea del CUIT no se mezcla con el encabezado", parseConstancia(
+  LINEAS_REALES("PEREZ JUAN CARLOS", CUIT_F, ["No registra impuestos activos"], ["AV EJEMPLO 57", "1414-CIUDAD AUTONOMA BUENOS AIRES"]))?.razonSocial, "PEREZ JUAN CARLOS");
+
 // ── lo que NO es una constancia ──
 igual("una factura (con CUIT y razón social) no es una constancia", parseConstancia(["FACTURA A", `CUIT: ${guiones(CUIT_J)}`, "Razón Social: EJEMPLO S.A."]), null);
 igual("CUIT con dígito verificador inválido", parseConstancia(["Constancia de Inscripción", "CUIT: 30-71234567-0", "Razón Social: EJEMPLO S.A."].map((l) => l.replace("-0", CUIT_J.endsWith("0") ? "-1" : "-0"))), null);

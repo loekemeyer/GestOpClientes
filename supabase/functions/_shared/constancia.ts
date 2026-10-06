@@ -246,7 +246,13 @@ export function parseConstancia(lineas: string[]): ConstanciaDatos | null {
   // Razón social: (1) con etiqueta; (2) lo que va antes de "CUIT:" en la misma línea (diseño real de ARCA); (3) la línea de arriba del CUIT.
   const plausible = (l: string) => l.length >= 3 && l.length <= 100 && /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(l) && !RE_NO_ES_NOMBRE.test(l) && !RE_ETIQUETA.test(l) && !/\d{4,}/.test(l);
   let razonSocial = valorDe(lineas, RE_ETIQUETA_NOMBRE);
-  if (!razonSocial && plausible(antesCuit)) razonSocial = antesCuit;
+  // El nombre largo de una sociedad puede partirse en dos líneas ("EJEMPLO COMERCIAL E INDUSTRIAL DEL SUR" / "SOCIEDAD ANONIMA CUIT: 30-…"): las líneas que
+  // están entre el título ("CONSTANCIA DE INSCRIPCION") y la del CUIT son el comienzo del nombre. Sin título, o con el nombre entero en la línea del CUIT,
+  // no hay nada entre medio y queda sólo `antesCuit`. (Hipótesis: en la constancia real el nombre cabe en una línea; no se vio uno largo.)
+  const iTitulo = lineas.findIndex((l) => /^\W*constancia\s+de\s+inscripci[oó]n\W*$/i.test(l));
+  const previo = iTitulo >= 0 && iTitulo < iCuit ? lineas.slice(iTitulo + 1, iCuit).map(limpio).filter((l) => l && plausible(l)).join(" ") : "";
+  const nombreEnLinea = limpio(`${previo} ${antesCuit}`);
+  if (!razonSocial && plausible(nombreEnLinea)) razonSocial = nombreEnLinea;
   if (!razonSocial) {
     for (let j = iCuit - 1; j >= Math.max(0, iCuit - 3); j--) {
       const l = limpio(lineas[j]);
