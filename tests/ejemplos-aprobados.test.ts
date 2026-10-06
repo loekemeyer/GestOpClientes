@@ -1,6 +1,6 @@
 // Pruebas de los EJEMPLOS APROBADOS que llegan al agente (supabase/functions/_shared/ejemplos-aprobados.ts). Sin red, sin IA.
 // Correr: deno run tests/ejemplos-aprobados.test.ts   (sale con código 1 si algo falla)
-import { bloqueEjemplos, elegirEjemplos, limpiarCampo, tokens } from "../supabase/functions/_shared/ejemplos-aprobados.ts";
+import { bloqueEjemplos, conTope, elegirEjemplos, lectorConTope, limpiarCampo, tokens } from "../supabase/functions/_shared/ejemplos-aprobados.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -52,6 +52,52 @@ igual("el bloque trae la consulta y la respuesta aprobada", bloque.includes('Con
 const conNota = bloqueEjemplos([{ clave: "x", pregunta: "¿Se puede pagar el viernes?", respuesta: null, nota: "Derivá a Cobranzas con motivo pago." }]);
 igual("una regla sin respuesta modelo: sólo 'Qué hacer'", conNota.includes("Qué hacer: Derivá a Cobranzas con motivo pago.") && !conNota.includes("Respuesta aprobada"), true);
 igual("un texto largo no pasa el tope del bloque", bloqueEjemplos(Array.from({ length: 3 }, (_, i) => ({ clave: `y${i}`, pregunta: "p", nota: null, respuesta: "r".repeat(2000) }))).length < 2400 + 700, true);
+
+// ── La lectura de la base no cuelga el turno (lectorConTope) ──
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const hora = { t: 1_000_000 };                                    // reloj de mentira: el caché se prueba sin esperar
+const opc = { topeMs: 30, vigenciaMs: 300_000, vigenciaFallaMs: 60_000, ahora: () => hora.t };
+{
+  let lecturas = 0, errores = 0;
+  const lector = lectorConTope(async () => { lecturas++; return ["a"]; }, opc, [] as string[], () => errores++);
+  igual("lector: primera lectura", await lector(), ["a"]);
+  igual("lector: dentro de la vigencia no vuelve a la base", [await lector(), lecturas], [["a"], 1]);
+  hora.t += 300_001;
+  igual("lector: vencida la vigencia, vuelve a leer", [await lector(), lecturas, errores], [["a"], 2, 0]);
+}
+{
+  let lecturas = 0, errores = 0;
+  const lector = lectorConTope(() => { lecturas++; return new Promise<string[]>(() => {}); }, opc, [] as string[], () => errores++);   // la base no contesta nunca
+  const t0 = Date.now();
+  igual("lector: base colgada → devuelve vacío", await lector(), []);
+  igual("lector: espera el tope y no más (< 400 ms)", Date.now() - t0 < 400, true);
+  igual("lector: y avisó del error una vez", errores, 1);
+  igual("lector: no reintenta dentro de la ventana de falla", [await lector(), lecturas, errores], [[], 1, 1]);
+  hora.t += 60_001;
+  igual("lector: pasada la ventana pide una lectura nueva (la colgada no se arrastra)", [await lector(), lecturas, errores], [[], 2, 2]);
+}
+{
+  let n = 0, errores = 0;
+  const lector = lectorConTope(async () => { n++; if (n > 1) throw new Error("connection timeout"); return ["viejo"]; }, opc, [] as string[], () => errores++);
+  await lector();
+  hora.t += 300_001;
+  igual("lector: si falla después de haber leído bien, usa lo último leído", [await lector(), errores], [["viejo"], 1]);
+}
+{
+  let lecturas = 0;
+  const lector = lectorConTope(async () => { lecturas++; await dormir(60); return ["tarde"]; }, opc, [] as string[]);   // tarda más que el tope
+  igual("lector: lectura lenta → este turno sigue sin ejemplos", await lector(), []);
+  await dormir(80);
+  igual("lector: la lectura lenta termina bien y el dato se guarda (se cura solo)", [await lector(), lecturas], [["tarde"], 1]);
+}
+{
+  let lecturas = 0;
+  const lector = lectorConTope(async () => { lecturas++; await dormir(10); return ["x"]; }, opc, [] as string[]);
+  const r = await Promise.all([lector(), lector(), lector()]);
+  igual("lector: tres turnos a la vez comparten una sola lectura", [r, lecturas], [[["x"], ["x"], ["x"]], 1]);
+}
+igual("conTope: una promesa que llega a tiempo pasa", await conTope(Promise.resolve(7), 50), 7);
+igual("conTope: una que no llega rechaza", await conTope(new Promise(() => {}), 20).then(() => "llegó", () => "rechazó"), "rechazó");
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); const g = globalThis as { Deno?: { exit(c: number): never }; process?: { exit(c: number): never } }; (g.Deno ?? g.process)!.exit(1); }
 else console.log("\ntodo bien");

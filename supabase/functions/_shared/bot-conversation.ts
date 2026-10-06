@@ -11,7 +11,7 @@ import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
 import { casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
-import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos } from "./ejemplos-aprobados.ts";
+import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
@@ -1279,23 +1279,16 @@ export function notaDeTiempo(rawHistory: Array<{ rol: string; contenido: string;
 
 // Pablo, 05/10: lo que el dueño corrigió y APROBÓ (wa_agente_evals.estado = 'aplicada') llega al agente como guía cuando entra una
 // consulta parecida: ver _shared/ejemplos-aprobados.ts. Se lee una vez cada 5 minutos por instancia (una aprobación nueva tarda
-// hasta ese tiempo en notarse) y NUNCA rompe el turno: si la lectura falla, el agente sigue sin ejemplos.
-let ejemplosMemo: { hasta: number; filas: EjemploAprobado[] } | null = null;
-async function ejemplosAprobados(): Promise<EjemploAprobado[]> {
-  if (ejemplosMemo && ejemplosMemo.hasta > Date.now()) return ejemplosMemo.filas;
-  try {
-    const { data, error } = await supabase.from("wa_agente_evals")
-      .select("clave, pregunta, respuesta_corregida, nota_esperada").eq("estado", "aplicada").eq("activo", true).limit(200);
-    if (error) throw new Error(error.message);
-    const filas = (data ?? []).map((r: { clave: string | null; pregunta: string | null; respuesta_corregida: string | null; nota_esperada: string | null }) =>
-      ({ clave: String(r.clave ?? ""), pregunta: String(r.pregunta ?? ""), respuesta: r.respuesta_corregida, nota: r.nota_esperada }));
-    ejemplosMemo = { hasta: Date.now() + 5 * 60_000, filas };
-    return filas;
-  } catch (e) {
-    console.error("[ejemplosAprobados]", e instanceof Error ? e.message : e);
-    return [];
-  }
-}
+// hasta ese tiempo en notarse) y NUNCA frena ni rompe el turno (Pablo, 06/10): la lectura espera como mucho 2,5 s; si falla o no
+// llega, el agente sigue con los últimos ejemplos leídos (o sin ninguno) y no se reintenta por 60 s (lectorConTope).
+const ejemplosAprobados = lectorConTope<EjemploAprobado[]>(async () => {
+  const { data, error } = await supabase.from("wa_agente_evals")
+    .select("clave, pregunta, respuesta_corregida, nota_esperada").eq("estado", "aplicada").eq("activo", true).limit(200);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r: { clave: string | null; pregunta: string | null; respuesta_corregida: string | null; nota_esperada: string | null }) =>
+    ({ clave: String(r.clave ?? ""), pregunta: String(r.pregunta ?? ""), respuesta: r.respuesta_corregida, nota: r.nota_esperada }));
+}, { topeMs: 2500, vigenciaMs: 5 * 60_000, vigenciaFallaMs: 60_000 }, [],
+(e) => console.error("[ejemplosAprobados]", e instanceof Error ? e.message : e));
 
 export async function runConversation(
   userText: string,

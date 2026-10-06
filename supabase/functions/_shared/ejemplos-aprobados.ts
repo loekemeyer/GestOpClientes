@@ -11,8 +11,8 @@
 // - Los ejemplos son MODELOS de contenido y de tono, no órdenes del cliente ni datos: las fechas, importes, artículos y nombres salen
 //   de las herramientas, nunca del ejemplo.
 //
-// Módulo PURO (sin red ni base): elige y formatea; la lectura de la tabla vive en bot-conversation.ts. Se prueba en
-// tests/ejemplos-aprobados.test.ts.
+// Módulo sin red ni base: elige y formatea, y trae `lectorConTope` (caché + tope de espera para la lectura); la consulta a la tabla vive en
+// bot-conversation.ts. Se prueba en tests/ejemplos-aprobados.test.ts.
 
 export interface EjemploAprobado { clave: string; pregunta: string; respuesta: string | null; nota: string | null }
 
@@ -45,6 +45,46 @@ export function similitud(a: string[], b: string[]): { comunes: number; coseno: 
  *  ("pedido", "factura") trae ejemplos que no tienen que ver. */
 export const MIN_COMUNES = 2;
 export const MIN_COSENO = 0.5;
+
+/** Espera a `p` como mucho `ms`: si no contesta, rechaza. El timer se limpia siempre (no deja el proceso colgado). */
+export function conTope<T>(p: PromiseLike<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const tope = new Promise<never>((_, rechazar) => { t = setTimeout(() => rechazar(new Error(`sin respuesta en ${ms} ms`)), ms); });
+  return Promise.race([Promise.resolve(p), tope]).finally(() => clearTimeout(t));
+}
+
+export interface OpcionesLector { topeMs: number; vigenciaMs: number; vigenciaFallaMs: number; ahora?: () => number }
+
+/** Lee un dato de la base con caché y SIN colgar el turno (Pablo, 06/10: "hacelo", tras la degradación de PaginaLK del 05–06/10, cuando
+ *  las lecturas esperaban el timeout de la conexión). Reglas:
+ *  - dentro de `vigenciaMs` devuelve lo último leído, sin ir a la base;
+ *  - la lectura espera como mucho `topeMs`; si falla o no llega, devuelve lo último que se leyó bien (o `vacio` si nunca se leyó) y NO
+ *    vuelve a intentar hasta pasados `vigenciaFallaMs`: una base caída cuesta a lo sumo una espera de `topeMs` por ventana, no una por turno;
+ *  - varios turnos a la vez comparten UNA sola lectura;
+ *  - si una lectura que ya se dio por perdida termina bien más tarde, el dato se guarda igual (se cura solo). */
+export function lectorConTope<T>(leer: () => PromiseLike<T>, o: OpcionesLector, vacio: T, alFallar?: (e: unknown) => void): () => Promise<T> {
+  const ahora = o.ahora ?? Date.now;
+  let memo: { hasta: number; valor: T } | null = null;
+  let enCurso: Promise<T> | null = null;
+  return async () => {
+    if (memo && memo.hasta > ahora()) return memo.valor;
+    if (!enCurso) {
+      const mia: Promise<T> = (async () => await leer())();
+      enCurso = mia;
+      mia.then((v) => { memo = { hasta: ahora() + o.vigenciaMs, valor: v }; }, () => {})
+        .finally(() => { if (enCurso === mia) enCurso = null; });
+    }
+    const mia = enCurso;
+    try {
+      return await conTope(mia, o.topeMs);
+    } catch (e) {
+      alFallar?.(e);
+      if (enCurso === mia) enCurso = null;   // si quedó colgada, la próxima ventana pide una lectura nueva
+      memo = { hasta: ahora() + o.vigenciaFallaMs, valor: memo?.valor ?? vacio };
+      return memo.valor;
+    }
+  };
+}
 
 /** Los hasta `max` ejemplos más parecidos a `pregunta`, del más al menos parecido. */
 export function elegirEjemplos(pregunta: string, filas: EjemploAprobado[], max = 3): EjemploAprobado[] {
