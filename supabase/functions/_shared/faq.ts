@@ -201,6 +201,13 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       intent: "devolucion", automation_level: "needs_human", topic: "Devolución de mercadería",
       alerta: { motivo: "devolucion", detalle: `Devolución de mercadería: ${text.slice(0, 200)}` } };
   }
+  // Pablo, 06/10 (m41): "Me pasás el cotizador actualizado" → los pedidos ahora se toman por la web: se le recuerda y se le da el acceso. Sin alerta: si no tiene clave y
+  // lo dice, lo toma el reseteo de clave de siempre (una persona de Ventas la genera). Texto aprobado por Pablo el 06/10.
+  if (customer && pideElCotizador(text)) {
+    return { reply: "Ahora los pedidos se toman por la web: entrá a loekemeyer.com › Pedidos Mayorista con tu usuario (tu CUIT) y tu clave. " +
+      "Ahí ves los precios al día y armás el pedido. Si no tenés clave, escribinos y una persona de Ventas te la genera.",
+      intent: "pide_cotizador", automation_level: "full_auto", faq_id: 11, topic: "Pide el cotizador" };
+  }
   // Pablo, 30/09 (1.9): "Figura programado para el 30/09 pero en el detalle dice 13/10, ¿cuál es?". La IA le contestaba
   // "¿puede ser que el 13/10 lo hayas visto en otro lado?": nunca se asume que el cliente se equivocó. Lo revisa una persona.
   if (customer && RE_FECHAS_NO_COINCIDEN.test(text)) {
@@ -568,6 +575,13 @@ export const avisaErrorDeCarga = (text: string): boolean =>
   (/\bunidad(es)?\b/i.test(text) && /\bcajas?\b/i.test(text) && RE_CARGA_EDICION.test(text)) || RE_EQUIVOCACION_DE_CARGA.test(text);
 export const avisaHorarioRecepcion = (text: string): boolean => RE_HORARIO_RECEPCION.test(text);
 export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
+// Pablo, 06/10 (corrección m41): "Me pasás el cotizador actualizado" salía con la respuesta de la lista de precios (#11). Los clientes ya no deben usar el cotizador: los
+// pedidos se toman por la web. Si el cliente lo PIDE se le recuerda, con el acceso (CUIT y clave; sin clave, Ventas se la genera). Si lo MANDA ("te paso el cotizador con el
+// pedido", un Excel adjunto) entra por el lector de archivos, no por acá. Hace falta un verbo de PEDIR + "cotizador"; no cuentan los avisos de envío, los problemas con el
+// archivo ("no me abre", "no me deja subirlo") ni la condición de pago "sin cotizador" / los descuentos (Cobranzas).
+const RE_PIDE_COTIZADOR = /\b(me\s+(pas|mand|env[ií]|compart|pod|pued|tien|hac)[a-záéíóúñ]*|(pas|mand|env[ií]|compart)[aá](me|nos)|necesit[a-záéíóúñ]*|quer[a-záéíóúñ]*|quier[a-záéíóúñ]*|quisi[a-záéíóúñ]*|busc[a-záéíóúñ]*|ten[eé]s|tienen|tiene|hay|pod[eé]s|podr[ií][a-záéíóúñ]*|pued[a-záéíóúñ]*|manden|pasen|env[ií]en|solicit[a-záéíóúñ]*|piden)(?![a-záéíóúñ])[^.?!]{0,50}\bcotizador/i;
+const RE_COTIZADOR_OTRA_COSA = /\bsin\s+cotizador\b|\bdescuentos?\b|\bdtos?\b|\bno\s+(me\s+|nos\s+)?(abre|abren|deja|dejan|anda|funciona|carga|puedo|podemos|pude)|\b(error|falla|se\s+(tilda|traba|cuelga)|subir|llenar|completar)\b|\b(te|les)\s+(paso|mando|envi\w*)\b|\badjunt\w*/i;
+export const pideElCotizador = (text: string): boolean => RE_PIDE_COTIZADOR.test(text) && !RE_COTIZADOR_OTRA_COSA.test(text) && !RE_ENVIA_PEDIDO.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
