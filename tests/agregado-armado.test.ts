@@ -1,4 +1,4 @@
-// Pruebas de "agregar a un pedido ya en armado → se deriva a logística" (supabase/functions/_shared/agregado-armado.ts). Sin red, sin IA.
+// Pruebas de "agregar a un pedido ya en armado → se deriva a Ventas" (supabase/functions/_shared/agregado-armado.ts). Sin red, sin IA.
 // Correr: deno run tests/agregado-armado.test.ts   (sale con código 1 si algo falla)
 import { casoDeAgregado, firmaDeItems, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "../supabase/functions/_shared/agregado-armado.ts";
 
@@ -12,9 +12,9 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
 // ── Qué se hace según el estado del pedido ──
 igual("recibido, sin enviar a compras → se puede agregar", casoDeAgregado("recibido", false), "normal");
 igual("programado → se puede agregar", casoDeAgregado("programado", false), "normal");
-igual("en preparación → logística", casoDeAgregado("en preparacion", false), "en_armado");
-igual("facturado → logística", casoDeAgregado("facturado", false), "en_armado");
-igual("enviado a compras aunque el estado diga recibido → logística", casoDeAgregado("recibido", true), "en_armado");
+igual("en preparación → Ventas", casoDeAgregado("en preparacion", false), "en_armado");
+igual("facturado → Ventas", casoDeAgregado("facturado", false), "en_armado");
+igual("enviado a compras aunque el estado diga recibido → Ventas", casoDeAgregado("recibido", true), "en_armado");
 igual("entregado → pedido nuevo", casoDeAgregado("entregado", false), "entregado");
 igual("entregado y enviado a compras → pedido nuevo (no se deriva)", casoDeAgregado("entregado", true), "entregado");
 
@@ -24,7 +24,7 @@ const dos = [...uno, { cajas: 1, descripcion: "Abrelatas Y", cod: "501" }];
 const cli = textoClienteEnArmado("25/09", "en preparacion", dos);
 igual("cliente: nombra el pedido por su fecha y el estado", cli.startsWith("Tu pedido del 25/09 ya está en armado"), true);
 igual("cliente: lista las dos filas con plural y singular", cli.includes("• 3 cajas de Pelador X (cód. 505)") && cli.includes("• 1 caja de Abrelatas Y (cód. 501)"), true);
-igual("cliente: dice que se consultó a logística", /consulté a logística/.test(cli), true);
+igual("cliente: dice que se consultó a Ventas", /consulté a Ventas/.test(cli), true);
 igual("cliente: no promete ni dice que no se puede", !/no se puede|no podemos|no le podemos|seguro|garantiz/i.test(cli), true);
 igual("cliente: facturado se dice facturado", textoClienteEnArmado("25/09", "facturado", uno).startsWith("Tu pedido del 25/09 ya está facturado"), true);
 igual("cliente: sin número de pedido ni cierre de cortesía", !/#|nro|n°|algo más/i.test(cli), true);

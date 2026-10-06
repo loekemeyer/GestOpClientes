@@ -12,7 +12,7 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
   else { fallas++; console.error(`FALLA ${nombre}\n   real:     ${a}\n   esperado: ${b}`); }
 }
 
-// Pide acelerar o adelantar: lo ve Logística.
+// Pide acelerar o adelantar: lo ve Ventas.
 for (const t of [
   "En el caso que se confirme, ¿hay posibilidades de entrega rápida?", "¿Pueden hacer una entrega urgente?", "Necesito envío express",
   "¿Se puede adelantar la entrega?", "¿Podrían adelantar mi pedido?", "¿Hay forma de que llegue antes?", "¿Pueden entregarlo antes del viernes?",
