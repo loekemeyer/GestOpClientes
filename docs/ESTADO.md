@@ -4,6 +4,12 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
+> **06/10 (Pablo): `bot_pedido_armar` lanzaba una excepción en vez de devolver sus errores — arreglado (`sql/128`, aplicada a PaginaLK; se renumeró: el 127 lo usó otra sesión para `sync_web_ocultos_virgilio`).** Lo destapó el Simulador al probar la compuerta: el modelo mandó una dirección que no era de la
+> cuenta (slot 2) y la función reventó con `22P02 malformed array literal`. Causa: en PostgreSQL 17 `text[] || 'literal'` (el literal sin tipo) se lee como un array; 8 líneas de `sql/112` y `113` concatenaban literales pelados
+> (`forma_de_pago_invalida`, `origen_invalido`, `sin_articulos`, `falta_entrega`, `sucursal_invalida`, `falta_fecha_o_franja_de_retiro`, `franja_invalida` y el aviso de escala); las ramas con `format(...)` andaban. Efecto: el agente decía
+> "No pude armar el pedido" y derivaba a una persona con alerta urgente en vez de resolverlo con el cliente. Arreglo: `::text` en esos 8 literales (misma firma, permisos intactos). Registrado en auditoría ("bot_pedido_armar lanza
+> excepción en vez de devolver errores"). ⚠ **Regla para SQL nuevo del bot:** en `text[] || …` el segundo operando va con `::text` o dentro de `format(...)`, nunca un literal pelado.
+>
 > **06/10 (Pablo): medidas de seguridad del agente — la 1.ª hecha (compuerta de `confirmar_pedido`) y la lista completa en el Panel (dashboard v0.27.21).**
 > Pedido: *"arrancá por el punto uno y andá actualizando todas estas medidas en la página"*. Punto de partida: el bloque "Seguridad (anti-jailbreak)" es una regla de prompt, o sea la capa más débil
 > (un jailbreak la rompe); lo que protege de verdad está en el código (firma de Meta, teléfono del webhook sin id de cliente en las herramientas, tope 20/h, whitelist, 5 vueltas por turno).
