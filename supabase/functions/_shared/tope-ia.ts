@@ -28,6 +28,24 @@ export function esperaHastaProximaHora(ahora: Date): { minutos: number; hora: st
   return { minutos, hora, espera: minutos === 1 ? "1 minuto" : `${minutos} minutos` };
 }
 
+/**
+ * Contexto de la alerta para una persona cuando un cliente pasa el tope (motivo `tope_ia`, Pablo 06/10/2026: el cliente topeado quedaba
+ * en silencio hasta la hora en punto sin que nadie lo viera). Se crea una sola vez por hora y número, junto con el aviso al cliente.
+ * Puede haber sido un error del cliente (mensajes repetidos, un loop del teléfono) o una consulta real: la persona mira el chat y decide.
+ * No lleva `urgente`: lo decide `notificarHumano` por el texto, como en cualquier alerta.
+ */
+export function contextoAlertaTope(limite: number, texto: string, razonSocial: string | null | undefined, ahora: Date): Record<string, unknown> {
+  const { hora } = esperaHastaProximaHora(ahora);
+  return {
+    motivo: "tope_ia",
+    limite,
+    detalle: `Pasó el máximo de ${limite} consultas por hora al asistente. Se le avisó que vuelve a poder escribir a las ${hora}. ` +
+      "Puede haber sido un error (mensajes repetidos) o una consulta que necesita una persona: mirá el chat.",
+    texto_recibido: String(texto ?? "").slice(0, 200),
+    razon_social: razonSocial ?? null,
+  };
+}
+
 /** Arma el aviso. `plantilla` es lo guardado en el Panel (vacío o sólo espacios → el texto por defecto). */
 export function mensajeTope(plantilla: string | null | undefined, limite: number, ahora: Date): string {
   const base = (plantilla ?? "").trim() || TOPE_MSG_DEFAULT;

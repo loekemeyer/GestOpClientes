@@ -29,7 +29,7 @@ import {
 import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
-import { mensajeTope } from "../_shared/tope-ia.ts";
+import { contextoAlertaTope, mensajeTope } from "../_shared/tope-ia.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
@@ -1340,6 +1340,15 @@ async function handleMessage(
       const aviso = mensajeTope(await getSetting("wa_rate_limit_msg"), rateLimited.limite, new Date());
       await enviarTexto(cfg, phone, aviso);
       await saveMessage(phone, "assistant", aviso);
+      // Una persona mira el chat (motivo `tope_ia`, Configuración › Derivaciones): sin esto el cliente quedaba en silencio hasta la hora
+      // en punto y nadie lo veía, y puede haber sido un error suyo o una consulta real. Una sola vez por hora y número, como el aviso;
+      // `notificarHumano` nunca lanza.
+      await notificarHumano({
+        tipo: "otro",
+        phone,
+        customerId: customer?.customer_id ?? null,
+        contexto: contextoAlertaTope(rateLimited.limite, text, customer?.business_name ?? null, new Date()),
+      });
     }
     return;
   }

@@ -46,8 +46,8 @@
           "como": "Reparto: le avisa cuando lo recibe."
         }
       ],
-      "bot": "Contesta sólo los pedidos que faltan entregar, con su estado y fecha, sin número de pedido; los demás los da por entregados y, si pregunta por otro, le pide que confirme de qué fecha es. Expreso: el día que lo entregamos al expreso (se sigue mostrando 7 días) y que la fecha en que le llega puede diferir según el expreso. Sin fecha: 'todavía sin fecha de salida'. Desde el 01/10 también los pedidos de Chef: a un cliente sólo de Chef le muestra sus pedidos de Chef con estado y fecha; si compra en las dos marcas, le pregunta de qué marca es su consulta (salvo saludos y consultas de plata) y le contesta esa.",
-      "deriva": "Motivo 'entrega' si necesita la fecha igual, si dice que no le llegó (urgente) o si la fecha no coincide con la que le dijeron.",
+      "bot": "Contesta sólo los pedidos que faltan entregar, con su estado y fecha, sin número de pedido; los demás los da por entregados y, si pregunta por otro, le pide que confirme de qué fecha es. Expreso: el día que lo entregamos al expreso (se sigue mostrando 7 días) y que la fecha en que le llega puede diferir según el expreso. Sin fecha: 'todavía sin fecha de salida'. Desde el 01/10 también los pedidos de Chef: a un cliente sólo de Chef le muestra sus pedidos de Chef con estado y fecha; si compra en las dos marcas, le pregunta de qué marca es su consulta (salvo saludos y consultas de plata) y le contesta esa. Pide entrega rápida o que se adelante ('¿hay posibilidades de entrega rápida?'): no le contesta la lista de pedidos, le dice que una persona de Logística revisa si se puede acelerar y le escribe por acá (06/10).",
+      "deriva": "Motivo 'entrega' si pide entrega rápida o adelantar la entrega (a Logística), si necesita la fecha igual, si dice que no le llegó (urgente) o si la fecha no coincide con la que le dijeron.",
       "falta": "",
       "ejemplo": "«La web dice 30/09 y el detalle 13/10, ¿cuál vale?»",
       "resumen": "Le avisamos la fecha antes de que pregunte."

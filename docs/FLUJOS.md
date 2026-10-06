@@ -280,6 +280,7 @@ BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el vier
 
 | Fila | Mensaje | Respuesta |
 |---|---|---|
+| 1.7 | "En el caso que se confirme, ¿hay posibilidades de entrega rápida?" | "Una persona de Logística revisa si se puede acelerar la entrega y te escribe por acá en un momento" + alerta `entrega` (🟡, 120 min) para Logística (`pideEntregaRapida`, `faq.ts`; 06/10). Hace falta una palabra de entrega junto a una de apuro ("entrega rápida/urgente", "adelantar la entrega", "que llegue antes"); "¿cuándo llega mi pedido?", "¿puede estar para el viernes?" y "no me llegó" siguen su camino. Antes salía la lista de pedidos pendientes (#1) sin contestar si se podía acelerar. |
 | 2.6 | "Pasé por mail un pedido para un cliente pero me vino dos veces rechazado. ¿Te llegó a vos?" | Chequea duplicados en la web como siempre; si no hay y el mensaje nombra mail o correo (`pedidoPorMailRepetido`, `faq.ts`): "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido. Una persona revisa el mail y te escribe por acá" + alerta `pedido_mail` (🟡, 120 min) para Ventas. Sin mail, el mensaje de siempre ("si ves uno de más en la web…"). |
 | 2.9 | "Anulá todo el pedido" | No es un cambio: dice en qué estado está el pedido (sin preparar / programado / facturado) y deriva con motivo `anulacion_pedido` (urgente). Con más de un pedido abierto y sin fecha, pregunta cuál. |
 | 3.3 | "¿Cierran para almorzar?" | "El depósito cierra para almorzar de 12 a 13" + horario completo. |
@@ -449,6 +450,16 @@ BOT: No entendí. Podés preguntarme por:
      🛒 Hacer un pedido
      💬 O escribime tu consulta y te ayudo
 ```
+
+### Tope de consultas de IA por hora (Pablo, 06/10/2026, `_shared/tope-ia.ts`)
+
+El contador (`wa_check_rate_limit`) cuenta por **hora de reloj** y sólo los mensajes que llegan al agente de IA (no las respuestas fijas ni los flujos): por defecto 20 por número y hora.
+Al mensaje 21 el bot **no llama a la IA** y, una sola vez por hora y número:
+1. **Le avisa al cliente cuánto esperar**, con la hora en que se reinicia (editable en el Panel › Rate Limit, variables `{{limite}}`, `{{espera}}`, `{{hora}}`):
+   *"Recibimos muchas consultas seguidas desde este número (el máximo es 20 por hora), así que hacemos una pausa. Podés volver a escribirnos en 45 minutos, a partir de las 15:00. Si fue sin querer, no te preocupes: se reactiva solo."*
+2. **Deja una alerta para una persona** (motivo `tope_ia`, semáforo amarillo, va a Planify según Configuración › Derivaciones) con el último mensaje del cliente: puede haber sido un error suyo
+   (mensajes repetidos, un loop del teléfono) o una consulta real que quedó sin contestar.
+El resto de esa hora el bot no contesta a ese número (sin más avisos, para no generar más tráfico del que corta).
 
 ## Opt-out
 
