@@ -3,7 +3,7 @@
 // calculan el mismo vencimiento. Minutos por categoría editables en app_settings.wa_alertas_vencimiento.
 
 import { supabase } from "./supabase.ts";
-import { nivelAuto, nivelDe, nivelFijo, registrarNiveles, type Nivel, urgenteDe } from "./semaforo.ts";
+import { nivelAuto, nivelDe, nivelFijo, registrarNiveles, registrarTiempos, tiempoDeNivel, type Nivel, urgenteDe } from "./semaforo.ts";
 
 export const SETTING_VENCIMIENTO = "wa_alertas_vencimiento";
 
@@ -71,6 +71,7 @@ export async function vencimientos(): Promise<Record<string, number>> {
     const w = JSON.parse(filas?.find((r) => r.key === "wa_derivaciones")?.value ?? "{}");
     registrarExtras(w?.extra);
     registrarNiveles(w?.motivos); // semáforos fijados en Derivaciones (06/10)
+    registrarTiempos(w?.tiempos); // tiempo de respuesta de cada semáforo (06/10)
   } catch { /* sin extras ni semáforos fijos */ }
   const base = Object.fromEntries(Object.entries(CATEGORIAS).map(([k, v]) => [k, v.min]));
   const data = filas?.find((r) => r.key === SETTING_VENCIMIENTO);
@@ -86,7 +87,8 @@ export async function vencimientos(): Promise<Record<string, number>> {
 // stock sin disponibilidad) · 🟢 verde = puede esperar (comprobante recibido, alta de cliente, el resto). Desde el 06/10 cada motivo puede
 // tener su semáforo fijado en Configuración › Derivaciones; la lógica vive en semaforo.ts (pura, con pruebas).
 export type { Nivel };
-export { nivelFijo, registrarNiveles };
+export { nivelFijo, registrarNiveles, registrarTiempos };
+export { MAX_TIEMPO_MIN, tiempoDeNivel, TIEMPOS_DEFECTO, tiemposVigentes } from "./semaforo.ts";
 export const SEMAFORO: Record<Nivel, string> = { rojo: "🔴", amarillo: "🟡", verde: "🟢" };
 // deno-lint-ignore no-explicit-any
 export function urgente(a: any): boolean {
@@ -96,6 +98,11 @@ export function urgente(a: any): boolean {
 export function nivel(a: any): Nivel {
   const cat = categoria(a);
   return nivelDe(cat, a?.contexto ?? {}, !!CATEGORIAS[cat]?.extra);
+}
+/** Minutos que tiene una alerta para responderse: el tiempo de SU semáforo (el fijado en Derivaciones o el Auto, con el mensaje apurado incluido). */
+// deno-lint-ignore no-explicit-any
+export function minutosDeVencimiento(a: any): number {
+  return tiempoDeNivel(nivel(a));
 }
 /** Semáforo "Auto" de un motivo (el de siempre, sin el fijado a mano): es lo que muestra Derivaciones al lado de "Auto". */
 export function nivelAutoDeMotivo(cat: string): Nivel {

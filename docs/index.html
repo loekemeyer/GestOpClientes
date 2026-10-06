@@ -210,6 +210,8 @@
     #derivList .dv-tb span { flex: none; width: 46px; font-size: 0.72rem; color: var(--muted); }
     #derivList .dv-tb select { flex: 1; min-width: 0; }
     #derivList .dv-x { padding: 2px 7px; }
+    #derivTiempos .dv-tiempo { margin-right: 0.8rem; white-space: nowrap; }
+    #derivTiempos input { width: 70px; }
     #derivList .al-tabla td .hint code { overflow-wrap: anywhere; } /* la clave larga del motivo nuevo no debe ensanchar la tabla */
     #derivList .dv-quien label { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
     #derivList .dv-quien label:last-child { margin-bottom: 0; }
@@ -785,15 +787,12 @@
         </div>
 
         <div class="config-section">
-          <h3>⏱️ Tiempo de vencimiento por tipo</h3>
+          <h3>⏱️ Tiempo de respuesta</h3>
           <p class="hint" style="display:block;margin:-0.3rem 0 0.8rem;line-height:1.4;">
-            Cuánto puede esperar cada tipo de alerta antes de vencerse.
+            Ahora el tiempo lo da el <b>semáforo</b> de la alerta (🔴 urgente, 🟡 pronto, 🟢 puede esperar), no el tipo. Se cambia en
+            <b>Panel de Control › Derivaciones</b>.
           </p>
-          <div id="alVenc" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
-          <div style="margin-top:0.7rem;display:flex;align-items:center;gap:0.5rem;">
-            <button class="config-btn primary" onclick="saveVencimientos()">💾 Guardar</button>
-            <span id="alVencStatus" class="config-status"></span>
-          </div>
+          <div style="margin-top:0.4rem;"><button class="config-btn primary" onclick="cfg('deriv')">Ir a Derivaciones</button></div>
         </div>
       </div>
     </div>
@@ -1039,6 +1038,7 @@
             <h3>🧭 A dónde va cada caso que necesita a una persona</h3>
             <p class="hint" style="display:block;margin:-0.3rem 0 0.9rem;line-height:1.4;">Todo va a <b>Tareas</b>. Acá elegís si además abre tarea en <b>Planify</b> y para quién. Lo 🔴 urgente va siempre.</p>
             <div id="derivPrueba" class="config-row" style="margin-bottom:0.6rem;"></div>
+            <div id="derivTiempos" class="config-row" style="margin-bottom:0.6rem;"></div>
             <div id="derivList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
             <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.7rem;">
               <button class="config-btn primary" onclick="saveDerivaciones()">Guardar</button>
@@ -1757,31 +1757,6 @@ async function resolverAlerta(id, estado) {
   if (error || !data?.ok) { st.textContent = "⚠️ " + (data?.error || error?.message || "Error"); return; }
   loadAlertas();
 }
-async function loadVencimientos() {
-  const box = document.getElementById("alVenc");
-  const { data, error } = await authedInvoke("lk_alertas", { action: "config_get" });
-  if (error || !data?.ok) { box.innerHTML = '<div class="bl-empty">⚠️ ' + esc(data?.error || error?.message || "Error") + "</div>"; return; }
-  box.innerHTML = `<table class="al-tabla al-venc"><tr><th>Tipo de alerta</th><th>Vence a los</th><th></th></tr>` +
-    data.categorias.map((c) => `<tr><td>${esc(c.label)}</td>
-      <td style="white-space:nowrap;"><input type="number" min="0" max="720" data-cat="${esc(c.categoria)}" data-u="h" value="${Math.floor(c.minutos / 60)}"> h
-        <input type="number" min="0" max="59" data-cat="${esc(c.categoria)}" data-u="m" value="${c.minutos % 60}"> min</td>
-      <td class="hint">${c.minutos !== c.defecto ? "(por defecto " + durTexto(c.defecto * 60000) + ")" : ""}</td></tr>`).join("") + "</table>";
-}
-async function saveVencimientos() {
-  const st = document.getElementById("alVencStatus");
-  const v = {};
-  document.querySelectorAll("#alVenc input[data-cat]").forEach((i) => {
-    v[i.dataset.cat] = (v[i.dataset.cat] || 0) + (Number(i.value) || 0) * (i.dataset.u === "h" ? 60 : 1);
-  });
-  const malo = Object.entries(v).find(([, m]) => m < 1);
-  if (malo) { st.textContent = "✗ Cada tipo necesita al menos 1 minuto"; st.className = "config-status err"; return; }
-  st.textContent = "Guardando…"; st.className = "config-status";
-  const { data, error } = await authedInvoke("lk_alertas", { action: "config_save", vencimientos: v });
-  if (error || !data?.ok) { st.textContent = "✗ " + (data?.error || error?.message || "Error"); st.className = "config-status err"; return; }
-  st.textContent = "✓ Guardado"; st.className = "config-status ok";
-  loadVencimientos(); loadAlertas();
-  setTimeout(() => { st.textContent = ""; }, 3000);
-}
 // El contador del menú se refresca cada 2 minutos mientras el dashboard está abierto.
 // Auditoría 02/10: con la pestaña oculta (document.hidden) no se consulta —nadie ve el contador—; al volver se refresca en el acto.
 function pollAlertas() {
@@ -1804,7 +1779,7 @@ function showPage(page) {
   document.getElementById("navConfig").classList.toggle("active", page === "config");
   document.getElementById("navAgente").classList.toggle("active", page === "agente");
   if (page === "config") loadConfigPage();
-  if (page === "alertas") { loadAlertas(); loadVencimientos(); }
+  if (page === "alertas") { loadAlertas(); }
   if (page === "agente") loadAgentePage();
   if (page === "dash") { loadDashboard(); loadIaDash(); }
 }
@@ -3850,7 +3825,7 @@ const NIVEL_TXT = { rojo: "🔴 urgente", amarillo: "🟡 pronto", verde: "🟢 
 function semaforoSel(m) {
   const fijo = m.nivel_fijo || "", auto = m.nivel_auto || m.nivel || "verde";
   const o = (v, t) => `<option value="${v}"${fijo === v ? " selected" : ""}>${t}</option>`;
-  return `<select data-f="nivel" title="Auto = el de siempre (el emoji muestra cuál es); un mensaje apurado o molesto lo sube a 🔴. Si lo fijás, queda fijo para este motivo.">` +
+  return `<select data-f="nivel" onchange="derivRefrescarVence()" title="Auto = el de siempre (el emoji muestra cuál es); un mensaje apurado o molesto lo sube a 🔴. Si lo fijás, queda fijo para este motivo.">` +
     o("", "Auto " + NIVEL_TXT[auto].slice(0, 2)) + o("rojo", NIVEL_TXT.rojo) + o("amarillo", NIVEL_TXT.amarillo) + o("verde", NIVEL_TXT.verde) + `</select>`;
 }
 let DERIV = null;
@@ -3872,6 +3847,10 @@ function pintarDerivaciones() {
   top.innerHTML = `<label>Mientras la llave esté en prueba, todo lo de Planify va a:</label>
     <select id="derivPruebaEmp">${opt(data.empleados, data.prueba_employee_id, "— nadie —")}</select>
     <span class="hint">${enPrueba ? "Llave en <b>prueba</b>: rige esto. Persona y sector, en producción." : "Llave en <b>producción</b>: rigen persona y sector."}</span>`;
+  const tm = data.tiempos || { rojo: 20, amarillo: 120, verde: 240 }, tdef = data.tiempos_defecto || { rojo: 20, amarillo: 120, verde: 240 };
+  document.getElementById("derivTiempos").innerHTML = `<label>⏱️ Tiempo de respuesta de cada semáforo:</label>` +
+    ["rojo", "amarillo", "verde"].map((n) => `<span class="dv-tiempo">${{ rojo: "🔴", amarillo: "🟡", verde: "🟢" }[n]} <input type="number" min="1" max="43200" data-t="${n}" value="${tm[n]}" oninput="derivRefrescarVence()"> min <small class="hint" data-th="${n}"></small></span>`).join("") +
+    `<span class="hint">Por defecto: ${["rojo", "amarillo", "verde"].map((n) => durTexto(tdef[n] * 60000)).join(" · ")}. Pasado ese tiempo la alerta figura vencida.</span>`;
   const destOpt = (m) => [["planify", "Planify + Tareas"], ["tareas", "Sólo Tareas"], ...(m.de_ia ? [["bot", "Lo responde el bot"]] : [])]
     .map(([v, t]) => `<option value="${v}"${m.destino === v ? " selected" : ""}>${t}</option>`).join("");
   const fila = (m) => {
@@ -3882,14 +3861,13 @@ function pintarDerivaciones() {
     const origenCel = ex
       ? `<textarea data-f="cuando" class="dv-fluido" rows="3" oninput="this.classList.remove('dv-falta')" placeholder="Cuándo lo deriva la IA" title="Le dice a la IA cuándo derivar este motivo. Ej.: el cliente pide factura A o un duplicado">${esc(ex.cuando)}</textarea>`
       : esc(m.origen);
-    const venceCel = ex ? `<input data-f="min" type="number" min="1" max="43200" value="${ex.min}" style="width:58px"> min` : durTexto(m.minutos * 60000);
     // v0.27.9 (Pablo, 06/10): con 8 columnas la tabla medía 872 px en un contenedor de 820 y la columna Sector quedaba cortada.
     // Semáforo y vencimiento van juntos, y Sector y Persona apilados en una sola columna ("Para quién").
     // v0.27.10: primero el sector; la persona es opcional y se elige entre las de ese sector. Persona elegida = va sólo a ella
     // (destino() en _shared/derivaciones-destino.ts).
     const conPlanify = m.destino === "planify";
     return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}${m.nuevo ? ' class="dv-nuevo"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
-      <td style="white-space:nowrap;">${semaforoSel(m)}<div class="hint">vence ${venceCel}</div></td>
+      <td style="white-space:nowrap;">${semaforoSel(m)}<div class="hint" data-vence>vence ${durTexto(derivMinutosDe(m.nivel_fijo || m.nivel_auto || m.nivel) * 60000)}</div></td>
       <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select></td>
       <td class="dv-quien">
         <label><span>Sector</span><select data-f="department_id" onchange="derivCambioSector(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
@@ -3903,6 +3881,7 @@ function pintarDerivaciones() {
     `</table><div class="hint" style="margin-top:0.4rem;"><b>Sector</b> (llave en producción): la tarea le aparece a todo el sector y la primera persona que toca "Me encargo yo" se la queda. <b>Sector + persona</b>: va sólo a esa persona (las del desplegable son las de ese sector). <b>Sólo persona</b>: va a ella. <b>Ninguno</b>: va a quien esté por defecto. Con la llave en prueba, todo va a la persona de prueba. "Lo responde el bot": la IA no lo deriva, salvo urgencia.<br><b>+ otro destino</b>: la misma alerta abre una tarea en Planify por cada destino (sector entero o una persona), y se da por atendida cuando se cierran todas. Con la llave en prueba cada tarea va a la persona de prueba, con una línea "Para:" que dice a quién iría. <b>Semáforo</b>: "Auto" es el de siempre (un mensaje apurado o molesto lo sube a 🔴); si lo fijás, queda fijo para ese motivo. 🔴 es urgente: abre tarea en Planify aunque el motivo diga "Sólo Tareas". Un cambio vale para alertas nuevas y para cómo se ven las abiertas; las tareas que ya están en Planify no se tocan.</div>
     <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
     <span class="hint">Un motivo nuevo que la IA puede derivar. Rige al guardar.</span></div>`;
+  derivRefrescarVence();
 }
 function derivCambioDestino(sel) {
   const tr = sel.closest("tr"), p = sel.value === "planify";
@@ -3975,9 +3954,30 @@ function derivLeerForm() {
     m.destino = v("destino"); m.employee_id = v("employee_id") || null; m.department_id = v("department_id") || null;
     m.nivel_fijo = v("nivel") || null;
     m.tambien = [...tr.querySelectorAll('[data-f="tambien"]')].map((x) => derivLeerDestino(x.value));
-    if (m.extra) { m.extra.nombre = v("nombre") || ""; m.extra.cuando = v("cuando") || ""; m.extra.min = Number(v("min")) || 120; m.label = m.extra.nombre; }
+    if (m.extra) { m.extra.nombre = v("nombre") || ""; m.extra.cuando = v("cuando") || ""; m.extra.min = Number(v("min")) || m.extra.min || 120; m.label = m.extra.nombre; }
   });
   DERIV.prueba_employee_id = document.getElementById("derivPruebaEmp")?.value || null;
+  if (document.querySelector("#derivTiempos [data-t]")) DERIV.tiempos = derivLeerTiempos();
+}
+// Tiempo de respuesta por semáforo (06/10): lo manda el semáforo de la alerta, no el motivo. Se edita arriba de la tabla.
+const derivLeerTiempos = () => Object.fromEntries(["rojo", "amarillo", "verde"].map((n) => [n, Math.round(Number(document.querySelector(`#derivTiempos [data-t="${n}"]`)?.value))]));
+function derivMinutosDe(nivel) {
+  const t = document.querySelector("#derivTiempos [data-t]") ? derivLeerTiempos() : (DERIV.tiempos || {});
+  const m = Number(t[nivel]);
+  return m >= 1 ? m : Number((DERIV.tiempos_defecto || {})[nivel]) || 120;
+}
+// Actualiza "vence …" de cada fila (según su semáforo: el fijo o el Auto) y la equivalencia al lado de cada tiempo.
+function derivRefrescarVence() {
+  for (const n of ["rojo", "amarillo", "verde"]) {
+    const h = document.querySelector(`#derivTiempos [data-th="${n}"]`), v = Number(document.querySelector(`#derivTiempos [data-t="${n}"]`)?.value);
+    if (h) h.textContent = v >= 1 ? "(" + durTexto(v * 60000) + ")" : "";
+  }
+  document.querySelectorAll("#derivList tr[data-cat]").forEach((tr) => {
+    const m = DERIV.motivos.find((x) => x.categoria === tr.dataset.cat);
+    const nivel = tr.querySelector('[data-f="nivel"]')?.value || m?.nivel_auto || m?.nivel;
+    const el = tr.querySelector("[data-vence]");
+    if (el) el.textContent = "vence " + durTexto(derivMinutosDe(nivel) * 60000);
+  });
 }
 function derivAgregar() {
   const nombre = (prompt("Nombre del motivo (ej. Garantía al consumidor):") || "").trim();
@@ -4007,6 +4007,13 @@ async function saveDerivaciones() {
   derivLeerForm();
   // Los motivos agregados a mano necesitan nombre, "cuándo derivarlo" y un vencimiento de 1 minuto a 30 días (lk_alertas lo exige): se avisa
   // acá, señalando el campo, en vez de guardar a ciegas y recibir el rechazo del servidor.
+  const malTiempo = ["rojo", "amarillo", "verde"].find((n) => !(DERIV.tiempos?.[n] >= 1 && DERIV.tiempos[n] <= 43200));
+  if (malTiempo) {
+    const campo = document.querySelector(`#derivTiempos [data-t="${malTiempo}"]`);
+    campo?.focus();
+    st.textContent = `✗ El tiempo de respuesta del semáforo ${{ rojo: "🔴", amarillo: "🟡", verde: "🟢" }[malTiempo]} tiene que estar entre 1 minuto y 30 días (43.200 min).`; st.className = "config-status err";
+    return;
+  }
   for (const m of DERIV.motivos) {
     const i = (m.tambien || []).findIndex((t) => !t.employee_id && !t.department_id);
     if (i < 0) continue;
@@ -4020,7 +4027,7 @@ async function saveDerivaciones() {
   for (const m of DERIV.motivos.filter((x) => x.extra)) {
     const falta = !m.extra.nombre.trim() ? ["nombre", "Falta el nombre del motivo nuevo."]
       : !m.extra.cuando.trim() ? ["cuando", `Falta «Cuándo pasa» en «${m.extra.nombre}»: es lo que la IA lee para saber cuándo derivarlo.`]
-      : !(m.extra.min >= 1 && m.extra.min <= 43200) ? ["min", `El vencimiento de «${m.extra.nombre}» tiene que estar entre 1 minuto y 30 días (43.200 min).`] : null;
+      : null;
     if (!falta) continue;
     const campo = document.querySelector(`#derivList tr[data-cat="${m.categoria}"] [data-f="${falta[0]}"]`);
     campo?.classList.add("dv-falta");
@@ -4035,7 +4042,7 @@ async function saveDerivaciones() {
     if (m.extra) extra.push({ clave: m.categoria, nombre: m.extra.nombre, cuando: m.extra.cuando, min: m.extra.min });
   }
   st.textContent = "Guardando…"; st.className = "config-status";
-  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: DERIV.prueba_employee_id, motivos, extra });
+  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: DERIV.prueba_employee_id, motivos, extra, tiempos: DERIV.tiempos });
   if (error || !data?.ok) { st.textContent = "✗ " + (data?.error || error?.message || "Error"); st.className = "config-status err"; return; }
   st.textContent = "✓ Guardado"; st.className = "config-status ok";
   loadDerivaciones();
@@ -4886,7 +4893,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.12</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.13</div>
 <script src="gestop2.js?v=0.27.8"></script>
 </body>
 </html>

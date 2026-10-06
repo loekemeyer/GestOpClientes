@@ -14,7 +14,7 @@
 // a todo el sector y gana el primero que toca "Me encargo yo". Lo urgente (🔴) va a Planify aunque diga otra cosa.
 // Sin fila, rige la config vieja app_settings.wa_alertas_planify (employee_id, categorias, department_id).
 import { supabase } from "./supabase.ts";
-import { CATEGORIAS, type MotivoExtra, registrarExtras, registrarNiveles } from "./alertas-vencimiento.ts";
+import { CATEGORIAS, type MotivoExtra, registrarExtras, registrarNiveles, registrarTiempos } from "./alertas-vencimiento.ts";
 
 export const SETTING_DERIVACIONES = "wa_derivaciones";
 
@@ -94,6 +94,7 @@ export async function derivaciones(usarCache = false): Promise<Derivaciones> {
   const nuevo = leer(SETTING_DERIVACIONES);
   const extra = registrarExtras(nuevo.extra);
   registrarNiveles(nuevo.motivos); // semáforos fijados en Derivaciones: los usa nivel()/urgente() de alertas-vencimiento.ts
+  registrarTiempos(nuevo.tiempos); // tiempo de respuesta de cada semáforo (vence_at de las alertas)
   const esIA = new Set([...MOTIVOS_IA, ...extra.map((e) => e.clave)]);
   const catsViejas: string[] = Array.isArray(viejo.categorias) ? viejo.categorias : [];
   const motivos: Record<string, Regla> = {};

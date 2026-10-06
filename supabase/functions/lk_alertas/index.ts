@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
-import { CATEGORIAS, categoria, nivel, nivelAutoDeMotivo, nivelFijo, SETTING_VENCIMIENTO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
+import { CATEGORIAS, categoria, MAX_TIEMPO_MIN, minutosDeVencimiento, nivel, nivelAutoDeMotivo, nivelFijo, SETTING_VENCIMIENTO, tiempoDeNivel, TIEMPOS_DEFECTO, tiemposVigentes, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
 import { esNivel } from "../_shared/semaforo.ts";
 import { derivaciones, MAX_TAMBIEN, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
@@ -30,8 +30,9 @@ async function bloqueoPrueba(a: any): Promise<string | null> {
 //   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{destino, employee_id, department_id, nivel?, tambien?:[{employee_id, department_id}]}}, extra:[…]}
 //        → Configuración › Derivaciones: a dónde va cada motivo (app_settings.wa_derivaciones, _shared/derivaciones.ts)
 //
-// Vencimiento: minutos por CATEGORÍA (contexto.motivo si lo hay, si no el tipo), guardados en
-// app_settings.wa_alertas_vencimiento (JSON). vence_at = created_at + minutos.
+// Vencimiento (06/10, Pablo): lo manda el SEMÁFORO de la alerta — 🔴 20 min, 🟡 2 h, 🟢 4 h por defecto, editable en Derivaciones
+// (app_settings.wa_derivaciones.tiempos). vence_at = created_at + minutosDeVencimiento(alerta). Los minutos por categoría de
+// app_settings.wa_alertas_vencimiento (config_get / config_save) quedaron SIN USO para vence_at; se conservan por compatibilidad.
 // "Ruido" = whitelist_gate (números fuera de la lista de prueba): no se muestra salvo que se pida.
 
 const CORS = {
@@ -140,7 +141,7 @@ serve(async (req) => {
     }
 
     if (body.action === "derivaciones_get") {
-      const [der, v] = await Promise.all([derivaciones(), vencimientos()]);
+      const [der] = await Promise.all([derivaciones(), vencimientos()]);
       // Personas y sectores de Planify (Gestión). Si Gestión no contesta, el panel muestra los ids.
       let empleados: unknown[] = [], sectores: unknown[] = [];
       try {
@@ -156,9 +157,9 @@ serve(async (req) => {
       const extras = new Map(der.extra.map((e) => [e.clave, e]));
       return json({
         ok: true, llave: llave?.value ?? "0", prueba_employee_id: der.prueba_employee_id, defecto: der.defecto,
-        empleados, sectores,
+        empleados, sectores, tiempos: tiemposVigentes(), tiempos_defecto: TIEMPOS_DEFECTO,
         motivos: Object.entries(CATEGORIAS).filter(([k]) => k !== "whitelist_gate").map(([k, c]) => ({
-          categoria: k, label: c.label, nivel: niv(k), nivel_auto: nivelAutoDeMotivo(k), nivel_fijo: nivelFijo(k), minutos: v[k],
+          categoria: k, label: c.label, nivel: niv(k), nivel_auto: nivelAutoDeMotivo(k), nivel_fijo: nivelFijo(k), minutos: tiempoDeNivel(niv(k)),
           origen: extras.has(k) ? "La IA deriva: " + (extras.get(k)!.cuando || c.label) : ORIGEN[k] ?? "",
           de_ia: MOTIVOS_IA.includes(k) || extras.has(k), extra: extras.get(k) ?? null, ...der.motivos[k],
         })),
@@ -207,15 +208,24 @@ serve(async (req) => {
         }
         motivos[k] = { destino: dest, employee_id: e, department_id: d, ...(nv ? { nivel: nv } : {}), ...(tambien.length ? { tambien } : {}) };
       }
+      // Tiempo de respuesta de cada semáforo (06/10): minutos, de 1 a 30 días. Si el panel no lo manda (versión vieja) se conserva el vigente.
+      const tiempos: Record<string, number> = tiemposVigentes();
+      if (body.tiempos !== undefined && body.tiempos !== null) {
+        for (const n of ["rojo", "amarillo", "verde"]) {
+          const m = Math.round(Number((body.tiempos as Record<string, unknown>)[n]));
+          if (!(m >= 1 && m <= MAX_TIEMPO_MIN)) return json({ ok: false, error: `Tiempo de respuesta inválido en el semáforo ${n}: entre 1 minuto y 30 días.` }, 400);
+          tiempos[n] = m;
+        }
+      }
       const { error } = await supabase.from("app_settings")
-        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra }) }, { onConflict: "key" });
+        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra, tiempos }) }, { onConflict: "key" });
       if (error) return json({ ok: false, error: error.message }, 200);
       console.log(`lk_alertas: derivaciones actualizadas por ${gate.email}`);
       return json({ ok: true });
     }
 
     if (body.action === "list") {
-      const v = await vencimientos();
+      await vencimientos(); // registra los motivos agregados, los semáforos fijos y sus tiempos
       let q = supabase.from("wa_alertas_humano")
         .select("id, tipo, phone, customer_id, contexto, estado, created_at, atendido_por, atendido_at")
         .order("created_at", { ascending: false }).limit(300);
@@ -269,7 +279,7 @@ serve(async (req) => {
       const ahora = Date.now();
       const alertas = (data ?? []).map((a) => {
         const cat = categoria(a);
-        const venceAt = new Date(new Date(a.created_at).getTime() + v[cat] * 60_000);
+        const venceAt = new Date(new Date(a.created_at).getTime() + minutosDeVencimiento(a) * 60_000);
         const ctx = a.contexto ?? {};
         return {
           id: a.id, tipo: a.tipo, categoria: cat, label: (ctx.simulador ? "🧪 Prueba · " : "") + CATEGORIAS[cat].label,

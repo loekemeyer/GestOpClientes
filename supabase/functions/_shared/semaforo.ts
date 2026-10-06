@@ -24,6 +24,28 @@ export function registrarNiveles(motivos: unknown): void {
   }
   fijos = m;
 }
+// ── Tiempo de respuesta PROPIO de cada semáforo (Pablo, 06/10: "si es urgente 20 mins, pronto 2 hs y verde 4 hs") ──
+// Antes el vencimiento era por motivo (30 min, 1 h, 24 h…). Ahora el tiempo lo manda el semáforo de la alerta: una alerta 🔴 vence a los 20 min sea
+// del motivo que sea, y si un mensaje apurado sube un 🟢 a 🔴 pasa a vencer a los 20 min. Editable en Derivaciones (wa_derivaciones.tiempos).
+export const TIEMPOS_DEFECTO: Readonly<Record<Nivel, number>> = { rojo: 20, amarillo: 120, verde: 240 };
+/** Un tiempo de respuesta va de 1 minuto a 30 días. */
+export const MAX_TIEMPO_MIN = 43200;
+let tiempos: Record<Nivel, number> = { ...TIEMPOS_DEFECTO };
+/** Vuelca los tiempos guardados. Lo que falte o sea inválido queda en el valor por defecto; cada vuelco REEMPLAZA al anterior. */
+export function registrarTiempos(v: unknown): void {
+  const t: Record<Nivel, number> = { ...TIEMPOS_DEFECTO };
+  if (v && typeof v === "object") {
+    for (const n of Object.keys(TIEMPOS_DEFECTO) as Nivel[]) {
+      const m = Math.round(Number((v as Record<string, unknown>)[n]));
+      if (m >= 1 && m <= MAX_TIEMPO_MIN) t[n] = m;
+    }
+  }
+  tiempos = t;
+}
+/** Minutos que tiene para responderse una alerta de ese semáforo. */
+export const tiempoDeNivel = (n: Nivel): number => tiempos[n];
+export const tiemposVigentes = (): Record<Nivel, number> => ({ ...tiempos });
+
 /** Semáforo fijado a mano para un motivo, o null si va en "Auto". */
 export const nivelFijo = (cat: string): Nivel | null => fijos.get(cat) ?? null;
 
