@@ -21,3 +21,17 @@ export function hayNombreDeArticulo(mensaje: string): boolean {
   const palabras = (mensaje ?? "").toLowerCase().match(/[a-záéíóúüñ0-9]+/g) ?? [];
   return palabras.some((w) => w.length >= 4 && !/^\d+[a-z]?$/.test(w) && !PALABRAS_DE_LA_PREGUNTA.has(w));
 }
+
+/** La palabra que mejor nombra el artículo: la más larga (4 letras o más) que no sea de la pregunta ni un número. null si no hay. */
+export function palabraDeBusqueda(mensaje: string): string | null {
+  const palabras = (mensaje ?? "").toLowerCase().match(/[a-záéíóúüñ0-9]+/g) ?? [];
+  const candidatas = palabras.filter((w) => w.length >= 4 && !/^\d+[a-z]?$/.test(w) && !PALABRAS_DE_LA_PREGUNTA.has(w));
+  return candidatas.sort((x, y) => y.length - x.length)[0] ?? null;
+}
+
+/** El plural sin la "s" / "es" final, para buscar "tostadores" en "Tostador Enlozado" (nunca deja menos de 4 letras). */
+export function raizDeBusqueda(palabra: string): string {
+  const sinEs = palabra.replace(/(?<=[a-záéíóúüñ]{4,})es$/, "");
+  const sinS = palabra.replace(/(?<=[a-záéíóúüñ]{4,})s$/, "");
+  return /(?:[^aeiou]es)$/.test(palabra) && sinEs.length >= 4 ? sinEs : sinS;
+}
