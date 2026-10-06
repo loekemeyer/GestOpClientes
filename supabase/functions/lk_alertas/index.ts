@@ -3,6 +3,7 @@ import { requireAdmin } from "../_shared/admin-gate.ts";
 import { supabase } from "../_shared/supabase.ts";
 import { CATEGORIAS, categoria, MAX_TIEMPO_MIN, nivel, nivelAutoDeMotivo, nivelFijo, SETTING_VENCIMIENTO, tiempoDeNivel, TIEMPOS_DEFECTO, tiemposVigentes, urgente, venceAtDe, vencimientos } from "../_shared/alertas-vencimiento.ts";
 import { HORARIO_DEFECTO, horarioVigente, validarHorario } from "../_shared/horario.ts";
+import { cargarCalendario } from "../_shared/feriados.ts";
 import { esNivel } from "../_shared/semaforo.ts";
 import { derivaciones, MAX_TAMBIEN, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
@@ -159,6 +160,8 @@ serve(async (req) => {
       return json({
         ok: true, llave: llave?.value ?? "0", prueba_employee_id: der.prueba_employee_id, defecto: der.defecto,
         empleados, sectores, tiempos: tiemposVigentes(), tiempos_defecto: TIEMPOS_DEFECTO, horario: horarioVigente(), horario_defecto: HORARIO_DEFECTO,
+        // Próximos feriados del calendario de Planify (se leen solos; el panel los muestra y no se editan acá).
+        feriados_calendario: (await cargarCalendario()).filter((f) => f.fecha >= new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10)).slice(0, 14),
         motivos: Object.entries(CATEGORIAS).filter(([k]) => k !== "whitelist_gate").map(([k, c]) => ({
           categoria: k, label: c.label, nivel: niv(k), nivel_auto: nivelAutoDeMotivo(k), nivel_fijo: nivelFijo(k), minutos: tiempoDeNivel(niv(k)),
           origen: extras.has(k) ? "La IA deriva: " + (extras.get(k)!.cuando || c.label) : ORIGEN[k] ?? "",

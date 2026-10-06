@@ -7,11 +7,13 @@
 //   · Fuera de horario mira si ese mismo turno dejó una alerta que espera a una persona (esperaRespuestaDePersona) y, si sí, manda UN
 //     mensaje aparte: "Ahora estamos fuera del horario de atención (…). Tu consulta quedó registrada y te respondemos el lunes desde las 9 h."
 //   · Una vez cada 12 h por número, para no repetirlo en cada mensaje de la misma charla.
-// El horario sale de app_settings.wa_derivaciones.horario (Configuración › Derivaciones); sin nada guardado, lunes a viernes de 9 a 17.
+// El horario sale de app_settings.wa_derivaciones.horario (Configuración › Derivaciones) más los feriados del calendario de Planify (feriados.ts);
+// sin nada guardado, lunes a viernes de 9 a 17.
 // El envío pasa por el mismo `enviarTexto` del webhook: respeta la llave de envío y la lista de prueba como cualquier respuesta del bot.
 import { getSetting, supabase } from "./supabase.ts";
 import { categoria } from "./alertas-vencimiento.ts";
-import { dentroDeHorario, esperaRespuestaDePersona, leerHorario, PREFIJO_AVISO, textoAviso } from "./horario.ts";
+import { conCalendario, dentroDeHorario, esperaRespuestaDePersona, leerHorario, PREFIJO_AVISO, textoAviso } from "./horario.ts";
+import { cargarCalendario } from "./feriados.ts";
 
 const NO_REPETIR_HORAS = 12;
 
@@ -19,7 +21,8 @@ export async function avisarFueraDeHorario(phone: string, desde: Date, enviar: (
   try {
     let guardado: unknown;
     try { guardado = JSON.parse((await getSetting("wa_derivaciones")) ?? "{}")?.horario; } catch { guardado = undefined; }
-    const h = leerHorario(guardado);
+    // Horario guardado + feriados del calendario de Planify (un lunes feriado es "fuera de horario" aunque sea lunes de 9 a 17).
+    const h = conCalendario(leerHorario(guardado), await cargarCalendario());
     const ahora = new Date();
     if (dentroDeHorario(ahora, h)) return;
     // ¿Este turno dejó una alerta que espera una persona? (2 s de margen por el reloj entre la base y la función)

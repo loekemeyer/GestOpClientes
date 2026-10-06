@@ -216,6 +216,9 @@
     #derivHorario input[type="time"] { width: 110px; }
     #derivHorario .dv-fer input { width: 280px; }
     #derivHorario .dv-dias { white-space: nowrap; }
+    #derivHorario .dv-cal { font-size: 0.8rem; line-height: 1.9; }
+    #derivHorario .dv-fer-i { display: inline-block; margin: 0 6px 2px 0; padding: 0 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); white-space: nowrap; }
+    #derivHorario .dv-fer-i.no-cuenta { opacity: 0.55; text-decoration: line-through; }
     #derivList .al-tabla td .hint code { overflow-wrap: anywhere; } /* la clave larga del motivo nuevo no debe ensanchar la tabla */
     #derivList .dv-quien label { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
     #derivList .dv-quien label:last-child { margin-bottom: 0; }
@@ -3859,12 +3862,18 @@ function pintarDerivaciones() {
   // Horario de atención telefónica (06/10, Pablo: lunes a viernes de 9 a 17): los tiempos cuentan sólo dentro de él y fuera de él el bot avisa.
   const hr = data.horario || { dias: [1, 2, 3, 4, 5], desde: "09:00", hasta: "17:00", feriados: [], solo_en_horario: true };
   const NOM_DIA = { 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábado", 7: "domingo" };
+  const cal = data.feriados_calendario || [];
+  const fechaCorta = (f) => `${["dom", "lun", "mar", "mié", "jue", "vie", "sáb"][new Date(f + "T12:00:00Z").getUTCDay()]} ${f.slice(8, 10)}/${f.slice(5, 7)}`;
   document.getElementById("derivHorario").innerHTML = `<label>🕘 Horario de atención telefónica:</label>
     <span class="dv-dias">${[[1, "L"], [2, "M"], [3, "X"], [4, "J"], [5, "V"], [6, "S"], [7, "D"]].map(([n, t]) => `<label class="dv-dia" title="${NOM_DIA[n]}"><input type="checkbox" data-dia="${n}"${hr.dias.includes(n) ? " checked" : ""}> ${t}</label>`).join("")}</span>
     de <input type="time" data-h="desde" value="${esc(hr.desde)}"> a <input type="time" data-h="hasta" value="${esc(hr.hasta)}">
     <label class="dv-dia" style="flex-basis:100%"><input type="checkbox" data-h="solo"${hr.solo_en_horario ? " checked" : ""}> Los tiempos de respuesta cuentan sólo dentro del horario (fuera de él, el reloj espera a la próxima apertura)</label>
-    <label class="dv-fer" style="flex-basis:100%">Feriados sin atención: <input type="text" data-h="feriados" value="${esc((hr.feriados || []).join(", "))}" placeholder="AAAA-MM-DD, AAAA-MM-DD"></label>
-    <span class="hint" style="flex-basis:100%">Si un cliente escribe fuera de este horario y el bot lo pasa a una persona, le avisa cuándo se le va a responder. Es el horario telefónico: el del depósito (9 a 12 y 13 a 16:30) es otro dato.</span>`;
+    <div class="dv-cal" style="flex-basis:100%"><b>Feriados del calendario de Planify</b> (se leen solos, no hay que cargarlos): ${
+      cal.length ? cal.map((f) => `<span class="dv-fer-i${f.tipo === "puente" && !hr.incluir_puentes ? " no-cuenta" : ""}" title="${esc(f.nombre || "")}${f.tipo === "puente" ? " — puente no laborable" : ""}">${fechaCorta(f.fecha)} · ${esc(f.nombre || "")}${f.tipo === "puente" ? " (puente)" : ""}</span>`).join("")
+        : '<span class="hint">no se pudo leer ahora: mientras tanto sólo cuentan los que cargues acá abajo.</span>'}</div>
+    <label class="dv-dia" style="flex-basis:100%"><input type="checkbox" data-h="puentes"${hr.incluir_puentes ? " checked" : ""}> Contar también los «puentes turísticos no laborables» como días sin atención (hoy: ${hr.incluir_puentes ? "sí" : "no"})</label>
+    <label class="dv-fer" style="flex-basis:100%">Otros días sin atención (a mano): <input type="text" data-h="feriados" value="${esc((hr.feriados || []).join(", "))}" placeholder="AAAA-MM-DD, AAAA-MM-DD"></label>
+    <span class="hint" style="flex-basis:100%">Si un cliente escribe fuera de este horario y el bot lo pasa a una persona, le avisa cuándo se le va a responder. Es el horario telefónico: el del depósito (9 a 12 y 13 a 16:30) es otro dato. Los feriados vienen del calendario de Planify (nacionales y trasladables); un puente no laborable sólo cuenta si lo tildás.</span>`;
   const destOpt = (m) => [["planify", "Planify + Tareas"], ["tareas", "Sólo Tareas"], ...(m.de_ia ? [["bot", "Lo responde el bot"]] : [])]
     .map(([v, t]) => `<option value="${v}"${m.destino === v ? " selected" : ""}>${t}</option>`).join("");
   const fila = (m) => {
@@ -3981,6 +3990,7 @@ function derivLeerHorario() {
     desde: q("desde")?.value || "", hasta: q("hasta")?.value || "",
     feriados: (q("feriados")?.value || "").split(/[\s,;]+/).filter(Boolean),
     solo_en_horario: !!q("solo")?.checked,
+    incluir_puentes: !!q("puentes")?.checked,
   };
 }
 // Tiempo de respuesta por semáforo (06/10): lo manda el semáforo de la alerta, no el motivo. Se edita arriba de la tabla.
@@ -4928,7 +4938,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.14</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.15</div>
 <script src="gestop2.js?v=0.27.14"></script>
 </body>
 </html>

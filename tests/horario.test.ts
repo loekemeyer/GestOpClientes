@@ -1,6 +1,6 @@
 // Pruebas del horario de atención telefónica (supabase/functions/_shared/horario.ts). Sin red, sin IA.
 // Correr: deno run tests/horario.test.ts   (sale con código 1 si algo falla)
-import { dentroDeHorario, esperaRespuestaDePersona, HORARIO_DEFECTO, horarioVigente, leerHorario, proximaApertura, registrarHorario, sumarMinutosHabiles, textoAviso, textoCuando, textoDias, textoHorario, validarHorario, type Horario } from "../supabase/functions/_shared/horario.ts";
+import { calendarioVigente, conCalendario, dentroDeHorario, esperaRespuestaDePersona, feriadosDelCalendario, HORARIO_DEFECTO, horarioEfectivo, horarioVigente, leerHorario, proximaApertura, registrarCalendario, registrarHorario, sumarMinutosHabiles, textoAviso, textoCuando, textoDias, textoHorario, validarHorario, type Horario } from "../supabase/functions/_shared/horario.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -75,13 +75,46 @@ igual("validar: feriado mal escrito → error", validarHorario({ ...HORARIO_DEFE
 igual("validar: más de 60 feriados → error", validarHorario({ ...HORARIO_DEFECTO, feriados: Array.from({ length: 61 }, (_, i) => `2027-01-${String((i % 28) + 1).padStart(2, "0")}`) }).ok, false);
 igual("validar: null → error", validarHorario(null).ok, false);
 igual("leer: nada guardado → por defecto", leerHorario(undefined), HORARIO_DEFECTO);
-igual("leer: se rescata lo bueno y se ignora lo malo", leerHorario({ dias: [2, 9], desde: "10:00", hasta: "09:00", feriados: ["2026-10-12", "basura"], solo_en_horario: "sí" }), { dias: [2], desde: "09:00", hasta: "17:00", feriados: ["2026-10-12"], solo_en_horario: true });
-igual("leer: lo guardado completo se respeta", leerHorario({ dias: [1, 2], desde: "08:00", hasta: "12:30", feriados: [], solo_en_horario: false }), { dias: [1, 2], desde: "08:00", hasta: "12:30", feriados: [], solo_en_horario: false });
+igual("leer: se rescata lo bueno y se ignora lo malo", leerHorario({ dias: [2, 9], desde: "10:00", hasta: "09:00", feriados: ["2026-10-12", "basura"], solo_en_horario: "sí" }), { dias: [2], desde: "09:00", hasta: "17:00", feriados: ["2026-10-12"], solo_en_horario: true, incluir_puentes: false });
+igual("leer: lo guardado completo se respeta", leerHorario({ dias: [1, 2], desde: "08:00", hasta: "12:30", feriados: [], solo_en_horario: false }), { dias: [1, 2], desde: "08:00", hasta: "12:30", feriados: [], solo_en_horario: false, incluir_puentes: false });
 registrarHorario({ dias: [1], desde: "10:00", hasta: "11:00", feriados: [], solo_en_horario: true });
 igual("registrar: queda vigente", horarioVigente().desde, "10:00");
 registrarHorario(null);
 igual("registrar de nuevo REEMPLAZA: volver a null deja el de siempre", horarioVigente(), HORARIO_DEFECTO);
 igual("el vigente es una copia: tocarlo no cambia el registrado", (() => { const a = horarioVigente(); a.dias.push(7); return horarioVigente().dias; })(), [1, 2, 3, 4, 5]);
+
+// ── Calendario de Planify (planify.feriados): nacional / trasladable / puente ──
+const CAL = [
+  { fecha: "2026-10-12", nombre: "Día del Respeto a la Diversidad Cultural", tipo: "trasladable" },
+  { fecha: "2026-11-09", nombre: "Visita del papa León XIV", tipo: "nacional" },
+  { fecha: "2026-12-07", nombre: "Puente turístico no laborable", tipo: "puente" },
+  { fecha: "2026-12-08", nombre: "Día de la Inmaculada Concepción de María", tipo: "nacional" },
+];
+igual("calendario: nacional y trasladable cuentan; el puente no, por defecto", feriadosDelCalendario({ incluir_puentes: false }, CAL), ["2026-10-12", "2026-11-09", "2026-12-08"]);
+igual("calendario: con incluir_puentes, el puente también", feriadosDelCalendario({ incluir_puentes: true }, CAL), ["2026-10-12", "2026-11-09", "2026-12-07", "2026-12-08"]);
+igual("calendario: filas inválidas se ignoran (fecha mala, null, sin tipo cuenta como feriado)", feriadosDelCalendario({ incluir_puentes: false }, [{ fecha: "12/10/2026" }, null as never, { fecha: "2026-02-31" }, { fecha: "2026-07-09" }]), ["2026-07-09"]);
+igual("calendario: sin filas ni lista → vacío", [feriadosDelCalendario({ incluir_puentes: false }, []), feriadosDelCalendario({ incluir_puentes: false }, undefined as never)], [[], []]);
+igual("conCalendario: junta manuales y calendario sin repetir, ordenados", conCalendario({ ...H, feriados: ["2026-10-12", "2026-11-02"] }, CAL).feriados, ["2026-10-12", "2026-11-02", "2026-11-09", "2026-12-08"]);
+igual("conCalendario no toca el horario original", (() => { const o = { ...H, feriados: ["2026-11-02"] }; conCalendario(o, CAL); return o.feriados; })(), ["2026-11-02"]);
+const HC = conCalendario(H, CAL); // el horario "efectivo" con el calendario
+igual("con el calendario, el lunes 12/10 ya no se atiende", dentroDeHorario(AR("2026-10-12T12:00"), HC), false);
+igual("con el calendario: viernes 16:50 + 🔴 20 min → martes 09:10 (el lunes es feriado)", fmt(sumarMinutosHabiles(AR("2026-10-09T16:50"), 20, HC)), "2026-10-13 09:10");
+igual("con el calendario: el aviso del sábado dice 'el martes'", textoCuando(AR("2026-10-10T11:00"), HC), "el martes desde las 9 h");
+igual("el puente 07/12 (lunes) no frena la atención por defecto", dentroDeHorario(AR("2026-12-07T12:00"), conCalendario(H, CAL)), true);
+igual("…pero con incluir_puentes sí", dentroDeHorario(AR("2026-12-07T12:00"), conCalendario({ ...H, incluir_puentes: true }, CAL)), false);
+registrarCalendario(CAL);
+registrarHorario({ dias: [1, 2, 3, 4, 5], desde: "09:00", hasta: "17:00", feriados: ["2026-11-02"], solo_en_horario: true, incluir_puentes: false });
+igual("horarioEfectivo = guardado + calendario", horarioEfectivo().feriados, ["2026-10-12", "2026-11-02", "2026-11-09", "2026-12-08"]);
+igual("horarioVigente sigue siendo sólo lo guardado (lo que muestra el panel)", horarioVigente().feriados, ["2026-11-02"]);
+igual("calendarioVigente devuelve copia", (() => { const c = calendarioVigente(); c[0].fecha = "x"; return calendarioVigente()[0].fecha; })(), "2026-10-12");
+registrarCalendario(null);
+igual("registrar el calendario de nuevo REEMPLAZA (null lo vacía)", calendarioVigente(), []);
+registrarCalendario([{ fecha: "basura" }, { fecha: "2026-10-12", tipo: "nacional" }]);
+igual("registrar calendario descarta filas inválidas", calendarioVigente().map((f) => f.fecha), ["2026-10-12"]);
+registrarCalendario(null); registrarHorario(null);
+igual("validar: incluir_puentes se guarda", (() => { const r = validarHorario({ ...HORARIO_DEFECTO, incluir_puentes: true }); return r.ok ? r.horario.incluir_puentes : r; })(), true);
+igual("validar: incluir_puentes que no es sí/no → error", validarHorario({ ...HORARIO_DEFECTO, incluir_puentes: "sí" }).ok, false);
+igual("por defecto los puentes no cuentan", HORARIO_DEFECTO.incluir_puentes, false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); const g = globalThis as { Deno?: { exit(c: number): never }; process?: { exit(c: number): never } }; (g.Deno ?? g.process)!.exit(1); }
 else console.log("\ntodo bien");

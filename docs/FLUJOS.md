@@ -406,6 +406,7 @@ BOT: Ahora estamos fuera del horario de atención (lunes a viernes de 9 a 17 h).
 - El aviso lo manda `_shared/fuera-de-horario.ts` DESPUÉS de procesar el mensaje: dentro de horario no hace nada ni consulta la base;
   fuera de horario mira si ese turno dejó una alerta que espera a una persona (no avisa de comprobantes, adjuntos ni fallas de la IA) y
   manda UN mensaje aparte, una vez cada 12 h por número.
+- Los feriados salen del calendario de Planify (`planify.feriados`, se leen solos); un lunes feriado cuenta como fuera de horario y el aviso dice "el martes desde las 9 h".
 - Los tiempos de respuesta del semáforo (🔴 20 min · 🟡 2 h · 🟢 4 h) cuentan sólo dentro del horario: una alerta 🔴 del viernes 16:50
   vence el lunes 9:10 (`_shared/horario.ts`, `sumarMinutosHabiles`).
 - Si una persona le contesta pasadas las 24 h del último mensaje del cliente, WhatsApp sólo deja mandar una plantilla: botón
