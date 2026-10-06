@@ -46,19 +46,19 @@ igual("diseño 'Etiqueta: valor' (jurídica, IVA, domicilio en una línea, CABA)
   "Constancia de Inscripción", `CUIT: ${guiones(CUIT_J)}`, "Razón Social: EJEMPLO COMERCIAL S.A.",
   "Domicilio Fiscal: AV EJEMPLO 1234 - CIUDAD AUTONOMA BUENOS AIRES - 1425", "Impuestos Registrados", "30 - IVA", "Actividades",
 ]), { cuit: CUIT_J, razonSocial: "EJEMPLO COMERCIAL S.A.", condicionIva: "Responsable inscripto",
-  domicilio: { calle: "Av Ejemplo 1234", localidad: CABA, provincia: CABA, codigoPostal: "1425" } });
+  domicilio: { calle: "Av Ejemplo 1234", localidad: CABA, provincia: CABA, codigoPostal: "1425" }, vigenteHasta: null });
 
 igual("diseño con la etiqueta sola y el valor abajo (SRL, interior)", parseConstancia([
   "Constancia de Inscripción", "CUIT:", guiones(CUIT_J), "Razón Social", "EJEMPLO S.R.L.", "Domicilio Fiscal",
   "CALLE FALSA 123 - ROSARIO - SANTA FE - 2000", "IVA EXENTO",
 ]), { cuit: CUIT_J, razonSocial: "EJEMPLO S.R.L.", condicionIva: "Exento",
-  domicilio: { calle: "Calle Falsa 123", localidad: "Rosario", provincia: "Santa Fe", codigoPostal: "2000" } });
+  domicilio: { calle: "Calle Falsa 123", localidad: "Rosario", provincia: "Santa Fe", codigoPostal: "2000" }, vigenteHasta: null });
 
 igual("persona física, monotributo, domicilio con campos etiquetados", parseConstancia([
   "Constancia de Inscripción", "Apellido y Nombre: PEREZ JUAN CARLOS", `CUIT: ${guiones(CUIT_F)}`, "Tipo de Persona: FISICA", "Domicilio Fiscal",
   "Dirección: SAN MARTIN 456", "Localidad: GODOY CRUZ", "Provincia: MENDOZA", "Código Postal: 5501", "Impuestos", "20 - MONOTRIBUTO",
 ]), { cuit: CUIT_F, razonSocial: "PEREZ JUAN CARLOS", condicionIva: "Monotributo",
-  domicilio: { calle: "San Martin 456", localidad: "Godoy Cruz", provincia: "Mendoza", codigoPostal: "5501" } });
+  domicilio: { calle: "San Martin 456", localidad: "Godoy Cruz", provincia: "Mendoza", codigoPostal: "5501" }, vigenteHasta: null });
 
 igual("el nombre solo, arriba del CUIT y sin etiqueta", parseConstancia([
   "AFIP", "Constancia de Inscripción", "EJEMPLO COMERCIAL S.A.", `CUIT: ${guiones(CUIT_J)}`,
@@ -66,11 +66,39 @@ igual("el nombre solo, arriba del CUIT y sin etiqueta", parseConstancia([
 
 igual("sin domicilio ni IVA legibles: igual devuelve CUIT y razón social", parseConstancia([
   "Constancia de Inscripción", `CUIT: ${guiones(CUIT_J)}`, "Razón Social: EJEMPLO S.A.",
-]), { cuit: CUIT_J, razonSocial: "EJEMPLO S.A.", condicionIva: null, domicilio: null });
+]), { cuit: CUIT_J, razonSocial: "EJEMPLO S.A.", condicionIva: null, domicilio: null, vigenteHasta: null });
 
 igual("el valor termina donde empieza la etiqueta siguiente (misma línea)", parseConstancia([
   "Constancia de Inscripción", `Razón Social: EJEMPLO S.A.   CUIT: ${guiones(CUIT_J)}`,
 ])?.razonSocial, "EJEMPLO S.A.");
+
+// ── el diseño de una constancia REAL de ARCA (06/10; los datos de acá son inventados) ──
+// "<NOMBRE> CUIT: …" en una sola línea (el nombre va antes del CUIT, sin etiqueta), "DOMICILIO FISCAL - ARCA", "<CP>-<PROVINCIA>" y la vigencia.
+const LINEAS_REALES = (nombre: string, cuit: string, impuestos: string[], domicilio: string[], vigencia = "06-10-2026 a 05-11-2026") => [
+  "6/10/26, 15:13 Formulario de Impresión de Constancia de Inscripción", "AGENCIA DE RECAUDACION Y CONTROL ADUANERO", "CONSTANCIA DE INSCRIPCION",
+  `${nombre} CUIT: ${guiones(cuit)}`, "IMPUESTOS/REGIMENES NACIONALES REGISTRADOS Y FECHA DE ALTA", ...impuestos,
+  "****************************************************",
+  "Contribuyente no amparado en los beneficios promocionales INDUSTRIALES establecidos por Ley 22021 y sus modificatorias 22702 y 22973, a la",
+  "fecha de emision de la presente constancia.", "Esta constancia no da cuenta de la inscripción en:",
+  "- Impuesto Bienes Personales y Exteriorización - Ley 26476: de corresponder, deberán solicitarse en la dependencia donde se encuentra",
+  "- Impuesto a las Ganancias: la condición de exenta, para las entidades enunciadas en los incisos b), d), e), f), g), m) y r) del Art. 20 de la",
+  "DOMICILIO FISCAL - ARCA", ...domicilio,
+  `Vigencia de la presente constancia: ${vigencia} Hora 15:12:50 Verificador 123456789012`,
+  "Los datos contenidos en la presente constancia deberán ser validados por el receptor de la misma en la página institucional de ARCA http://www.arca.gob.ar .",
+  "https://seti.afip.gob.ar/padron-puc-constancia-internet/ConsultaConstanciaAction.do 1/1",
+];
+igual("constancia real: persona física sin impuestos (nombre antes del CUIT, CP-provincia, Piso:/Dpto:, vigencia)", parseConstancia(
+  LINEAS_REALES("PEREZ JUAN CARLOS", CUIT_F, ["No registra impuestos activos"], ["AV EJEMPLO 57 Piso:4 Dpto:C", "1414-CIUDAD AUTONOMA BUENOS AIRES"])),
+  { cuit: CUIT_F, razonSocial: "PEREZ JUAN CARLOS", condicionIva: null,
+    domicilio: { calle: "Av Ejemplo 57 Piso 4 Dpto C", localidad: CABA, provincia: CABA, codigoPostal: "1414" }, vigenteHasta: "2026-11-05" });
+igual("constancia real: sociedad con IVA registrado y domicilio en el interior", parseConstancia(
+  LINEAS_REALES("EJEMPLO COMERCIAL S.A.", CUIT_J, ["IVA 03-2010", "GANANCIAS SOCIEDADES 03-2010"], ["CALLE FALSA 123", "2000-ROSARIO - SANTA FE"])),
+  { cuit: CUIT_J, razonSocial: "EJEMPLO COMERCIAL S.A.", condicionIva: "Responsable inscripto",
+    domicilio: { calle: "Calle Falsa 123", localidad: "Rosario", provincia: "Santa Fe", codigoPostal: "2000" }, vigenteHasta: "2026-11-05" });
+igual("constancia real: monotributista", parseConstancia(
+  LINEAS_REALES("PEREZ JUAN CARLOS", CUIT_F, ["MONOTRIBUTO 05-2018"], ["SAN MARTIN 456", "5501-GODOY CRUZ - MENDOZA"]))?.condicionIva, "Monotributo");
+igual("el texto legal de la constancia ('exenta' de Ganancias) no la vuelve IVA exento", parseConstancia(
+  LINEAS_REALES("PEREZ JUAN CARLOS", CUIT_F, ["No registra impuestos activos"], ["AV EJEMPLO 57", "1414-CIUDAD AUTONOMA BUENOS AIRES"]))?.condicionIva, null);
 
 // ── lo que NO es una constancia ──
 igual("una factura (con CUIT y razón social) no es una constancia", parseConstancia(["FACTURA A", `CUIT: ${guiones(CUIT_J)}`, "Razón Social: EJEMPLO S.A."]), null);
@@ -90,7 +118,7 @@ async function pdf(lineas: Array<[string, string?]>) {
   return new Uint8Array(await doc.save());
 }
 const esperado = { cuit: CUIT_J, razonSocial: "EJEMPLO COMERCIAL S.A.", condicionIva: "Responsable inscripto",
-  domicilio: { calle: "Av Ejemplo 1234", localidad: CABA, provincia: CABA, codigoPostal: "1425" } };
+  domicilio: { calle: "Av Ejemplo 1234", localidad: CABA, provincia: CABA, codigoPostal: "1425" }, vigenteHasta: null };
 
 igual("PDF: etiqueta y valor en la misma línea", await leerConstancia(await pdf([
   ["Constancia de Inscripción"], [`CUIT: ${guiones(CUIT_J)}`], ["Razón Social: EJEMPLO COMERCIAL S.A."],
@@ -102,6 +130,9 @@ igual("PDF: etiquetas a la izquierda y valores en una segunda columna", await le
   ["Domicilio Fiscal", "AV EJEMPLO 1234 - CIUDAD AUTONOMA BUENOS AIRES - 1425"], ["Impuestos", "30 - IVA"],
 ])), esperado);
 
+igual("PDF con el diseño real (datos inventados): de punta a punta", (await leerConstancia(await pdf(
+  LINEAS_REALES("PEREZ JUAN CARLOS", CUIT_F, ["No registra impuestos activos"], ["AV EJEMPLO 57 Piso:4 Dpto:C", "1414-CIUDAD AUTONOMA BUENOS AIRES"]).map((l) => [l.slice(0, 118)] as [string]))))
+  ?.razonSocial, "PEREZ JUAN CARLOS");
 igual("PDF que no es una constancia (una factura)", await leerConstancia(await pdf([["FACTURA A"], [`CUIT: ${guiones(CUIT_J)}`], ["Razón Social: EJEMPLO S.A."], ["Total: $ 1.000"]])), null);
 {
   const doc = await PDFDocument.create(); doc.addPage([595, 842]);   // una hoja sin texto, como un escaneo o una foto
@@ -130,6 +161,17 @@ nuevo(); filasPorTabla["wa_prospect_leads"] = [];
 await procesarConstancia(tel, datos, "p/a.pdf", send);
 igual("sin alta: le muestra lo que leyó y pide el sí", [ult().includes("Leí tu constancia"), ult().includes("EJEMPLO COMERCIAL S.A."), ult().includes(guiones(CUIT_J)), ult().includes("Responsable inscripto")], [true, true, true, true]);
 igual("sin alta: abre el lead con el CUIT y la constancia pendiente", escrituras("wa_prospect_leads", "POST").some((c) => c.body.includes(CUIT_J) && c.body.includes('"pendiente"') && c.body.includes("desdeConstancia\":true")), true);
+
+// Constancia vencida (valen 30 días): no se usa, y se le dice qué hacer.
+nuevo(); filasPorTabla["wa_prospect_leads"] = [];
+await procesarConstancia(tel, { ...datos, vigenteHasta: "2020-01-31" }, null, send);
+igual("constancia vencida: avisa la fecha y no abre ningún alta", [ult().includes("venció el 31/01/2020"), ult().includes("registrarme"), escrituras("wa_prospect_leads", "POST").length], [true, true, 0]);
+nuevo(); filasPorTabla["wa_prospect_leads"] = [{ id: 7, cuit: null, alta_step: 0, raw_messages: [], updated_at: new Date().toISOString() }];
+await procesarConstancia(tel, { ...datos, vigenteHasta: "2020-01-31" }, null, send);
+igual("constancia vencida con un alta en curso: repite la pregunta pendiente y no guarda nada", [ult().includes("venció"), ult().includes("CUIT"), escrituras("wa_prospect_leads", "PATCH").length], [true, true, 0]);
+nuevo(); filasPorTabla["wa_prospect_leads"] = [];
+await procesarConstancia(tel, { ...datos, vigenteHasta: "2099-12-31" }, null, send);
+igual("constancia vigente: se lee normal", ult().includes("Leí tu constancia"), true);
 
 // Con un alta en curso: se suma al lead, sin crear otro.
 nuevo(); filasPorTabla["wa_prospect_leads"] = [{ id: 7, cuit: null, alta_step: 0, raw_messages: [], updated_at: new Date().toISOString() }];

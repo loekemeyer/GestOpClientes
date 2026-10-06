@@ -179,6 +179,15 @@ export async function procesarConstancia(
     await send(MSG_CUIT_YA_CLIENTE);
     return;
   }
+  // Las constancias de ARCA valen 30 días ("Vigencia de la presente constancia: …"): una vencida puede estar mostrando datos viejos.
+  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });   // AAAA-MM-DD
+  if (d.vigenteHasta && d.vigenteHasta < hoy) {
+    const [a, m, dd] = d.vigenteHasta.split("-");
+    const sig = lead ? promptActual(lead) : null;
+    await send(`Esa constancia venció el ${dd}/${m}/${a}. 📄 Las de ARCA valen 30 días: bajá una nueva y mandámela, o seguimos cargando los datos a mano.` +
+      (sig ? `\n\n${sig}` : `\n\nPara eso escribí *registrarme*.`));
+    return;
+  }
   if (lead?.cuit && lead.cuit !== d.cuit) {
     await send(`El CUIT de la constancia (${formatoCuit(d.cuit)}) no es el que me pasaste antes (${formatoCuit(lead.cuit)}). ` +
       `Revisá cuál es el correcto y mandame la constancia de nuevo, o escribime el CUIT.`);

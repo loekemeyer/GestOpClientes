@@ -4,10 +4,13 @@
 // razón social, condición frente al IVA y, si él lo confirma, el domicilio). Sólo lee PDF con texto; una foto o un escaneo no se leen
 // (no hay IA acá: leerla costaría) y el bot sigue como siempre.
 //
-// ⚠ NO está validado con una constancia real: las etiquetas y el orden salen de cómo se arman estos PDF y de las pruebas con PDF
-// sintéticos (tests/constancia.test.ts). Por eso el bot SIEMPRE le muestra al cliente lo que leyó y espera su "sí" antes de usarlo, y si
-// algo no cierra (sin CUIT válido, sin razón social) devuelve null y todo sigue como antes. Cuando haya una constancia real, correr
-// `leerConstancia` con ella y ajustar las etiquetas de acá.
+// Validado con UNA constancia real (06/10, persona física sin impuestos activos, impresa desde el navegador). Su diseño es:
+//   "<fecha> Formulario de Impresión de Constancia de Inscripción" / "AGENCIA DE RECAUDACION Y CONTROL ADUANERO" / "CONSTANCIA DE INSCRIPCION" /
+//   "<NOMBRE> CUIT: 20-…" (el nombre va antes del CUIT, en la misma línea, sin etiqueta) / "IMPUESTOS/REGIMENES NACIONALES REGISTRADOS Y FECHA DE ALTA" /
+//   "No registra impuestos activos" / … / "DOMICILIO FISCAL - ARCA" / "<calle> Piso:4 Dpto:C" / "<CP>-<PROVINCIA>" /
+//   "Vigencia de la presente constancia: 06-10-2026 a 05-11-2026 …". Todavía NO se vio una de persona jurídica ni una con IVA o monotributo:
+//   esas partes (condición de IVA, razón social de una sociedad) siguen siendo suposiciones. Por eso el bot SIEMPRE le muestra al cliente lo que
+//   leyó y espera su "sí", y si algo no cierra (sin CUIT válido, sin razón social) devuelve null y todo sigue como antes.
 import { extractCuit, formatoCuit } from "./cuit.ts";
 
 export interface DomicilioFiscal { calle: string; localidad: string; provincia: string; codigoPostal: string }
@@ -18,6 +21,8 @@ export interface ConstanciaDatos {
   razonSocial: string;
   condicionIva: CondicionIva | null;
   domicilio: DomicilioFiscal | null;
+  /** Último día de vigencia (AAAA-MM-DD): las constancias de ARCA valen 30 días. null si no la trae. */
+  vigenteHasta: string | null;
 }
 
 const MAX_PDF_BYTES = 3_000_000;
@@ -146,7 +151,8 @@ function parseDomicilio(lineas: string[]): DomicilioFiscal | null {
     const i = lineas.findIndex((l) => /domicilio\s+fiscal/i.test(l));
     if (i < 0 && !calle) return null;
     if (i >= 0) {
-      const partes = [lineas[i].replace(/^.*?domicilio\s+fiscal\s*:?/i, "")];
+      // El título real es "DOMICILIO FISCAL - ARCA" (antes "- AFIP"): el " - ARCA" no es parte de la dirección.
+      const partes = [lineas[i].replace(/^.*?domicilio\s+fiscal\s*(?:[-–]\s*(?:ARCA|AFIP))?\s*:?/i, "")];
       // El domicilio puede seguir en la línea de abajo, pero sólo mientras le falte la provincia o el código postal: si ya está
       // completo, lo que sigue es otra sección ("Impuestos Registrados", "Actividades") y no se mezcla.
       const completo = () => { const n = norm(partes.join(" ")); return !!provinciaEn(n) && /\b\d{4}\b/.test(n); };
@@ -159,7 +165,10 @@ function parseDomicilio(lineas: string[]): DomicilioFiscal | null {
       let texto = limpio(partes.filter((x) => limpio(x)).join(" - "));
       const corte = texto.search(RE_ETIQUETA);
       if (corte >= 0) texto = texto.slice(0, corte);
-      const N = norm(texto);
+      // "1414-CIUDAD AUTONOMA BUENOS AIRES" (código postal pegado con guion) y "Piso:4 Dpto:C" (dos puntos de más) como vienen en el PDF.
+      const N = norm(texto)
+        .replace(/\b(\d{4})\s*-\s*(?=[A-Z])/g, "$1 - ")
+        .replace(/\b(PISO|DPTO|DEPTO|OFICINA|OF|LOCAL|TORRE|UF|MONOBLOCK)\s*:\s*/g, "$1 ");
       if (!provincia) provincia = provinciaEn(N);
       const segmentos = N.split(/\s+-\s+|\s*,\s*|\s*\/\s*/).map(limpio).filter(Boolean);
       if (!calle) calle = segmentos[0] ? titulo(segmentos[0]) : null;
@@ -187,13 +196,28 @@ function parseDomicilio(lineas: string[]): DomicilioFiscal | null {
   return { calle: conTitulo(calle), localidad: conTitulo(localidad), provincia, codigoPostal: cp };
 }
 
-function parseCondicionIva(texto: string): CondicionIva | null {
+function parseCondicionIva(texto: string, lineas: string[] = []): CondicionIva | null {
   const T = norm(texto);
+  // La sección "IMPUESTOS/REGIMENES NACIONALES REGISTRADOS" (hasta la fila de asteriscos): una línea "IVA …" = responsable inscripto.
+  const ini = lineas.findIndex((l) => /IMPUESTOS\s*\/?\s*REGIMENES/i.test(l));
+  if (ini >= 0) {
+    const fin = lineas.findIndex((l, i) => i > ini && /^\s*\*{3,}/.test(l));
+    const seccion = norm(lineas.slice(ini + 1, fin < 0 ? ini + 12 : fin).join("\n"));
+    if (/NO REGISTRA IMPUESTOS/.test(seccion)) return null;
+    if (/\bIVA\s*(?:-\s*)?EXENTO\b/.test(seccion)) return "Exento";
+    if (/(?:^|\n)\s*(?:\d+\s*-\s*)?IVA\b/.test(seccion) && !/NO\s+ALCANZADO|NO\s+INSCRIPTO/.test(seccion)) return "Responsable inscripto";
+  }
   if (/RESPONSABLE\s+NO\s+INSCRIPTO|\bNO\s+ALCANZADO\b/.test(T)) return null;
   if (/\bIVA\s*(?:-\s*)?EXENTO\b|\b32\s*-\s*IVA\b/.test(T)) return "Exento";
   if (/RESPONSABLE\s+INSCRIPTO|\b30\s*-\s*IVA\b/.test(T)) return "Responsable inscripto";
   if (/MONOTRIBUT/.test(T)) return "Monotributo";
   return null;
+}
+
+/** "Vigencia de la presente constancia: 06-10-2026 a 05-11-2026" → "2026-11-05" (el último día). */
+function parseVigenciaHasta(texto: string): string | null {
+  const m = /vigencia\s+de\s+la\s+presente\s+constancia\s*:?\s*\d{2}-\d{2}-\d{4}\s*a\s*(\d{2})-(\d{2})-(\d{4})/i.exec(texto);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }
 
 const RE_TITULO = /constancia\s+de\s+inscripci[oó]n/i;
@@ -210,20 +234,23 @@ export function parseConstancia(lineas: string[]): ConstanciaDatos | null {
   // CUIT con etiqueta (el primero válido); el número puede estar en la línea de abajo.
   let cuit: string | null = null;
   let iCuit = -1;
+  let antesCuit = "";   // lo que va antes de "CUIT:" en esa línea: en la constancia real es el nombre ("OLEJAVETZKY PABLO MARTIN CUIT: 20-…")
   for (let i = 0; i < lineas.length && !cuit; i++) {
     const m = /\b(?:CUIT|CUIL|CDI)\b\s*:?\s*(\d[\d\s\-.]{9,16}\d)?/i.exec(lineas[i]);
     if (!m) continue;
     const c = extractCuit(m[1] ?? lineas[i + 1] ?? "");
-    if (c) { cuit = c; iCuit = i; }
+    if (c) { cuit = c; iCuit = i; antesCuit = limpio(lineas[i].slice(0, m.index)); }
   }
   if (!cuit) return null;
 
-  // Razón social: con etiqueta; si no, la línea de arriba del CUIT (los PDF que traen el nombre solo, en grande).
+  // Razón social: (1) con etiqueta; (2) lo que va antes de "CUIT:" en la misma línea (diseño real de ARCA); (3) la línea de arriba del CUIT.
+  const plausible = (l: string) => l.length >= 3 && l.length <= 100 && /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(l) && !RE_NO_ES_NOMBRE.test(l) && !RE_ETIQUETA.test(l) && !/\d{4,}/.test(l);
   let razonSocial = valorDe(lineas, RE_ETIQUETA_NOMBRE);
+  if (!razonSocial && plausible(antesCuit)) razonSocial = antesCuit;
   if (!razonSocial) {
     for (let j = iCuit - 1; j >= Math.max(0, iCuit - 3); j--) {
       const l = limpio(lineas[j]);
-      if (l && l.length >= 3 && l.length <= 100 && /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(l) && !RE_NO_ES_NOMBRE.test(l) && !RE_ETIQUETA.test(l)) { razonSocial = l; break; }
+      if (l && plausible(l)) { razonSocial = l; break; }
     }
   }
   if (!razonSocial || razonSocial.length < 3 || razonSocial.length > 120 || /\d{8,}/.test(razonSocial)) return null;
@@ -232,7 +259,7 @@ export function parseConstancia(lineas: string[]): ConstanciaDatos | null {
   const esConstancia = RE_TITULO.test(todo) || (/domicilio\s+fiscal/i.test(todo) && RE_ETIQUETA_NOMBRE.test(todo));
   if (!esConstancia) return null;
 
-  return { cuit, razonSocial, condicionIva: parseCondicionIva(todo), domicilio: parseDomicilio(lineas) };
+  return { cuit, razonSocial, condicionIva: parseCondicionIva(todo, lineas), domicilio: parseDomicilio(lineas), vigenteHasta: parseVigenciaHasta(todo) };
 }
 
 /** PDF → datos de la constancia, o null (no es PDF con texto, no es una constancia, o no se puede confiar en lo que dice). */

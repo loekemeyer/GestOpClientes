@@ -38,7 +38,7 @@ BOT: ¡Genial! Te tomo los datos para registrarte. 📋 Te voy a ir preguntando 
 ```
 
 **Constancia de inscripción (06/10, `_shared/constancia.ts`):** el alta ofrece que mande el PDF de ARCA. Si lo manda (y es un PDF con texto), el bot lo lee por reglas, sin IA, y le muestra lo que leyó;
-con su *sí* se saltan CUIT, razón social e IVA, y en la dirección se le propone el domicilio fiscal. Si el CUIT ya es cliente (Loekemeyer o Chef) va a vinculación con revisión humana. Foto o escaneo: se guarda y
+con su *sí* se saltan CUIT, razón social e IVA, y en la dirección se le propone el domicilio fiscal. Si el CUIT ya es cliente (Loekemeyer o Chef) va a vinculación con revisión humana. Una constancia vencida (valen 30 días) no se usa: se le pide una nueva. Foto o escaneo: se guarda y
 lo revisa una persona, y el bot repite la pregunta que quedó pendiente.
 
 ```
