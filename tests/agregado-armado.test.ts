@@ -1,6 +1,6 @@
 // Pruebas de "agregar a un pedido ya en armado → se deriva a logística" (supabase/functions/_shared/agregado-armado.ts). Sin red, sin IA.
 // Correr: deno run tests/agregado-armado.test.ts   (sale con código 1 si algo falla)
-import { casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado } from "../supabase/functions/_shared/agregado-armado.ts";
+import { casoDeAgregado, firmaDeItems, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "../supabase/functions/_shared/agregado-armado.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -36,6 +36,25 @@ igual("tarea: pide avisarle al cliente", /Avisarle por acá/.test(tarea), true);
 
 const ent = textoClienteEntregado("25/09");
 igual("entregado: pedido nuevo en la web", ent.includes("ya fue entregado") && ent.includes("Pedidos Mayorista"), true);
+
+// ── Una sola alerta abierta por pedido y artículos ──
+igual("firma: ordena por código", firmaDeItems([{ cod: "506", cajas: 1 }, { cod: "501", cajas: 2 }]), "501:2|506:1");
+igual("firma: no depende del orden ni de mayúsculas", firmaDeItems([{ cod: "998e", cajas: 3 }, { cod: "501", cajas: 1 }]), firmaDeItems([{ cod: "501", cajas: 1 }, { cod: "998E", cajas: 3 }]));
+igual("firma: suma las cajas del mismo código repetido", firmaDeItems([{ cod: "501", cajas: 1 }, { cod: "501", cajas: 1 }]), firmaDeItems([{ cod: "501", cajas: 2 }]));
+const abierta = (over: Record<string, unknown> = {}) => ({ contexto: { motivo: "cambio_pedido", en_armado: true, pedido: 1581, items: [{ cod: "501", cajas: 2 }], ...over } });
+const pedir = [{ cod: "501", cajas: 2 }];
+igual("repetida: misma alerta abierta (el caso del simulador, dos llamadas)", yaHayAlertaIgual([abierta()], 1581, pedir), true);
+igual("repetida: aunque el artículo venga con otras mayúsculas o el pedido como texto", yaHayAlertaIgual([abierta({ pedido: "1581" })], 1581, [{ cod: "501", cajas: 2 }]), true);
+igual("no repetida: otro pedido", yaHayAlertaIgual([abierta()], 1600, pedir), false);
+igual("no repetida: otras cajas", yaHayAlertaIgual([abierta()], 1581, [{ cod: "501", cajas: 3 }]), false);
+igual("no repetida: otro artículo", yaHayAlertaIgual([abierta()], 1581, [{ cod: "506", cajas: 2 }]), false);
+igual("no repetida: pide uno más además del que ya estaba", yaHayAlertaIgual([abierta()], 1581, [{ cod: "501", cajas: 2 }, { cod: "506", cajas: 1 }]), false);
+igual("no repetida: sin alertas abiertas", yaHayAlertaIgual([], 1581, pedir), false);
+igual("no repetida: la abierta es de otro motivo", yaHayAlertaIgual([abierta({ motivo: "pago" })], 1581, pedir), false);
+igual("no repetida: la abierta no es de 'en armado' (la de Aplicar con stock)", yaHayAlertaIgual([abierta({ en_armado: undefined })], 1581, pedir), false);
+igual("no repetida: alerta vieja sin 'items' (anterior a este cambio)", yaHayAlertaIgual([abierta({ items: undefined })], 1581, pedir), false);
+igual("no repetida: contexto nulo", yaHayAlertaIgual([{ contexto: null }], 1581, pedir), false);
+igual("repetida: alcanza con que UNA de varias abiertas coincida", yaHayAlertaIgual([abierta({ pedido: 7 }), abierta()], 1581, pedir), true);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); const g = globalThis as { Deno?: { exit(c: number): never }; process?: { exit(c: number): never } }; (g.Deno ?? g.process)!.exit(1); }
 else console.log("\ntodo bien");

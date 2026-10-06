@@ -10,7 +10,7 @@ import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
 import { timeoutDeModelo } from "./timeouts.ts";
-import { casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado } from "./agregado-armado.ts";
+import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
@@ -622,13 +622,27 @@ async function executeTool(
       }
       if (caso === "en_armado") {
         const items = agregar.map((a) => ({ cajas: Number(a.cajas), descripcion: String(a.descripcion), cod: String(a.cod) }));
-        const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
-        await notificarHumano({
-          tipo: "escalation", phone, customerId: cli?.[0]?.customer_id ?? ord.customer_id ?? null,
-          // Sin `agregar` ni `aplicable`: la tarea sale como consulta común (cita de lo que pidió), no con el botón de sumar al pedido.
-          contexto: { motivo: "cambio_pedido", origen: "agente_ia", pedido, en_armado: true, estado_pedido: estado,
-            texto: textoTareaEnArmado(del, estado, items), razon_social: cli?.[0]?.customer_name ?? null, urgente: true },
-        });
+        // Pablo, 06/10: una sola alerta abierta por pedido y artículos (la IA suele llamar a la herramienta dos veces: antes y después del "sí").
+        let repetida = false;
+        if (!SIM.activo) {
+          try {
+            const { data: abiertas } = await supabase.from("wa_alertas_humano").select("contexto")
+              .eq("phone", phone).in("estado", ["pendiente", "notificado"]).eq("contexto->>motivo", "cambio_pedido")
+              .eq("contexto->>pedido", String(pedido)).limit(10);
+            repetida = yaHayAlertaIgual((abiertas ?? []) as AlertaAbierta[], pedido, items);
+          } catch (e) { console.warn("agregado en armado: no pude mirar alertas abiertas:", e instanceof Error ? e.message : e); }
+        }
+        if (!repetida) {
+          const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
+          await notificarHumano({
+            tipo: "escalation", phone, customerId: cli?.[0]?.customer_id ?? ord.customer_id ?? null,
+            // Sin `agregar` ni `aplicable`: la tarea sale como consulta común (cita de lo que pidió), no con el botón de sumar al pedido.
+            // `items` (código y cajas) es lo que compara yaHayAlertaIgual para no repetir la alerta.
+            contexto: { motivo: "cambio_pedido", origen: "agente_ia", pedido, en_armado: true, estado_pedido: estado,
+              items: items.map((i) => ({ cod: i.cod, cajas: i.cajas })),
+              texto: textoTareaEnArmado(del, estado, items), razon_social: cli?.[0]?.customer_name ?? null, urgente: true },
+          });
+        }
         return { data: { ok: true, derivado: true, texto_para_el_cliente: textoClienteEnArmado(del, estado, items),
           regla: "Pasale este texto tal cual. Ya quedó derivado a logística: no derives de nuevo ni prometas que se va a poder." } };
       }
