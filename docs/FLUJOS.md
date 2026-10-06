@@ -269,6 +269,7 @@ BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el vier
 | 4.3 | "No veo el descuento en las facturas" | Sólo la última factura con sus descuentos por fecha, por qué no figura el descuento y "si querés, te paso el detalle" del resto. |
 | 4.4 | "Me facturaron dos veces" | Busca en las facturas (isis_lk.documentos) dos del mismo importe en 15 días; las nombra si las hay. Deriva siempre. |
 | 4.5 | "No me llegó la factura, ¿me la mandás?" | Reenvía la factura en PDF (`lookupFacturaReenvio`). |
+| 4.7 | "Vamos a devolver unas cucharas que no pedimos, es el código 208 y son 48 unidades" | Respuesta fija (`quiereDevolver`, `_shared/faq.ts`): "Una persona de Ventas revisa tu devolución y te escribe por acá para coordinarla" + alerta `devolucion` (🟡, 2 h) con el mensaje del cliente. Antes salía la respuesta del pedido mínimo (#21). Va a Ventas (sector 8 de Planify) cuando se cargue en Derivaciones; se cambia ahí sin tocar código. |
 
 ### Pedido mínimo y envíos (Pablo, 01/10, `sql/120`, `_shared/minimo.ts`)
 

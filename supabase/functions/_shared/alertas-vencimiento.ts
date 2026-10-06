@@ -38,6 +38,8 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   pedido_no_encontrado:   { label: "Pedido que no aparece", min: 60 },
   entrega:                { label: "Entrega: sin fecha, no llegó o fecha distinta", min: 120 },
   excepcion_minimo:       { label: "Pide una excepción al pedido mínimo", min: 240 },
+  // Pablo, 06/10 (corrección m66): quiere devolver mercadería. Respuesta fija en faq.ts (RE_DEVOLUCION); por ahora la maneja Ventas.
+  devolucion:             { label: "Devolución de mercadería", min: 120 },
   otro:                   { label: "Otros", min: 240 },
   whitelist_gate:         { label: "Número fuera de la lista de prueba", min: 1440 },
 };

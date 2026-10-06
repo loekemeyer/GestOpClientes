@@ -78,8 +78,8 @@
           "como": "Al recibir un pedido de reparto propio dice 'si falta algo o llegó algo mal, avisanos por acá'. No lo reciben los pedidos por expreso ni los de retiro."
         }
       ],
-      "bot": "Registra el reclamo y le dice que una persona del equipo le escribe por acá; ya no lo manda a otro mail o WhatsApp. Faltante: pide disculpas y el número de factura. Factura duplicada: la busca en las facturas y las nombra. 'No me llegó la factura': se la reenvía en PDF. Descuento que no ve: sólo la última factura y el resto si lo pide.",
-      "deriva": "Motivo 'reclamo' (NC, faltante, factura duplicada, descuento que no se aplicó).",
+      "bot": "Registra el reclamo y le dice que una persona del equipo le escribe por acá; ya no lo manda a otro mail o WhatsApp. Faltante: pide disculpas y el número de factura. Factura duplicada: la busca en las facturas y las nombra. 'No me llegó la factura': se la reenvía en PDF. Descuento que no ve: sólo la última factura y el resto si lo pide. Quiere devolver mercadería ('vamos a devolver unas cucharas que no pedimos'): le dice que una persona de Ventas lo revisa y le escribe por acá; ya no contesta el pedido mínimo.",
+      "deriva": "Motivo 'reclamo' (NC, faltante, factura duplicada, descuento que no se aplicó). Devoluciones: motivo 'devolucion', por ahora al sector Ventas (se cambia en Configuración › Derivaciones).",
       "falta": "Decidir si el bot pide antes el artículo, la cantidad y una foto, para que Cobranzas no tenga que volver a preguntar.",
       "ejemplo": "«Llegaron 59 aceiteras de 60, pido la NC»",
       "resumen": "Le pedimos que nos avise por acá y una persona responde."

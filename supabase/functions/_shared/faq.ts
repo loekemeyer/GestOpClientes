@@ -157,6 +157,13 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       intent: "error_etiqueta", automation_level: "needs_human", topic: "Error de etiqueta o código de barras",
       alerta: { motivo: "reclamo", detalle: `Error de etiqueta / código de barras: ${text.slice(0, 200)}` } };
   }
+  // Pablo, 06/10 (m66): "Vamos a devolver unas cucharas que no pedimos…" → por ahora lo maneja Ventas (motivo devolucion, editable en
+  // Derivaciones). Un faltante o una rotura con "devolver" en el medio siguen en sus respuestas de arriba.
+  if (customer && quiereDevolver(text)) {
+    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa tu devolución y te escribe por acá para coordinarla. 🙏",
+      intent: "devolucion", automation_level: "needs_human", topic: "Devolución de mercadería",
+      alerta: { motivo: "devolucion", detalle: `Devolución de mercadería: ${text.slice(0, 200)}` } };
+  }
   // Pablo, 30/09 (1.9): "Figura programado para el 30/09 pero en el detalle dice 13/10, ¿cuál es?". La IA le contestaba
   // "¿puede ser que el 13/10 lo hayas visto en otro lado?": nunca se asume que el cliente se equivocó. Lo revisa una persona.
   if (customer && RE_FECHAS_NO_COINCIDEN.test(text)) {
@@ -474,6 +481,12 @@ export const RE_QUIERE_FACTURA = /\b(necesit[a-záéíóú]*|quier[a-záéíóú
 // "Llegaron 59 aceiteras de 60, pido la NC" / "tengo un faltante en el remito" / "me faltó una caja".
 const RE_FALTANTE = /\bfalt(ante|aron|[oó]|an?)(?![a-záéíóúñ])[^?]{0,60}\b(cajas?|unidad\w*|art[ií]culos?|c[oó]d\w*|\d+)\b|\bfaltante\b|\blleg(aron|[oó])\s+\d+\s+de\s+\d+\b|\b(pido|necesito|quiero|hacen?|me\s+hacen)\s+(la\s+|una\s+)?(nc|nota\s+de\s+cr[eé]dito)\b/i;
 const RE_ETIQUETA = /(c[oó]digos?\s+de\s+barras?|\betiquet\w*|\bean\b)[^?]{0,60}\b(mism[oa]s?|mal|equivocad\w*|incorrect\w*|distint\w*|cambiad\w*|no\s+(los\s+|las\s+|lo\s+|la\s+)?(lee|leen|pasa|pasan|escanea\w*|coincide\w*))|\b(mism[oa]s?|mal|equivocad\w*|incorrect\w*|distint\w*)\b[^?]{0,40}(c[oó]digos?\s+de\s+barras?|\betiquet\w*)/i;
+// Pablo, 06/10 (corrección m66): "Vamos a devolver unas cucharas que no pedimos, es el código 208 y son 48 unidades" salía con la
+// respuesta fija #21 (mínimo de compra), por "unidades". Quiere devolver mercadería: el bot toma el aviso y lo deriva (motivo devolucion).
+// Sólo cuando el CLIENTE devuelve ("devolver", "devolvemos", "devuelvo", "devolución"); no "devolveme la llamada" ni "me devolvieron".
+const RE_DEVOLUCION = /\bdevoluci[oó]n(es)?\b|\bdevolv(er|emos|eremos|erle|erles|erlo|erla|erlos|erlas)(?![a-záéíóúñ])|\bdevuelvo\b|\b(les|le|te)\s+devuelvo\b/i;
+const RE_DEVOLVER_OTRA_COSA = /\bdevolv\w*[^.?!]{0,25}\b(llamad\w*|llamar|mensaje|mail|correo|visita)\b|\b(llamad\w*|mensaje|mail)[^.?!]{0,25}\bdevolv/i;
+export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
