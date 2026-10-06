@@ -388,6 +388,27 @@ html.dark .chat-messages { background-image: none; }
 .login-box .google-btn { background: #fffdf7; color: #212122; border-color: #ddd4bf; }
 .login-box .google-btn:hover { background: #efe8d6; }
 
+/* Login con fotos de producto (v0.27.6, Pablo 06/10: "ponele una foto de fondo de Loekemeyer, abrelatas, algún producto nuestro").
+   Tres abrelatas de la línea, con su packaging, a los costados de la tarjeta (el chico sólo en pantallas de 1400 px o más): inclinados, con sombra y la luz bordó/ámbar de
+   atrás. Son decoración: la tarjeta queda arriba (z-index) y en pantallas angostas no se muestran. Si una foto no carga se
+   saca sola (onerror) y el fondo queda como estaba. */
+.login-fotos { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.login-fotos .lf {
+  position: absolute; top: 50%; height: min(60vh, 540px); width: auto; user-select: none;
+  filter: drop-shadow(0 26px 34px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+  animation: lf-in 0.9s ease-out both;
+}
+.login-fotos .lf-1 { right: calc(50% + 210px); transform: translateY(-50%) rotate(-8deg); }
+.login-fotos .lf-2 { left: calc(50% + 210px); transform: translateY(-46%) rotate(7deg); animation-delay: 0.12s; }
+.login-fotos .lf-3 { left: calc(50% + 560px); height: min(38vh, 340px); top: 66%; transform: translateY(-50%) rotate(15deg); opacity: 0.6; animation-delay: 0.24s; }
+.login-box { position: relative; z-index: 2; }
+.login-overlay::after { z-index: 2; }
+@keyframes lf-in { from { opacity: 0; } }
+@media (max-width: 1400px) { .login-fotos .lf-3 { display: none; } }
+@media (max-width: 1080px) { .login-fotos .lf-1 { right: calc(50% + 190px); } .login-fotos .lf-2 { left: calc(50% + 190px); } }
+@media (max-width: 760px) { .login-fotos { display: none; } }
+@media (prefers-reduced-motion: reduce) { .login-fotos .lf { animation: none; } }
+
 /* ── Botones unificados (Pablo, 29/09: "botones desordenados") ─────────────────────────────────────────────
    Había dos sistemas: .config-btn (páginas viejas: sin borde, gris del navegador, radio 6px) y .g-btn (rediseño:
    borde, radio 2px, 12px). Ahora los dos comparten altura, radio, letra y 3 jerarquías:

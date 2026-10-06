@@ -381,12 +381,18 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.27.5">
+  <link rel="stylesheet" href="gestop2.css?v=0.27.6">
 </head>
 <body>
 
 <!-- Login -->
 <div class="login-overlay" id="loginOverlay">
+  <!-- Fotos de producto de fondo (Pablo, 06/10): abrelatas Loekemeyer, propios en docs/assets (15-20 KB c/u). Sólo decoración. -->
+  <div class="login-fotos" aria-hidden="true">
+    <img class="lf lf-1" src="assets/login-abrelata-501.webp" alt="" draggable="false" onerror="this.remove()">
+    <img class="lf lf-2" src="assets/login-abrelata-998e.webp" alt="" draggable="false" onerror="this.remove()">
+    <img class="lf lf-3" src="assets/login-abrelata-506.webp" alt="" draggable="false" onerror="this.remove()">
+  </div>
   <div class="login-box">
     <h2>GestOp</h2>
     <p>Bot WhatsApp — Loekemeyer</p>
@@ -4739,7 +4745,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.5</div>
-<script src="gestop2.js?v=0.27.5"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.6</div>
+<script src="gestop2.js?v=0.27.6"></script>
 </body>
 </html>
