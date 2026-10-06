@@ -9,6 +9,7 @@ import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
+import { casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
@@ -132,7 +133,7 @@ const BOT_TOOLS: ToolDef[] = [
     // esto chequea que el pedido no esté en armado y el stock, y deja la tarea con botón "Aplicar" (sql/099).
     name: "solicitar_agregado_pedido",
     description:
-      "Deja pedido un AGREGADO a un pedido que el cliente ya hizo (sumar artículos o subir cajas), para que una persona lo apruebe y se aplique. Sólo sirve para AGREGAR: para sacar, bajar cantidades o anular usá derivar_a_persona (motivo cambio_pedido). ANTES de usarla: (1) buscá cada artículo con buscar_productos; si hay más de uno posible, preguntale cuál; (2) confirmale con el cliente el código, la descripción y las cajas de cada uno y el pedido (por su fecha), por ejemplo \"¿Confirmo agregar 3 cajas de Pelador X (cód. 505) a tu pedido del 25/09?\"; (3) recién cuando diga que sí, llamala. Si devuelve sin_stock, pasale al cliente el texto y preguntale si igual lo quiere agregar; si insiste, volvé a llamarla con insiste=true. Pasale al cliente el texto_para_el_cliente que devuelve, tal cual.",
+      "Deja pedido un AGREGADO a un pedido que el cliente ya hizo (sumar artículos o subir cajas), para que una persona lo apruebe y se aplique. Sólo sirve para AGREGAR: para sacar, bajar cantidades o anular usá derivar_a_persona (motivo cambio_pedido). ANTES de usarla: (1) buscá cada artículo con buscar_productos; si hay más de uno posible, preguntale cuál; (2) confirmale con el cliente el código, la descripción y las cajas de cada uno y el pedido (por su fecha), por ejemplo \"¿Confirmo agregar 3 cajas de Pelador X (cód. 505) a tu pedido del 25/09?\"; (3) recién cuando diga que sí, llamala. Si devuelve sin_stock, pasale al cliente el texto y preguntale si igual lo quiere agregar; si insiste, volvé a llamarla con insiste=true. Si el pedido ya está en armado o facturado, ella misma lo deriva a logística (no lo apliques ni derives de nuevo). Pasale al cliente el texto_para_el_cliente que devuelve, tal cual.",
     input_schema: {
       type: "object",
       properties: {
@@ -587,11 +588,11 @@ async function executeTool(
       if (!ord) return { data: { error: "No encontré ese pedido." } };
       const del = (() => { const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(ord.created_at)); return `${p.slice(8, 10)}/${p.slice(5, 7)}`; })();
       const estado = String(est?.[0]?.status ?? "recibido");
-      // Pablo, 29/09: se puede agregar hasta que el pedido entra en armado. Después, pedido nuevo en la web.
-      if (["en preparacion", "facturado", "entregado"].includes(estado) || ord.enviado_a_compras_at) {
-        return { data: { texto_para_el_cliente: `Tu pedido del ${del} ya está en armado, así que no le podemos sumar artículos. ` +
-          `Si querés, cargá un pedido nuevo con lo que te falta en loekemeyer.com → "Pedidos Mayorista" y lo sumamos a la entrega si llega a tiempo.`,
-          regla: "Pasale este texto tal cual. No derives." } };
+      // Pablo, 29/09: se puede agregar hasta que el pedido entra en armado. Pablo, 06/10: después NO se le dice "no se puede": se
+      // deriva a logística (alerta cambio_pedido, sin botón Aplicar) y al cliente se le dice que se está consultando. Entregado: pedido nuevo.
+      const caso = casoDeAgregado(estado, !!ord.enviado_a_compras_at);
+      if (caso === "entregado") {
+        return { data: { texto_para_el_cliente: textoClienteEntregado(del), regla: "Pasale este texto tal cual. No derives." } };
       }
       const pedidos = (Array.isArray(input.items) ? input.items : []) as Array<{ cod: string; cajas: number }>;
       if (!pedidos.length) return { data: { error: "Faltan los artículos a agregar (código y cajas)." } };
@@ -604,16 +605,31 @@ async function executeTool(
         const { data: p } = await supabase.from("products").select("id, cod, description, uxb, list_price, active, badge_status")
           .eq("cod", cod).maybeSingle();
         if (!p || !p.active) return { data: { error: `No encontré el código ${cod} activo en la web. Buscalo con buscar_productos.` } };
-        let st = null, ing = null;
-        try { st = await stockArticulo(p.cod); } catch (e) { console.error("agregado stock:", e); }
-        const falta = !st || st.disponible < cajas;
-        if (falta) {
-          try { ing = await ingresoEstimado(p.cod); } catch (e) { console.error("agregado ingreso:", e); }
-          sinStock.push(st ? textoStock(p.description, p.cod, st, cajas).replace(/ Le paso tu consulta[^.]*\./, "") + textoIngreso(ing)
-            : `No pude confirmar el stock de *${p.description}* (cód. ${p.cod}).`);
+        // En armado el stock lo mira logística al contestar: no se le dice nada al cliente ni se arma la fila "Aplicar".
+        let st = null, ing = null, falta = false;
+        if (caso === "normal") {
+          try { st = await stockArticulo(p.cod); } catch (e) { console.error("agregado stock:", e); }
+          falta = !st || st.disponible < cajas;
+          if (falta) {
+            try { ing = await ingresoEstimado(p.cod); } catch (e) { console.error("agregado ingreso:", e); }
+            sinStock.push(st ? textoStock(p.description, p.cod, st, cajas).replace(/ Le paso tu consulta[^.]*\./, "") + textoIngreso(ing)
+              : `No pude confirmar el stock de *${p.description}* (cód. ${p.cod}).`);
+          }
         }
         agregar.push({ product_id: p.id, cod: p.cod, descripcion: p.description, cajas, uxb: p.uxb, sin_stock: falta,
           ingreso_estimado: ing?.fecha ?? null });
+      }
+      if (caso === "en_armado") {
+        const items = agregar.map((a) => ({ cajas: Number(a.cajas), descripcion: String(a.descripcion), cod: String(a.cod) }));
+        const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
+        await notificarHumano({
+          tipo: "escalation", phone, customerId: cli?.[0]?.customer_id ?? ord.customer_id ?? null,
+          // Sin `agregar` ni `aplicable`: la tarea sale como consulta común (cita de lo que pidió), no con el botón de sumar al pedido.
+          contexto: { motivo: "cambio_pedido", origen: "agente_ia", pedido, en_armado: true, estado_pedido: estado,
+            texto: textoTareaEnArmado(del, estado, items), razon_social: cli?.[0]?.customer_name ?? null, urgente: true },
+        });
+        return { data: { ok: true, derivado: true, texto_para_el_cliente: textoClienteEnArmado(del, estado, items),
+          regla: "Pasale este texto tal cual. Ya quedó derivado a logística: no derives de nuevo ni prometas que se va a poder." } };
       }
       if (sinStock.length && input.insiste !== true) {
         return { data: { sin_stock: true, texto_para_el_cliente: sinStock.join("\n") +

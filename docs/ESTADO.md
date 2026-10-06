@@ -4,6 +4,8 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
+> **06/10 (Pablo): agregar a un pedido que YA está en armado o facturado → el bot deriva a logística, no dice "no se puede".** Pedido: *"que consulte a logística derivando"* (resuelve el choque entre las correcciones 2.7/2.8 y la regla del 29/09 de agregar sólo hasta que entra en armado). **Antes:** `solicitar_agregado_pedido` contestaba "ya está en armado, no le podemos sumar" y no avisaba a nadie. **Ahora:** con el pedido en preparación, facturado o enviado a compras (`casoDeAgregado`, `_shared/agregado-armado.ts` puro, `tests/agregado-armado.test.ts`) la herramienta valida los artículos, deja una alerta `cambio_pedido` **urgente y sin `agregar`/`aplicable`** (sale como consulta común, sin botón Aplicar: sumar a un pedido en armado no se hace solo) con el detalle, y al cliente le dice que lo consultó con logística y que se le confirma por acá, sin prometer. Un pedido **entregado** no se deriva: se le dice que ya fue entregado y que cargue uno nuevo en la web. ⚠ **A quién le llega:** `app_settings.wa_derivaciones` NO existe hoy (rige `wa_alertas_planify` → empleado 64 con la llave en prueba), así que la tarea va a Pablo hasta que en Configuración › Derivaciones se apunte `cambio_pedido` al sector de logística. No cambia la versión visible del dashboard.
+>
 > **06/10 (Pablo): el bot lee como guía las correcciones APROBADAS del artifact / de Evaluación (`wa_agente_evals.estado = 'aplicada'`).** Pedido: *"cuando vaya guardando la data, que el bot
 > aprenda de ahí"*. **Lo que NO es:** guardar en el artifact no cambia nada (su colección `correcciones` es del artifact; el bot no la lee). **Cómo es:** (1) `_shared/ejemplos-aprobados.ts`
 > (puro, `tests/ejemplos-aprobados.test.ts`): para cada consulta que llega al AGENTE elige hasta 3 ejemplos aprobados parecidos por palabras (≥ 2 en común y coseno ≥ 0,5: sobre las 82 frases
@@ -625,7 +627,7 @@ el killswitch, sin ningún consumidor de esa cola.
 - **"No me deja elegir sucursal"** → tarea `acceso_web`.
 - Las alertas que sale de una respuesta fija las crea el webhook desde `FaqResult.alerta`.
 - **Agregar a un pedido** (29/09): la IA confirma modelo y cajas y llama `solicitar_agregado_pedido` (bot-conversation.ts):
-  en armado/facturado/entregado o enviado a compras → no se puede, ofrece pedido nuevo en la web; sin stock → avisa la
+  en armado/facturado o enviado a compras → desde el 06/10 se **deriva a logística** (alerta `cambio_pedido` urgente, sin botón Aplicar) y se le dice al cliente que se consultó; entregado → pedido nuevo en la web; sin stock → avisa la
   fecha estimada de ingreso y, si insiste, la tarea sale "cargar a mano" (`aplicable=false`). Si no, alerta
   `cambio_pedido` con `contexto.agregar` y botón **Aplicar** en Tareas → `lk_alertas` `aplicar_agregado` →
   `bot_aplicar_agregado` (sql/099; no usa `edit_order_fast` porque exige `auth.uid()` de PaginaLK) + aviso por `wa_outbox`.
