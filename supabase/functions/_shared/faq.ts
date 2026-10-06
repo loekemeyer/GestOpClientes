@@ -14,6 +14,9 @@ import { stockArticulo, stockNecesitaHumano, textoStock } from "./stock.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
+import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
+import { cargarCalendario } from "./feriados.ts";
+import { horarioEfectivo } from "./horario.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -128,6 +131,14 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       intent: "pago_otra_fecha", automation_level: "needs_human", topic: "Quiere pagar en otra fecha",
       alerta: { motivo: "pago", urgente: false, detalle: `Pide pagar en otra fecha: ${text.slice(0, 200)}` } };
   }
+  // Pablo, 06/10 (m62): "Paso un pedidito. ¿Puede estar para el viernes?" → fecha estimada (14 días hábiles, feriados de Planify) + lo consulta Ventas.
+  if (customer && pedidoParaFecha(text)) {
+    await cargarCalendario(); // feriados de Planify: caché de 6 h, con tope de espera, nunca lanza
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+    return { reply: textoPedidoParaFecha(hoy, horarioEfectivo().feriados),
+      intent: "pedido_para_fecha", automation_level: "needs_human", topic: "Pasa un pedido y pide recibirlo para una fecha",
+      alerta: { motivo: "entrega", urgente: false, detalle: `Pasa un pedido y pide recibirlo para una fecha: ${text.slice(0, 200)}` } };
+  }
   if (customer && vaALaIA(text)) return null;
   // Pablo, 06/10 (m59): "¿hay posibilidades de entrega rápida?" / "¿pueden adelantar la entrega?" → lo ve Ventas (motivo entrega): "todas las dudas pasan por Ventas primero".
   if (customer && pideEntregaRapida(text)) {
@@ -193,7 +204,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // Sin pedidos por entregar sigue el flujo normal (plazo general). "No me llegó" es reclamo: lo ve la IA.
   if (customer && RE_PLAZO_ENTREGA.test(text) && !/\bno\s+(me\s+|nos\s+)?(lleg|entreg)/i.test(text)) {
     const r = await lookupOrderStatus(customer, { plazo: true });
-    if (r) return { reply: r, intent: "faq", automation_level: "semi_auto", faq_id: 1 };
+    // Pablo, 06/10 (m61): "hoy son 14 días hábiles". El plazo general va primero (antes sólo mostraba sus pedidos y no lo decía); sus pedidos, debajo.
+    return { reply: textoPlazo() + (r ? `\n\n${r}` : ""), intent: "faq", automation_level: "semi_auto", faq_id: 1 };
   }
   if (customer && RE_DIRECCION_ENTREGA.test(text)) {
     const r = await destinoPedidos(customer);
@@ -517,6 +529,12 @@ export const pedidoPorMailRepetido = (text: string): boolean => RE_DUPLICADO.tes
 // y no contestaba si se puede acelerar. Pedir entrega rápida o adelantar la entrega lo ve Ventas (motivo entrega). Hace falta una palabra de
 // entrega JUNTO a una de apuro: "¿cuándo llega mi pedido?" y "¿puede estar para el viernes?" siguen su camino.
 const RE_ENTREGA_RAPIDA = /\b(entrega|env[ií]o|despacho)s?\s+(r[aá]pid[ao]s?|urgentes?|express|inmediat[ao]s?|prioritari[ao]s?)(?![a-záéíóúñ])|\b(posibilidad(es)?|chance|manera|forma)\s+de\s+(entrega|env[ií]o|que\s+(llegue|salga|lo\s+entreguen))[^.?!]{0,25}\b(r[aá]pid\w*|urgente|antes)\b|\badelant(ar|en|an|ame|arme|arlo|arla|alo|ala)(?![a-záéíóúñ])[^.?!]{0,30}\b(entrega|pedido|env[ií]o|salida|fecha)\b|\b(entreg(ar|arlo|arla|arme|arnos|uen)|llegar|llegue|salir|salga|mandar(lo|la|me)?)(?![a-záéíóúñ])[^.?!]{0,25}\b(antes|m[aá]s\s+(r[aá]pido|temprano)|lo\s+antes\s+posible|cuanto\s+antes)\b/i;
+// Pablo, 06/10 (corrección m62): "Paso un pedidito. ¿Puede estar para el viernes?" lo contestaba la IA ("no puedo prometerte una fecha…") sin dar
+// ninguna fecha. Con un pedido NUEVO y una fecha deseada, el bot da la entrega estimada (14 días hábiles) y lo consulta Ventas. Hace falta las
+// DOS cosas (pasar/hacer un pedido + "¿puede estar para el X?"): "¿puede llegar el viernes mi pedido?" de un pedido ya hecho sigue en la lista de pedidos.
+const RE_PEDIDO_NUEVO = /\b(paso|pasar|pasamos|mando|mandar|mandamos|hago|hacer|hacemos|quiero\s+hacer|voy\s+a\s+hacer|cargo|cargamos)(?![a-záéíóúñ])[^.?!]{0,25}\bpedid(o|ito)s?\b/i;
+const RE_PARA_FECHA = /\b(puede|pueden|podr[ií]a|podr[ií]an|llega|llegar[ií]a|est[aá]|estar[ií]a|entregan?|entregar|tenerlos?)(?![a-záéíóúñ])[^.?!]{0,30}\b(para|antes\s+del?|hasta)\s+(el\s+)?(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|ma[nñ]ana|pasado\s+ma[nñ]ana|\d{1,2}\s*(\/\s*\d{1,2}|de\s+[a-záéíóú]+)?)(?![a-záéíóúñ])/i;
+export const pedidoParaFecha = (text: string): boolean => RE_PEDIDO_NUEVO.test(text) && RE_PARA_FECHA.test(text);
 export const pideEntregaRapida = (text: string): boolean => RE_ENTREGA_RAPIDA.test(text) && !RE_NO_LLEGO.test(text);
 export const pidePagarDespues = (text: string): boolean => RE_PAGAR.test(text) && RE_OTRA_FECHA.test(text) && !RE_FECHA_PASADA.test(text);
 export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
