@@ -263,6 +263,7 @@ BOT: (agente, con consultar_mis_pedidos) Tu pedido del 14/09 se entregó el vier
 
 | Fila | Mensaje | Respuesta |
 |---|---|---|
+| 1.7 | "En el caso que se confirme, ¿hay posibilidades de entrega rápida?" | "Una persona de Logística revisa si se puede acelerar la entrega y te escribe por acá en un momento" + alerta `entrega` (🟡, 120 min) para Logística (`pideEntregaRapida`, `faq.ts`; 06/10). Hace falta una palabra de entrega junto a una de apuro ("entrega rápida/urgente", "adelantar la entrega", "que llegue antes"); "¿cuándo llega mi pedido?", "¿puede estar para el viernes?" y "no me llegó" siguen su camino. Antes salía la lista de pedidos pendientes (#1) sin contestar si se podía acelerar. |
 | 2.6 | "Pasé por mail un pedido para un cliente pero me vino dos veces rechazado. ¿Te llegó a vos?" | Chequea duplicados en la web como siempre; si no hay y el mensaje nombra mail o correo (`pedidoPorMailRepetido`, `faq.ts`): "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido. Una persona revisa el mail y te escribe por acá" + alerta `pedido_mail` (🟡, 120 min) para Ventas. Sin mail, el mensaje de siempre ("si ves uno de más en la web…"). |
 | 2.9 | "Anulá todo el pedido" | No es un cambio: dice en qué estado está el pedido (sin preparar / programado / facturado) y deriva con motivo `anulacion_pedido` (urgente). Con más de un pedido abierto y sin fecha, pregunta cuál. |
 | 3.3 | "¿Cierran para almorzar?" | "El depósito cierra para almorzar de 12 a 13" + horario completo. |

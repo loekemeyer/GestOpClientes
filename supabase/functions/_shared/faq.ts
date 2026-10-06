@@ -129,6 +129,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       alerta: { motivo: "pago", urgente: false, detalle: `Pide pagar en otra fecha: ${text.slice(0, 200)}` } };
   }
   if (customer && vaALaIA(text)) return null;
+  // Pablo, 06/10 (m59): "¿hay posibilidades de entrega rápida?" / "¿pueden adelantar la entrega?" → lo ve Logística (motivo entrega).
+  if (customer && pideEntregaRapida(text)) {
+    return { reply: "Una persona de Logística revisa si se puede acelerar la entrega y te escribe por acá en un momento.",
+      intent: "entrega_rapida", automation_level: "needs_human", topic: "Pide entrega rápida o adelantar la entrega",
+      alerta: { motivo: "entrega", urgente: false, detalle: `Pide entrega rápida o adelantar la entrega: ${text.slice(0, 200)}` } };
+  }
   // Pablo, 30/09 (3.3 y 3.4): horario del depósito, con el corte del almuerzo. "¿Cierran para almorzar?" contestaba "no tengo
   // ese dato"; "Estoy llegando, ¿me esperan?" preguntaba qué necesitaba.
   if (RE_ALMUERZO.test(text)) {
@@ -507,6 +513,11 @@ const RE_PAGAR = /\b(pagar(les|te|lo|la|los|las)?|pagamos|pagaremos|pagar[eé]|a
 const RE_OTRA_FECHA = /\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|ma[nñ]ana|pasado\s+ma[nñ]ana|(la\s+)?semana\s+(que\s+viene|pr[oó]xima|entrante)|pr[oó]xim[oa]\s+(semana|mes|lunes|martes|mi[eé]rcoles|jueves|viernes)|m[aá]s\s+adelante|fin\s+de\s+mes|(la\s+)?quincena|el\s+\d{1,2}(?:\s*\/\s*\d{1,2}|\s+de\s+[a-záéíóú]+)?)(?![a-záéíóúñ])/i;
 const RE_FECHA_PASADA = /\b(ayer|anteayer|pasad[oa]|anterior|ya\s+(pagu|transfer|deposit|abon))/i;
 export const pedidoPorMailRepetido = (text: string): boolean => RE_DUPLICADO.test(text) && RE_POR_MAIL.test(text);
+// Pablo, 06/10 (corrección m59): "En el caso que se confirme, ¿hay posibilidades de entrega rápida?" salía con la lista de pedidos pendientes (#1)
+// y no contestaba si se puede acelerar. Pedir entrega rápida o adelantar la entrega lo ve Logística (motivo entrega). Hace falta una palabra de
+// entrega JUNTO a una de apuro: "¿cuándo llega mi pedido?" y "¿puede estar para el viernes?" siguen su camino.
+const RE_ENTREGA_RAPIDA = /\b(entrega|env[ií]o|despacho)s?\s+(r[aá]pid[ao]s?|urgentes?|express|inmediat[ao]s?|prioritari[ao]s?)(?![a-záéíóúñ])|\b(posibilidad(es)?|chance|manera|forma)\s+de\s+(entrega|env[ií]o|que\s+(llegue|salga|lo\s+entreguen))[^.?!]{0,25}\b(r[aá]pid\w*|urgente|antes)\b|\badelant(ar|en|an|ame|arme|arlo|arla|alo|ala)(?![a-záéíóúñ])[^.?!]{0,30}\b(entrega|pedido|env[ií]o|salida|fecha)\b|\b(entreg(ar|arlo|arla|arme|arnos|uen)|llegar|llegue|salir|salga|mandar(lo|la|me)?)(?![a-záéíóúñ])[^.?!]{0,25}\b(antes|m[aá]s\s+(r[aá]pido|temprano)|lo\s+antes\s+posible|cuanto\s+antes)\b/i;
+export const pideEntregaRapida = (text: string): boolean => RE_ENTREGA_RAPIDA.test(text) && !RE_NO_LLEGO.test(text);
 export const pidePagarDespues = (text: string): boolean => RE_PAGAR.test(text) && RE_OTRA_FECHA.test(text) && !RE_FECHA_PASADA.test(text);
 export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
