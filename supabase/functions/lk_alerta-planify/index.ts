@@ -64,6 +64,7 @@ const CORTO: Record<string, string> = {
   cliente_chef: "Cliente de Chef",
   devolucion: "Devolución de mercadería",
   pedido_mail: "Pedido enviado por mail",
+  nota_cliente: "Nota del cliente",
   tope_ia: "Cliente pasó el tope de consultas",
 };
 

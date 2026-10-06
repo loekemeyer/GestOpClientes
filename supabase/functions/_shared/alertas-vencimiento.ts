@@ -42,6 +42,8 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   devolucion:             { label: "Devolución de mercadería", min: 120 },
   // Pablo, 06/10 (corrección m63): el cliente dice que mandó un pedido por mail y no se cargó o lo rechazaron. Lo revisa Ventas.
   pedido_mail:            { label: "Pedido enviado por mail que no se cargó", min: 120 },
+  // Pablo, 06/10 (corrección m60): el cliente avisa algo para el equipo (hoy: su horario de recepción). Es una nota, no una consulta: puede esperar.
+  nota_cliente:           { label: "Nota del cliente para el equipo (horario de recepción)", min: 240 },
   // Pablo, 06/10: un cliente pasó el máximo de consultas de IA por hora (_shared/tope-ia.ts). Puede ser un error suyo; una persona mira el chat.
   tope_ia:                { label: "Cliente pasó el tope de consultas por hora", min: 120 },
   otro:                   { label: "Otros", min: 240 },

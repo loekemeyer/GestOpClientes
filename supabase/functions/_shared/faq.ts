@@ -180,6 +180,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       intent: "error_etiqueta", automation_level: "needs_human", topic: "Error de etiqueta o código de barras",
       alerta: { motivo: "reclamo", detalle: `Error de etiqueta / código de barras: ${text.slice(0, 200)}` } };
   }
+  // Pablo, 06/10 (m60): "recuerden que recibimos hasta las 14 hs" → el bot contesta lo mismo que antes y deja una nota para Ventas (motivo nota_cliente).
+  if (customer && avisaHorarioRecepcion(text)) {
+    return { reply: "Anotado, gracias por avisarnos. Le voy a comentar al equipo para que lo tengan en cuenta.",
+      intent: "nota_cliente", automation_level: "needs_human", topic: "Nota del cliente: horario de recepción",
+      alerta: { motivo: "nota_cliente", urgente: false, detalle: `Nota del cliente (horario de recepción): ${text.slice(0, 250)}` } };
+  }
   // Pablo, 06/10 (m66): "Vamos a devolver unas cucharas que no pedimos…" → por ahora lo maneja Ventas (motivo devolucion, editable en
   // Derivaciones). Un faltante o una rotura con "devolver" en el medio siguen en sus respuestas de arriba.
   if (customer && quiereDevolver(text)) {
@@ -537,6 +543,12 @@ const RE_PARA_FECHA = /\b(puede|pueden|podr[ií]a|podr[ií]an|llega|llegar[ií]a
 export const pedidoParaFecha = (text: string): boolean => RE_PEDIDO_NUEVO.test(text) && RE_PARA_FECHA.test(text);
 export const pideEntregaRapida = (text: string): boolean => RE_ENTREGA_RAPIDA.test(text) && !RE_NO_LLEGO.test(text);
 export const pidePagarDespues = (text: string): boolean => RE_PAGAR.test(text) && RE_OTRA_FECHA.test(text) && !RE_FECHA_PASADA.test(text);
+// Pablo, 06/10 (corrección m60): "Por favor recuerden que recibimos hasta las 14 hs, por lo que deben llegar un ratito antes" lo contestaba la IA con
+// "le voy a comentar al equipo" SIN dejar ninguna alerta: el horario de recepción no le llegaba a nadie. Es una NOTA del cliente (no una consulta): el bot
+// contesta lo mismo y deja una tarea para Ventas con el texto, que la anota donde corresponda (camino 1; guardarla en un campo de la ficha queda pendiente).
+// Hace falta el verbo de recepción + un horario ("hasta las 14", "de 8 a 14", "horario de recepción 9 a 13"): "recibimos 59 de 60" o "¿hasta qué hora reciben?" no.
+const RE_HORARIO_RECEPCION = /\b(recibimos|reciben|recibe|recepcionamos|descargamos|atendemos|abrimos|cerramos)(?![a-záéíóúñ])[^.?!]{0,40}\b(hasta|desde|a\s+partir\s+de|antes\s+de|despu[eé]s\s+de)\s+(las\s+)?\d{1,2}|\b(recibimos|reciben|recepcionamos|descargamos|atendemos|abrimos)(?![a-záéíóúñ])[^.?!]{0,30}\bde\s+\d{1,2}(?::\d{2})?\s*(hs?)?\s*a\s*(las\s+)?\d{1,2}|\bhorario\s+de\s+(recepci[oó]n|descarga|entrega)s?\b[^.?!]{0,40}\d{1,2}/i;
+export const avisaHorarioRecepcion = (text: string): boolean => RE_HORARIO_RECEPCION.test(text);
 export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
