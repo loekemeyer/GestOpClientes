@@ -7,7 +7,7 @@ const f = await import("../supabase/functions/_shared/faq.ts");
 
 const detectores: Record<string, (t: string) => boolean> = {
   m66_devolver: f.quiereDevolver, m64_pagar_despues: f.pidePagarDespues, m63_pedido_mail: f.pedidoPorMailRepetido,
-  m59_entrega_rapida: f.pideEntregaRapida, m62_pedido_fecha: f.pedidoParaFecha, m60_horario_recepcion: f.avisaHorarioRecepcion,
+  m59_entrega_rapida: f.pideEntregaRapida, m62_pedido_fecha: f.pedidoParaFecha, m60_horario_recepcion: f.avisaHorarioRecepcion, m17_error_de_carga: f.avisaErrorDeCarga,
 };
 const casos: Array<[string, string | null]> = [
   ["Vamos a devolver unas cucharas que no pedimos, es el código 208 y son 48 unidades", "m66_devolver"],
@@ -16,10 +16,11 @@ const casos: Array<[string, string | null]> = [
   ["En el caso que se confirme, ¿hay posibilidades de entrega rápida?", "m59_entrega_rapida"],
   ["Paso un pedidito. ¿Puede estar para el viernes?", "m62_pedido_fecha"],
   ["Por favor recuerden que recibimos hasta las 14 hs, por lo que deben llegar un ratito antes", "m60_horario_recepcion"],
+  ["Cargué todo por unidad y después lo edité por caja", "m17_error_de_carga"],
   // Frases que no son de ninguna corrección: no tienen que disparar nada.
   ["¿Cuándo llega mi pedido?", null], ["Hola, buen día", null], ["Quiero hacer un pedido", null], ["¿Cuál es el pedido mínimo?", null],
   ["Ya pagué el viernes", null], ["Devolveme la llamada cuando puedas", null], ["Me facturaron el mismo pedido dos veces", null],
-  ["Llegaron 59 aceiteras de 60, pido la NC", null], ["¿Qué plazo de entrega están manejando?", null], ["Los coladores vinieron todos rotos", null],
+  ["Llegaron 59 aceiteras de 60, pido la NC", null], ["¿Qué plazo de entrega están manejando?", null], ["Los coladores vinieron todos rotos", null], ["Ya cargué el pedido en la web", null], ["Puse 10 cajas de abrelatas", null], ["¿Cuántas unidades trae la caja?", null],
 ];
 
 let fallas = 0;
