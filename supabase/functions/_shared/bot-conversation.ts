@@ -13,6 +13,7 @@ import { timeoutDeModelo } from "./timeouts.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
+import { type Hallazgo, modoDelFiltro, redactarSecretos, revisarSalida, TEXTO_SALIDA_BLOQUEADA } from "./filtro-salida.ts";
 import { mailEscritoPorElCliente, REGLA_MAIL_NO_ESCRITO } from "./mail-gate.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
@@ -1277,6 +1278,9 @@ export interface ConversationResult {
   timeout?: boolean;
   /** true = falla del LLM que no es timeout (HTTP 4xx/5xx). Misma política que timeout. */
   llmError?: boolean;
+  /** El filtro de salida (filtro-salida.ts) encontró algo que no podía salir en la respuesta. En modo "bloquear" `reply` ya es el texto fijo;
+   *  en modo "log" `reply` es la original y sólo se avisó a una persona. */
+  bloqueada?: Hallazgo[];
   /** Herramientas que usó en el turno, con su resultado recortado. Lo usa el puntaje de la IA (sql/101). */
   herramientas?: Array<{ nombre: string; input: unknown; resultado: string }>;
   /** Modelo que contestó. */
@@ -1352,6 +1356,64 @@ const ejemplosAprobados = lectorConTope<EjemploAprobado[]>(async () => {
     ({ clave: String(r.clave ?? ""), pregunta: String(r.pregunta ?? ""), respuesta: r.respuesta_corregida, nota: r.nota_esperada }));
 }, { topeMs: 2500, vigenciaMs: 5 * 60_000, vigenciaFallaMs: 60_000 }, [],
 (e) => console.error("[ejemplosAprobados]", e instanceof Error ? e.message : e));
+
+// ─── Filtro de salida (medida 3 de seguridad, Pablo Olejavetzky 06/10/2026) ───────────────────────────────────────────────────
+// Revisa EN CÓDIGO la respuesta del agente antes de que llegue al cliente: claves, nombres de herramientas o tablas, SQL, un volcado del
+// bloque de Seguridad o un número / mail que no figura en nada de lo que el modelo vio. Si algo salta, sale un texto fijo y una persona
+// recibe la alerta. Las reglas y su calibración contra las respuestas reales: _shared/filtro-salida.ts. Todas las salidas del agente pasan
+// por acá (webhook, Simulador y Chat de prueba llaman a runConversation).
+// `app_settings.wa_filtro_salida`: sin fila o "1" = bloquea y avisa; "log" = sólo avisa (para mirar falsos positivos sin cortarle nada a un
+// cliente); "0" = apagado. Si el filtro mismo falla, la respuesta sale sin filtrar: un bug acá no puede dejar al bot mudo.
+
+/** Todo lo que el modelo vio en este turno: prompt, mensajes de la charla y resultados de herramientas. Lo que no está acá no está respaldado. */
+function corpusDelTurno(systemPrompt: string, history: NormMsg[]): string[] {
+  const out = [systemPrompt];
+  for (const m of history) {
+    if (m.role === "tool") for (const r of m.results) out.push(r.content);
+    else out.push(m.text);
+  }
+  return out;
+}
+
+async function filtrarSalida(reply: string, c: {
+  phone: string; userText: string; customerName: string; codCliente: number; systemPrompt: string; history: NormMsg[]; herramientas: ToolDef[];
+}): Promise<{ reply: string; bloqueada?: Hallazgo[] }> {
+  try {
+    const modo = modoDelFiltro(await getSetting("wa_filtro_salida"));
+    if (modo === "apagado") return { reply };
+    const v = revisarSalida({
+      reply, corpus: corpusDelTurno(c.systemPrompt, c.history), herramientas: c.herramientas.map((t) => t.name),
+      bloqueSeguridad: bloqueSeguridad(c.customerName, c.codCliente),
+    });
+    if (v.ok) return { reply };
+    const queSalto = v.hallazgos.map((h) => h.que);
+    console.warn(`[filtro-salida] ${modo === "log" ? "detectada (sale igual)" : "bloqueada"}: ${v.hallazgos.map((h) => h.categoria).join(", ")} …${c.phone.slice(-4)}`);
+    // Una alerta por número y por hora: un atacante con 20 consultas/h no puede inundar al equipo (pendiente "Topes por acción").
+    let yaAvisado = false;
+    if (!SIM.activo) {
+      const { data } = await supabase.from("wa_alertas_humano").select("id").eq("phone", c.phone).eq("contexto->>origen", "filtro_salida")
+        .gte("created_at", new Date(Date.now() - 3600_000).toISOString()).limit(1);
+      yaAvisado = (data ?? []).length > 0;
+    }
+    if (!yaAvisado) {
+      const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: c.phone });
+      await notificarHumano({
+        tipo: "escalation", phone: c.phone, customerId: cli?.[0]?.customer_id ?? null,
+        contexto: {
+          motivo: "escalation", origen: "filtro_salida", urgente: modo === "bloquear", razon_social: c.customerName,
+          texto: `${modo === "log" ? "Se detectó" : "Se bloqueó"} una respuesta del asistente antes de enviarla (${queSalto.join("; ")}). `
+            + "Puede ser un intento de sacarle datos o instrucciones al bot, o un falso positivo del filtro: mirá el chat.",
+          texto_recibido: c.userText.slice(0, 200), bloqueo_salida: { modo, hallazgos: v.hallazgos },
+          respuesta_bloqueada: redactarSecretos(reply).slice(0, 300),
+        },
+      });
+    }
+    return modo === "log" ? { reply, bloqueada: v.hallazgos } : { reply: TEXTO_SALIDA_BLOQUEADA, bloqueada: v.hallazgos };
+  } catch (e) {
+    console.error("[filtro-salida] falló: la respuesta sale sin filtrar:", e instanceof Error ? e.message : e);
+    return { reply };
+  }
+}
 
 export async function runConversation(
   userText: string,
@@ -1509,7 +1571,10 @@ export async function runConversation(
       // El texto de respaldo (la IA no devolvió nada) tampoco cierra con "¿en qué más…?": pide que cuente la consulta.
       // En un turno de pedido "¿Algo más?" puede ser una pregunta de verdad (¿más artículos?): ahí sólo se sacan los cierres de ayuda.
       const enPedido = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
-      return { reply: sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo.", enPedido), media: allMedia, herramientas: usadas, modelo: used.model };
+      const textoFinal = sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo.", enPedido);
+      const salida = await filtrarSalida(textoFinal, { phone, userText, customerName, codCliente, systemPrompt, history, herramientas });
+      return { reply: salida.reply, media: salida.reply === textoFinal ? allMedia : [],   // respuesta reemplazada: tampoco salen las fotos del turno
+        herramientas: usadas, modelo: used.model, ...(salida.bloqueada ? { bloqueada: salida.bloqueada } : {}) };
     }
 
     // El modelo pidió herramientas: las ejecutamos y devolvemos los resultados.

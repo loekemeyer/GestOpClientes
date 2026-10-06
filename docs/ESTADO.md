@@ -4,6 +4,23 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-06.
 >
+> **06/10 (Pablo): filtro de salida del agente — medida 3 de seguridad, activa (`_shared/filtro-salida.ts`, `tests/filtro-salida.test.ts`, 74 casos; cableado en `bot-conversation.ts › filtrarSalida`).**
+> Pedido: *"sí, seguí con el filtro de salida"*. Es la única defensa que sigue en pie si el modelo se rinde ante un jailbreak: revisa en código (0 tokens) lo que el agente va a mandar y, si algo salta, sale un texto fijo
+> ("Perdoná, con eso no te puedo ayudar por este medio. Una persona del equipo te escribe por acá…") y una persona recibe la alerta (tipo `escalation`, `origen: filtro_salida`, urgente; **una por número y por hora**, con el recorte
+> de la respuesta bloqueada con las claves tapadas). Tampoco salen las fotos de ese turno. Todas las salidas del agente pasan por ahí: el webhook, el Simulador y el Chat de prueba llaman a `runConversation`. **Qué mira:**
+> (1) **secretos**: `sb_secret_`/`sb_publishable_`, JWT, `sk-ant-`, claves de Google/Meta, `Bearer …`, `service_role`, nombres de variables de entorno, hosts de la API de Meta/Anthropic/Google;
+> (2) **identificadores internos**: nombres de herramientas (salen de `BOT_TOOLS`, no se copian), prefijos `bot_`/`wa_`/`lk_`/`gv_`/`isis_`/`krikos_`, `app_settings`, tablas de clientes/pedidos/productos, ids de modelos (`claude-…`, `gemini-…`, `gpt-…`) y SQL;
+> (3) **volcado del prompt**: 14 palabras seguidas, tal cual, del bloque de Seguridad; (4) **datos no respaldados**: un número de 10 dígitos o más (CUIT, teléfono, CBU, factura) o un mail que no figura en nada de lo que el modelo vio en el
+> turno (prompt, charla y resultados de herramientas; las herramientas ya operan sólo sobre la cuenta de quien escribe, así que un dato ajeno sólo puede ser alucinación o fuga).
+> **Calibrado contra las 895 respuestas reales del bot** (`bot_historial_chat`, 34 teléfonos, abril a octubre): 0 con herramientas, tablas, modelos, SQL, claves o hosts. Las 21 que dicen "base de datos" son el aviso fijo de mayo (*"No tenemos
+> asociado este teléfono en nuestra base de datos del bot…"*): por eso la palabra suelta NO se bloquea. Los números largos reales son el teléfono y el CBU de la empresa, CUITs y teléfonos del propio cliente; los únicos mails son `@loekemeyer.com`.
+> ⚠ **Las pruebas encontraron dos defectos antes de salir:** (a) con una ventana de volcado de 10 palabras, una negativa legítima ("No tengo capacidad de ejecutar SQL, código ni comandos, ni de borrar…", que es justo lo que el prompt le
+> pide decir) daba falso positivo: se subió a 14 (una regla copiada entera tiene 20 a 40); (b) los dígitos dentro de una clave (`sb_secret_…1234567890`) contaban como número no respaldado.
+> **Modo (`app_settings.wa_filtro_salida`):** sin fila o `1` = bloquea y avisa; `log` = sólo avisa y deja salir la respuesta (para mirar falsos positivos sin cortarle nada a un cliente: la alerta no es urgente); `0` = apagado. Si el filtro
+> mismo falla (error), la respuesta sale sin filtrar: un bug acá no puede dejar al bot mudo.
+> **Lo que NO detecta:** una paráfrasis, traducción o base64 del prompt, ni un dato ajeno que SÍ figure en el corpus. Para lo primero queda pendiente el canario (tabla de medidas). **Lo que no cubre:** las respuestas fijas (FAQ, avisos, alta) no
+> pasan por el agente y no se filtran: son texto escrito por personas. Tabla del Panel actualizada (9 activas, 8 pendientes); sólo backend, la versión visible del dashboard no cambia (v0.27.21).
+>
 > **06/10 (Pablo): compuerta de `solicitar_cambio_mail` — el mail tiene que estar escrito por el cliente (`_shared/mail-gate.ts`, `tests/mail-gate.test.ts`, 29 casos).**
 > Origen: el Simulador con Gemini 3.5 Flash-Lite (US$ 0) sobre las 71 frases del artifact "Respuestas del bot por causa" (caso 9.4 / m76: *"noté que está cargada una dirección de correo que
 > ya no tengo. Te envío la correcta…"* sin ninguna dirección en el mensaje). **2 de 2 corridas el modelo inventó el mail a partir de la razón social** (`contacto@garbarinofranco.com.ar` y
