@@ -314,14 +314,15 @@ serve(async (req) => {
       const key = Deno.env.get("ANTHROPIC_API_KEY") ?? (await getSetting("ANTHROPIC_API_KEY")) ?? "";
       const r = await leerPedidoArchivo(bytes, String(body.mime ?? ""), key, null, body.nombre ?? null);
       const arts = r.lineas.length ? await resolverArticulos(r.lineas, key, null) : [];
-      const cmp = await compararCotizadorConWeb(r.hoja).catch(() => null);
-      // `cod_cliente` (opcional): con él se prueba también la pregunta de a cuál de sus direcciones de entrega va el pedido.
+      // `cod_cliente` (opcional): con él se prueba también la pregunta de a cuál de sus direcciones de entrega va el pedido y, si es una cadena con lista propia
+      // (m41, 07/10), que no se compare el PRECIO.
+      const cmp = await compararCotizadorConWeb(r.hoja, body.cod_cliente ?? null).catch(() => null);
       let sucursales: Awaited<ReturnType<typeof sucursalesDelCliente>> = [];
       if (body.cod_cliente) {
         const { data: cli } = await supabase.from("customers").select("id").eq("cod_cliente", Number(body.cod_cliente)).maybeSingle();
         sucursales = await sucursalesDelCliente(cli?.id).catch(() => []);
       }
-      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, escaneo: r.escaneo ?? null, articulos: arts, comparacion_precios: cmp ? { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } : null,
+      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, escaneo: r.escaneo ?? null, articulos: arts, comparacion_precios: cmp ? { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version, ...(cmp.precio_omitido_cadena ? { precio_omitido_cadena: cmp.precio_omitido_cadena } : {}) } : null,
         sucursales: sucursales.length > 1 ? sucursales : null,
         mensaje: arts.length ? textoConfirmacion(arts, { cotizador: r.cotizador === true, seguir: true, condicion_code: r.condicion_code, comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null, sucursales }) : null,
         cotizador: r.cotizador === true, condicion_code: r.condicion_code ?? null });

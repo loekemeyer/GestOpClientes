@@ -2,6 +2,7 @@
 // Las filas replican el diseño de un cotizador real de Loekemeyer (hoja "Cotizador Loekemeyer", visto el 06/10): versión en la fila 1, "Total a Abonar" en H8/H9,
 // encabezado en la fila 10 y un artículo por fila desde la 11. Sin red.
 // Correr: node --experimental-strip-types --no-warnings tests/cotizador-precios.test.ts   (sale con código 1 si algo falla)
+import { readFileSync } from "node:fs";
 import { compararConWeb, leerHojaCotizador, textoComparacion } from "../supabase/functions/_shared/cotizador-precios.ts";
 
 let fallas = 0;
@@ -67,6 +68,25 @@ const sinWeb: Record<string, never> = {};
 igual("artículo que no existe en la web", compararConWeb(cot, sinWeb).diferencias.map((d) => d.tipo), ["no_esta_en_la_web", "no_esta_en_la_web", "no_esta_en_la_web"]);
 const pedidoNoDisp = leerHojaCotizador(hoja([[2, "Palo de amasar 40cm", V, "231", 3, 12, "No Disponible", "No Disponible", 0, 0]]))!;
 igual("lo pidió pero el cotizador dice 'No Disponible' y la web lo tiene", compararConWeb(pedidoNoDisp, WEB).diferencias.map((d) => [d.cod, d.tipo, d.web]), [["231", "no_disponible_en_el_cotizador", 1790]]);
+
+// ── Cadena con lista de precios propia (m41, 07/10): no se compara el PRECIO, lo demás sí ──
+const sinPrecio = { ignorarPrecio: true };
+igual("cadena: el precio distinto del 512 no es diferencia; las unidades por caja del 255 sí",
+  compararConWeb(cot, WEB, sinPrecio).diferencias.map((d) => [d.cod, d.tipo, d.cotizador, d.web]), [["255", "unidades_por_caja", 4, 8]]);
+igual("cadena: con todo lo demás igual no hay diferencias (antes: falsa alarma de precio)",
+  compararConWeb(cot, { ...WEB, "255": { pu: 9060, uxb: 4, activo: true } }, sinPrecio).diferencias, []);
+igual("sin la opción se sigue marcando el precio (el comportamiento de siempre)",
+  compararConWeb(cot, { ...WEB, "255": { pu: 9060, uxb: 4, activo: true } }, {}).diferencias.map((d) => [d.cod, d.tipo]), [["512", "precio"]]);
+igual("cadena: 'no está en la web' se sigue avisando", compararConWeb(cot, sinWeb, sinPrecio).diferencias.map((d) => d.tipo), ["no_esta_en_la_web", "no_esta_en_la_web", "no_esta_en_la_web"]);
+igual("cadena: 'No Disponible' con precio en la web se sigue avisando", compararConWeb(pedidoNoDisp, WEB, sinPrecio).diferencias.map((d) => [d.cod, d.tipo]), [["231", "no_disponible_en_el_cotizador"]]);
+igual("cadena sin diferencias: el cliente no recibe ningún texto",
+  textoComparacion(cot, compararConWeb(cot, { ...WEB, "255": { pu: 9060, uxb: 4, activo: true } }, sinPrecio).diferencias), "");
+
+// Guarda sobre el código: los DOS llamadores (webhook y Simulador) pasan el código del cliente; sin él una cadena volvería a dar falsa alarma de precio.
+const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), "utf8");
+igual("el webhook pasa el código del cliente a la comparación", /compararCotizadorConWeb\(r\.hoja,\s*customer\.cod_cliente\)/.test(leer("../supabase/functions/lk_whatsapp-webhook/index.ts")), true);
+igual("el Simulador pasa el código del cliente a la comparación", /compararCotizadorConWeb\(r\.hoja,\s*body\.cod_cliente/.test(leer("../supabase/functions/lk_bot-simular/index.ts")), true);
+igual("la comparación consulta las cadenas con lista propia", /cadenasListaPropia\(\[codCliente\]\)/.test(leer("../supabase/functions/_shared/pedido-archivo.ts")), true);
 
 // ── Texto para el cliente ──
 const dif = compararConWeb(cot, { ...WEB, "255": { pu: 9060, uxb: 4, activo: true } });

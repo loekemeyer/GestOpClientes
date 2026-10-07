@@ -9,6 +9,7 @@
 
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 import { supabase } from "./supabase.ts";
+import { cadenasListaPropia } from "./cadenas.ts";
 import { type CotizadorLeido, compararConWeb, leerHojaCotizador, textoComparacion } from "./cotizador-precios.ts";
 import { codigoSeguro, type EscaneoTexto, escanearTexto, lineaSegura, TEXTO_ILEGIBLE, textoDeArchivo } from "./dato-externo.ts";
 
@@ -227,9 +228,11 @@ export async function resolverArticulos(lineas: LineaLeida[], apiKey = "", phone
   });
 }
 
-/** Compara los precios del cotizador con los de la web (products.list_price, por UNIDAD). null si el cotizador no trae la hoja de precios. */
-export async function compararCotizadorConWeb(hoja: CotizadorLeido | null | undefined):
-  Promise<{ texto: string; diferencias: ReturnType<typeof compararConWeb>["diferencias"]; total_cotizador: number | null; version: string | null } | null> {
+/** Compara los precios del cotizador con los de la web (products.list_price, por UNIDAD). null si el cotizador no trae la hoja de precios.
+ *  Con el código del cliente: si es una cadena con lista de precios propia (precios_super) NO se compara el precio, sólo lo demás, y la respuesta trae `precio_omitido_cadena`
+ *  (Pablo, 07/10, m41: sin esto, el cotizador al día de una cadena disparaba "puede estar desactualizado"). Si la consulta de cadenas falla, se compara todo como antes. */
+export async function compararCotizadorConWeb(hoja: CotizadorLeido | null | undefined, codCliente?: number | string | null):
+  Promise<{ texto: string; diferencias: ReturnType<typeof compararConWeb>["diferencias"]; total_cotizador: number | null; version: string | null; precio_omitido_cadena?: string } | null> {
   if (!hoja) return null;
   const pedidas = hoja.filas.filter((f) => f.cajas > 0);
   if (!pedidas.length) return null;
@@ -238,8 +241,9 @@ export async function compararCotizadorConWeb(hoja: CotizadorLeido | null | unde
   for (const r of (data ?? []) as Array<{ cod: string; list_price: number | string | null; uxb: number | null; active: boolean | null }>) {
     web[String(r.cod).toUpperCase()] = { pu: Number(r.list_price) || 0, uxb: Number(r.uxb) || 1, activo: r.active === true };
   }
-  const { diferencias } = compararConWeb(hoja, web);
-  return { texto: textoComparacion(hoja, diferencias), diferencias, total_cotizador: hoja.total, version: hoja.version };
+  const cadena = codCliente ? (await cadenasListaPropia([codCliente]).catch(() => new Map())).get(Number(codCliente)) : undefined;
+  const { diferencias } = compararConWeb(hoja, web, { ignorarPrecio: !!cadena });
+  return { texto: textoComparacion(hoja, diferencias), diferencias, total_cotizador: hoja.total, version: hoja.version, ...(cadena ? { precio_omitido_cadena: cadena.cadena } : {}) };
 }
 
 /** Una dirección de entrega (sucursal) de la cuenta. `slot` es el número que usa el agente de pedidos (opciones_de_pedido). */

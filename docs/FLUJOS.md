@@ -401,7 +401,7 @@ distintas, artículo que ya no está en la web, "No Disponible" que la web sí v
 **"¿Confirmás los artículos y los valores de la web?"**. **Si la cuenta tiene más de una dirección de entrega** (`customer_delivery_addresses`),
 lista las direcciones con su número (`slot`) y pregunta **"¿Para cuál es este pedido?"** ("muy importante", Pablo): la respuesta es el número y el agente no elige
 una por su cuenta (`REGLA_PEDIDOS_WA` paso 3). Con una sola dirección no pregunta. Una planilla sin la hoja de precios sigue como siempre ("¿Está bien?").
-Se compara contra el precio base (lista), no contra el final con descuento por plazo y 2 % web. ⚠ Una cadena con lista propia de precios dispararía una falsa alarma: a vigilar.
+Se compara contra el precio base (lista), no contra el final con descuento por plazo y 2 % web. Una cadena con lista propia de precios (`precios_super`) no se compara por PRECIO (07/10, m41: pagaría otra lista y daría una falsa alarma): sigue el control de unidades por caja, artículo que no está en la web y «No Disponible», y la lectura guarda `precio_omitido_cadena`.
 **Cliente que PIDE el cotizador (Pablo, 06/10, m41):** respuesta fija (`faq.ts` `pideElCotizador`, antes del agente): "Ahora los pedidos se toman por la web: entrá a loekemeyer.com › Pedidos Mayorista con tu usuario (tu CUIT) y tu clave. Ahí ves los precios al día y armás el pedido. Si no tenés clave, escribinos y una persona de Ventas te la genera." No genera alerta; "no tengo clave" lo toma el reseteo de clave de siempre. Quien MANDA el cotizador va por el lector de archivos (arriba).
 
 **Cliente que pide la clave de la web (Pablo y Thomy, 07/10):** "olvidé la clave", "me pasás la contraseña?", "no me deja entrar a la web" →
