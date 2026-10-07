@@ -4,7 +4,7 @@
 // pedidos-marca.ts importa _shared/supabase.ts, que arma el cliente al cargar: se le dan una URL y una clave falsas (no se conecta).
 Deno.env.set("SUPABASE_URL", "http://localhost:54321");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "clave-falsa");
-const { textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido } = await import("../supabase/functions/_shared/fecha-retiro.ts");
+const { textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido, diaConFecha, estadoRetiroParaIA } = await import("../supabase/functions/_shared/fecha-retiro.ts");
 const { textoPedidosChef } = await import("../supabase/functions/_shared/pedidos-marca.ts");
 
 let fallas = 0;
@@ -35,6 +35,17 @@ for (const t of ["Hice un pedido hace 10 días, quería saber si está confirmad
   igual(`pide confirmación: ${t}`, pideConfirmacionPedido(t), true);
 for (const t of ["¿Sabés cuándo me entregan el pedido?", "Hace 10 días hice un pedido, quería saber el estado", "¿Hoy entregan el pedido?", "Nos llegó al mail las facturas"])
   igual(`no pide confirmación: ${t}`, pideConfirmacionPedido(t), false);
+
+// m1 y m23 (07/10): el estado de un retiro redactado para la IA; nunca "salió".
+igual("día con fecha", diaConFecha("2026-10-06"), "martes 06/10");
+igual("día con fecha (domingo)", diaConFecha("2026-10-04T00:00:00+00:00"), "domingo 04/10");
+igual("IA: facturado → 'listo para retirar desde el martes 06/10' (m23 y m1)", estadoRetiroParaIA("facturado", "2026-10-06"), "facturado y listo para retirar desde el martes 06/10");
+igual("IA: entregado → 'retirado el martes 06/10' (m1)", estadoRetiroParaIA("entregado", "2026-10-06"), "retirado el martes 06/10");
+igual("IA: entregado sin fecha", estadoRetiroParaIA("entregado", null), "retirado");
+igual("IA: programado", estadoRetiroParaIA("programado", "2026-10-05"), "programado para el lunes 05/10");
+igual("IA: en preparación", estadoRetiroParaIA("en preparacion", "2026-10-05"), "en preparación en el depósito; va a estar listo para retirar desde el lunes 05/10");
+igual("IA: recibido", estadoRetiroParaIA("recibido", null), "recibido, todavía sin fecha");
+for (const e of ["recibido", "programado", "en preparacion", "facturado", "entregado"]) igual(`IA: ningún estado de retiro dice 'salió' ni 'entreg' (${e})`, /sali[óo]|sale\b|entreg/i.test(estadoRetiroParaIA(e, "2026-10-06")), false);
 
 // El texto completo (lista de Chef, mismo formato que la de Loekemeyer).
 const ped = (o: Record<string, unknown>) => ({ creado: "2026-09-30T15:00:00Z", estado: "facturado", fecha_entrega: "2026-10-06", retiro: "2026-10-06", sucursal: null, reingreso: null, entregado_at: null, ...o });

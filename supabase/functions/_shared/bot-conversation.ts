@@ -9,6 +9,7 @@ import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
+import { estadoRetiroParaIA } from "./fecha-retiro.ts";
 import { timeoutDeModelo } from "./timeouts.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
@@ -718,8 +719,12 @@ async function executeTool(
         // deno-lint-ignore no-explicit-any
         const e: any = porId.get(String(r.order_id));
         const { order_id: _id, ...resto } = r;
-        return { indice: i + 1, ...resto, estado: e?.status ?? "recibido", fecha_salida: e?.fecha_entrega ?? null,
-          ...(modoPor.get(String(r.order_id)) ?? { entrega: "reparto propio" }) };
+        const modo = modoPor.get(String(r.order_id)) ?? { entrega: "reparto propio" };
+        const estado = e?.status ?? "recibido";
+        // Pablo, 07/10 (m1, m23): un pedido de RETIRO no "sale": el estado va ya redactado ("facturado y listo para retirar desde el martes 06/10", "retirado el martes 06/10") y sin
+        // `fecha_salida`, que el agente traducía como "salió".
+        if (modo.entrega === "retira en el depósito") return { indice: i + 1, ...resto, estado, estado_para_el_cliente: estadoRetiroParaIA(estado, e?.fecha_entrega ?? null), ...modo };
+        return { indice: i + 1, ...resto, estado, fecha_salida: e?.fecha_entrega ?? null, ...modo };
       }) };
     }
 

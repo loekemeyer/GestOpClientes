@@ -27,3 +27,24 @@ export function tituloConfirmado(unoSolo: boolean): string {
 }
 /** El cliente pregunta si el pedido está confirmado ("¿está confirmado?", "¿lo confirmaron?", "¿tienen la confirmación?"). */
 export const pideConfirmacionPedido = (text: string): boolean => /\bconfirm(ad[oa]s?|[oó]|aron|aci[oó]n)(?![a-záéíóúñ])/i.test(text);
+
+const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+/** "2026-10-06" → "martes 06/10". */
+export function diaConFecha(iso: string): string {
+  const x = new Date(String(iso).slice(0, 10) + "T12:00:00Z");
+  return `${DIAS[x.getUTCDay()]} ${String(x.getUTCDate()).padStart(2, "0")}/${String(x.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** El estado de un pedido de RETIRO ya redactado para que el agente de IA lo diga tal cual (Pablo, 07/10, m1 y m23: "si el pedido era para retirar, en vez de 'salió' tiene que poner
+ *  que fue retirado tal fecha"; "si salió del depósito, ¿cómo va a pasar a retirarlo?"). El agente traducía `fecha_salida` como "salió": un pedido de retiro no sale, lo retira el cliente.
+ *  `estado`: el de Gestión (recibido, programado, en preparacion, facturado, entregado); `fecha`: yyyy-mm-dd o null. */
+export function estadoRetiroParaIA(estado: string, fecha: string | null): string {
+  const dia = fecha ? diaConFecha(fecha) : null;
+  switch (estado) {
+    case "entregado": return dia ? `retirado el ${dia}` : "retirado";
+    case "facturado": return dia ? `facturado y listo para retirar desde el ${dia}` : "facturado y listo para retirar";
+    case "programado": return dia ? `programado para el ${dia}` : "programado, todavía sin fecha";
+    case "en preparacion": return dia ? `en preparación en el depósito; va a estar listo para retirar desde el ${dia}` : "en preparación en el depósito";
+    default: return "recibido, todavía sin fecha";
+  }
+}
