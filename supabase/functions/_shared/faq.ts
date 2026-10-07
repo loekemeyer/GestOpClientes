@@ -209,6 +209,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       intent: "devolucion", automation_level: "needs_human", topic: "Devolución de mercadería",
       alerta: { motivo: "devolucion", detalle: `Devolución de mercadería: ${text.slice(0, 200)}` } };
   }
+  // Pablo, 07/10 (m11): "Adjunto orden de compra…" → fija + alerta `pedido_archivo` (no urgente) para Ventas. Texto aprobado por Pablo. El destino a Ventas se carga en Derivaciones con su "sí" (hoy ese motivo no tiene destino).
+  if (customer && avisaOrdenDeCompra(text)) {
+    return { reply: "Recibimos tu orden de compra. Una persona de Ventas la revisa y te escribe por acá a la brevedad para confirmártela. 🙏",
+      intent: "orden_de_compra", automation_level: "needs_human", topic: "Orden de compra",
+      alerta: { motivo: "pedido_archivo", urgente: false, detalle: `Dice que adjunta una orden de compra: ${text.slice(0, 200)}` } };
+  }
   // Pablo, 06/10 (m41): "Me pasás el cotizador actualizado" → los pedidos ahora se toman por la web: se le recuerda y se le da el acceso. Sin alerta: si no tiene clave y
   // lo dice, lo toma el reseteo de clave de siempre (una persona de Ventas la genera). Texto aprobado por Pablo el 06/10.
   if (customer && pideElCotizador(text)) {
@@ -613,6 +619,12 @@ export const pideElCotizador = (text: string): boolean => RE_PIDE_COTIZADOR.test
 const RE_PIDE_POR_WEB = /\b(pued[a-záéíóúñ]*|pod[eé]s|podemos|podr[ií][a-záéíóúñ]*|se\s+puede|es\s+posible)(?![a-záéíóúñ])[^.?!]{0,40}\b(pedido|pedidos|pedir|compra|comprar|cargar|hacer)(?![a-záéíóúñ])[^.?!]{0,40}\b(web|p[aá]gina|sitio|online|internet)(?![a-záéíóúñ])/i;
 const RE_PIDE_POR_WEB_OTRA_COSA = /\bno\s+(me\s+|nos\s+|se\s+)?(pued|pod|deja|dejan|abre|abren|anda|funciona|carga|entra|logr|pude|puedo)|\b(error|falla|se\s+(tilda|traba|cuelga)|clave|contrase[ñn]a|usuario|ingres\w*|entrar|acceso|registr\w*)(?![a-záéíóúñ])|\bcotizador\b|\bwhats\s?app\b|\bpor\s+(ac[aá]|mail|correo|tel[eé]fono)\b/i;
 export const pidePedidoPorWeb = (text: string): boolean => RE_PIDE_POR_WEB.test(text) && !RE_PIDE_POR_WEB_OTRA_COSA.test(text) && !RE_ENVIA_PEDIDO.test(text);
+// Pablo, 07/10 (m11): "Adjunto orden de compra, quedo a la espera de confirmación de recepción" → respuesta fija y una alerta `pedido_archivo` para Ventas (antes la IA prometía "una persona
+// la va a revisar" sin dejar nada: nadie se enteraba). Hace falta un verbo de mandar (adjunto, envío, paso…) + "orden de compra" y que NO sea una pregunta de cómo mandarla ni un problema para mandarla.
+// Con el archivo de verdad el flujo de archivos de lk_whatsapp-webhook ya la lee: esto es para el texto que llega solo ("adjunto…") o antes del archivo.
+const RE_MANDA_OC = /\b(adjunt[a-záéíóúñ]*|env[ií][a-záéíóúñ]*|mand[a-záéíóúñ]*|pas[a-záéíóúñ]*|ah[ií]\s+va|ac[aá]\s+va)(?![a-záéíóúñ])[^.?!]{0,40}(?<![a-záéíóúñ])[oó]rden(es)?\s+de\s+compra\b|(?<![a-záéíóúñ])[oó]rden(es)?\s+de\s+compra\b[^.?!]{0,30}\b(adjunt[a-záéíóúñ]*|env[ií][a-záéíóúñ]*)(?![a-záéíóúñ])/i;
+const RE_OC_OTRA_COSA = /\bno\s+(me\s+|nos\s+)?(pued|pod|logr|deja|abre|anda|funciona|carga)|\bc[oó]mo\b|\bd[oó]nde\b|\bnecesit|\bhace\s+falta\b|\bpued[eo]\b|\bpodemos\b|\bpodr[ií]|\bdeb[eo]\b|\bdeben\b|\bsin\s+[oó]rden/i;
+export const avisaOrdenDeCompra = (text: string): boolean => RE_MANDA_OC.test(text) && !RE_OC_OTRA_COSA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
