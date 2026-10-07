@@ -16,6 +16,8 @@ import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type Fact
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
 import { depositoAbierto, pideConfirmacionPedido, textoEstadoRetiro, textoLlegando, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
+import { avisaFacturaPorMail, PREGUNTA_MAIL_FACTURAS } from "./mail-facturas.ts";
+export { avisaFacturaPorMail };
 import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
@@ -220,6 +222,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     return { reply: "Gracias por avisarnos. Le pido a una persona del equipo que revise las fechas de tu pedido y te confirme por acá cuál es la correcta. 🙏",
       intent: "fechas_no_coinciden", automation_level: "needs_human", topic: "Fechas del pedido que no coinciden",
       alerta: { motivo: "entrega", detalle: `Fechas que no coinciden: ${text.slice(0, 200)}` } };
+  }
+  // Pablo, 07/10 (m68): "Nos llegó al mail las facturas, ¿lo entregan hoy?" → la lista de pedidos y, debajo, "¿A qué mail te llegaron las facturas? Lo chequeo."; con la respuesta, respuesta-aviso.ts
+  // compara ese mail con el de la ficha (customers.mail) y, si no coincide, se lo pasa a Ventas.
+  if (customer && avisaFacturaPorMail(text)) {
+    const lista = await lookupOrderStatus(customer);
+    return { reply: lista ? `${lista}\n\n${PREGUNTA_MAIL_FACTURAS}` : PREGUNTA_MAIL_FACTURAS, intent: "faq", automation_level: "semi_auto", faq_id: 1 };
   }
   // Pablo, 30/09: "Hace 10 días hice un pedido, quería saber el estado" caía en la IA, que convertía "hace 10 días" en
   // una fecha equivocada ("el del 20/09 (14 de septiembre)"). Sin fecha explícita, va a la respuesta fija con los
