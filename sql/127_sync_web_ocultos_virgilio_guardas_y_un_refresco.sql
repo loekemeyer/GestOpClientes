@@ -6,6 +6,10 @@
 -- ⚠ Esta función NO nació en este repo (el comentario del cuerpo la atribuye a Luis, 24/09, Gestión v22.23/25): si el repo
 -- que la despliega vuelve a correr su versión anterior, este cambio se pierde sin aviso. Vuelta atrás: sql/rollback/127_*.sql.
 -- md5 del cuerpo (prosrc): 40fc94dd551f55afc4a90116fe5d698a. Detalle: docs/ESTADO.md (entrada del 06/10).
+-- ⚠ NO SACAR el `perform public.refrescar_item_precio_cache();` final: el latido lk-item-precio-heartbeat (job 79) y la RPC
+-- web_ocultos_poke (Thomas, 06/10, Gestion-Virgilio/sql/gv_*_20261006_LK.sql) llaman a esta función justo para disparar ese refresco
+-- (precios de Chef, sin trigger local); sin él no hacen nada. Desde el 06/10 el cron 39 corre cada 15 min con huella, no cada 5.
+-- Dónde vive el código original: no hay SQL ejecutable en los repos revisados (ver docs/ESTADO.md). Los ~11,1 s -> ~7,1 s son de la corrida de las 11:43 AR del 06/10.
 CREATE OR REPLACE FUNCTION public.sync_web_ocultos_virgilio()
  RETURNS void
  LANGUAGE plpgsql
