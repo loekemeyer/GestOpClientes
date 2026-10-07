@@ -95,13 +95,14 @@
     .ia-comp-ley i { display: inline-block; width: 18px; border-top: 2px solid; vertical-align: middle; margin-right: 0.35rem; }
     .ia-comp-graf { position: relative; }
     .ia-comp-graf svg { display: block; width: 100%; height: 190px; overflow: visible; }
-    /* v0.28.3 (Pablo, 07/10): tokens por día y modelo. Paleta categórica validada (validate_palette.js, claro y oscuro: CVD ΔE ≥ 8,4, visión normal ≥ 19,3);
+    /* v0.28.3 (Pablo, 07/10): gasto o tokens por día y modelo + % de llamadas gratis por día. Paleta categórica validada (validate_palette.js, claro y oscuro: CVD ΔE ≥ 8,4, visión normal ≥ 19,3);
        el color sigue al modelo, no a su puesto, así que un filtro no repinta a los que quedan. */
     .ia-tok { --ia-tok-0:#2a78d6; --ia-tok-1:#eb6834; --ia-tok-2:#1baf7a; --ia-tok-3:#eda100; --ia-tok-4:#e87ba4; --ia-tok-5:#008300; --ia-tok-otros:#8c8a84; }
     html.dark .ia-tok { --ia-tok-0:#3987e5; --ia-tok-1:#d95926; --ia-tok-2:#199e70; --ia-tok-3:#c98500; --ia-tok-4:#d55181; --ia-tok-5:#008300; --ia-tok-otros:#8c8a84; }
     .ia-tok-ley { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; font-size: 0.75rem; color: var(--muted); margin: 0.35rem 0 0.2rem; }
     .ia-tok-ley i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 0.35rem; }
     .ia-tok-ley b { color: var(--text); font-weight: 600; }
+    .ia-tok .ia-comp-graf svg { height: auto; }
     .ia-tok-hit { fill: transparent; outline: none; }
     .ia-tok-hit:hover, .ia-tok-hit:focus-visible { fill: var(--muted); fill-opacity: .14; }
     .ia-tok-tip-fila { display: flex; align-items: center; gap: 0.4rem; }
@@ -907,7 +908,7 @@
             <!-- Gasto acumulado mes actual vs mes anterior (respeta Proveedor y Tier; no depende de Rango) -->
             <div class="ia-comp" id="iaComp"></div>
 
-            <!-- Tokens (entrada + salida) por día y por modelo del Rango elegido; respeta Proveedor y Tier (v0.28.3) -->
+            <!-- Gasto (US$) o tokens por día y por modelo, y % de llamadas gratis por día, del Rango elegido; respeta Proveedor y Tier (v0.28.3) -->
             <div class="ia-comp ia-tok" id="iaTok"></div>
 
             <div style="overflow-x:auto;">
@@ -5107,7 +5108,7 @@ function renderIaTable() {
   for (const k of ["prev_month", "month", "week", "session"]) for (const r of (_iaLastData.by_model?.[k] || [])) info[r.model] = r;
   const okModelo = (m) => info[m] ? pasa(info[m]) : (!prov && tier !== "free");
   renderIaComp(okModelo);
-  renderIaTok(rng, okModelo);
+  renderIaTok(rng, okModelo, (m) => !!info[m]?.is_free_tier);
   // Totales
   const tot = rows.reduce((a, r) => ({
     calls: a.calls + r.calls,
@@ -5223,27 +5224,34 @@ function renderIaComp(ok) {
   });
   hit.addEventListener("mouseleave", () => { hov.style.display = "none"; tip.style.display = "none"; });
 }
-// Tokens por día y por modelo (entrada + salida) del Rango elegido, barras apiladas (Pablo, 07/10).
-// Datos: stats.tokens_diario de lk_chat-test, un bloque por rango con {desde, hasta, por_dia: {iso: {modelo: [entrada, salida]}}}.
+// Gasto (US$) o tokens por día y por modelo, y % de llamadas gratis por día, del Rango elegido (Pablo, 07/10).
+// Datos: stats.tokens_diario de lk_chat-test, un bloque por rango con {desde, hasta, por_dia: {iso: {modelo: [entrada, salida, llamadas, US$]}}}.
+// Panel de arriba: barras apiladas por modelo, en US$ o tokens (selector). Panel de abajo: % de llamadas a modelos gratis, mismo eje de días.
 const IA_TOK_SLOTS = 6;
 const IA_DOW = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+let _iaTokMetrica = "usd", _iaTokArgs = null;
 function iaTokN(v) { return Math.round(Number(v) || 0).toLocaleString("es-AR"); }
 function iaTokCorto(v) {
   if (v >= 1e6) return (v / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " M";
   if (v >= 1e3) return Math.round(v / 1e3).toLocaleString("es-AR") + " k";
   return String(Math.round(v));
 }
+function iaTokUsd(v) { return "US$ " + Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function iaTokUsdCorto(v) { return "$" + Number(v).toLocaleString("es-AR", { maximumFractionDigits: 2 }); }
+function iaTokPct(p) { return Number(p).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " %"; }
 function iaDiasIso(desde, hasta) {
   const out = [], fin = Date.parse(hasta + "T00:00:00Z");
   for (let t = Date.parse(desde + "T00:00:00Z"); t <= fin && out.length < 62; t += 86400000) out.push(new Date(t).toISOString().slice(0, 10));
   return out;
 }
-function renderIaTok(rng, ok) {
+function renderIaTok(rng, ok, gratis) {
+  _iaTokArgs = [rng, ok, gratis];
   const box = document.getElementById("iaTok");
   const td = _iaLastData?.tokens_diario;
   if (!box) return;
   const blq = td?.[rng];
   if (!blq) { box.innerHTML = ""; return; } // función vieja sin tokens_diario: el panel sigue como estaba
+  const usd = _iaTokMetrica === "usd";
   // El color sigue al modelo: el orden sale de los tokens de los dos meses SIN filtrar, así un filtro no repinta a los que quedan.
   const tot = {};
   for (const k of ["month", "prev_month"]) for (const dia of Object.values(td[k]?.por_dia || {})) for (const [m, p] of Object.entries(dia)) tot[m] = (tot[m] || 0) + p[0] + p[1];
@@ -5251,69 +5259,104 @@ function renderIaTok(rng, ok) {
   const slotDe = (m) => { const i = orden.indexOf(m); return i >= 0 && i < IA_TOK_SLOTS ? i : IA_TOK_SLOTS; }; // IA_TOK_SLOTS = "Otros"
   const colorDe = (s) => `var(--ia-tok-${s === IA_TOK_SLOTS ? "otros" : s})`;
   const dias = iaDiasIso(blq.desde, blq.hasta);
-  // Por día: un segmento por slot (los modelos fuera de los 6 primeros se juntan en "Otros").
+  // Por día: un segmento por slot (los modelos fuera de los 6 primeros se juntan en "Otros") y las llamadas, gratis y totales.
+  // Las llamadas cuentan aunque no tengan tokens (ej. el audio), igual que la tarjeta "Gratis (calls)".
   const serie = dias.map((iso) => {
     const seg = {};
+    let llam = 0, llamG = 0;
     for (const [m, p] of Object.entries(blq.por_dia?.[iso] || {})) {
-      if (!ok(m) || p[0] + p[1] <= 0) continue;
-      const s = slotDe(m), a = (seg[s] ||= { s, nombre: s === IA_TOK_SLOTS ? "Otros" : m, ent: 0, sal: 0 });
-      a.ent += p[0]; a.sal += p[1];
+      if (!ok(m)) continue;
+      const g = gratis(m), calls = p[2] || 0;
+      llam += calls; if (g) llamG += calls;
+      if (p[0] + p[1] <= 0) continue;
+      const s = slotDe(m), a = (seg[s] ||= { s, nombre: s === IA_TOK_SLOTS ? "Otros" : m, gr: s !== IA_TOK_SLOTS && g, ent: 0, sal: 0, usd: 0 });
+      a.ent += p[0]; a.sal += p[1]; a.usd += g ? 0 : (Number(p[3]) || 0);
     }
     const segs = Object.values(seg).sort((a, b) => a.s - b.s);
-    return { iso, segs, total: segs.reduce((t, g) => t + g.ent + g.sal, 0) };
+    const val = (q) => (usd ? q.usd : q.ent + q.sal);
+    return {
+      iso, segs, val, llam, llamG, pct: llam ? (100 * llamG) / llam : null,
+      total: segs.reduce((t, q) => t + val(q), 0), tokens: segs.reduce((t, q) => t + q.ent + q.sal, 0), usd: segs.reduce((t, q) => t + q.usd, 0),
+    };
   });
-  const totalRango = serie.reduce((t, d) => t + d.total, 0);
+  const sum = (k) => serie.reduce((t, d) => t + d[k], 0);
+  const totM = sum("total"), totTok = sum("tokens"), totLlam = sum("llam"), totLlamG = sum("llamG");
   const rotulo = document.getElementById("iaRange")?.selectedOptions?.[0]?.textContent || "";
-  const porSlot = {};
-  for (const d of serie) for (const g of d.segs) { const a = (porSlot[g.s] ||= { s: g.s, nombre: g.nombre, tok: 0 }); a.tok += g.ent + g.sal; }
-  const slots = Object.values(porSlot).sort((a, b) => a.s - b.s);
-  const pico = serie.reduce((a, d) => (d.total > a.total ? d : a), { total: 0 });
+  const fmt = (v) => (usd ? iaTokUsd(v) : iaTokN(v));
   const fdm = (iso) => iso.slice(8) + "/" + iso.slice(5, 7);
-  const head = `<div class="ia-comp-head"><span>Tokens por día y modelo · ${esc(rotulo)}: <b>${iaTokN(totalRango)}</b></span>${pico.total ? `<span>Pico: <b>${iaTokN(pico.total)}</b> el ${fdm(pico.iso)}</span>` : ""}</div>`;
-  if (totalRango <= 0) {
-    box.innerHTML = head + '<div style="padding:0.8rem 0;color: var(--muted);font-size:0.8rem;">Sin tokens en este rango con el filtro actual.</div>';
+  const dow = (iso) => IA_DOW[new Date(iso + "T00:00:00Z").getUTCDay()];
+  const pico = serie.reduce((a, d) => (d.total > a.total ? d : a), { total: 0 });
+  const ctl = `<span style="margin-left:auto;display:inline-flex;gap:0.3rem;">`
+    + [["usd", "US$"], ["tokens", "Tokens"]].map(([k, l]) => `<button class="config-btn small${_iaTokMetrica === k ? " primary" : ""}" data-m="${k}" aria-pressed="${_iaTokMetrica === k}">${l}</button>`).join("") + `</span>`;
+  const head = `<div class="ia-comp-head"><span>${usd ? "Gasto" : "Tokens"} por día · ${esc(rotulo)}: <b>${fmt(totM)}</b></span>`
+    + (totLlam ? `<span>Gratis: <b>${iaTokPct(100 * totLlamG / totLlam)}</b> de las llamadas (${iaTokN(totLlamG)} de ${iaTokN(totLlam)})</span>` : "")
+    + (pico.total ? `<span>Pico: <b>${fmt(pico.total)}</b> el ${fdm(pico.iso)}</span>` : "") + ctl + `</div>`;
+  const alPulsar = () => box.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => { _iaTokMetrica = b.dataset.m; renderIaTok(..._iaTokArgs); }));
+  if (totLlam <= 0 && totTok <= 0) {
+    box.innerHTML = head + '<div style="padding:0.8rem 0;color: var(--muted);font-size:0.8rem;">Sin uso de IA en este rango con el filtro actual.</div>';
+    alPulsar();
     return;
   }
-  const ley = `<div class="ia-tok-ley">${slots.map((a) => `<span><i style="background:${colorDe(a.s)}"></i>${esc(a.nombre)} <b>${iaTokCorto(a.tok)}</b></span>`).join("")}</div>`;
-  const W = Math.max(320, (box.parentElement?.clientWidth || 666) - 26), H = 190, ml = 52, mr = 12, mt = 10, mb = 22;
+  const porSlot = {};
+  for (const d of serie) for (const q of d.segs) { const a = (porSlot[q.s] ||= { s: q.s, nombre: q.nombre, gr: q.gr, tok: 0, usd: 0 }); a.tok += q.ent + q.sal; a.usd += q.usd; }
+  const slots = Object.values(porSlot).sort((a, b) => a.s - b.s);
+  const ley = `<div class="ia-tok-ley">${slots.map((a) => `<span><i style="background:${colorDe(a.s)}"></i>${esc(a.nombre)} <b>${usd ? (a.gr ? "gratis" : iaTokUsd(a.usd)) : iaTokCorto(a.tok)}</b></span>`).join("")}</div>`;
+  // Geometría: panel A (gasto o tokens) y panel B (% gratis) comparten el eje X.
+  const W = Math.max(320, (box.parentElement?.clientWidth || 666) - 26), ml = 52, mr = 12;
+  const A = { t: 20, b: 160 }, B = { t: 192, b: 242 }, H = 262;
   const n = serie.length, ancho = (W - ml - mr) / n, bw = Math.max(3, Math.min(34, ancho - 2));
   const max = Math.max(...serie.map((d) => d.total));
-  const paso = (() => { const raw = max / 4, e = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 5, 10].map((k) => k * e).find((s) => s >= raw); })();
-  const tope = Math.ceil(max / paso) * paso;
-  const y = (v) => mt + (H - mt - mb) * (1 - v / tope);
+  const sinA = max <= 0;
+  const paso = sinA ? 1 : (() => { const raw = max / 4, e = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 5, 10].map((k) => k * e).find((s) => s >= raw); })();
+  const tope = sinA ? 1 : Math.ceil(max / paso) * paso;
+  const yA = (v) => A.t + (A.b - A.t) * (1 - v / tope);
+  const yB = (p) => B.t + (B.b - B.t) * (1 - p / 100);
   const cx = (i) => ml + (i + 0.5) * ancho;
-  let g = "";
-  for (let v = 0; v <= tope + 1e-9; v += paso) {
-    g += `<line x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)" stroke-width="1"/>`
-      + `<text x="${ml - 6}" y="${y(v) + 3.5}" text-anchor="end" font-size="11" fill="var(--muted)">${iaTokCorto(v)}</text>`;
-  }
-  const etiq = (d, i) => (n <= 10 ? `${IA_DOW[new Date(d.iso + "T00:00:00Z").getUTCDay()]} ${fdm(d.iso)}` : (i === 0 || (i + 1) % 5 === 0 ? String(Number(d.iso.slice(8))) : ""));
+  const cAcc = "var(--accent-tx, var(--primary))";
+  const eje = (y, txt) => `<line x1="${ml}" x2="${W - mr}" y1="${y}" y2="${y}" stroke="var(--border)" stroke-width="1"/><text x="${ml - 6}" y="${y + 3.5}" text-anchor="end" font-size="11" fill="var(--muted)">${txt}</text>`;
+  let g = `<text x="${ml}" y="12" font-size="11" font-weight="600" fill="var(--muted)">${usd ? "US$ por día" : "Tokens por día"}</text>`
+    + `<text x="${ml}" y="184" font-size="11" font-weight="600" fill="var(--muted)">% de llamadas a modelos gratis, por día</text>`;
+  if (sinA) g += eje(yA(0), usd ? "$0" : "0") + `<text x="${(ml + W - mr) / 2}" y="${(A.t + A.b) / 2}" text-anchor="middle" font-size="12" fill="var(--muted)">${usd ? "Sin gasto en dólares: lo que se usó es gratis" : "Sin tokens"}</text>`;
+  else for (let v = 0; v <= tope + 1e-9; v += paso) g += eje(yA(v), usd ? iaTokUsdCorto(v) : iaTokCorto(v));
+  for (const p of [0, 50, 100]) g += eje(yB(p), p + " %");
+  const etiq = (d, i) => (n <= 10 ? `${dow(d.iso)} ${fdm(d.iso)}` : (i === 0 || (i + 1) % 5 === 0 ? String(Number(d.iso.slice(8))) : ""));
   serie.forEach((d, i) => { const t = etiq(d, i); if (t) g += `<text x="${cx(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)">${t}</text>`; });
   // Cada segmento deja 2 px de superficie contra el de arriba; el de más arriba lleva las esquinas superiores redondeadas (4 px).
   const tips = [];
   serie.forEach((d, i) => {
+    const x0 = cx(i) - bw / 2;
+    const barra = (top, h, color) => {
+      const r = Math.min(4, bw / 2, h);
+      return r >= 2
+        ? `<path d="M${x0},${top + h}V${top + r}Q${x0},${top} ${x0 + r},${top}H${x0 + bw - r}Q${x0 + bw},${top} ${x0 + bw},${top + r}V${top + h}Z" fill="${color}"/>`
+        : `<rect x="${x0}" y="${top}" width="${bw}" height="${h}" fill="${color}"/>`;
+    };
+    const vis = d.segs.filter((q) => d.val(q) > 0);
     let acc = 0;
-    d.segs.forEach((s, k) => {
-      const v = s.ent + s.sal, y0 = y(acc), y1 = y(acc + v), ultimo = k === d.segs.length - 1;
+    vis.forEach((q, k) => {
+      const v = d.val(q), y0 = yA(acc), y1 = yA(acc + v), ultimo = k === vis.length - 1;
       acc += v;
-      const x0 = cx(i) - bw / 2, h = Math.max(1, y0 - y1 - (ultimo ? 0 : 2)), top = y0 - h, r = ultimo ? Math.min(4, bw / 2, h) : 0;
-      g += r > 0
-        ? `<path d="M${x0},${top + h}V${top + r}Q${x0},${top} ${x0 + r},${top}H${x0 + bw - r}Q${x0 + bw},${top} ${x0 + bw},${top + r}V${top + h}Z" fill="${colorDe(s.s)}"/>`
-        : `<rect x="${x0}" y="${top}" width="${bw}" height="${h}" fill="${colorDe(s.s)}"/>`;
+      const h = Math.max(1, y0 - y1 - (ultimo ? 0 : 2)), top = y0 - h;
+      g += ultimo ? barra(top, h, colorDe(q.s)) : `<rect x="${x0}" y="${top}" width="${bw}" height="${h}" fill="${colorDe(q.s)}"/>`;
     });
-    const filas = [...d.segs].sort((a, b) => (b.ent + b.sal) - (a.ent + a.sal))
-      .map((s) => `<div class="ia-tok-tip-fila"><i style="border-color:${colorDe(s.s)}"></i><span>${esc(s.nombre)}</span><b>${iaTokN(s.ent + s.sal)}</b></div>`).join("");
-    tips.push(`<b>${IA_DOW[new Date(d.iso + "T00:00:00Z").getUTCDay()]} ${fdm(d.iso)}</b>${filas || '<div style="color:var(--muted)">Sin uso</div>'}`
-      + (d.segs.length > 1 ? `<div class="ia-tok-tip-fila" style="margin-top:2px"><span>Total</span><b>${iaTokN(d.total)}</b></div>` : ""));
+    if (d.pct != null) { const h = Math.max(2, B.b - yB(d.pct)); g += barra(B.b - h, h, d.pct > 0 ? cAcc : "var(--muted)"); }
+    const filas = [...d.segs].sort((a, b) => d.val(b) - d.val(a))
+      .map((q) => `<div class="ia-tok-tip-fila"><i style="border-color:${colorDe(q.s)}"></i><span>${esc(q.nombre)}</span><b>${usd && q.gr ? "gratis" : fmt(d.val(q))}</b></div>`).join("");
+    const fila = (a, b) => `<div class="ia-tok-tip-fila" style="margin-top:2px"><span>${a}</span><b>${b}</b></div>`;
+    tips.push(`<b>${dow(d.iso)} ${fdm(d.iso)}</b>${filas || '<div style="color:var(--muted)">Sin uso</div>'}`
+      + (d.segs.length > 1 ? fila("Total", fmt(d.total)) : "")
+      + (d.segs.length ? fila(usd ? "Tokens" : "Gasto", usd ? iaTokN(d.tokens) : iaTokUsd(d.usd)) : "")
+      + fila("Llamadas gratis", d.llam ? `${iaTokN(d.llamG)} de ${iaTokN(d.llam)} · ${iaTokPct(d.pct)}` : "sin llamadas"));
   });
-  // Zona de hover = la columna entera (más grande que la barra), con foco de teclado.
-  serie.forEach((d, i) => { g += `<rect class="ia-tok-hit" data-i="${i}" tabindex="0" x="${ml + i * ancho}" y="${mt}" width="${ancho}" height="${H - mt - mb}"/>`; });
+  // Zona de hover = la columna entera de los dos paneles (más grande que la barra), con foco de teclado.
+  serie.forEach((d, i) => { g += `<rect class="ia-tok-hit" data-i="${i}" tabindex="0" x="${ml + i * ancho}" y="${A.t}" width="${ancho}" height="${B.b - A.t}"/>`; });
   const tabla = `<details class="ia-tok-tabla"><summary>Ver como tabla</summary><div style="overflow-x:auto"><table>
-      <tr><th>Día</th>${slots.map((a) => `<th>${esc(a.nombre)}</th>`).join("")}<th>Total</th></tr>
-      ${[...serie].reverse().map((d) => `<tr><td>${fdm(d.iso)}</td>${slots.map((a) => { const s = d.segs.find((q) => q.s === a.s); return `<td>${s ? iaTokN(s.ent + s.sal) : "—"}</td>`; }).join("")}<td><b>${iaTokN(d.total)}</b></td></tr>`).join("")}
+      <tr><th>Día</th>${slots.map((a) => `<th>${esc(a.nombre)}</th>`).join("")}<th>Total</th><th>Llamadas</th><th>% gratis</th></tr>
+      ${[...serie].reverse().map((d) => `<tr><td>${fdm(d.iso)}</td>${slots.map((a) => { const q = d.segs.find((z) => z.s === a.s); return `<td>${q ? (usd && q.gr ? "gratis" : fmt(d.val(q))) : "—"}</td>`; }).join("")}<td><b>${fmt(d.total)}</b></td><td>${iaTokN(d.llam)}</td><td>${d.pct == null ? "—" : iaTokPct(d.pct)}</td></tr>`).join("")}
     </table></div></details>`;
   box.innerHTML = head + ley
-    + `<div class="ia-comp-graf"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMid meet" role="img" aria-label="Tokens por día y por modelo, ${esc(rotulo)}">${g}</svg><div class="ia-comp-tip"></div></div>` + tabla;
+    + `<div class="ia-comp-graf"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMid meet" role="img" aria-label="${usd ? "Gasto en dólares" : "Tokens"} por día y por modelo, y porcentaje de llamadas gratis por día, ${esc(rotulo)}">${g}</svg><div class="ia-comp-tip"></div></div>` + tabla;
+  alPulsar();
   const svg = box.querySelector("svg"), tip = box.querySelector(".ia-comp-tip");
   const mostrar = (h) => {
     const i = Number(h.dataset.i), r = svg.getBoundingClientRect(), k = W / r.width;

@@ -555,16 +555,19 @@ async function handleStats(since?: string) {
     }
     return out;
   };
-  // Tokens por día (hora AR) y por modelo, [entrada, salida], para el gráfico "Tokens por día y modelo" (Pablo, 07/10).
-  // Va un bloque por rango del panel, con sus fechas ISO de inicio y fin para que el front dibuje también los días sin uso.
+  // Uso por día (hora AR) y por modelo, [entrada, salida, llamadas, US$], para el gráfico de gasto/tokens por día y el
+  // porcentaje de llamadas gratis (Pablo, 07/10). Va un bloque por rango del panel, con sus fechas ISO de inicio y fin
+  // para que el front dibuje también los días sin uso. El front pone en 0 el US$ de los modelos gratis, igual que la tabla.
   const diaIso = (ms: number) => new Date(ms - AR_MS).toISOString().slice(0, 10);
   // deno-lint-ignore no-explicit-any
   const tokensDia = (rows: any[], desdeMs: number, hastaMs: number) => {
-    const por_dia: Record<string, Record<string, [number, number]>> = {};
+    const por_dia: Record<string, Record<string, [number, number, number, number]>> = {};
     for (const r of rows) {
-      const p = ((por_dia[diaIso(r.t)] ||= {})[r.model ?? "desconocido"] ||= [0, 0]);
+      const p = ((por_dia[diaIso(r.t)] ||= {})[r.model ?? "desconocido"] ||= [0, 0, 0, 0]);
       p[0] += Number(r.input_tokens) || 0;
       p[1] += Number(r.output_tokens) || 0;
+      p[2] += 1;
+      p[3] += Number(r.estimated_cost_usd) || 0;
     }
     return { desde: diaIso(desdeMs), hasta: diaIso(hastaMs), por_dia };
   };
