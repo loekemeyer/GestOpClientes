@@ -2,7 +2,8 @@
 // Correr: deno run tests/aviso-equipo.test.ts   (sale con código 1 si algo falla)
 import {
   aplicarTope, avisaAlNacer, avisaSiNadieToma, canonTel, CONFIG_WA_DEFECTO, type ConfigWa, contextoConEstadoWa, debeEscalar, debeInmediatoDiferido, destinatarios,
-  duracionTexto, escaladaVence, leerConfigWa, leerEstadoWa, modoDeMotivo, type Persona, paramsEscalada, paramsInmediato, type Sector, sinAvisar, validarConfigWa,
+  duracionTexto, escaladaVence, gastoMensual, gastoReal, leerConfigWa, leerEstadoWa, mensajesPorAlerta, modoDeMotivo, type Persona, paramsEscalada, paramsInmediato, type Sector, sinAvisar,
+  TARIFA_UTILIDAD, validarConfigWa, ALERTAS_DIA_TECHO,
 } from "../supabase/functions/_shared/aviso-equipo.ts";
 import { destinosDeAviso } from "../supabase/functions/_shared/derivaciones-destino.ts";
 import type { Derivaciones, Regla } from "../supabase/functions/_shared/derivaciones.ts";
@@ -179,6 +180,30 @@ igual("producción: sin configurar → el defecto", destinosDeAviso(der({}), "ca
 igual("prueba: un solo destino, la persona de prueba", destinosDeAviso(der({ entrega: regla({ department_id: 8, tambien: [{ employee_id: 5, department_id: null }] }) }), "entrega", false), [{ employee_id: 64 }]);
 igual("prueba sin persona de prueba → nadie", destinosDeAviso({ ...der({}), prueba_employee_id: null }, "entrega", false), []);
 igual("whitelist_gate nunca avisa", destinosDeAviso(der({}), "whitelist_gate", true), []);
+
+// ── Gasto aproximado ──
+const r2 = (n: number) => Math.round(n * 100) / 100;
+igual("tarifa de utilidad en Argentina (calculadora de Meta, 07/10)", [TARIFA_UTILIDAD.usd, TARIFA_UTILIDAD.ars], [0.026, 37.6798]);
+igual("techo de alertas por día = 712 consultas / 63 días", r2(ALERTAS_DIA_TECHO), r2(712 / 63));
+igual("3 destinatarios, nace y escala, nadie toma: 6 mensajes por alerta", mensajesPorAlerta("ambos", 3, 1), 6);
+igual("3 destinatarios, sólo al nacer: 3", mensajesPorAlerta("inmediato", 3), 3);
+igual("3 destinatarios, sólo si nadie lo toma y se toma la mitad: 1,5", mensajesPorAlerta("escalada", 3, 0.5), 1.5);
+igual("sin WhatsApp: 0", mensajesPorAlerta("off", 3), 0);
+igual("nadie a quien avisar: 0", mensajesPorAlerta("ambos", 0), 0);
+igual("destinatarios inválidos (NaN, negativo): 0", [mensajesPorAlerta("ambos", NaN), mensajesPorAlerta("ambos", -2)], [0, 0]);
+igual("'escalan' fuera de rango se recorta (2 = 1, -1 = 0)", [mensajesPorAlerta("ambos", 2, 2), mensajesPorAlerta("ambos", 2, -1)], [4, 2]);
+igual("fracción de destinatarios se redondea para abajo (2,9 → 2)", mensajesPorAlerta("inmediato", 2.9), 2);
+{
+  const g = gastoMensual(339, 6);
+  igual("techo del estimativo: 339 alertas × 6 mensajes", [g.mensajes, r2(g.usd), Math.round(g.ars)], [2034, 52.88, 76641]);
+  const b2 = gastoMensual(339, 3);
+  igual("3 mensajes por alerta: 1.017 mensajes, US$ 26,44", [b2.mensajes, r2(b2.usd), Math.round(b2.ars)], [1017, 26.44, 38320]);
+  igual("1 mensaje por alerta: US$ 8,81", r2(gastoMensual(339, 1).usd), 8.81);
+  igual("sin alertas o sin mensajes: 0", [gastoMensual(0, 6).usd, gastoMensual(339, 0).usd, gastoMensual(-5, 6).mensajes], [0, 0, 0]);
+  igual("tarifa propia (cambia la cuenta)", gastoMensual(100, 2, { usd: 0.05, ars: 70 }), { mensajes: 200, usd: 10, ars: 14000 });
+}
+igual("gasto real: sólo los enviados cuestan", ((g) => [g.enviados, g.retenidos, g.fallidos, g.pendientes, r2(g.usd), Math.round(g.ars)])(gastoReal(["sent", "sent", "sent", "held_no_whitelist", "failed", "pending", "sending"])), [3, 1, 1, 2, 0.08, 113]);
+igual("gasto real sin filas: todo en cero", gastoReal([]), { enviados: 0, retenidos: 0, fallidos: 0, pendientes: 0, usd: 0, ars: 0 });
 
 if (fallas) { console.error(`\n${fallas} prueba(s) fallaron`); Deno.exit(1); }
 console.log("\ntodas las pruebas pasaron");

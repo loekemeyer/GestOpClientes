@@ -5,11 +5,14 @@ import { CATEGORIAS, categoria, MAX_TIEMPO_MIN, nivel, nivelAutoDeMotivo, nivelF
 import { HORARIO_DEFECTO, horarioVigente, validarHorario } from "../_shared/horario.ts";
 import { cargarCalendario } from "../_shared/feriados.ts";
 import { esNivel } from "../_shared/semaforo.ts";
-import { derivaciones, MAX_TAMBIEN, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
+import { derivaciones, destinosDeAviso, MAX_TAMBIEN, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } from "../_shared/derivaciones.ts";
 import { getGestionClient } from "../_shared/supabase.ts";
 import { COD_CLIENTE_PRUEBA } from "../_shared/cliente-prueba.ts";
 import { minimoGeneral, SETTING_MINIMO } from "../_shared/minimo.ts";
-import { canonTel, CONFIG_WA_DEFECTO, esModoWa, modoDeMotivo, SENSIBLES, validarConfigWa } from "../_shared/aviso-equipo.ts";
+import {
+  ALERTAS_DIA_TECHO, avisaAlNacer, avisaSiNadieToma, canonTel, CONFIG_WA_DEFECTO, CONTEXTO_ESC, CONTEXTO_INM, destinatarios, esModoWa, gastoReal, modoDeMotivo,
+  type Persona, SENSIBLES, type Sector, TARIFA_UTILIDAD, validarConfigWa,
+} from "../_shared/aviso-equipo.ts";
 import { PLANTILLAS } from "../_shared/plantillas-meta.ts";
 
 // Tarea creada desde el Simulador con un cliente real: se ve, pero no se aplica (no toca pedidos ni claves reales).
@@ -150,12 +153,17 @@ serve(async (req) => {
       const [der] = await Promise.all([derivaciones(), vencimientos()]);
       // Personas y sectores de Planify (Gestión). Si Gestión no contesta, el panel muestra los ids.
       let empleados: unknown[] = [], sectores: unknown[] = [];
+      // Para el gasto aproximado (07/10): quién recibiría cada aviso HOY (con los teléfonos completos, que no salen del servidor). null = Planify no contestó.
+      let personasWa: Persona[] | null = null, sectoresWa: Sector[] = [];
       try {
         const g = await getGestionClient("planify");
         const [e, d] = await Promise.all([
           g.from("employees").select("id, nombre, department_id, telefono").eq("activo", true).order("nombre"), // department_id: el panel filtra las personas por sector
           g.from("departments").select("id, nombre, telefono").eq("activo", true).order("nombre"),
         ]);
+        personasWa = (e.data ?? []).map((x: Record<string, unknown>) => ({ id: Number(x.id), nombre: String(x.nombre ?? ""), telefono: (x.telefono as string | null) ?? null,
+          department_id: x.department_id == null ? null : Number(x.department_id), activo: true }));
+        sectoresWa = (d.data ?? []).map((x: Record<string, unknown>) => ({ id: Number(x.id), nombre: String(x.nombre ?? ""), telefono: (x.telefono as string | null) ?? null }));
         // Aviso por WhatsApp (07/10): el panel marca a quién no se le puede avisar. Del teléfono viajan sólo las últimas 4 cifras (tel_fin), nunca el número.
         const fin = (t: unknown) => canonTel(t)?.slice(-4) ?? null;
         empleados = (e.data ?? []).map(({ telefono, ...x }: Record<string, unknown>) => ({ ...x, tel_fin: fin(telefono) }));
@@ -163,6 +171,18 @@ serve(async (req) => {
       } catch (e) { console.error("lk_alertas derivaciones: Planify no respondió", e); }
       const { data: llave } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
       const cfgWa = der.wa ?? CONFIG_WA_DEFECTO;
+      // Gasto aproximado: el mes de Argentina (UTC-3) hasta hoy, según los avisos al equipo que hay en la cola. Enviados cuestan; retenidos por la llave y fallidos no.
+      const ahoraAr = new Date(Date.now() - 3 * 3_600_000);
+      const mesDesde = new Date(Date.UTC(ahoraAr.getUTCFullYear(), ahoraAr.getUTCMonth(), 1, 3, 0, 0)).toISOString();
+      const { data: colaMes } = await supabase.from("wa_outbox").select("status").in("context", [CONTEXTO_INM, CONTEXTO_ESC]).gte("created_at", mesDesde).limit(10000);
+      const real = gastoReal((colaMes ?? []).map((x: { status: string }) => String(x.status)));
+      // Por motivo: cuántos destinatarios tendría en PRODUCCIÓN con lo guardado y cuántos mensajes cuesta una alerta (al nacer / si escala).
+      const waDe = (k: string) => {
+        const regla = der.motivos[k];
+        const modo = modoDeMotivo({ ...cfgWa, activo: true }, regla?.wa, k, { planify: regla?.destino === "planify", urgente: false });
+        const n = personasWa ? destinatarios(destinosDeAviso(der, k, true), personasWa, sectoresWa, cfgWa).lista.length : null;
+        return { wa_modo: modo, wa_dest: n, wa_nace: n === null ? null : avisaAlNacer(modo) ? n : 0, wa_escala: n === null ? null : avisaSiNadieToma(modo) ? n : 0 };
+      };
       const niv = (cat: string) => nivel({ tipo: cat, contexto: { motivo: cat } }); // el que rige: el fijado a mano o, si no, el "Auto"
       const extras = new Map(der.extra.map((e) => [e.clave, e]));
       return json({
@@ -176,8 +196,9 @@ serve(async (req) => {
           de_ia: MOTIVOS_IA.includes(k) || extras.has(k), extra: extras.get(k) ?? null, ...der.motivos[k],
           // wa = lo elegido en el panel (null = sin elegir); wa_defecto = lo que rige si no se elige (depende de si el motivo va a Planify).
           wa_defecto: modoDeMotivo({ ...cfgWa, activo: true }, null, k, { planify: der.motivos[k]?.destino === "planify", urgente: false }), wa_sensible: SENSIBLES.has(k),
+          ...waDe(k),
         })),
-        whatsapp: cfgWa,
+        whatsapp: cfgWa, tarifa_wa: TARIFA_UTILIDAD, alertas_dia_techo: ALERTAS_DIA_TECHO, gasto_wa_real: { desde: mesDesde, ...real },
         plantillas_wa: PLANTILLAS.filter((p) => p.name.startsWith("aviso_equipo")).map((p) => ({ name: p.name, body: p.body, disparo: p.disparo })),
       });
     }
