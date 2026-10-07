@@ -10,6 +10,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex,nofollow">
   <title>GestOp — Bot WhatsApp Loekemeyer</title>
+  <!-- Ícono de la pestaña (Pablo, 07/10, v0.28.1): la "L" del logo sobre el bordó de la marca. Rutas relativas: la página siempre se sirve con "/" al final. -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root {
@@ -4072,7 +4076,7 @@ function pintarDerivaciones() {
     return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}${m.nuevo ? ' class="dv-nuevo"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
       <td style="white-space:nowrap;">${semaforoSel(m)}<div class="hint" data-vence>vence ${durTexto(derivMinutosDe(m.nivel_fijo || m.nivel_auto || m.nivel) * 60000)}</div></td>
       <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select>
-        <div class="hint" style="margin-top:5px;">📲 WhatsApp al equipo</div><select data-f="wa" title="Qué avisa este motivo por WhatsApp. Apenas nace: sale junto con la tarea. Si nadie lo toma: sólo si pasa el tiempo sin que nadie toque «Me encargo yo». Nace y escala: las dos cosas.">${derivWaOpts(m, m.destino)}</select></td>
+        <div class="hint" style="margin-top:5px;">📲 WhatsApp al equipo</div><select data-f="wa" title="Qué avisa este motivo por WhatsApp. Apenas nace: sale junto con la tarea. Si nadie lo toma: sólo si pasa el tiempo sin que nadie toque «Me encargo yo». Nace y escala: las dos cosas.">${derivWaOpts(m, m.destino)}</select><div class="hint" data-wa-costo style="margin-top:2px;"></div></td>
       <td class="dv-quien">
         <label><span>Sector</span><select data-f="department_id" onchange="derivCambioSector(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
         <label><span>Persona</span><select data-f="employee_id"${conPlanify ? "" : " disabled"}>${derivPersonasOpts(m.department_id, m.employee_id)}</select></label>
@@ -4086,6 +4090,7 @@ function pintarDerivaciones() {
     <div style="margin-top:0.6rem;"><button class="config-btn small" onclick="derivAgregar()">+ Agregar motivo</button>
     <span class="hint">Un motivo nuevo que la IA puede derivar. Rige al guardar.</span></div>`;
   derivRefrescarVence();
+  derivGastoRefrescar();
 }
 function derivCambioDestino(sel) {
   const tr = sel.closest("tr"), p = sel.value === "planify";
@@ -4211,8 +4216,50 @@ function pintarWhatsApp(data) {
     <div><span>Números adicionales (reciben TODO lo que se avise, además de los de cada motivo):</span>
       ${(w.extra || []).map((x) => `<div class="dv-num"><input type="text" data-w="n_nombre" value="${esc(x.nombre)}" placeholder="Nombre" maxlength="40"><input type="text" data-w="n_tel" value="${esc(x.telefono)}" placeholder="11 3118 1021"><button type="button" class="config-btn small dv-x" title="Quitar este número" onclick="derivNumQuitar(this)">✕</button></div>`).join("")}
       <button type="button" class="config-btn small" onclick="derivNumAgregar()"${(w.extra || []).length >= 10 ? " disabled" : ""}>+ número</button></div>
+    <details open><summary>💲 Gasto aproximado por mes</summary>
+      <div id="derivGasto" class="hint" style="margin-top:4px;line-height:1.7;"></div>
+      <div class="dv-wa-fila" style="margin-top:4px;"><span>Supuestos:</span>
+        <input type="number" min="0" step="0.1" data-w="g_alertas" value="${DERIV_G().alertasDia}" oninput="derivGastoRefrescar()"> <span>alertas por día</span>
+        <input type="number" min="0" max="100" step="5" data-w="g_escalan" value="${DERIV_G().escalan}" oninput="derivGastoRefrescar()"> <span>% de las alertas que nadie toma</span></div>
+      <div class="hint" style="margin-top:2px;">Por defecto es un <b>techo</b>: 11,3 alertas por día (las 712 consultas en 63 días del estudio de cobertura, suponiendo que TODA consulta fuera una alerta para Ventas) y que nadie toma ninguna. Cuántas llegan de verdad no se sabe hasta que el bot atienda a los clientes. Se calcula con lo <b>guardado</b>: guardá y se actualiza.</div></details>
     ${quien ? `<details><summary>A quién le llegaría hoy (según los teléfonos de Planify)</summary><div class="hint" style="margin-top:4px;line-height:1.7;">${quien}<div>✗ = no se le puede avisar: cargale el teléfono en Planify (empleados). Sólo se muestran las últimas 4 cifras.</div></div></details>` : ""}
-    ${(data.plantillas_wa || []).length ? `<details><summary>Textos de las plantillas</summary><div class="hint" style="margin:4px 0;">Hay que crearlas en Meta una vez (pestaña Plantillas › sincronizar) y esperar la aprobación; hasta entonces los avisos quedan en cola y Meta los rechaza.</div>${data.plantillas_wa.map((p) => `<div><code>${esc(p.name)}</code></div><pre>${esc(p.body)}</pre>`).join("")}</details>` : ""}`;
+    ${(data.plantillas_wa || []).length ? `<details><summary>Textos de las plantillas</summary><div class="hint" style="margin:4px 0;">Se crean en Meta desde la pestaña Plantillas › sincronizar. Mientras Meta no las apruebe, los avisos quedan en cola y Meta los rechaza: el estado de cada una está en la pestaña Plantillas.</div>${data.plantillas_wa.map((p) => `<div><code>${esc(p.name)}</code></div><pre>${esc(p.body)}</pre>`).join("")}</details>` : ""}`;
+}
+// --- Gasto aproximado (v0.28.2, Pablo 07/10: "el aproximado de gasto es bueno tenerlo") ---
+// Meta cobra cada plantilla de utilidad fuera de la ventana de 24 h, por mensaje entregado (tarifa y vigencia: data.tarifa_wa, de _shared/aviso-equipo.ts).
+// Por motivo, el servidor manda cuántos destinatarios tiene hoy (wa_dest) y cuántos mensajes cuesta una alerta al nacer (wa_nace) y si escala (wa_escala).
+// Acá sólo se multiplica: mensajes por alerta = nace + escala × (% que nadie toma); techo = alertas por mes × el motivo más caro. Con lo guardado.
+const DERIV_G = () => ({ alertasDia: (DERIV && DERIV._g ? DERIV._g.alertasDia : DERIV && DERIV.alertas_dia_techo) || 11.3, escalan: DERIV && DERIV._g ? DERIV._g.escalan : 100 });
+const fmtN = (n, d = 0) => Number(n).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+function derivGastoRefrescar() {
+  const data = DERIV, box = document.getElementById("derivGasto");
+  if (!data || !box) return;
+  const t = data.tarifa_wa || { usd: 0.026, ars: 37.6798 };
+  const q = (k) => document.querySelector(`#derivWa [data-w="${k}"]`);
+  const aD = Number(String(q("g_alertas")?.value ?? "").replace(",", ".")), eP = Number(q("g_escalan")?.value);
+  const alertasDia = Number.isFinite(aD) && aD >= 0 ? aD : DERIV_G().alertasDia, escalan = Number.isFinite(eP) ? Math.min(100, Math.max(0, eP)) : 100;
+  data._g = { alertasDia, escalan };
+  const msgs = (m) => (m.wa_nace || 0) + (m.wa_escala || 0) * escalan / 100;
+  const usdAlerta = (n) => "US$ " + fmtN(n * t.usd, 3), fm = (n) => fmtN(n, Number.isInteger(n) ? 0 : 1);
+  const MODO = { inmediato: "apenas nace", escalada: "si nadie lo toma", ambos: "nace y escala" };
+  const filas = data.motivos.filter((m) => m.wa_dest !== null && m.wa_dest !== undefined && msgs(m) > 0).sort((a, b) => msgs(b) - msgs(a));
+  // costo por alerta bajo el selector de cada motivo
+  document.querySelectorAll("#derivList tr[data-cat]").forEach((tr) => {
+    const m = data.motivos.find((x) => x.categoria === tr.dataset.cat), el = tr.querySelector("[data-wa-costo]");
+    if (!el || !m) return;
+    el.textContent = m.wa_dest === null || m.wa_dest === undefined ? "" : m.wa_modo === "off" ? "" : m.wa_dest === 0 ? "sin teléfono: no se puede avisar" : `≈ ${fm(msgs(m))} msj · ${usdAlerta(msgs(m))} por alerta`;
+  });
+  const w = data.whatsapp || {};
+  const real = data.gasto_wa_real || { enviados: 0, retenidos: 0, fallidos: 0, pendientes: 0, usd: 0, ars: 0 };
+  const alertasMes = alertasDia * 30;
+  const peor = filas[0], mensajesMes = peor ? alertasMes * msgs(peor) : 0;
+  const techo = !w.activo ? "El aviso por WhatsApp está <b>apagado</b>: no se gasta nada."
+    : !peor ? "Ningún motivo avisa por WhatsApp con destinatarios: no se gasta nada."
+    : `<b>Techo: ${fmtN(mensajesMes)} mensajes por mes · US$ ${fmtN(mensajesMes * t.usd, 2)} · ARS ${fmtN(mensajesMes * t.ars)}</b> (${fmtN(alertasMes, 0)} alertas por mes, todas con el motivo más caro: «${esc(peor.label)}», ${fm(msgs(peor))} mensajes por alerta).`;
+  const lista = !w.activo ? "" : filas.map((m) => `<div>· ${esc(m.label)}: ${m.wa_dest} destinatario${m.wa_dest === 1 ? "" : "s"}, ${MODO[m.wa_modo] || m.wa_modo} → ${fm(msgs(m))} mensajes por alerta · ${usdAlerta(msgs(m))}</div>`).join("");
+  box.innerHTML = `<div>${techo}</div>${lista ? `<div style="margin-top:4px;">${lista}</div>` : ""}
+    <div style="margin-top:4px;"><b>Este mes según la cola:</b> ${fmtN(real.enviados)} enviados (≈ US$ ${fmtN(real.usd, 2)} · ARS ${fmtN(real.ars)}) · ${fmtN(real.retenidos)} retenidos por la llave (no cuestan) · ${fmtN(real.fallidos)} fallidos · ${fmtN(real.pendientes)} pendientes. <span title="La cola marca enviado aunque Meta rechace después, y Meta cobra por mensaje entregado.">(aproximado)</span></div>
+    <div style="margin-top:4px;">Tarifa: <b>US$ ${fmtN(t.usd, 3)}</b> (ARS ${fmtN(t.ars, 4)}) por mensaje de plantilla de utilidad en Argentina, ${esc(t.tramo || "")}. Vigente desde el ${esc(String(t.vigente_desde || "").split("-").reverse().join("/"))}, leída el ${esc(String(t.consultada || "").split("-").reverse().join("/"))} en la ${esc(t.fuente || "tarifa de Meta")}. No incluye impuestos.</div>`;
 }
 function derivNumAgregar() {
   derivLeerForm();
@@ -5215,7 +5262,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.0</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.2</div>
 <script src="gestop2.js?v=0.27.24"></script>
 </body>
 </html>

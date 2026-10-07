@@ -266,3 +266,42 @@ export function debeInmediatoDiferido(e: { ahora: Date; creada: Date; estado: Es
   if (e.ahora.getTime() - e.creada.getTime() > e.cfg.max_edad_h * 3_600_000) return false;
   return !e.cfg.solo_horario || dentroDeHorario(e.ahora, e.h);
 }
+
+// ── Gasto aproximado (Pablo, 07/10: "el aproximado de gasto es bueno tenerlo") ──
+// Meta cobra cada plantilla de utilidad fuera de la ventana de 24 h, por mensaje entregado. Tarifa de Argentina leída el 07/10/2026 de la calculadora
+// oficial de Meta (whatsappbusiness.com/products/platform-pricing, endpoint wp-json/wab/v1/pricing, market=AR, category=Utility): tramo base, hasta
+// 100.000 mensajes por mes (después baja por tramos; estamos lejos). Si cambia, se cambia acá y el panel y las pruebas siguen las cuentas.
+export const TARIFA_UTILIDAD = {
+  usd: 0.026, ars: 37.6798, vigente_desde: "2026-07-01", consultada: "2026-10-07", tramo: "hasta 100.000 mensajes por mes",
+  fuente: "calculadora oficial de Meta, Argentina, categoría Utilidad",
+} as const;
+export type Tarifa = { usd: number; ars: number };
+/** Alertas por día que usa el panel como TECHO: las 712 consultas en 63 días del estudio de cobertura (docs/ESTUDIO-COBERTURA-2026-09.md, 28/07 a 28/09)
+ *  = 11,30 por día corrido, suponiendo que TODA consulta fuera una alerta para Ventas. No es una predicción: cuántas llegan de verdad no se puede medir
+ *  hasta que el bot atienda a los clientes (hoy sólo atiende 2 números). */
+export const ALERTAS_DIA_TECHO = 11.3;
+
+/** Mensajes que cuesta UNA alerta de un motivo con ese modo: uno por destinatario apenas nace y, si escala y nadie la toma, otro por destinatario.
+ *  `escalan` = parte de las alertas que nadie toma, de 0 a 1 (1 = el techo: ninguna se toma). */
+export function mensajesPorAlerta(modo: ModoWa, destinatariosN: number, escalan = 1): number {
+  const n = Number.isFinite(destinatariosN) ? Math.max(0, Math.floor(destinatariosN)) : 0;
+  const p = Number.isFinite(escalan) ? Math.min(1, Math.max(0, escalan)) : 1;
+  return (avisaAlNacer(modo) ? n : 0) + (avisaSiNadieToma(modo) ? n * p : 0);
+}
+/** Mensajes y plata de un mes: alertas del mes × mensajes por alerta × tarifa. Sin redondear (el que muestra redondea). */
+export function gastoMensual(alertasMes: number, mensajesAlerta: number, t: Tarifa = TARIFA_UTILIDAD): { mensajes: number; usd: number; ars: number } {
+  const mensajes = Math.max(0, alertasMes) * Math.max(0, mensajesAlerta);
+  return { mensajes, usd: mensajes * t.usd, ars: mensajes * t.ars };
+}
+/** Lo que ya pasó en el mes según la cola (wa_outbox.status de los avisos al equipo): enviados cuestan, retenidos por la llave y fallidos no.
+ *  Aproximado: la cola marca `sent` aunque Meta rechace después, y Meta cobra por entregado. */
+export function gastoReal(estados: string[], t: Tarifa = TARIFA_UTILIDAD): { enviados: number; retenidos: number; fallidos: number; pendientes: number; usd: number; ars: number } {
+  const c = { enviados: 0, retenidos: 0, fallidos: 0, pendientes: 0 };
+  for (const s of estados) {
+    if (s === "sent") c.enviados++;
+    else if (s === "held_no_whitelist") c.retenidos++;
+    else if (s === "failed") c.fallidos++;
+    else c.pendientes++; // pending, sending
+  }
+  return { ...c, usd: c.enviados * t.usd, ars: c.enviados * t.ars };
+}

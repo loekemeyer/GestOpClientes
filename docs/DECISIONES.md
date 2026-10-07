@@ -213,3 +213,13 @@ llave `wa_envio_automatico` y D007; (2) **plantilla obligatoria** (al equipo no 
 **Por qué la escalada y no sólo el espejo:** un WhatsApp llega a cualquier hora, no se apaga cuando alguien toma el caso y duplica cada cartel; el
 volumen de producción no se puede medir hoy (el bot atiende 2 números). **Pendiente de Pablo/Thomas:** tarifa y volumen para el estimativo de gasto, y
 si los avisos de Ventas van a las 3 personas o a la línea del sector (hoy: cada persona; se cambia en el panel sin tocar código).
+
+**Addendum (07/10, Pablo: "dejalo como opción y el aproximado de gasto es bueno tenerlo").** El defecto no cambia (nace y escala) y el panel muestra el gasto
+aproximado (techo US$ 52,88 por mes; piso de referencia US$ 8,81). Variantes evaluadas y dejadas como opción, **sin construir**, con su costo:
+(a) *ventana de 24 h iniciada por el empleado*: ahorro máximo US$ 17,13 por mes, porque el mensaje libre es "de servicio" y se cobra a la tarifa de utilidad
+pasado el cupo de 1.000 por número (el bot usa ~341); además hace falta reconocer al personal en el webhook (hoy se descartan como `whitelist_gate`, y si se los carga
+en la whitelist el agente de IA les contestaría y gastaría), caer a plantilla si no escribió ese día (error 131047) y un botón en el repo de Planify;
+(b) *que responda el agente*: la regla de Meta no depende de quién redacta (fuera de la ventana sólo plantilla); dentro de ella suma US$ 0,0235 de IA y el riesgo de
+que parafrasee o obedezca texto del cliente; (c) *consulta a pedido sin IA* ("¿qué tengo pendiente?", "me encargo yo"): la más barata y segura, queda para cuando se pida.
+**Hallazgo:** desde el 01/10/2026 Meta parece cobrar también las plantillas de utilidad dentro de la ventana (5 de 5 casos en `wa_message_status`), aunque su documentación diga que son gratis.
+
