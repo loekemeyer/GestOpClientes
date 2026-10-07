@@ -28,6 +28,13 @@ ok("primero la web, no las dos vías al mismo nivel", /Primero la web/.test(REGL
 ok("trae el modelo aprobado de m19 (¿tengo que entrar a la web?)", REGLA_PEDIDOS_WA.includes("Lo mejor es que lo hagas en la web: entrá a loekemeyer.com › Pedidos Mayorista con tu CUIT y tu clave."));
 ok("trae el modelo aprobado de m18 (¿por acá o por otro medio?)", REGLA_PEDIDOS_WA.includes("La prioridad es la web (loekemeyer.com › Pedidos Mayorista, con tu CUIT y tu clave)"));
 ok("los modelos de respuesta no llevan el porcentaje", !/\b2\s?%/.test(REGLA_PEDIDOS_WA.slice(REGLA_PEDIDOS_WA.indexOf("PRIORIDAD"), REGLA_PEDIDOS_WA.indexOf("Cuando el pedido se hace por ac"))));
+// Pablo, 07/10 (m12): las formas de pago se muestran numeradas con "opcion" y sin los códigos internos; no se ofrece "Prefiero no decidir ahora"; si retira, se pregunta todo en el mismo mensaje.
+ok("muestra las formas de pago numeradas con 'opcion' y nunca el condicion_code", /campo "opcion"/.test(REGLA_PEDIDOS_WA) && /nunca muestres el "condicion_code"/.test(REGLA_PEDIDOS_WA));
+ok("al armar usa el condicion_code de la opción elegida", /usá el condicion_code de la opci[oó]n que eligi[oó]/.test(REGLA_PEDIDOS_WA));
+ok("no ofrece 'Prefiero no decidir ahora'", /No ofrezcas "Prefiero no decidir ahora"/.test(REGLA_PEDIDOS_WA));
+ok("si el cliente ya dijo que retira, pregunta en el mismo mensaje forma de pago, día y franja", /YA dijo que retira/.test(REGLA_PEDIDOS_WA) && /ESE mismo mensaje la forma de pago y el d[ií]a y la franja del retiro/.test(REGLA_PEDIDOS_WA));
+ok("trae el modelo aprobado de m12", REGLA_PEDIDOS_WA.includes("Confirmame los artículos:") && REGLA_PEDIDOS_WA.includes("¿Qué día y franja te quedan bien?"));
+ok("el modelo de m12 no lleva los códigos de pago ni la opción 'no decidir'", !/\b(8|9|18) - /.test(REGLA_PEDIDOS_WA));
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");
