@@ -78,14 +78,16 @@ const sectores: Sector[] = [{ id: 8, nombre: "Ventas", telefono: "5491131181021"
 const tels = (x: ReturnType<typeof destinatarios>) => x.lista.map((y) => y.telefono);
 igual("persona sola → su teléfono", destinatarios([{ employee_id: 64 }], personas, sectores, cfg()).lista, [{ telefono: "5491131180064", etiqueta: "Pablo Olejavetzky", origen: "persona" }]);
 igual("sector, modo personas → cada persona activa con teléfono", tels(destinatarios([{ department_id: 8 }], personas, sectores, cfg({ sector: "personas" }))), ["5491131180038", "5491131180063"]);
-igual("sector, modo personas: la que no tiene teléfono queda anotada", destinatarios([{ department_id: 8 }], personas, sectores, cfg()).sin_telefono, ["Ventas"]);
+igual("sector, modo personas: la que no tiene teléfono queda anotada", destinatarios([{ department_id: 8 }], personas, sectores, cfg({ sector: "personas" })).sin_telefono, ["Ventas"]);
+igual("el defecto para un sector es la línea (un número compartido por WhatsApp Web): UN aviso, no uno por persona", destinatarios([{ department_id: 8 }], personas, sectores, cfg()).lista, [{ telefono: "5491131181021", etiqueta: "Ventas", origen: "linea" }]);
+igual("config sin «sector» → línea", leerConfigWa({ activo: true }).sector, "linea");
 igual("sector, modo línea → sólo el teléfono del sector", destinatarios([{ department_id: 8 }], personas, sectores, cfg({ sector: "linea" })).lista, [{ telefono: "5491131181021", etiqueta: "Ventas", origen: "linea" }]);
 igual("sector, modo ambos → personas y línea", tels(destinatarios([{ department_id: 8 }], personas, sectores, cfg({ sector: "ambos" }))), ["5491131180038", "5491131180063", "5491131181021"]);
 igual("sector sin línea y modo línea → nadie y se anota", ((x) => [x.lista.length, x.sin_telefono])(destinatarios([{ department_id: 2 }], [], sectores, cfg({ sector: "linea" }))), [0, ["IT"]]);
 igual("persona inactiva no recibe", destinatarios([{ employee_id: 70 }], personas, sectores, cfg()).lista, []);
 igual("persona sin teléfono → anotada", destinatarios([{ employee_id: 62 }], personas, sectores, cfg()).sin_telefono, ["Yanina Delbono"]);
 igual("persona que no existe → nadie", destinatarios([{ employee_id: 999 }], personas, sectores, cfg()).lista, []);
-igual("sector que no existe en la lista: se llama 'sector #n'", destinatarios([{ department_id: 77 }], [{ id: 1, nombre: "A", telefono: "5491100000001", department_id: 77, activo: true }], [], cfg()).lista[0]?.etiqueta, "sector #77");
+igual("sector que no existe en la lista: se llama 'sector #n'", destinatarios([{ department_id: 77 }], [{ id: 1, nombre: "A", telefono: "5491100000001", department_id: 77, activo: true }], [], cfg({ sector: "personas" })).lista[0]?.etiqueta, "sector #77");
 igual("números adicionales se suman al final", tels(destinatarios([{ employee_id: 38 }], personas, sectores, cfg({ extra: [{ nombre: "Thomas", telefono: "5491162570000" }] }))), ["5491131180038", "5491162570000"]);
 igual("un adicional que ya está como destinatario no se repite", destinatarios([{ employee_id: 38 }], personas, sectores, cfg({ extra: [{ nombre: "Marianela", telefono: "5491131180038" }] })).lista.length, 1);
 igual("dos destinos con la misma persona → un solo mensaje", destinatarios([{ department_id: 8 }, { employee_id: 38 }], personas, sectores, cfg()).lista.length, 2);
