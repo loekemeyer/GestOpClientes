@@ -9,6 +9,7 @@ import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
+import { textoDeRespaldo } from "./respaldo-texto.ts";
 import { estadoRetiroParaIA } from "./fecha-retiro.ts";
 import { timeoutDeModelo } from "./timeouts.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
@@ -1629,10 +1630,11 @@ export async function runConversation(
     if (!res.toolCalls.length) {
       registrarUsos();
       // Pablo, 05/10: sin cierres de cortesía ("¿Necesitás algo más?"): ver _shared/cierre.ts y la regla CIERRE de agente-fijos.ts.
-      // El texto de respaldo (la IA no devolvió nada) tampoco cierra con "¿en qué más…?": pide que cuente la consulta.
+      // El texto de respaldo (la IA no devolvió nada) tampoco cierra con "¿en qué más…?": pide que cuente la consulta (o, si derivó, dice que una persona escribe).
       // En un turno de pedido "¿Algo más?" puede ser una pregunta de verdad (¿más artículos?): ahí sólo se sacan los cierres de ayuda.
       const enPedido = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
-      const textoFinal = sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo.", enPedido);
+      // Pablo, 07/10: si el modelo no escribió nada pero en el turno se derivó (derivar_a_persona), el respaldo lo dice en vez de pedir que cuente más (respaldo-texto.ts).
+      const textoFinal = sinCierreGenerico(res.text || textoDeRespaldo(usadas), enPedido);
       const salida = await filtrarSalida(textoFinal, { phone, userText, customerName, codCliente, systemPrompt, history, herramientas, canario });
       return { reply: salida.reply, media: salida.reply === textoFinal ? allMedia : [],   // respuesta reemplazada: tampoco salen las fotos del turno
         herramientas: usadas, modelo: used.model, ...(salida.bloqueada ? { bloqueada: salida.bloqueada } : {}) };
