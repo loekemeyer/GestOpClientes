@@ -4,7 +4,7 @@
 // pedidos-marca.ts importa _shared/supabase.ts, que arma el cliente al cargar: se le dan una URL y una clave falsas (no se conecta).
 Deno.env.set("SUPABASE_URL", "http://localhost:54321");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "clave-falsa");
-const { textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido, diaConFecha, estadoRetiroParaIA, PREGUNTA_FRANJA, textoRetiroConfirmado, textoFranjaConfirmada, franjaDeRetiro, retiroInformado } = await import("../supabase/functions/_shared/fecha-retiro.ts");
+const { textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido, diaConFecha, estadoRetiroParaIA, textoLlegando, depositoAbierto, PREGUNTA_FRANJA, textoRetiroConfirmado, textoFranjaConfirmada, franjaDeRetiro, retiroInformado } = await import("../supabase/functions/_shared/fecha-retiro.ts");
 const { textoPedidosChef } = await import("../supabase/functions/_shared/pedidos-marca.ts");
 
 let fallas = 0;
@@ -76,6 +76,26 @@ igual("retiroInformado saca el pedido y el día del mensaje con la pregunta", re
 igual("retiroInformado: sin la pregunta (hoy pasado el mediodía) no es una pregunta pendiente", retiroInformado(textoRetiroConfirmado("30/09", "jueves 08/10", false)), null);
 igual("retiroInformado: otro mensaje del bot", retiroInformado("Tu pedido del 30/09 está programado."), null);
 igual("retiroInformado: vacío", retiroInformado(""), null);
+
+// ── m39 (07/10): "Estoy llegando, ¿me esperan?" ──
+igual("m39: el texto aprobado por Pablo", textoLlegando("Estamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (de 12 a 13 cerramos para almorzar)."),
+  "Le aviso ahora mismo a Ventas para confirmar que te puedan esperar y te escribimos por acá en un momento. 🙏\nEstamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (de 12 a 13 cerramos para almorzar).");
+igual("m39: ya no promete '¡Te esperamos!'", /Te esperamos/.test(textoLlegando("x")), false);
+// 2026-10-07 es miércoles; la hora de Argentina es UTC-3
+const ar = (iso: string) => new Date(iso);
+igual("depósito: miércoles 10:00 abierto", depositoAbierto(ar("2026-10-07T13:00:00Z")), true);
+igual("depósito: miércoles 08:59 cerrado", depositoAbierto(ar("2026-10-07T11:59:00Z")), false);
+igual("depósito: miércoles 09:00 abierto", depositoAbierto(ar("2026-10-07T12:00:00Z")), true);
+igual("depósito: miércoles 11:59 abierto", depositoAbierto(ar("2026-10-07T14:59:00Z")), true);
+igual("depósito: miércoles 12:30 (almuerzo) cerrado", depositoAbierto(ar("2026-10-07T15:30:00Z")), false);
+igual("depósito: miércoles 13:00 abierto", depositoAbierto(ar("2026-10-07T16:00:00Z")), true);
+igual("depósito: miércoles 16:29 abierto", depositoAbierto(ar("2026-10-07T19:29:00Z")), true);
+igual("depósito: miércoles 16:30 cerrado", depositoAbierto(ar("2026-10-07T19:30:00Z")), false);
+igual("depósito: sábado 10:00 cerrado", depositoAbierto(ar("2026-10-10T13:00:00Z")), false);
+igual("depósito: domingo 10:00 cerrado", depositoAbierto(ar("2026-10-11T13:00:00Z")), false);
+igual("depósito: viernes 13:00 abierto", depositoAbierto(ar("2026-10-09T16:00:00Z")), true);
+igual("depósito: feriado cerrado aunque sea día y hora hábil", depositoAbierto(ar("2026-10-07T13:00:00Z"), ["2026-10-07"]), false);
+igual("depósito: 23:30 del martes en UTC ya es miércoles 20:30 AR: cerrado", depositoAbierto(ar("2026-10-07T23:30:00Z")), false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");

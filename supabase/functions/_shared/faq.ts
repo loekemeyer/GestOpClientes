@@ -15,7 +15,7 @@ import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
-import { pideConfirmacionPedido, textoEstadoRetiro, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
+import { depositoAbierto, pideConfirmacionPedido, textoEstadoRetiro, textoLlegando, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
 import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
@@ -153,8 +153,14 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (RE_ALMUERZO.test(text)) {
     return { reply: `El depósito cierra para almorzar de 12 a 13. ${HORARIO_DEPOSITO}`, intent: "faq", automation_level: "full_auto" };
   }
+  // Pablo, 07/10 (m39): "Estoy llegando, ¿me esperan?" ya no promete "¡Te esperamos!": dice que consulta a Ventas y deja una alerta `entrega` (urgente con el depósito
+  // abierto, no urgente con el depósito cerrado) para que confirmen que pueden esperarlo.
   if (RE_LLEGANDO.test(text)) {
-    return { reply: `¡Te esperamos! ${HORARIO_DEPOSITO}`, intent: "faq", automation_level: "full_auto" };
+    await cargarCalendario(); // feriados de Planify: caché de 6 h, con tope de espera, nunca lanza
+    const abierto = depositoAbierto(new Date(), horarioEfectivo().feriados);
+    return { reply: textoLlegando(HORARIO_DEPOSITO), intent: "llegando_deposito", automation_level: "needs_human", topic: "Dice que está llegando al depósito",
+      alerta: { motivo: "entrega", urgente: abierto,
+        detalle: `Dice que está llegando al depósito y pregunta si lo esperan${abierto ? "" : " (el depósito está cerrado ahora)"}: ${text.slice(0, 200)}` } };
   }
   // Pablo, 30/09 (4.1): "Llegaron 59 aceiteras de 60, pido la NC". Disculpas y se le piden los datos de la factura (la tiene:
   // le llegó con el pedido). El reclamo queda registrado ya, para que no se pierda si no contesta.
