@@ -555,6 +555,20 @@ async function handleStats(since?: string) {
     }
     return out;
   };
+  // Tokens por día (hora AR) y por modelo, [entrada, salida], para el gráfico "Tokens por día y modelo" (Pablo, 07/10).
+  // Va un bloque por rango del panel, con sus fechas ISO de inicio y fin para que el front dibuje también los días sin uso.
+  const diaIso = (ms: number) => new Date(ms - AR_MS).toISOString().slice(0, 10);
+  // deno-lint-ignore no-explicit-any
+  const tokensDia = (rows: any[], desdeMs: number, hastaMs: number) => {
+    const por_dia: Record<string, Record<string, [number, number]>> = {};
+    for (const r of rows) {
+      const p = ((por_dia[diaIso(r.t)] ||= {})[r.model ?? "desconocido"] ||= [0, 0]);
+      p[0] += Number(r.input_tokens) || 0;
+      p[1] += Number(r.output_tokens) || 0;
+    }
+    return { desde: diaIso(desdeMs), hasta: diaIso(hastaMs), por_dia };
+  };
+  const ahoraMs = Date.now();
   const diasMes = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
   const diasPrev = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -569,6 +583,12 @@ async function handleStats(since?: string) {
       week:       aggregateByModel(weekRows),
       prev_month: aggregateByModel(prevMonth),
       session:    sessionRows ? aggregateByModel(sessionRows) : [],
+    },
+    tokens_diario: {
+      month:      tokensDia(allMonth, monthStart, ahoraMs),
+      week:       tokensDia(weekRows, weekStart, ahoraMs),
+      prev_month: tokensDia(prevMonth, prevMonthStart, monthStart - 1),
+      session:    sessionRows ? tokensDia(sessionRows, sinceMs, ahoraMs) : { desde: diaIso(ahoraMs), hasta: diaIso(ahoraMs), por_dia: {} },
     },
     comparacion: {
       hoy: d,

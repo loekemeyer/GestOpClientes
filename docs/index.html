@@ -95,6 +95,25 @@
     .ia-comp-ley i { display: inline-block; width: 18px; border-top: 2px solid; vertical-align: middle; margin-right: 0.35rem; }
     .ia-comp-graf { position: relative; }
     .ia-comp-graf svg { display: block; width: 100%; height: 190px; overflow: visible; }
+    /* v0.28.3 (Pablo, 07/10): tokens por día y modelo. Paleta categórica validada (validate_palette.js, claro y oscuro: CVD ΔE ≥ 8,4, visión normal ≥ 19,3);
+       el color sigue al modelo, no a su puesto, así que un filtro no repinta a los que quedan. */
+    .ia-tok { --ia-tok-0:#2a78d6; --ia-tok-1:#eb6834; --ia-tok-2:#1baf7a; --ia-tok-3:#eda100; --ia-tok-4:#e87ba4; --ia-tok-5:#008300; --ia-tok-otros:#8c8a84; }
+    html.dark .ia-tok { --ia-tok-0:#3987e5; --ia-tok-1:#d95926; --ia-tok-2:#199e70; --ia-tok-3:#c98500; --ia-tok-4:#d55181; --ia-tok-5:#008300; --ia-tok-otros:#8c8a84; }
+    .ia-tok-ley { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; font-size: 0.75rem; color: var(--muted); margin: 0.35rem 0 0.2rem; }
+    .ia-tok-ley i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 0.35rem; }
+    .ia-tok-ley b { color: var(--text); font-weight: 600; }
+    .ia-tok-hit { fill: transparent; outline: none; }
+    .ia-tok-hit:hover, .ia-tok-hit:focus-visible { fill: var(--muted); fill-opacity: .14; }
+    .ia-tok-tip-fila { display: flex; align-items: center; gap: 0.4rem; }
+    .ia-tok-tip-fila i { display: inline-block; width: 12px; border-top: 3px solid; }
+    .ia-tok-tip-fila b { margin-left: auto; padding-left: 0.8rem; }
+    .ia-tok-tip-fila span { color: var(--muted); }
+    .ia-tok-tabla { margin: 0.2rem 0 0.5rem; font-size: 0.78rem; }
+    .ia-tok-tabla summary { cursor: pointer; color: var(--muted); padding: 0.2rem 0; }
+    .ia-tok-tabla table { border-collapse: collapse; margin-top: 0.3rem; }
+    .ia-tok-tabla th, .ia-tok-tabla td { padding: 0.25rem 0.6rem; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+    .ia-tok-tabla th:first-child, .ia-tok-tabla td:first-child { text-align: left; }
+    .ia-tok-tabla th { color: var(--muted); font-weight: 600; font-size: 0.72rem; }
     .ia-comp-tip { position: absolute; top: 4px; pointer-events: none; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem 0.5rem; font-size: 0.75rem; line-height: 1.35; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.18); display: none; }
 
     /* Chat */
@@ -887,6 +906,9 @@
 
             <!-- Gasto acumulado mes actual vs mes anterior (respeta Proveedor y Tier; no depende de Rango) -->
             <div class="ia-comp" id="iaComp"></div>
+
+            <!-- Tokens (entrada + salida) por día y por modelo del Rango elegido; respeta Proveedor y Tier (v0.28.3) -->
+            <div class="ia-comp ia-tok" id="iaTok"></div>
 
             <div style="overflow-x:auto;">
               <table id="iaTable" style="border-collapse:collapse;width:100%;font-size:0.82rem;">
@@ -5083,7 +5105,9 @@ function renderIaTable() {
   // El gráfico usa los mismos filtros, por modelo (proveedor y tier salen de by_model).
   const info = {};
   for (const k of ["prev_month", "month", "week", "session"]) for (const r of (_iaLastData.by_model?.[k] || [])) info[r.model] = r;
-  renderIaComp((m) => info[m] ? pasa(info[m]) : (!prov && tier !== "free"));
+  const okModelo = (m) => info[m] ? pasa(info[m]) : (!prov && tier !== "free");
+  renderIaComp(okModelo);
+  renderIaTok(rng, okModelo);
   // Totales
   const tot = rows.reduce((a, r) => ({
     calls: a.calls + r.calls,
@@ -5199,6 +5223,111 @@ function renderIaComp(ok) {
   });
   hit.addEventListener("mouseleave", () => { hov.style.display = "none"; tip.style.display = "none"; });
 }
+// Tokens por día y por modelo (entrada + salida) del Rango elegido, barras apiladas (Pablo, 07/10).
+// Datos: stats.tokens_diario de lk_chat-test, un bloque por rango con {desde, hasta, por_dia: {iso: {modelo: [entrada, salida]}}}.
+const IA_TOK_SLOTS = 6;
+const IA_DOW = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+function iaTokN(v) { return Math.round(Number(v) || 0).toLocaleString("es-AR"); }
+function iaTokCorto(v) {
+  if (v >= 1e6) return (v / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " M";
+  if (v >= 1e3) return Math.round(v / 1e3).toLocaleString("es-AR") + " k";
+  return String(Math.round(v));
+}
+function iaDiasIso(desde, hasta) {
+  const out = [], fin = Date.parse(hasta + "T00:00:00Z");
+  for (let t = Date.parse(desde + "T00:00:00Z"); t <= fin && out.length < 62; t += 86400000) out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+function renderIaTok(rng, ok) {
+  const box = document.getElementById("iaTok");
+  const td = _iaLastData?.tokens_diario;
+  if (!box) return;
+  const blq = td?.[rng];
+  if (!blq) { box.innerHTML = ""; return; } // función vieja sin tokens_diario: el panel sigue como estaba
+  // El color sigue al modelo: el orden sale de los tokens de los dos meses SIN filtrar, así un filtro no repinta a los que quedan.
+  const tot = {};
+  for (const k of ["month", "prev_month"]) for (const dia of Object.values(td[k]?.por_dia || {})) for (const [m, p] of Object.entries(dia)) tot[m] = (tot[m] || 0) + p[0] + p[1];
+  const orden = Object.keys(tot).filter((m) => tot[m] > 0).sort((a, b) => tot[b] - tot[a]);
+  const slotDe = (m) => { const i = orden.indexOf(m); return i >= 0 && i < IA_TOK_SLOTS ? i : IA_TOK_SLOTS; }; // IA_TOK_SLOTS = "Otros"
+  const colorDe = (s) => `var(--ia-tok-${s === IA_TOK_SLOTS ? "otros" : s})`;
+  const dias = iaDiasIso(blq.desde, blq.hasta);
+  // Por día: un segmento por slot (los modelos fuera de los 6 primeros se juntan en "Otros").
+  const serie = dias.map((iso) => {
+    const seg = {};
+    for (const [m, p] of Object.entries(blq.por_dia?.[iso] || {})) {
+      if (!ok(m) || p[0] + p[1] <= 0) continue;
+      const s = slotDe(m), a = (seg[s] ||= { s, nombre: s === IA_TOK_SLOTS ? "Otros" : m, ent: 0, sal: 0 });
+      a.ent += p[0]; a.sal += p[1];
+    }
+    const segs = Object.values(seg).sort((a, b) => a.s - b.s);
+    return { iso, segs, total: segs.reduce((t, g) => t + g.ent + g.sal, 0) };
+  });
+  const totalRango = serie.reduce((t, d) => t + d.total, 0);
+  const rotulo = document.getElementById("iaRange")?.selectedOptions?.[0]?.textContent || "";
+  const porSlot = {};
+  for (const d of serie) for (const g of d.segs) { const a = (porSlot[g.s] ||= { s: g.s, nombre: g.nombre, tok: 0 }); a.tok += g.ent + g.sal; }
+  const slots = Object.values(porSlot).sort((a, b) => a.s - b.s);
+  const pico = serie.reduce((a, d) => (d.total > a.total ? d : a), { total: 0 });
+  const fdm = (iso) => iso.slice(8) + "/" + iso.slice(5, 7);
+  const head = `<div class="ia-comp-head"><span>Tokens por día y modelo · ${esc(rotulo)}: <b>${iaTokN(totalRango)}</b></span>${pico.total ? `<span>Pico: <b>${iaTokN(pico.total)}</b> el ${fdm(pico.iso)}</span>` : ""}</div>`;
+  if (totalRango <= 0) {
+    box.innerHTML = head + '<div style="padding:0.8rem 0;color: var(--muted);font-size:0.8rem;">Sin tokens en este rango con el filtro actual.</div>';
+    return;
+  }
+  const ley = `<div class="ia-tok-ley">${slots.map((a) => `<span><i style="background:${colorDe(a.s)}"></i>${esc(a.nombre)} <b>${iaTokCorto(a.tok)}</b></span>`).join("")}</div>`;
+  const W = Math.max(320, (box.parentElement?.clientWidth || 666) - 26), H = 190, ml = 52, mr = 12, mt = 10, mb = 22;
+  const n = serie.length, ancho = (W - ml - mr) / n, bw = Math.max(3, Math.min(34, ancho - 2));
+  const max = Math.max(...serie.map((d) => d.total));
+  const paso = (() => { const raw = max / 4, e = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 5, 10].map((k) => k * e).find((s) => s >= raw); })();
+  const tope = Math.ceil(max / paso) * paso;
+  const y = (v) => mt + (H - mt - mb) * (1 - v / tope);
+  const cx = (i) => ml + (i + 0.5) * ancho;
+  let g = "";
+  for (let v = 0; v <= tope + 1e-9; v += paso) {
+    g += `<line x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)" stroke-width="1"/>`
+      + `<text x="${ml - 6}" y="${y(v) + 3.5}" text-anchor="end" font-size="11" fill="var(--muted)">${iaTokCorto(v)}</text>`;
+  }
+  const etiq = (d, i) => (n <= 10 ? `${IA_DOW[new Date(d.iso + "T00:00:00Z").getUTCDay()]} ${fdm(d.iso)}` : (i === 0 || (i + 1) % 5 === 0 ? String(Number(d.iso.slice(8))) : ""));
+  serie.forEach((d, i) => { const t = etiq(d, i); if (t) g += `<text x="${cx(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)">${t}</text>`; });
+  // Cada segmento deja 2 px de superficie contra el de arriba; el de más arriba lleva las esquinas superiores redondeadas (4 px).
+  const tips = [];
+  serie.forEach((d, i) => {
+    let acc = 0;
+    d.segs.forEach((s, k) => {
+      const v = s.ent + s.sal, y0 = y(acc), y1 = y(acc + v), ultimo = k === d.segs.length - 1;
+      acc += v;
+      const x0 = cx(i) - bw / 2, h = Math.max(1, y0 - y1 - (ultimo ? 0 : 2)), top = y0 - h, r = ultimo ? Math.min(4, bw / 2, h) : 0;
+      g += r > 0
+        ? `<path d="M${x0},${top + h}V${top + r}Q${x0},${top} ${x0 + r},${top}H${x0 + bw - r}Q${x0 + bw},${top} ${x0 + bw},${top + r}V${top + h}Z" fill="${colorDe(s.s)}"/>`
+        : `<rect x="${x0}" y="${top}" width="${bw}" height="${h}" fill="${colorDe(s.s)}"/>`;
+    });
+    const filas = [...d.segs].sort((a, b) => (b.ent + b.sal) - (a.ent + a.sal))
+      .map((s) => `<div class="ia-tok-tip-fila"><i style="border-color:${colorDe(s.s)}"></i><span>${esc(s.nombre)}</span><b>${iaTokN(s.ent + s.sal)}</b></div>`).join("");
+    tips.push(`<b>${IA_DOW[new Date(d.iso + "T00:00:00Z").getUTCDay()]} ${fdm(d.iso)}</b>${filas || '<div style="color:var(--muted)">Sin uso</div>'}`
+      + (d.segs.length > 1 ? `<div class="ia-tok-tip-fila" style="margin-top:2px"><span>Total</span><b>${iaTokN(d.total)}</b></div>` : ""));
+  });
+  // Zona de hover = la columna entera (más grande que la barra), con foco de teclado.
+  serie.forEach((d, i) => { g += `<rect class="ia-tok-hit" data-i="${i}" tabindex="0" x="${ml + i * ancho}" y="${mt}" width="${ancho}" height="${H - mt - mb}"/>`; });
+  const tabla = `<details class="ia-tok-tabla"><summary>Ver como tabla</summary><div style="overflow-x:auto"><table>
+      <tr><th>Día</th>${slots.map((a) => `<th>${esc(a.nombre)}</th>`).join("")}<th>Total</th></tr>
+      ${[...serie].reverse().map((d) => `<tr><td>${fdm(d.iso)}</td>${slots.map((a) => { const s = d.segs.find((q) => q.s === a.s); return `<td>${s ? iaTokN(s.ent + s.sal) : "—"}</td>`; }).join("")}<td><b>${iaTokN(d.total)}</b></td></tr>`).join("")}
+    </table></div></details>`;
+  box.innerHTML = head + ley
+    + `<div class="ia-comp-graf"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMid meet" role="img" aria-label="Tokens por día y por modelo, ${esc(rotulo)}">${g}</svg><div class="ia-comp-tip"></div></div>` + tabla;
+  const svg = box.querySelector("svg"), tip = box.querySelector(".ia-comp-tip");
+  const mostrar = (h) => {
+    const i = Number(h.dataset.i), r = svg.getBoundingClientRect(), k = W / r.width;
+    tip.innerHTML = tips[i]; tip.style.display = "block";
+    const px = cx(i) / k;
+    tip.style.left = (px + tip.offsetWidth + 14 > r.width ? px - tip.offsetWidth - 10 : px + 10) + "px";
+  };
+  box.querySelectorAll(".ia-tok-hit").forEach((h) => {
+    h.addEventListener("pointermove", () => mostrar(h));
+    h.addEventListener("focus", () => mostrar(h));
+    h.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+    h.addEventListener("blur", () => { tip.style.display = "none"; });
+  });
+}
 let _iaCompResize = null;
 window.addEventListener("resize", () => { clearTimeout(_iaCompResize); _iaCompResize = setTimeout(() => { if (_iaLastData) renderIaTable(); }, 200); });
 
@@ -5262,7 +5391,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.2</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.3</div>
 <script src="gestop2.js?v=0.27.24"></script>
 </body>
 </html>
