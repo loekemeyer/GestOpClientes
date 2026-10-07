@@ -10,7 +10,7 @@
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 import { supabase } from "./supabase.ts";
 import { type CotizadorLeido, compararConWeb, leerHojaCotizador, textoComparacion } from "./cotizador-precios.ts";
-import { codigoSeguro, lineaSegura, TEXTO_ILEGIBLE, textoDeArchivo } from "./dato-externo.ts";
+import { codigoSeguro, type EscaneoTexto, escanearTexto, lineaSegura, TEXTO_ILEGIBLE, textoDeArchivo } from "./dato-externo.ts";
 
 // Pablo Olejavetzky, 05/10: leer un cotizador o una orden de compra es una toma de pedido: "no podemos fallar ahí". Antes usaba Haiku 4.5.
 // Sonnet 4.6 cuesta 3 veces más por archivo (US$ 3 / 15 por millón de tokens de entrada / salida, en vez de 1 / 5).
@@ -60,12 +60,15 @@ Respondé SOLO JSON: {"lineas":[{"cod":"501"|null,"descripcion":"...","cantidad"
 
 /** Lee el archivo con la IA. Devuelve las líneas o un error (el llamador sigue con la tarea igual). */
 export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey: string, phone: string | null,
-  nombre?: string | null): Promise<{ lineas: LineaLeida[]; error?: string; cotizador?: boolean; condicion_code?: number | null; hoja?: CotizadorLeido | null }> {
+  nombre?: string | null): Promise<{ lineas: LineaLeida[]; error?: string; cotizador?: boolean; condicion_code?: number | null; hoja?: CotizadorLeido | null;
+  /** Escaneo del texto crudo de la planilla ANTES de la IA (sólo planillas y CSV, y sólo lo que se le manda al modelo). `undefined` en fotos, PDF y en la hoja "Conversor a ERP". */
+  escaneo?: EscaneoTexto }> {
   // deno-lint-ignore no-explicit-any
   let content: any[];
   const m = mime.toLowerCase();
   // Pablo, 30/09: el cotizador de Loekemeyer (Excel) sigue el circuito de pedidos por WhatsApp con origen "Cotizador" (2% web).
   let cotizador = /cotiz/i.test(nombre ?? "");
+  let escaneo: EscaneoTexto | undefined;
   if (/spreadsheet|ms-excel|csv/.test(m) || /\.(xlsx?|csv)$/i.test(nombre ?? "")) {
     const libro = XLSX.read(bytes, { type: "array" });
     // Cotizador de Loekemeyer (Pablo, 30/09): la hoja "Conversor a ERP - NO MODIFICAR" ya trae el pedido limpio, una fila
@@ -98,6 +101,9 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
     const texto = libro.SheetNames.slice(0, 3).map((h) => `# Hoja ${h}\n` + XLSX.utils.sheet_to_csv(libro.Sheets[h], { FS: ";" }))
       .join("\n").split("\n").filter((l: string) => l.replace(/[;\s]/g, "")).slice(0, 400).join("\n").slice(0, 30000);
     cotizador ||= /cotizador/i.test(texto) || libro.SheetNames.some((h: string) => /cotiz/i.test(h));
+    // Pablo, 07/10: la IA ignora las órdenes que trae el archivo y no avisa. Este escaneo mira el texto tal cual sale de la planilla, no lo que devuelva el modelo,
+    // para que el equipo se entere igual (alerta de auditoría en el webhook, _shared/archivo-sospechoso.ts).
+    escaneo = escanearTexto(texto);
     content = [{ type: "text", text: `Planilla del cliente (CSV, separador ;):\n${texto}` }];
   } else {
     let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -108,7 +114,7 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
     content.push({ type: "text", text: "Este es el pedido que mandó el cliente." });
   }
   const res = await llamarClaude(apiKey, { model: MODELO, max_tokens: 4000, temperature: 0, system: SISTEMA, messages: [{ role: "user", content }] }, 40_000);
-  if (!res.ok) return { lineas: [], error: `IA ${res.status}: ${(await res.text()).slice(0, 200)}` };
+  if (!res.ok) return { lineas: [], error: `IA ${res.status}: ${(await res.text()).slice(0, 200)}`, escaneo };
   const r = await res.json();
   const it = Number(r?.usage?.input_tokens ?? 0), ot = Number(r?.usage?.output_tokens ?? 0);
   supabase.from("bot_token_usage").insert({
@@ -117,7 +123,7 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
   }).then(() => {}, (e: unknown) => console.error("[pedido-archivo] log de uso:", e));
   const txt = String(r?.content?.[0]?.text ?? "");
   const j = txt.match(/\{[\s\S]*\}/);
-  if (!j) return { lineas: [], error: "la IA no devolvió JSON" };
+  if (!j) return { lineas: [], error: "la IA no devolvió JSON", escaneo };
   try {
     // deno-lint-ignore no-explicit-any
     // Lo que devuelve la IA sale de un archivo que escribió un tercero: la descripción pasa a una línea sin invisibles ni etiquetas y se marca si parece una
@@ -128,8 +134,8 @@ export async function leerPedidoArchivo(bytes: Uint8Array, mime: string, apiKey:
         cantidad: Number(l?.cantidad) || 0, unidad: l?.unidad === "cajas" || l?.unidad === "unidades" ? l.unidad : null,
         ...(d.sospechoso ? { sospechosa: true } : {}) };
     }).filter((l: LineaLeida) => l.cantidad > 0 && (l.cod || l.descripcion)).slice(0, MAX_LINEAS);
-    return { lineas, cotizador };
-  } catch { return { lineas: [], error: "JSON inválido", cotizador }; }
+    return { lineas, cotizador, escaneo };
+  } catch { return { lineas: [], error: "JSON inválido", cotizador, escaneo }; }
 }
 
 // deno-lint-ignore no-explicit-any
