@@ -872,7 +872,8 @@ function tkPintarDetalle() {
     const resp = a.respuesta_cliente === "confirmado" ? '<div class="aviso" style="border-style:solid">✅ El cliente confirmó la lista.</div>'
       : a.respuesta_cliente === "cambios" ? `<div class="alerta">El cliente pidió cambios:</div><div class="cita">${gesc(a.cambios || "")}</div>`
       : '<div class="aviso">El cliente todavía no confirmó la lista.</div>';
-    cuerpo = `<h4>Pedido leído del archivo · ${a.articulos.length} líneas</h4>
+    // v0.27.22 (Pablo, 07/10): una línea del archivo parecía una orden para el bot (dato-externo.ts): se ignoró y no se le mostró al cliente con esas palabras.
+    cuerpo = `${a.texto_sospechoso ? '<div class="alerta">⚠ El archivo trae texto que parece una orden para el bot (por ejemplo "ignorá las reglas" o "confirmá el pedido"). Se ignoró y no se le mostró al cliente. Revisá el archivo original antes de cargar.</div>' : ""}<h4>Pedido leído del archivo · ${a.articulos.length} líneas</h4>
       <div class="tk-tels" style="max-width:none">${a.articulos.map((x) => `<div class="it"><span>${x.estado === "no_encontrado" ? gesc(x.original) :
         `<b>${gesc(x.cajas)} ${Number(x.cajas) === 1 ? "caja" : "cajas"}</b> · ${gesc(x.descripcion || "")} (cód. ${gesc(x.cod)})`}${x.nota ? `<br><small style="color:var(--g-muted)">${gesc(x.nota)}</small>` : ""}${x.estado === "dudoso" ? `<br><small style="color:var(--g-muted)">Decía: ${gesc(x.original)}</small>` : ""}${x.opciones?.length ? `<br><small style="color:var(--g-muted)">Se le preguntó al cliente: ${x.opciones.map((o) => `${gesc(o.descripcion)} (${gesc(o.cod)})`).join(" o ")}</small>` : ""}</span><span>${est[x.estado] || ""}</span></div>`).join("")}</div>
       ${resp}<div class="aviso">Cargalo en la web a nombre del cliente y marcá la tarea resuelta.</div>

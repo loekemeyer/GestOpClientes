@@ -4,6 +4,7 @@ import { CATEGORIAS, categoria, nivel, SEMAFORO, urgente } from "../_shared/aler
 import { derivaciones, destinosDe } from "../_shared/derivaciones.ts";
 import type { Dest } from "../_shared/derivaciones-destino.ts";
 import { alertaAtendida, contextoConTareas, idsDeTareas, quienTomo, trozos } from "../_shared/tareas-alerta.ts";
+import { lineaSegura } from "../_shared/dato-externo.ts";
 const CATEGORIAS_LABEL = (c: string) => CORTO[c] ?? CATEGORIAS[c]?.label ?? c;
 
 // lk_alerta-planify — cada alerta que necesita a una persona se vuelve TAREA en Planify.
@@ -118,7 +119,9 @@ async function crear(alertaId: number) {
     `Cliente: ${cliente || "sin identificar"}`,
     `Motivo: ${CATEGORIAS_LABEL(cat)}`,
     multi ? `Para: ${etiquetaDe(d.real, etiquetas)}${JSON.stringify(d.asignar) !== JSON.stringify(d.real) ? " (en prueba: te llega a vos)" : ""}` : "",
-    texto ? `Escribió: "${texto.slice(0, 160)}"` : "",
+    // El mensaje lo escribió el cliente: va en UNA línea, sin enlaces ni corchetes. Si no, un salto de línea falsifica una clave de la nota ("Charla:" = el link del
+    // botón "Abrir la charla", "Aviso:", "Cliente:") o el marcador [vbot:…] que decide el color. Ver _shared/dato-externo.ts.
+    texto ? `Escribió: "${lineaSegura(texto, 160)}"` : "",
     pedido ? `Pedido: ${pedido.replace(/^pedido /, "")}` : "",
     tel ? `Teléfono: +${tel}` : "",
     tel ? `Charla: https://loekemeyer.github.io/GestOpClientes/?charla=${tel}` : "",

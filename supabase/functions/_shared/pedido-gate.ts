@@ -36,7 +36,7 @@ const MAX_PALABRAS = 10;
 function palabras(texto: string): string[] {
   const t = String(texto ?? "")
     .toLowerCase()
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")   // sin tildes
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // sin tildes
     .replace(/[\u{1F44D}\u{2705}\u{1F44C}\u{1F197}\u{1F64C}]/gu, " ok ")  // 👍 ✅ 👌 🆗 🙌
     .replace(/\b(?:de acuerdo|asi es)\b/g, " ok ");
   const ajeno = /[\p{L}\p{N}]/u.test(t.replace(/[a-z0-9]/g, ""));

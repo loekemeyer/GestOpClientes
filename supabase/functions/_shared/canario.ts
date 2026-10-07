@@ -43,7 +43,7 @@ export const LINEA_CANARIO_PANEL = lineaCanario(PREFIJO + "•".repeat(LARGO_HEX
 // ── Detección ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Minúsculas y sólo letras y dígitos: "3F A9-C2" y "3fa9c2" son lo mismo. */
-const comprimir = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+const comprimir = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
 
 const rot13 = (s: string) => s.replace(/[a-z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 97 + 13) % 26) + 97));
 

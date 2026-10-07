@@ -71,7 +71,7 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const VENTANA_VOLCADO = 14;
 
 function normalizar(texto: string): string[] {
-  return String(texto ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+  return String(texto ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
 }
 

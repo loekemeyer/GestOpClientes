@@ -16,6 +16,7 @@ import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido
 import { mailEscritoPorElCliente, mailYaPedidoEnLaCharla, REGLA_MAIL_NO_ESCRITO, textoPedidoMail, textoYaPedidoMail, VIGENCIA_MAIL_MS } from "./mail-gate.ts";
 import { decidirSalida, type Hallazgo, modoDelFiltro, redactarSecretos, revisarSalida, TEXTO_SALIDA_BLOQUEADA } from "./filtro-salida.ts";
 import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
+import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -602,7 +603,8 @@ async function executeTool(
     }
 
     case "solicitar_nueva_sucursal": {
-      const limpio = (v: unknown) => String(v ?? "").trim().slice(0, 120);
+      // Estos campos los escribe el cliente y alguien los APLICA a su cuenta (dirección de entrega): una línea, sin invisibles ni etiquetas (dato-externo.ts).
+      const limpio = (v: unknown) => lineaSegura(v, 120);
       const suc = { calle_altura: limpio(input.calle_altura), localidad: limpio(input.localidad), provincia: limpio(input.provincia),
         cp: limpio(input.cp) || null, expreso: limpio(input.expreso) || null, observaciones: limpio(input.observaciones) || null };
       if (!suc.calle_altura || !suc.localidad || !suc.provincia) return { data: { error: "Faltan calle y número, localidad o provincia: pedíselos." } };

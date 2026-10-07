@@ -40,6 +40,7 @@ import { verificarFirmaMeta } from "../_shared/webhook-firma.ts";
 import { compararCotizadorConWeb, esArchivoDePedido, leerPedidoArchivo, resolverArticulos, respuestaPedidoArchivo, sucursalesDelCliente, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { ALTA_INTRO, crearLead, esAfirmacion, extractCuit, getPendingLead, handleAltaStep, iniciaAlta, MSG_CUIT_INVALIDO, MSG_CUIT_NO_ENCONTRADO, MSG_NO_CLIENTE, procesarConstancia, promptActual, RE_ALTA_START, tryRegister, ultimoMensajeDelBot } from "../_shared/alta.ts";
 import { leerConstancia } from "../_shared/constancia.ts";
+import { lineaSegura } from "../_shared/dato-externo.ts";
 
 // Auditoría de performance (02/10/2026): este webhook leía app_settings ~17 veces por mensaje, un viaje a la base cada una
 // (3 ó 4 sólo en loadConfig, antes de mirar el mensaje). Ahora la tabla (40 filas, 8 KB) se lee ENTERA una vez por mensaje
@@ -557,7 +558,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   if (soloWhitelist && !(await estaEnWhitelist(phone))) {
     console.warn(`[whitelist-gate] adjunto de ${phone} descartado.`);
     await avisarDescartePorWhitelist(phone, {
-      motivo: "whitelist_gate", origen: "adjunto", tipo_adjunto: msg.type, contact_name: msg.name ?? null,
+      motivo: "whitelist_gate", origen: "adjunto", tipo_adjunto: msg.type, contact_name: lineaSegura(msg.name, 80) || null,
     });
     return;
   }
@@ -586,7 +587,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
     try {
       await supabase.from("wa_alertas_humano").insert({
         tipo, phone, customer_id: customer?.customer_id ?? null,
-        contexto: { wamid: msg.msgId, tipo_adjunto: msg.type, contact_name: msg.name ?? null,
+        contexto: { wamid: msg.msgId, tipo_adjunto: msg.type, contact_name: lineaSegura(msg.name, 80) || null,
           caption: msg.caption ?? null, texto: msg.caption ?? null,
           ...(chef ? { empresa: "CH", cod_cliente_chef: chef.cod_cliente, cuit: chef.cuit, razon_social: chef.razon_social } : {}),
           ...contexto },
@@ -697,7 +698,8 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
         respuestaFinal = textoConfirmacion(arts, { cotizador, seguir: await pedidosWaHabilitados(), condicion_code: r.condicion_code,
           comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null, sucursales });
         motivoFinal = "pedido_archivo";
-        lectura = { articulos: arts, cotizador, ...(r.condicion_code ? { condicion_code: r.condicion_code } : {}),
+        // Una línea del archivo que parecía una orden para el bot (dato-externo.ts) se avisa en la tarea: Ventas ve que el archivo trae texto raro.
+        lectura = { articulos: arts, cotizador, ...(arts.some((a) => a.sospechosa) ? { texto_sospechoso: true } : {}), ...(r.condicion_code ? { condicion_code: r.condicion_code } : {}),
           ...(sucursales.length > 1 ? { sucursales_ofrecidas: sucursales.map((x) => x.slot) } : {}),
           ...(cmp ? { comparacion_precios: { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } } : {}) };
       } else lectura = { lectura_error: r.error ?? "no se encontraron líneas de pedido" };
@@ -714,7 +716,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   await responder(respuestaFinal);
   await alerta(tipoAlerta, {
     ...(motivoFinal ? { motivo: motivoFinal } : {}), ...lectura,
-    comprobante_id: comprobanteId, mime, archivo: msg.mediaFilename ?? null,
+    comprobante_id: comprobanteId, mime, archivo: lineaSegura(msg.mediaFilename, 120) || null,
     ...(falla ? { error_archivo: falla } : {}),
   });
 }
@@ -1004,7 +1006,7 @@ async function handleMessage(
   if (soloWhitelist && !enWhitelist) {
     console.warn(`[whitelist-gate] mensaje de ${phone} descartado (no está en wa_envio_contactos).`);
     await avisarDescartePorWhitelist(phone, {
-      motivo: "whitelist_gate", texto_recibido: text.slice(0, 200), contact_name: contactName ?? null,
+      motivo: "whitelist_gate", texto_recibido: text.slice(0, 200), contact_name: lineaSegura(contactName, 80) || null,
     }, customer);
     return;
   }

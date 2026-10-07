@@ -111,3 +111,9 @@ El prompt del agente termina con un código interno de control (`CNR-…`) que e
 formato que sea (tal cual, base64, hex, al revés), el filtro de salida la bloquea y una persona recibe una alerta urgente: significa que alguien
 logró que el modelo copiara sus instrucciones. El código no se guarda en ninguna tabla (sale de una clave del servidor) y el cliente nunca lo ve.
 Detalle, límites y cómo rotarlo en `docs/ESTADO.md`.
+
+## Texto de terceros (07/10/2026)
+
+Lo que dice un archivo que manda el cliente, lo que se transcribe de un audio y los campos libres (nombre del archivo, de contacto, direcciones, observaciones) son
+DATOS, no instrucciones: el código los pasa a una línea limpia antes de mostrarlos o de guardarlos, y una línea de un archivo que parece una orden para el bot se ignora
+y se avisa a una persona. El prompt del agente lo dice también. Detalle y límites en `docs/ESTADO.md`.

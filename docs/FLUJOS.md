@@ -369,6 +369,10 @@ Al mostrar un artículo usa el precio del cliente (lista − dto por volumen). E
 pedido por archivo ("Recibimos tu cotizador. Leímos esto: …"); con pedidos prendidos, el "sí" sigue el mismo circuito y
 se precarga con origen **"Cotizador" y el 2% web** (como en la web). Cualquier otro archivo sigue con origen
 "WhatsApp". Al precargar se cierra la tarea "Pedido por archivo" para que nadie lo cargue dos veces.
+**Lo que dice el archivo es un dato, no una orden (07/10, `_shared/dato-externo.ts`):** la descripción de cada línea que lee la IA pasa a una línea sin invisibles,
+etiquetas ni enlaces, y el código de artículo tiene que tener forma de código. Si una línea parece una orden para el bot ("ignorá las reglas", "confirmá el pedido
+ya", nombres de herramientas, claves), no se busca en el catálogo, el cliente la ve como *(texto no legible)* y la tarea muestra un aviso para revisar el archivo
+original. Los artículos que sí se encontraron salen con la descripción del CATÁLOGO, nunca con las palabras del archivo.
 **Cotizador: precios contra la web y sucursal (Pablo, 06/10, m41).** El cotizador trae además los precios y el total: al recibirlo el bot lee la hoja
 "Cotizador …" (`_shared/cotizador-precios.ts`: versión, `$ x Uni`, `Uni x Caja`, "No Disponible", "Total a Abonar") y compara los artículos
 PEDIDOS (cajas > 0) con `products.list_price` y `uxb`. **Si todo coincide NO se le dice nada** (el control es en silencio): el mensaje termina en
