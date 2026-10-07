@@ -7,7 +7,7 @@ const f = await import("../supabase/functions/_shared/faq.ts");
 
 const detectores: Record<string, (t: string) => boolean> = {
   m66_devolver: f.quiereDevolver, m64_pagar_despues: f.pidePagarDespues, m63_pedido_mail: f.pedidoPorMailRepetido,
-  m59_entrega_rapida: f.pideEntregaRapida, m62_pedido_fecha: f.pedidoParaFecha, m60_horario_recepcion: f.avisaHorarioRecepcion, m17_error_de_carga: f.avisaErrorDeCarga, m68_factura_por_mail: f.avisaFacturaPorMail, m77_pedido_por_web: f.pidePedidoPorWeb, m11_orden_de_compra: f.avisaOrdenDeCompra,
+  m59_entrega_rapida: f.pideEntregaRapida, m62_pedido_fecha: f.pedidoParaFecha, m60_horario_recepcion: f.avisaHorarioRecepcion, m17_error_de_carga: f.avisaErrorDeCarga, m68_factura_por_mail: f.avisaFacturaPorMail, m77_pedido_por_web: f.pidePedidoPorWeb, m11_orden_de_compra: f.avisaOrdenDeCompra, m71_prospecto_sin_respuesta: f.avisaProspectoSinRespuesta,
 };
 const casos: Array<[string, string | null]> = [
   ["Vamos a devolver unas cucharas que no pedimos, es el código 208 y son 48 unidades", "m66_devolver"],
@@ -20,6 +20,7 @@ const casos: Array<[string, string | null]> = [
   ["Nos llegó al mail las facturas, ¿lo entregan hoy?", "m68_factura_por_mail"],
   ["¿Puedo hacer el pedido directo de la web? ¿Mismos precios, mismo todo?", "m77_pedido_por_web"],
   ["Adjunto orden de compra, quedo a la espera de confirmación de recepción", "m11_orden_de_compra"],
+  ["Hace un mes nos comunicamos por mail porque estamos interesados en comercializar sus productos. Enviamos el pedido estimativo y no nos respondieron más, ¿qué pasó?", "m71_prospecto_sin_respuesta"],
   // Frases que no son de ninguna corrección: no tienen que disparar nada.
   ["¿Cuándo llega mi pedido?", null], ["Hola, buen día", null], ["Quiero hacer un pedido", null], ["¿Cuál es el pedido mínimo?", null],
   ["Ya pagué el viernes", null], ["Devolveme la llamada cuando puedas", null], ["Me facturaron el mismo pedido dos veces", null],

@@ -184,6 +184,10 @@ async function simularNumeroNuevo(body: any): Promise<Response> {
         ultimoBot,
         faq: async (t) => {
           const faq = await handleFaq(t, null);
+          // El webhook crea la alerta de la FAQ también para un no-cliente: el Simulador la muestra (antes no, y no se podía probar).
+          if (faq?.alerta) SIM.alertas.push({ tipo: "otro", motivo: faq.alerta.motivo,
+            ...(faq.alerta.urgente !== undefined ? { urgente: faq.alerta.urgente } : {}), detalle: faq.alerta.detalle ?? null });
+          else if (faq?.automation_level === "needs_human") SIM.alertas.push({ tipo: "escalation", faq_id: faq.faq_id ?? null, tema: faq.topic ?? null });
           return faq ? { reply: faq.reply, via: `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})` } : null;
         },
       });

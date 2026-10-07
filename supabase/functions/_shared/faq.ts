@@ -110,6 +110,13 @@ function yaSaluda(reply: string): boolean {
  *   - la respuesta compuesta queda vacía
  */
 export async function handleFaq(text: string, customer: Customer): Promise<FaqResult | null> {
+  // Pablo, 07/10 (m71): prospecto (no cliente) que dice que escribió por mail para comercializar y no le respondieron → disculpas + Ventas. El motivo `pedido_mail` ya va a Ventas (sector 8)
+  // y se parece (el prospecto "mandó un pedido estimativo por mail"); su etiqueta del panel no es exacta. Texto aprobado por Pablo el 07/10. Sólo si el número NO es cliente.
+  if (!customer && avisaProspectoSinRespuesta(text)) {
+    return { reply: "Te pedimos disculpas por la demora en responderte. Le paso tu consulta a Ventas para que te escriban por acá a la brevedad. 🙏",
+      intent: "prospecto_sin_respuesta", automation_level: "needs_human", topic: "Prospecto que escribió por mail y no recibió respuesta",
+      alerta: { motivo: "pedido_mail", urgente: false, detalle: `Prospecto sin respuesta: escribió por mail para comercializar sus productos y dice que no le respondieron: ${text.slice(0, 200)}` } };
+  }
   // Pablo, 29/09: "¿cuál es mi dirección de entrega?" / "¿a dónde me lo mandan?" / "¿a qué sucursal va?" pide A DÓNDE va SU
   // pedido (sucursal de entrega y expreso), no la dirección de nuestro depósito (FAQ #4, que es lo que contestaba).
   // Pablo, 29/09: "cambié de dirección" / "me mudé" / "quiero agregar una sucursal" lo resuelve la IA (solicitar_nueva_sucursal);
@@ -625,6 +632,12 @@ export const pidePedidoPorWeb = (text: string): boolean => RE_PIDE_POR_WEB.test(
 const RE_MANDA_OC = /\b(adjunt[a-záéíóúñ]*|env[ií][a-záéíóúñ]*|mand[a-záéíóúñ]*|pas[a-záéíóúñ]*|ah[ií]\s+va|ac[aá]\s+va)(?![a-záéíóúñ])[^.?!]{0,40}(?<![a-záéíóúñ])[oó]rden(es)?\s+de\s+compra\b|(?<![a-záéíóúñ])[oó]rden(es)?\s+de\s+compra\b[^.?!]{0,30}\b(adjunt[a-záéíóúñ]*|env[ií][a-záéíóúñ]*)(?![a-záéíóúñ])/i;
 const RE_OC_OTRA_COSA = /\bno\s+(me\s+|nos\s+)?(pued|pod|logr|deja|abre|anda|funciona|carga)|\bc[oó]mo\b|\bd[oó]nde\b|\bnecesit|\bhace\s+falta\b|\bpued[eo]\b|\bpodemos\b|\bpodr[ií]|\bdeb[eo]\b|\bdeben\b|\bsin\s+[oó]rden/i;
 export const avisaOrdenDeCompra = (text: string): boolean => RE_MANDA_OC.test(text) && !RE_OC_OTRA_COSA.test(text);
+// Pablo, 07/10 (m71): un NÚMERO QUE NO ES CLIENTE que dice que escribió por mail porque quiere comercializar los productos y no le respondieron ("Hace un mes nos comunicamos por mail porque
+// estamos interesados en comercializar sus productos… no nos respondieron más, ¿qué pasó?") ya no recibe "Para consultar tu pedido necesito identificarte: pasame tu CUIT": se le piden
+// disculpas y se deriva a Ventas. Hace falta las dos cosas: el interés en comercializar o vender, y que no le respondieron.
+const RE_PROSPECTO_INTERES = /\b(interesad[oa]s?|nos\s+interesa(n)?|quer[eé]mos|queremos|quisi[eé]ramos)(?![a-záéíóúñ])[^.?!]{0,60}\b(comercializar|vender|revender|trabajar\s+con|distribuir|ser\s+(cliente|distribuidor|revendedor)[a-záéíóúñ]*)/i;
+const RE_PROSPECTO_SIN_RESPUESTA = /\bno\s+(nos\s+|me\s+)?(respond|contest|escribi|volvi)[a-záéíóúñ]*|\bsin\s+(recibir\s+)?respuesta|\bnadie\s+(nos\s+|me\s+)?(respond|contest)[a-záéíóúñ]*|\bno\s+tuvimos\s+(m[aá]s\s+)?(respuesta|novedades)/i;
+export const avisaProspectoSinRespuesta = (text: string): boolean => RE_PROSPECTO_INTERES.test(text) && RE_PROSPECTO_SIN_RESPUESTA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
