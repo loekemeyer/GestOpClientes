@@ -133,11 +133,11 @@
     {
       "motivo": "Web: contraseña o acceso",
       "consultas": 37,
-      "estado": "parcial",
+      "estado": "hecho",
       "previene": [],
-      "bot": "Contraseña (desde el 07/10): si el teléfono está agendado con un cliente, le pasa en el momento su usuario (el CUIT) y su clave (el PIN que ya tiene; no genera una nueva). Si el número no está agendado, no se la da y le pide el CUIT para agendarlo.",
+      "bot": "Contraseña (desde el 07/10): si el teléfono está agendado con un cliente, le pasa en el momento su usuario (el CUIT) y su clave (el PIN que ya tiene; no genera una nueva). Si el número no está agendado, no se la da y le pide el CUIT para agendarlo. Sale a todo teléfono agendado, también a los del padrón de Gestión (decisión de Pablo, 07/10).",
       "deriva": "Una persona, sólo si el cliente no tiene PIN cargado o si no puede elegir la sucursal en la web.",
-      "falta": "Decidir si la clave sale también a los teléfonos del padrón de Gestión que nadie verificó o sólo a los vínculos aprobados (hoy sale a los dos).",
+      "falta": "",
       "ejemplo": "«No recuerdo la contraseña para cargar el pedido»",
       "resumen": "Si el número está agendado, el bot le pasa su usuario y su clave en el momento."
     },

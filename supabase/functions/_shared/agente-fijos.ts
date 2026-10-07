@@ -129,8 +129,8 @@ export const MEDIDAS_SEGURIDAD: MedidaSeguridad[] = [
     que_hace: "Si el cliente pide su clave, el bot le pasa su usuario y su PIN (el que ya tiene, no genera uno nuevo) sólo si el teléfono identifica a un cliente; a un número no agendado no se la da. El PIN lo lee el webhook recién al mandar: la respuesta fija, el Simulador, el chat de prueba y el historial (Conversaciones y lo que lee el agente IA) sólo ven 'Clave: ••••••••'.",
     donde: "_shared/clave-web.ts · faq.ts (pideClave) · lk_whatsapp-webhook" },
   // ── Pendientes, de mayor a menor gravedad ──
-  { estado: "pendiente", medida: "Clave a un teléfono del padrón sin verificar",
-    que_hace: "El teléfono también se reconoce por el padrón de Gestión (725 números cargados a mano, nadie verificó que sean del dueño) y no sólo por un vínculo aprobado: un número mal cargado recibe el usuario y la clave de ese cliente. Ya pasó un número de un cliente asociado a otro (agosto). Falta decidir si la clave se limita al vínculo aprobado o se le avisa a Ventas cada vez que sale.",
+  { estado: "pendiente", medida: "Clave a un teléfono del padrón sin verificar (riesgo aceptado)",
+    que_hace: "Pablo decidió el 07/10 que la clave sale a todo teléfono agendado, no sólo a un vínculo aprobado: también a los del padrón de Gestión (725 números cargados a mano, nadie verificó que sean del dueño). Un número mal cargado recibe el usuario y la clave de ese cliente. En agosto ya hubo un número asociado al cliente equivocado. Queda listado para tenerlo a la vista, no como trabajo pendiente.",
     donde: "wa_identify_customer · _shared/clave-web.ts" },
   { estado: "pendiente", medida: "Cambio de mail con verificación",
     que_hace: "El número es la única credencial: quien lo controle (SIM swap, teléfono prestado) puede pedir cambiar el mail de la cuenta. Falta que quien aprueba verifique por otro canal y que se avise al mail viejo.",

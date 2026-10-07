@@ -1001,6 +1001,10 @@ el killswitch, sin ningún consumidor de esa cola.
   `handleFaq`, el Simulador y el chat de prueba sólo ven "Clave: ••••••••", y el historial guarda la versión tapada. Sin PIN →
   "una persona revisa tu acceso" + tarea `acceso_web`. No agendado → "este número no está agendado, pasame tu CUIT" (sin clave;
   el CUIT entra a la vinculación de siempre). Pruebas: `tests/faq-clave-web.test.ts`.
+  **Decidido (Pablo, 07/10: *"me gustó cómo quedó"*):** sale a todo teléfono agendado, también a los del padrón de Gestión
+  (725 números que nadie verificó), no sólo a los vínculos aprobados. Riesgo aceptado: figura en Medidas de seguridad.
+  De paso se registró en la auditoría (problema abierto, repo `pagina-lk-copia`) que un cliente logueado puede hacer UPDATE
+  de toda su fila de `customers` (`dto_vol`, `cuit`, `cod_cliente`), no sólo del PIN: policy `customers_update_own_pin`.
   ⚠ El botón "Generar clave temporal" de abajo cambia la clave de Auth pero **no** `customers.pin`: si se usa, el PIN queda viejo
   y el bot pasaría una clave que ya no anda.
 - **Reseteo de clave** (29/09, reemplazado el 07/10 por lo de arriba; el botón sigue para las tareas viejas): cliente identificado + `RE_CLAVE` (faq.ts) → "tu usuario es tu CUIT, una persona te genera
