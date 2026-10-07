@@ -215,7 +215,7 @@ volumen de producción no se puede medir hoy (el bot atiende 2 números). **Pend
 si los avisos de Ventas van a las 3 personas o a la línea del sector (hoy: cada persona; se cambia en el panel sin tocar código).
 
 **Addendum (07/10, Pablo: "dejalo como opción y el aproximado de gasto es bueno tenerlo").** El defecto no cambia (nace y escala) y el panel muestra el gasto
-aproximado (techo US$ 52,88 por mes; piso de referencia US$ 8,81). Variantes evaluadas y dejadas como opción, **sin construir**, con su costo:
+aproximado (techo US$ 52,88 por mes con 3 destinatarios, corregido más abajo a US$ 17,63 con la línea del sector; piso de referencia US$ 8,81). Variantes evaluadas y dejadas como opción, **sin construir**, con su costo:
 (a) *ventana de 24 h iniciada por el empleado*: ahorro máximo US$ 17,13 por mes, porque el mensaje libre es "de servicio" y se cobra a la tarifa de utilidad
 pasado el cupo de 1.000 por número (el bot usa ~341); además hace falta reconocer al personal en el webhook (hoy se descartan como `whitelist_gate`, y si se los carga
 en la whitelist el agente de IA les contestaría y gastaría), caer a plantilla si no escribió ese día (error 131047) y un botón en el repo de Planify;
@@ -226,3 +226,4 @@ que parafrasee o obedezca texto del cliente; (c) *consulta a pedido sin IA* ("¿
 **Decisión (07/10, Pablo: "esperemos al lanzamiento general").** Los avisos al equipo no se habilitan antes de tiempo: no se cargan números de personal en `wa_envio_contactos` (el bot les
 contestaría si escriben) ni se adelanta la llave. Se prenden junto con el lanzamiento a clientes, con las plantillas aprobadas y el «sí» al gasto. Lista de revisión previa: `docs/ESTADO.md` (07/10).
 
+**Corrección (07/10, Pablo: "el teléfono destinatario es un solo número, comparten el WhatsApp Web").** Cada sector atiende desde un solo número compartido por WhatsApp Web, así que un aviso de sector es UN mensaje y no uno por persona. El defecto del código pasa de «cada persona del sector» a «la línea del sector» (`CONFIG_WA_DEFECTO.sector`, dashboard v0.28.4). El techo del gasto baja de US$ 52,88 a **US$ 17,63 por mes** (339 alertas × 1 destinatario × 2 momentos × US$ 0,026). «Cada persona» y «las dos» siguen eligiéndose en el panel. Los techos con 3 destinatarios (52,88 / 89,29 / 125,70) quedan retirados. Una persona elegida en la tabla de motivos sigue recibiendo ella sola.

@@ -511,6 +511,14 @@ modelo pago, o una prueba cae a otro modelo, vuelve la regla de arriba (estimati
 (INSERT / UPDATE / DELETE) siguen pidiendo su "sí" en ese momento. Cuota del plan gratis medida el 05/10: **15 solicitudes por minuto** por modelo
 (unos 7 turnos de IA por minuto): una ráfaga mayor da 429 y falsea la prueba, así que se manda en tandas.
 
+**Excepción — pruebas con Haiku cuando Gemini falla (Pablo Olejavetzky, 07/10/2026: *"proba siempre con Haiku cuando tengamos tantos problemas con gemini. no puedo estar esperando a que se arregle"* y *"no preguntes"*):**
+si el modelo de pruebas gratis (`gemini-*` en `app_settings.llm_modelo_pruebas`) da 503, timeout o 429 en los intentos de una prueba, se prueba con
+`claude-haiku-4-5-20251001` **sin pedir el "sí" ni el estimativo**: (1) leer `bot_token_usage` (cantidad de filas y suma de `estimated_cost_usd`); (2) `UPDATE public.app_settings
+SET value='claude-haiku-4-5-20251001' WHERE key='llm_modelo_pruebas'`; (3) correr los casos en el Simulador (medido el 07/10: unos US$ 0,015 por llamada y US$ 0,03 a 0,04 por caso);
+(4) volver `llm_modelo_pruebas` al valor que tenía y verificarlo con un `SELECT`; (5) informar el gasto real (después − antes) y que el modelo quedó restaurado. Cubre **ese** `UPDATE`
+y su restitución, ninguna otra escritura en la base. **No cubre Sonnet:** su tope es el de US$ 1 en total dicho el 05/10 (*"Podes usar si queres Sonnet siempre y cuando sea medido el gasto,
+tope un dolar en total"*), casi gastado: US$ 0,88 al 07/10. Pablo no fijó un tope para Haiku: si una tanda va a pasar de unos US$ 0,50, se avisa antes (criterio mío, no de Pablo).
+
 ## Testing
 
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`

@@ -68,7 +68,7 @@ const der = (wa: Partial<ConfigWa> = {}, motivos: Record<string, Regla> = {}): D
     otro: regla(), entrega: regla({ department_id: 8 }), cambio_datos: regla({ destino: "tareas", planify: false, department_id: 8 }),
     pago: regla({ department_id: 5, wa: "escalada" }), faq_no_match: regla({ destino: "tareas", planify: false }), ...motivos,
   },
-  wa: { ...CONFIG_WA_DEFECTO, extra: [], escalada_min: { rojo: null, amarillo: null, verde: null }, ...wa },
+  wa: { ...CONFIG_WA_DEFECTO, sector: "personas", extra: [], escalada_min: { rojo: null, amarillo: null, verde: null }, ...wa },
 });
 const PERSONAS: Fila[] = [
   { id: 38, nombre: "Becker Marianela", telefono: "5491131180038", department_id: 8, activo: true },
@@ -112,6 +112,12 @@ const tels = (x: Fila[]) => x.map((r) => r.phone);
   const t = armar({ d: der({ sector: "ambos" }), ahora: miercoles("10:05"), alertas: [alerta(1, { motivo: "entrega", razon_social: "X" })] });
   callar(); await avisarAlCrear(t.io, 1); hablar();
   igual("sector = personas y línea → 3 avisos", tels(t.outbox()), ["5491131180038", "5491131180063", "5491131181021"]);
+}
+// Defecto de la config (sin tocar el sector): un aviso de sector va a la línea compartida, UN mensaje
+{
+  const t = armar({ d: der({ sector: CONFIG_WA_DEFECTO.sector }), ahora: miercoles("10:05"), alertas: [alerta(1, { motivo: "entrega", razon_social: "X" })] });
+  callar(); await avisarAlCrear(t.io, 1); hablar();
+  igual("defecto: el sector recibe UN aviso, en su línea", tels(t.outbox()), ["5491131181021"]);
 }
 // Números adicionales
 {
