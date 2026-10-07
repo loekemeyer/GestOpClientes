@@ -365,127 +365,152 @@ html.dark .chat-messages { background-image: none; }
 .cm-ficha div.agendar { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .cm-ficha .agendar input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
 
-/* Login (v0.27.18, Pablo 06/10: "esa imagen de fondo es horrible, parece copia y pega, hacé algo moderno").
-   Antes: tres recortes inclinados con sombra dura sobre un degradé plano (el packaging negro se perdía en el fondo negro).
-   Ahora es una ESCENA: base tinta con luz bordó y reflejo ámbar, trama y grano finos, un disco de luz y aros detrás de los
-   productos (separan el packaging oscuro del fondo), los tres abrelatas en abanico con profundidad (el del medio al frente,
-   los de atrás más oscuros), sombra de apoyo suave en el piso y flotación lenta. La tarjeta es de vidrio con el logo.
-   Los productos y la escena son decoración (aria-hidden): si una foto no carga se saca sola (onerror) y el resto queda.
-   Escritorio: escena a la izquierda y tarjeta a la derecha. Hasta 900 px: una columna, escena de fondo atenuada.
-   Hasta 560 px: sólo luz y trama. Con movimiento reducido no hay animaciones. Paleta de la marca: crema #f1ead8 y bordó #661317. */
+/* Login (v0.27.24, Pablo 07/10: "armame algo así", con un mockup).
+   Antes (v0.27.18): escena bordó y crema con tres abrelatas en abanico y tarjeta de vidrio. Ahora: fondo de vidrio roto con rejilla,
+   el grupo de productos de la marca (foto recortada del mockup, se mezcla con "screen" sobre el fondo oscuro) con haces de luz que
+   van hacia un marco de metal con vidrio y neón (cian a la izquierda, magenta a la derecha). Todo el marco escala con --w (el ancho del
+   marco): el tamaño de letra del marco es --w / 24, así que logo, GestOp y botón guardan las proporciones del mockup en cualquier pantalla.
+   Escena y fondo son decoración (aria-hidden): si la foto no carga se saca sola (onerror) y el resto queda.
+   Escritorio: productos a la izquierda y marco a la derecha. Hasta 900 px: una columna, productos arriba. Hasta 560 px: sólo el marco. */
 .login-overlay {
-  --crema: #f1ead8; --bordo: #661317; --h: clamp(260px, min(64vh, 30vw), 580px);
-  display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr); align-items: center;
+  --w: min(46vw, 820px, calc((100vh - 70px) * 1.15)); --sh: min(72vh, var(--w));
+  --cian: #2fe3ff; --magenta: #ff3f93;
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--w); align-items: center; padding: 0 4.3vw 0 0;
   overflow: hidden; isolation: isolate;
   background:
-    radial-gradient(1000px 700px at 26% 52%, rgba(158, 32, 38, 0.50), transparent 64%),
-    radial-gradient(760px 520px at 96% 100%, rgba(170, 118, 30, 0.20), transparent 62%),
-    radial-gradient(600px 420px at 100% 0%, rgba(102, 19, 23, 0.35), transparent 70%),
-    #121214;
+    radial-gradient(880px 560px at 27% 46%, rgba(70, 100, 130, 0.20), transparent 70%),
+    radial-gradient(640px 460px at 100% 100%, rgba(150, 40, 100, 0.15), transparent 70%),
+    radial-gradient(620px 420px at 0 0, rgba(90, 120, 150, 0.13), transparent 70%),
+    #0b1016;
 }
 .login-overlay::before {
   content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(241, 234, 216, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(241, 234, 216, 0.055) 1px, transparent 1px);
-  background-size: 56px 56px; background-position: center;
-  -webkit-mask-image: radial-gradient(ellipse 62% 78% at 30% 50%, #000 12%, transparent 72%);
-  mask-image: radial-gradient(ellipse 62% 78% at 30% 50%, #000 12%, transparent 72%);
+  background:
+    radial-gradient(34vw 62vh at calc(100% - 4.3vw - var(--w) * 0.96) 52%, rgba(47, 227, 255, 0.12), transparent 70%),
+    radial-gradient(26vw 62vh at calc(100% - 4.3vw) 50%, rgba(255, 63, 147, 0.14), transparent 70%);
 }
 .login-overlay::after {
-  content: "Loekemeyer Hnos · mayorista de artículos de cocina y bazar";
-  position: absolute; bottom: 22px; left: 0; right: 0; text-align: center; z-index: 2;
-  color: rgba(241, 234, 216, 0.42); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  content: "Loekemeyer Hnos – mayorista de artículos de cocina y bazar";
+  position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; z-index: 2;
+  color: rgba(214, 226, 238, 0.66); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase;
 }
 
-/* Escena (columna izquierda) */
-.login-escena { position: relative; z-index: 1; height: 100%; min-height: 0; pointer-events: none; }
-.login-escena > * { position: absolute; left: 50%; top: 50%; }
+/* Fondo: grietas de vidrio y rejilla de plano */
+.lg-fondo { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.lg-grietas {
+  position: absolute; inset: 0; width: 100%; height: 100%; scale: 1.04;
+  translate: calc(var(--mx, 0) * 10px) calc(var(--my, 0) * 7px); transition: translate 0.5s ease-out;
+  -webkit-mask-image: radial-gradient(ellipse 92% 92% at 50% 50%, #000 38%, transparent 100%); mask-image: radial-gradient(ellipse 92% 92% at 50% 50%, #000 38%, transparent 100%);
+}
+.lg-rejilla {
+  position: absolute; left: 0; top: 18%; width: 30%; height: 50%;
+  background-image: linear-gradient(rgba(110, 170, 210, 0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(110, 170, 210, 0.13) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 25% 50%, #000 10%, transparent 100%); mask-image: radial-gradient(ellipse 70% 70% at 25% 50%, #000 10%, transparent 100%);
+}
 .le-grano {
-  position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+  position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.06; mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.le-luz {
-  width: calc(var(--h) * 1.9); height: calc(var(--h) * 1.5); transform: translate(-50%, -52%);
-  background: radial-gradient(closest-side, rgba(214, 74, 70, 0.34), rgba(158, 32, 38, 0.16) 46%, transparent 74%);
-  filter: blur(14px);
-}
-.le-aro { border-radius: 50%; border: 1px solid rgba(241, 234, 216, 0.10); transform: translate(-50%, -50%); }
-.le-aro-1 { width: calc(var(--h) * 1.18); height: calc(var(--h) * 1.18); }
-.le-aro-2 { width: calc(var(--h) * 1.62); height: calc(var(--h) * 1.62); border-color: rgba(241, 234, 216, 0.06); }
-.le-disco {
-  width: calc(var(--h) * 1.02); height: calc(var(--h) * 1.02); border-radius: 50%; transform: translate(-50%, -50%);
-  background:
-    radial-gradient(circle at 32% 24%, rgba(241, 234, 216, 0.26), rgba(241, 234, 216, 0.07) 46%, rgba(241, 234, 216, 0.02) 70%),
-    linear-gradient(160deg, rgba(158, 32, 38, 0.30), rgba(18, 18, 20, 0.0) 70%);
-  border: 1px solid rgba(241, 234, 216, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), 0 40px 90px rgba(0, 0, 0, 0.35);
-}
-.le-piso {
-  top: calc(50% + var(--h) * 0.50); width: calc(var(--h) * 1.25); height: calc(var(--h) * 0.075); transform: translate(-50%, -50%);
-  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.30) 55%, transparent); filter: blur(7px);
-}
 
-/* Productos en abanico: el del medio al frente (501), los de atrás más oscuros y chicos */
-.login-fotos { position: absolute !important; inset: 0 !important; pointer-events: none; translate: calc(var(--mx, 0) * -16px) calc(var(--my, 0) * -11px); transition: translate 0.35s ease-out; }
-.le-luz { translate: calc(var(--mx, 0) * 26px) calc(var(--my, 0) * 18px); transition: translate 0.5s ease-out; }
-.le-aro-1 { translate: calc(var(--mx, 0) * 9px) calc(var(--my, 0) * 6px); transition: translate 0.5s ease-out; }
-.le-aro-2 { translate: calc(var(--mx, 0) * 4px) calc(var(--my, 0) * 3px); transition: translate 0.5s ease-out; }
-.login-fotos .lf {
-  position: absolute; left: 50%; top: 50%; width: auto; user-select: none; -webkit-user-drag: none;
-  animation: lf-in 0.9s ease-out both, lf-flota 8s ease-in-out infinite;
+/* Escena: productos + haces de luz. La caja termina donde empieza el marco, así los haces llegan al borde. */
+.lg-escena {
+  position: relative; z-index: 1; justify-self: end; height: var(--sh); aspect-ratio: 530 / 507; pointer-events: none;
+  mix-blend-mode: screen; /* va ACÁ y no en los hijos: translate crea un contexto de apilado y aislaría el blend de la foto */
+  translate: calc(var(--mx, 0) * -12px) calc(var(--my, 0) * -8px); transition: translate 0.4s ease-out;
 }
-.login-fotos .lf-1 {
-  height: var(--h); z-index: 3; transform: translate(-50%, -50%) rotate(-3deg);
-  filter: drop-shadow(0 22px 26px rgba(0, 0, 0, 0.50)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
-  -webkit-box-reflect: below 4px linear-gradient(transparent 74%, rgba(255, 255, 255, 0.08));
-  animation-delay: 0.18s, 0s;
-}
-.login-fotos .lf-2 {
-  height: calc(var(--h) * 0.86); z-index: 2; transform: translate(calc(-50% - var(--h) * 0.43), calc(-50% + var(--h) * 0.03)) rotate(-9deg);
-  filter: brightness(0.74) saturate(0.95) drop-shadow(0 20px 22px rgba(0, 0, 0, 0.55));
-  animation-delay: 0.06s, -3s; animation-duration: 0.9s, 9.5s;
-}
-.login-fotos .lf-3 {
-  height: calc(var(--h) * 0.80); z-index: 2; transform: translate(calc(-50% + var(--h) * 0.45), calc(-50% + var(--h) * 0.05)) rotate(8deg);
-  filter: brightness(0.66) saturate(0.95) drop-shadow(0 20px 22px rgba(0, 0, 0, 0.55));
-  animation-delay: 0.3s, -5s; animation-duration: 0.9s, 10.5s;
-}
-@keyframes lf-in { from { opacity: 0; } }
-@keyframes lf-flota { 0%, 100% { translate: 0 0; } 50% { translate: 0 -9px; } }
+.lg-prod { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none; animation: lg-in 0.9s ease-out both; }
+.lg-fibras { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 3px rgba(60, 210, 255, 0.9)); }
+.lg-fibras path { stroke: rgba(160, 238, 255, 0.95); stroke-dasharray: 20 700; animation: lg-flujo var(--d, 4s) linear infinite; animation-delay: var(--r, 0s); }
+@keyframes lg-flujo { from { stroke-dashoffset: 20; } to { stroke-dashoffset: -700; } }
+@keyframes lg-in { from { opacity: 0; } }
 
-/* Tarjeta de vidrio (columna derecha) */
+/* Marco de metal con vidrio (columna derecha). Los chaflanes y las pestañas del borde son polígonos en em. */
 .login-box {
-  position: relative; z-index: 3; justify-self: center; width: min(372px, calc(100vw - 32px)); padding: 2.4rem 2.1rem 2rem;
-  color: var(--crema); text-align: center; border-radius: 22px; border: 1px solid rgba(241, 234, 216, 0.16); border-top: 1px solid rgba(241, 234, 216, 0.28);
-  background: linear-gradient(160deg, rgba(241, 234, 216, 0.11), rgba(241, 234, 216, 0.04));
-  -webkit-backdrop-filter: blur(22px) saturate(1.25); backdrop-filter: blur(22px) saturate(1.25);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  position: relative; z-index: 3; width: var(--w); padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none; text-align: center; color: #e8f1f8;
+  font-size: max(calc(var(--w) / 24), 14px);
+  filter: drop-shadow(-0.55em 0 1.1em rgba(47, 227, 255, 0.20)) drop-shadow(0.55em 0 1.1em rgba(255, 63, 147, 0.22)) drop-shadow(0 1.2em 2em rgba(0, 0, 0, 0.6));
   animation: lb-in 0.7s cubic-bezier(.2, .8, .2, 1) both;
 }
-.login-box .lb-logo { display: block; width: 168px; max-width: 70%; height: auto; margin: 0 auto 1.35rem; }
-.login-box h2 { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.02em; color: var(--crema); margin-bottom: 0.35rem; }
-.login-box p { color: rgba(241, 234, 216, 0.62); margin-bottom: 1.7rem; font-size: 0.92rem; }
-.login-box .google-btn {
-  height: 46px; border: 0; border-radius: 11px; background: #fffdf7; color: #212122; font-weight: 600;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.08); transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+.lb-marco {
+  --c: 1.3em; --t: 0.5em; position: relative; padding: 1em 1em 0;
+  background: linear-gradient(135deg, #f1f6fb 0, #7f8b98 22%, #323b45 48%, #8c98a5 74%, #e4ecf4 100%);
+  clip-path: polygon(0 calc(var(--c) + var(--t)), var(--c) var(--t), 17% var(--t), calc(17% + var(--t)) 0, calc(83% - var(--t)) 0, 83% var(--t), calc(100% - var(--c)) var(--t), 100% calc(var(--c) + var(--t)),
+    100% calc(100% - var(--c) - var(--t)), calc(100% - var(--c)) calc(100% - var(--t)), 83% calc(100% - var(--t)), calc(83% - var(--t)) 100%, calc(17% + var(--t)) 100%, 17% calc(100% - var(--t)), var(--c) calc(100% - var(--t)), 0 calc(100% - var(--c) - var(--t)));
 }
-.login-box .google-btn:hover { background: #fff; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42), inset 0 -1px 0 rgba(0, 0, 0, 0.08); }
-.login-box .google-btn:focus-visible { outline: 2px solid var(--crema); outline-offset: 3px; }
-.login-box .login-error { color: #ffb4a8; }
+.lb-marco::before {
+  content: ""; position: absolute; inset: 0.1em; z-index: 0; pointer-events: none;
+  background:
+    linear-gradient(112deg, rgba(255, 255, 255, 0.20) 0, rgba(255, 255, 255, 0) 24%, rgba(255, 255, 255, 0) 60%, rgba(255, 255, 255, 0.10) 82%, rgba(255, 255, 255, 0) 100%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, rgba(0, 0, 0, 0.06) 1px 3px),
+    linear-gradient(180deg, #a3afbc 0, #5b6773 3%, #2b333c 10%, #1a2027 50%, #29313a 90%, #66727f 97%, #a3afbc 100%);
+  clip-path: polygon(0 calc(var(--c) + var(--t)), var(--c) var(--t), 17% var(--t), calc(17% + var(--t)) 0, calc(83% - var(--t)) 0, 83% var(--t), calc(100% - var(--c)) var(--t), 100% calc(var(--c) + var(--t)),
+    100% calc(100% - var(--c) - var(--t)), calc(100% - var(--c)) calc(100% - var(--t)), 83% calc(100% - var(--t)), calc(83% - var(--t)) 100%, calc(17% + var(--t)) 100%, 17% calc(100% - var(--t)), var(--c) calc(100% - var(--t)), 0 calc(100% - var(--c) - var(--t)));
+}
+.lb-cristal {
+  --c2: 1.05em; position: relative; z-index: 1; margin-top: var(--t);
+  background: linear-gradient(90deg, var(--cian), #6e8fff 50%, var(--magenta));
+  clip-path: polygon(var(--c2) 0, calc(100% - var(--c2)) 0, 100% var(--c2), 100% calc(100% - var(--c2)), calc(100% - var(--c2)) 100%, var(--c2) 100%, 0 calc(100% - var(--c2)), 0 var(--c2));
+}
+.lb-cristal::before {
+  content: ""; position: absolute; inset: 0.08em; z-index: 0;
+  background:
+    radial-gradient(95% 75% at 0 42%, rgba(0, 190, 230, 0.34), transparent 64%),
+    radial-gradient(95% 75% at 100% 55%, rgba(255, 50, 140, 0.30), transparent 64%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 32%),
+    linear-gradient(160deg, #0d2b39, #0a1722 52%, #1a1021);
+  clip-path: polygon(var(--c2) 0, calc(100% - var(--c2)) 0, 100% var(--c2), 100% calc(100% - var(--c2)), calc(100% - var(--c2)) 100%, var(--c2) 100%, 0 calc(100% - var(--c2)), 0 var(--c2));
+}
+.lb-cristal > * { position: relative; z-index: 1; }
+.lb-cristal { padding: 2.1em 1.5em 1.2em; }
+.lb-marca {
+  width: 11.6em; max-width: 78%; aspect-ratio: 1240 / 125; margin: 0 auto 0.5em;
+  background: linear-gradient(180deg, #ffffff 0, #d3dce6 42%, #8e9ba8 54%, #e3eaf2 100%);
+  -webkit-mask: url("assets/logo.png") 0 0 / 100% auto no-repeat; mask: url("assets/logo.png") 0 0 / 100% auto no-repeat;
+  filter: drop-shadow(0 0.07em 0.05em rgba(0, 0, 0, 0.55));
+}
+.login-box .lb-gestop { width: 8.7em; max-width: 70%; margin: 0 auto; line-height: 0; font-size: inherit; }
+.lb-gestop svg { display: block; width: 100%; height: auto; overflow: visible; }
+.lb-bot {
+  display: flex; align-items: center; justify-content: center; gap: 0.4em; margin-top: -0.2em;
+  font-size: 0.92em; font-weight: 700; font-style: italic; color: #e2f7ff; text-shadow: 0 0 0.55em rgba(47, 227, 255, 0.55);
+}
+.lb-bot svg { height: 0.78em; width: auto; fill: var(--cian); filter: drop-shadow(0 0 0.25em rgba(47, 227, 255, 0.9)); }
+.login-box .lb-bienvenido { margin: 1.05em 0 0.9em; font-size: 1.3em; font-weight: 500; letter-spacing: 0.01em; color: #f4f8fb; }
+.login-box .google-btn {
+  width: 84%; margin: 0 auto; height: 3.1em; font-size: max(0.78em, 15px); white-space: nowrap; font-weight: 500; color: #e9f1f7; border-radius: 0.55em;
+  border: 1px solid #1a2128; border-top-color: #b4bfcb;
+  background: linear-gradient(180deg, #5e6a76 0, #3b4550 9%, #2b333b 52%, #222930 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 0.3em 0.9em rgba(0, 0, 0, 0.5), 0 0 0 0.16em rgba(18, 26, 34, 0.85);
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+}
+.login-box .google-btn:hover { filter: brightness(1.14); transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 0.4em 1.1em rgba(0, 0, 0, 0.55), 0 0 0 0.16em rgba(18, 26, 34, 0.85), 0 0 1.2em rgba(47, 227, 255, 0.35); }
+.login-box .google-btn:focus-visible { outline: 2px solid var(--cian); outline-offset: 3px; }
+.login-box .login-error { color: #ff9db9; font-size: max(0.5em, 13px); margin-top: 0.7em; }
+.lb-pie { position: relative; z-index: 1; padding: 1.5em 1em 2.2em; font-size: max(0.6em, 12px); color: rgba(226, 236, 246, 0.86); letter-spacing: 0.01em; }
 @keyframes lb-in { from { opacity: 0; transform: translateY(10px); } }
 
 /* Pantallas medianas y chicas */
 @media (max-width: 900px) {
-  .login-overlay { grid-template-columns: minmax(0, 1fr); justify-items: center; align-items: end; padding-bottom: clamp(56px, 12vh, 120px); --h: clamp(220px, 34vh, 400px); }
-  .login-escena { position: absolute; inset: 0 0 auto 0; height: 60%; }
+  .login-overlay { --w: min(92vw, 560px, calc((100vh - 70px) * 1.15)); --sh: min(44vh, 100vw); grid-template-columns: minmax(0, 1fr); justify-items: center; align-items: end; padding: 0 0 clamp(48px, 9vh, 90px); }
+  .login-overlay::before { background: radial-gradient(60vw 40vh at 50% 70%, rgba(47, 227, 255, 0.10), transparent 70%), radial-gradient(60vw 40vh at 80% 80%, rgba(255, 63, 147, 0.12), transparent 70%); }
+  .lg-escena { position: absolute; top: 3vh; left: 50%; justify-self: auto; translate: -50% 0; }
+  .lg-prod { -webkit-mask-image: linear-gradient(90deg, #000 68%, transparent); mask-image: linear-gradient(90deg, #000 68%, transparent); }
+  .lg-fibras { display: none; }
 }
-@media (max-width: 560px), (max-height: 560px) and (max-width: 900px) {
+@media (max-width: 560px) {
+  .login-overlay { --sh: min(34vh, 92vw); padding-bottom: clamp(40px, 8vh, 70px); }
+  .lg-escena { top: 4vh; }
+  .login-overlay::after { font-size: 10px; letter-spacing: 0; bottom: 36px; padding: 0 16px; }
+  .login-box .google-btn { width: 92%; }
+  .lb-cristal { padding: 2em 1em 1.1em; }
+}
+@media (max-height: 600px) and (max-width: 900px) {
   .login-overlay { align-items: center; padding-bottom: 0; }
-  .login-escena { inset: 0; height: auto; }
-  .login-escena .login-fotos, .login-escena .le-disco, .login-escena .le-piso, .login-escena .le-aro { display: none; }
+  .lg-escena, .lg-rejilla { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .login-fotos .lf, .login-box { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .lg-prod, .lg-fibras path, .login-box { animation: none; } .lg-fibras { display: none; } }
 
 /* ── Botones unificados (Pablo, 29/09: "botones desordenados") ─────────────────────────────────────────────
    Había dos sistemas: .config-btn (páginas viejas: sin borde, gris del navegador, radio 6px) y .g-btn (rediseño:
