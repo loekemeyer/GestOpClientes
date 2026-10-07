@@ -409,35 +409,147 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.27.14">
+  <link rel="stylesheet" href="gestop2.css?v=0.27.24">
 </head>
 <body>
 
 <!-- Login -->
 <div class="login-overlay" id="loginOverlay">
-  <!-- Escena de fondo (Pablo, 06/10, v0.27.18): luz, aros, disco y tres abrelatas Loekemeyer en abanico (propios, docs/assets, 21-24 KB c/u). Sólo decoración. -->
-  <div class="login-escena" aria-hidden="true">
-    <div class="le-luz"></div>
-    <div class="le-aro le-aro-2"></div>
-    <div class="le-aro le-aro-1"></div>
-    <div class="le-disco"></div>
-    <div class="le-piso"></div>
-    <div class="login-fotos">
-      <img class="lf lf-2" src="assets/login-abrelata-998e.webp" alt="" draggable="false" onerror="this.remove()">
-      <img class="lf lf-3" src="assets/login-abrelata-506.webp" alt="" draggable="false" onerror="this.remove()">
-      <img class="lf lf-1" src="assets/login-abrelata-501.webp" alt="" draggable="false" onerror="this.remove()">
-    </div>
+  <!-- Pantalla de ingreso (Pablo, 07/10, v0.27.24, según el mockup que mandó): fondo de vidrio roto y rejilla, grupo de productos
+       Loekemeyer con haces de luz que van hacia un marco de metal con vidrio y neón (cian a la izquierda, magenta a la derecha).
+       Escena y fondo son decoración (aria-hidden): si la foto no carga se saca sola (onerror) y el resto queda. -->
+  <div class="lg-fondo" aria-hidden="true">
+    <svg class="lg-grietas" viewBox="0 0 1489 704" preserveAspectRatio="xMidYMid slice" fill="none" stroke="#bcd2e6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M137 226 L160 258 L175 292" stroke-width="0.7" stroke-opacity="0.28"/>
+        <path d="M123 274 L136 301 L152 329" stroke-width="0.7" stroke-opacity="0.28"/>
+        <path d="M150 175 L137 226 L123 274 L106 312" stroke-width="1" stroke-opacity="0.36"/>
+        <path d="M150 175 L0 303 L-91 428" stroke-width="1.3" stroke-opacity="0.19"/>
+        <path d="M-6 230 L-31 260 L-56 296 L-74 336" stroke-width="0.7" stroke-opacity="0.28"/>
+        <path d="M-174 269 L-208 249 L-246 237 L-278 223" stroke-width="0.7" stroke-opacity="0.28"/>
+        <path d="M150 175 L-6 230 L-174 269" stroke-width="1" stroke-opacity="0.36"/>
+        <path d="M142 124 L148 113 L152 98 L159 86" stroke-width="0.9099999999999999" stroke-opacity="0.38"/>
+        <path d="M129 88 L106 72 L82 55" stroke-width="0.9099999999999999" stroke-opacity="0.38"/>
+        <path d="M150 175 L142 124 L129 88 L117 39" stroke-width="1.3" stroke-opacity="0.47"/>
+        <path d="M215 35 L241 24 L264 9 L288 -6" stroke-width="0.7" stroke-opacity="0.34"/>
+        <path d="M150 175 L163 127 L192 71 L215 35" stroke-width="1" stroke-opacity="0.42"/>
+        <path d="M254 62 L275 55 L291 49 L311 46" stroke-width="0.5599999999999999" stroke-opacity="0.25"/>
+        <path d="M150 175 L194 126 L254 62" stroke-width="0.8" stroke-opacity="0.32"/>
+        <path d="M150 175 L251 230 L341 259" stroke-width="1" stroke-opacity="0.40"/>
+        <path d="M447 -114 L428 -115 L405 -116 L375 -113" stroke-width="0.7" stroke-opacity="0.40"/>
+        <path d="M560 -20 L493 -74 L447 -114 L388 -179" stroke-width="1" stroke-opacity="0.49"/>
+        <path d="M620 -107 L647 -119 L677 -134 L714 -149" stroke-width="0.7" stroke-opacity="0.32"/>
+        <path d="M685 -216 L672 -280 L649 -355" stroke-width="0.7" stroke-opacity="0.32"/>
+        <path d="M560 -20 L620 -107 L685 -216 L740 -317" stroke-width="1" stroke-opacity="0.42"/>
+        <path d="M560 -20 L635 -8 L698 -3 L782 -12" stroke-width="0.8" stroke-opacity="0.28"/>
+        <path d="M573 33 L589 48 L600 62 L620 77" stroke-width="0.7" stroke-opacity="0.40"/>
+        <path d="M595 99 L563 132 L536 173" stroke-width="0.7" stroke-opacity="0.40"/>
+        <path d="M606 155 L596 175 L575 199 L556 215" stroke-width="0.7" stroke-opacity="0.40"/>
+        <path d="M560 -20 L573 33 L595 99 L606 155" stroke-width="1" stroke-opacity="0.51"/>
+        <path d="M503 80 L493 128 L494 166 L506 215" stroke-width="0.9099999999999999" stroke-opacity="0.19"/>
+        <path d="M378 296 L339 309 L309 314 L278 316" stroke-width="0.9099999999999999" stroke-opacity="0.19"/>
+        <path d="M560 -20 L503 80 L451 193 L378 296" stroke-width="1.3" stroke-opacity="0.23"/>
+        <path d="M1686 325 L1710 304 L1736 271 L1750 250" stroke-width="0.5599999999999999" stroke-opacity="0.19"/>
+        <path d="M1455 330 L1589 340 L1686 325" stroke-width="0.8" stroke-opacity="0.23"/>
+        <path d="M1455 330 L1455 485 L1476 709" stroke-width="1" stroke-opacity="0.36"/>
+        <path d="M1428 409 L1410 429 L1389 460 L1369 500" stroke-width="0.9099999999999999" stroke-opacity="0.42"/>
+        <path d="M1455 330 L1428 409 L1394 494" stroke-width="1.3" stroke-opacity="0.53"/>
+        <path d="M1307 306 L1278 349 L1239 401 L1204 448" stroke-width="0.9099999999999999" stroke-opacity="0.36"/>
+        <path d="M1068 234 L1017 171 L947 104" stroke-width="0.9099999999999999" stroke-opacity="0.36"/>
+        <path d="M1455 330 L1307 306 L1186 256 L1068 234" stroke-width="1.3" stroke-opacity="0.46"/>
+        <path d="M1494 176 L1459 74 L1441 -21" stroke-width="0.7" stroke-opacity="0.19"/>
+        <path d="M1455 330 L1494 176 L1591 -10" stroke-width="1" stroke-opacity="0.25"/>
+        <path d="M1622 247 L1667 191 L1716 153" stroke-width="0.5599999999999999" stroke-opacity="0.38"/>
+        <path d="M1786 203 L1837 157 L1887 102" stroke-width="0.5599999999999999" stroke-opacity="0.38"/>
+        <path d="M1455 330 L1622 247 L1786 203" stroke-width="0.8" stroke-opacity="0.46"/>
+        <path d="M1304 833 L1306 868 L1313 894" stroke-width="0.9099999999999999" stroke-opacity="0.28"/>
+        <path d="M1180 720 L1227 774 L1267 803 L1304 833" stroke-width="1.3" stroke-opacity="0.36"/>
+        <path d="M1083 781 L1015 776 L960 767" stroke-width="0.7" stroke-opacity="0.40"/>
+        <path d="M1180 720 L1083 781 L997 858 L895 934" stroke-width="1" stroke-opacity="0.49"/>
+        <path d="M1180 720 L1073 709 L947 708" stroke-width="1.3" stroke-opacity="0.21"/>
+        <path d="M1166 601 L1189 581 L1210 560" stroke-width="0.9099999999999999" stroke-opacity="0.32"/>
+        <path d="M1180 720 L1166 601 L1164 503" stroke-width="1.3" stroke-opacity="0.40"/>
+        <path d="M1266 694 L1312 704 L1353 719" stroke-width="0.7" stroke-opacity="0.25"/>
+        <path d="M1180 720 L1266 694 L1389 670 L1523 623" stroke-width="1" stroke-opacity="0.30"/>
+        <path d="M53 466 L65 437 L75 413 L92 390" stroke-width="0.7" stroke-opacity="0.38"/>
+        <path d="M6 294 L24 251 L50 211" stroke-width="0.7" stroke-opacity="0.38"/>
+        <path d="M60 560 L53 466 L23 373 L6 294" stroke-width="1" stroke-opacity="0.47"/>
+        <path d="M60 560 L126 577 L216 618" stroke-width="1.3" stroke-opacity="0.40"/>
+        <path d="M124 617 L120 668 L109 708" stroke-width="0.9099999999999999" stroke-opacity="0.36"/>
+        <path d="M60 560 L124 617 L157 661 L197 699" stroke-width="1.3" stroke-opacity="0.46"/>
+        <path d="M-1 604 L-24 597 L-43 590 L-61 586" stroke-width="0.7" stroke-opacity="0.23"/>
+        <path d="M60 560 L-1 604 L-85 664 L-141 705" stroke-width="1" stroke-opacity="0.28"/>
+        <path d="M60 560 L-41 536 L-133 496" stroke-width="1.3" stroke-opacity="0.25"/>
+        <path d="M786 -26 L765 -52 L748 -76 L728 -109" stroke-width="0.5599999999999999" stroke-opacity="0.27"/>
+        <path d="M880 -10 L786 -26 L689 -55 L612 -88" stroke-width="0.8" stroke-opacity="0.34"/>
+        <path d="M880 -10 L821 -137 L776 -228 L676 -369" stroke-width="1" stroke-opacity="0.46"/>
+        <path d="M880 -10 L935 -8 L995 -19 L1056 -42" stroke-width="0.8" stroke-opacity="0.23"/>
+        <path d="M1005 281 L1032 306 L1057 326" stroke-width="0.5599999999999999" stroke-opacity="0.17"/>
+        <path d="M880 -10 L921 133 L1005 281" stroke-width="0.8" stroke-opacity="0.23"/>
+        <path d="M1320 -98 L1363 -162 L1419 -218" stroke-width="0.7" stroke-opacity="0.25"/>
+        <path d="M1330 60 L1320 -98 L1305 -322" stroke-width="1" stroke-opacity="0.32"/>
+        <path d="M1330 60 L1425 23 L1497 -27" stroke-width="0.8" stroke-opacity="0.42"/>
+        <path d="M1330 60 L1412 168 L1503 266" stroke-width="1" stroke-opacity="0.36"/>
+        <path d="M1054 342 L988 353 L931 362 L871 367" stroke-width="0.7" stroke-opacity="0.21"/>
+        <path d="M1330 60 L1220 142 L1128 252 L1054 342" stroke-width="1" stroke-opacity="0.25"/>
+        <path d="M467 733 L488 716 L515 699 L544 687" stroke-width="0.5599999999999999" stroke-opacity="0.23"/>
+        <path d="M380 730 L467 733 L564 750" stroke-width="0.8" stroke-opacity="0.28"/>
+        <path d="M380 730 L364 895 L358 1106" stroke-width="1" stroke-opacity="0.28"/>
+        <path d="M380 730 L240 746 L82 746" stroke-width="1.3" stroke-opacity="0.36"/>
+        <path d="M355 597 L365 575 L380 541 L395 514" stroke-width="0.7" stroke-opacity="0.21"/>
+        <path d="M344 497 L320 451 L305 412 L290 362" stroke-width="0.7" stroke-opacity="0.21"/>
+        <path d="M380 730 L355 597 L344 497 L323 418" stroke-width="1" stroke-opacity="0.25"/>
+    </svg>
+    <div class="lg-rejilla"></div>
+  </div>
+  <div class="lg-escena" aria-hidden="true">
+    <img class="lg-prod" src="assets/login-productos.webp" alt="" draggable="false" onerror="this.remove()">
+    <svg class="lg-fibras" viewBox="0 0 530 507" preserveAspectRatio="none" fill="none" stroke-linecap="round">
+        <path d="M222 200.9 C332 157.4 472 215.1 530 183.9" stroke-width="0.9" style="--d:5.1s;--r:-5.5s"/>
+        <path d="M196 203.9 C306 166.1 446 219.5 530 187.9" stroke-width="0.5" style="--d:5.9s;--r:-0.7s"/>
+        <path d="M254 207.5 C364 181.2 504 222.3 530 195.6" stroke-width="0.7" style="--d:3.4s;--r:-5.2s"/>
+        <path d="M163 211.5 C273 176.0 413 237.2 530 197.1" stroke-width="0.7" style="--d:3.5s;--r:-3.4s"/>
+        <path d="M228 214.5 C338 187.7 478 235.0 530 201.2" stroke-width="1.2" style="--d:5.4s;--r:-2.6s"/>
+        <path d="M200 218.9 C310 183.1 450 247.9 530 208.5" stroke-width="0.7" style="--d:3.5s;--r:-1.8s"/>
+        <path d="M199 223.6 C309 198.3 449 227.8 530 211.5" stroke-width="1.2" style="--d:3.7s;--r:-2.1s"/>
+        <path d="M256 229.8 C366 186.4 506 248.2 530 216.3" stroke-width="0.9" style="--d:4.3s;--r:-2.1s"/>
+        <path d="M158 230.8 C268 188.0 408 245.6 530 223.0" stroke-width="0.5" style="--d:3.4s;--r:-4.2s"/>
+        <path d="M240 235.3 C350 199.0 490 254.9 530 228.6" stroke-width="0.9" style="--d:3.3s;--r:-2.8s"/>
+        <path d="M156 236.0 C266 216.1 406 245.8 530 227.7" stroke-width="0.7" style="--d:4.5s;--r:-5.5s"/>
+        <path d="M194 241.6 C304 205.0 444 250.8 530 232.4" stroke-width="1.2" style="--d:6.1s;--r:-1.7s"/>
+        <path d="M247 244.7 C357 231.3 497 256.8 530 238.0" stroke-width="0.7" style="--d:3.7s;--r:-4.0s"/>
+        <path d="M170 245.9 C280 209.5 420 263.8 530 245.2" stroke-width="0.9" style="--d:5.2s;--r:-1.9s"/>
+    </svg>
   </div>
   <div class="le-grano" aria-hidden="true"></div>
   <div class="login-box">
-    <img class="lb-logo" src="assets/logo.png" alt="Loekemeyer" onerror="this.remove()">
-    <h2>GestOp</h2>
-    <p>Bot WhatsApp — Loekemeyer</p>
-    <button onclick="doGoogleLogin()" class="google-btn">
-      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.014 24.014 0 0 0 0 21.56l7.98-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-      Iniciar sesión con Google
-    </button>
-    <div class="login-error" id="loginError"></div>
+    <div class="lb-marco">
+      <div class="lb-cristal">
+        <div class="lb-marca" role="img" aria-label="Loekemeyer"></div>
+        <h2 class="lb-gestop">
+          <svg viewBox="0 0 300 104" role="img" aria-label="GestOp">
+            <defs>
+              <linearGradient id="lgNeon" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2fe3ff"/><stop offset=".5" stop-color="#8db4ff"/><stop offset="1" stop-color="#ff3f93"/></linearGradient>
+              <filter id="lgGlow" x="-15%" y="-40%" width="130%" height="180%"><feGaussianBlur stdDeviation="5"/></filter>
+            </defs>
+            <g font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="86" font-weight="700" font-style="italic" text-anchor="middle" letter-spacing="-3">
+              <text x="150" y="80" fill="none" stroke="url(#lgNeon)" stroke-width="8" filter="url(#lgGlow)" opacity=".9">GestOp</text>
+              <text x="150" y="80" fill="#0b1f30" stroke="url(#lgNeon)" stroke-width="3.2" paint-order="stroke" stroke-linejoin="round">GestOp</text>
+            </g>
+          </svg>
+        </h2>
+        <div class="lb-bot">
+          <svg viewBox="0 0 30 24" aria-hidden="true"><rect x="0" y="3" width="5" height="4.4" rx="1"/><rect x="9" y="3" width="21" height="4.4" rx="1"/><rect x="4" y="9.8" width="26" height="4.4" rx="1"/><rect x="0" y="16.6" width="5" height="4.4" rx="1"/><rect x="9" y="16.6" width="21" height="4.4" rx="1"/></svg>
+          <span>Bot WhatsApp</span>
+        </div>
+        <p class="lb-bienvenido">Bienvenido</p>
+        <button onclick="doGoogleLogin()" class="google-btn">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.014 24.014 0 0 0 0 21.56l7.98-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Iniciar sesión con Google
+        </button>
+        <div class="login-error" id="loginError"></div>
+      </div>
+      <div class="lb-pie">Sólo para cuentas autorizadas de Loekemeyer</div>
+    </div>
   </div>
 </div>
 
@@ -1573,7 +1685,7 @@ async function doLogout() {
   currentRole = null;
   currentEmail = null;
   document.getElementById("app").classList.remove("active");
-  document.getElementById("loginOverlay").style.display = "flex";
+  document.getElementById("loginOverlay").style.display = "grid";
   document.getElementById("loginError").textContent = "";
 }
 
@@ -4992,7 +5104,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.23</div>
-<script src="gestop2.js?v=0.27.17"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.24</div>
+<script src="gestop2.js?v=0.27.24"></script>
 </body>
 </html>

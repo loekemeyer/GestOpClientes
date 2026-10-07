@@ -4,6 +4,16 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-07.
 >
+> **07/10 (Pablo): pantalla de login nueva según el mockup que mandó (dashboard v0.27.24, `docs/index.html` + `docs/gestop2.css`; sólo front, no toca el bot).**
+> Pedido: *"Pantalla de login, armame algo así"* + imagen. Reemplaza la escena bordó y crema de la v0.27.18. Ahora: fondo de vidrio roto (SVG inline, 78 trazos) y rejilla, el grupo de productos
+> (espátula + abrelata sobre su base) con haces de luz que llegan al borde del marco, y un marco de metal con vidrio y neón (cian a la izquierda, magenta a la derecha) con logo de plata (`assets/logo.png` como máscara),
+> "GestOp" en neón (SVG), "Bot WhatsApp", "Bienvenido" y el botón de Google. Todo el marco escala con `--w` (letra = `--w / 24`), así que guarda las proporciones del mockup en cualquier pantalla.
+> ⚠ **La foto `assets/login-productos.webp` (70 KB) está recortada del mockup, no es una foto original**: 530 × 507 px de origen, duplicada a 2× (se nota algo blanda por encima de 1.600 px de ancho). El fondo oscuro se saca con un piso de negro y `mix-blend-mode: screen`,
+> que va en `.lg-escena` y NO en los hijos (`translate` crea un contexto de apilado y aísla el blend: con el blend en la foto se veía una caja negra). Si hay un render original con fondo transparente, se reemplaza ese único archivo.
+> **Sin "¿Prefieres usar un correo institucional? [Ingresar]":** el mockup lo trae pero la app sólo tiene Google (`signInWithOAuth`), no hay otro ingreso. En su lugar, el pie del marco dice "Sólo para cuentas autorizadas de Loekemeyer" (es lo que hace `showApp` con el mail no autorizado).
+> Arregla de paso: `doLogout` volvía a mostrar el login con `display = "flex"` y pisaba el `grid` de la hoja de estilos; ahora usa `"grid"`. Se borraron los 3 `login-abrelata-*.webp` (ya sin uso). Hasta 900 px: una columna con los productos arriba; en celular también (sin haces); con menos de 600 px de alto en horizontal, sólo el marco.
+> `gestop2.css` pasa a `?v=0.27.24` (venía en `?v=0.27.14` aunque se tocó en la 0.27.18) y `gestop2.js` también (venía en `?v=0.27.17` y la v0.27.23 de Auditoría lo cambió sin tocar el número): sin eso los navegadores podían seguir con el archivo viejo.
+>
 > **07/10 (Pablo): escaneo del texto crudo de las planillas y aviso de Auditoría en el dashboard (`_shared/dato-externo.ts` `escanearTexto`, `_shared/archivo-sospechoso.ts`, `_shared/pedido-archivo.ts`, `lk_whatsapp-webhook`; `tests/archivo-sospechoso.test.ts` 57 casos y `tests/pedido-archivo-escaneo.test.ts` 21; dashboard v0.27.23).**
 > Origen: la prueba del 07/10 con el lector real (3 CSV con órdenes escondidas, US$ 0,006): Sonnet las descartó las tres (en una sacó la frase de la descripción y dejó el artículo). Está bien para el pedido, pero ninguna línea quedó marcada y el equipo no se enteraba. Pablo: *"agregá el escaneo del texto crudo y que mande aviso a algún sector dentro del dashboard para auditoría"*.
 > **Qué hace:** `leerPedidoArchivo` escanea con `pareceInstruccion` el texto de la planilla TAL CUAL se lo manda al modelo (las 3 primeras hojas, hasta 400 líneas), ANTES de llamarlo, y devuelve `escaneo` en todos los caminos (IA que descarta, que copia, que falla o que contesta mal). Si salta, el webhook crea una alerta con motivo **`archivo_sospechoso`**
