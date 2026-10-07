@@ -17,6 +17,10 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: si la cifra es menor a lo que ya tiene, es sacar: lo ve Ventas (cambio_pedido)`, /es MENOR que las cajas que ya tiene, no es un agregado/.test(txt) && /motivo cambio_pedido\) o agregar las que dijo/.test(txt));
   ok(`${modo}: agrega por las cajas que SUMA, no por el total`, /solicitar_agregado_pedido por las cajas que SUMA, no por el total/.test(txt));
   ok(`${modo}: sin pedido nombrado toma el más reciente que no salió y no pregunta la fecha`, /tom[aá] el m[aá]s reciente que todav[ií]a no sali[oó]/.test(txt) && /no le preguntes de qu[eé] fecha es/.test(txt));
+  ok(`${modo}: sin pedido pendiente no usa uno ya entregado ni ofrece agregarle cajas`, /Si el cliente no tiene ning[uú]n pedido que todav[ií]a no haya salido, no uses un pedido ya entregado para la cuenta ni le ofrezcas agregarle cajas/.test(txt));
+  ok(`${modo}: texto (c), sin pedido pendiente`, txt.includes("«Ahora no tenés ningún pedido pendiente al que sumarle cajas: el último (el del 02/10) ya salió. Si querés cajas del Pelador Mgo Plástico (cód. 505), hacé un pedido nuevo en la web (loekemeyer.com › Pedidos Mayorista) o decime cuántas y lo tomo por acá.»"));
+  ok(`${modo}: el texto (c) no repite las cifras 15 ni 3 y no dice el porcentaje de descuento`, (() => { const c = txt.slice(txt.indexOf("«Ahora no tenés ningún pedido pendiente"), txt.indexOf("(con la fecha y el artículo reales")); return !/\b15\b|\b3\b|%/.test(c); })());
+  ok(`${modo}: si no se toman pedidos por WhatsApp, deja sólo la parte de la web`, /si por ahora no se toman pedidos por WhatsApp, dej[aá] s[oó]lo «hac[eé] un pedido nuevo en la web/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
 }
 ok("la regla es UNA sola línea (reglasOperativas reemplaza línea por línea)", reglasOperativas(false).split("\n").filter((l) => l.startsWith("- CANTIDAD TOTAL")).length === 1);
