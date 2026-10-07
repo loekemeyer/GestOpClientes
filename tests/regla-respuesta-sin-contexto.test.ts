@@ -11,8 +11,9 @@ function ok(nombre: string, cond: boolean) {
 for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)], ["sin pedidos por WhatsApp", reglasOperativas(false)]] as const) {
   ok(`${modo}: la regla está`, /- RESPUESTA SIN CONTEXTO \(Pablo, 07\/10, m74/.test(txt));
   ok(`${modo}: contesta a un mensaje de una persona que el bot no ve`, /un mensaje que le mand[oó] una persona del equipo y que vos NO ves en la charla/.test(txt));
-  ok(`${modo}: no pide contexto ni adivina`, /no le pidas contexto ni adivines/.test(txt));
-  ok(`${modo}: deriva en ese mismo turno con cambio_pedido y sus palabras textuales`, /Deriv[aá] en ESE mismo turno con derivar_a_persona \(motivo «cambio_pedido», con sus palabras textuales en el resumen\)/.test(txt) || /derivá en ESE mismo turno con derivar_a_persona \(motivo «cambio_pedido», con sus palabras textuales en el resumen\)/.test(txt));
+  ok(`${modo}: no pide contexto ni adivina`, /NO le pidas contexto ni adivines \(nunca digas «contame más», «contame un poco más tu consulta» ni «no tengo contexto»\)/.test(txt));
+  ok(`${modo}: deriva en ese mismo turno con cambio_pedido y sus palabras textuales`, /en ESE mismo turno llam[aá] a derivar_a_persona \(motivo «cambio_pedido», con sus palabras textuales en el resumen\)/.test(txt));
+  ok(`${modo}: responde SÓLO el texto aprobado`, /respondele S[OÓ]LO esto, casi literal/.test(txt));
   ok(`${modo}: el texto que aprobó Pablo`, txt.includes("«Gracias por avisarnos. Una persona de Ventas ve tu respuesta y te escribe por acá para confirmarte. 🙏»"));
   ok(`${modo}: no vale para un ok, dale o sí que contesta una pregunta del bot, ni para un gracias solo`, /No vale para un «ok», «dale» o «sí» que contesta una pregunta que acab[aá]s de hacerle vos, ni para un «gracias» solo/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
