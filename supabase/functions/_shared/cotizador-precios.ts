@@ -79,8 +79,10 @@ export function leerHojaCotizador(filas: unknown[][]): CotizadorLeido | null {
   return { version, total, filas: out };
 }
 
-/** Los artículos que el cliente PIDIÓ (cajas > 0) con la comparación contra la web. Sin diferencias = el cotizador coincide con la página. */
-export function compararConWeb(cot: CotizadorLeido, web: Record<string, PrecioWeb | undefined>): { pedidos: FilaCotizador[]; diferencias: Diferencia[] } {
+/** Los artículos que el cliente PIDIÓ (cajas > 0) con la comparación contra la web. Sin diferencias = el cotizador coincide con la página.
+ *  `ignorarPrecio` (Pablo, 07/10, m41): una cadena con lista de precios propia (precios_super) no paga la lista general de la web, así que su cotizador puede estar al día y
+ *  aun así no coincidir: no se compara el PRECIO (daría una falsa alarma de "cotizador desactualizado"). Siguen valiendo las unidades por caja, "no está en la web" y "No Disponible". */
+export function compararConWeb(cot: CotizadorLeido, web: Record<string, PrecioWeb | undefined>, opciones: { ignorarPrecio?: boolean } = {}): { pedidos: FilaCotizador[]; diferencias: Diferencia[] } {
   const pedidos = cot.filas.filter((f) => f.cajas > 0);
   const diferencias: Diferencia[] = [];
   for (const f of pedidos) {
@@ -88,7 +90,7 @@ export function compararConWeb(cot: CotizadorLeido, web: Record<string, PrecioWe
     const base = { cod: f.cod, descripcion: f.descripcion, uxb: f.uxb, cajas: f.cajas };
     if (!w || !w.activo) { diferencias.push({ ...base, tipo: "no_esta_en_la_web", cotizador: f.pu, web: null }); continue; }
     if (f.noDisponible || f.pu === null) { diferencias.push({ ...base, tipo: "no_disponible_en_el_cotizador", cotizador: null, web: w.pu }); continue; }
-    if (Math.abs(f.pu - w.pu) >= 1) { diferencias.push({ ...base, tipo: "precio", cotizador: f.pu, web: w.pu }); continue; }
+    if (!opciones.ignorarPrecio && Math.abs(f.pu - w.pu) >= 1) { diferencias.push({ ...base, tipo: "precio", cotizador: f.pu, web: w.pu }); continue; }
     if (f.uxb !== null && f.uxb !== w.uxb) diferencias.push({ ...base, tipo: "unidades_por_caja", cotizador: f.uxb, web: w.uxb });
   }
   return { pedidos, diferencias };

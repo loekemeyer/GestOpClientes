@@ -704,7 +704,8 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
         const arts = await resolverArticulos(r.lineas, cfg.anthropicKey, phone);
         const cotizador = r.cotizador === true || /cotiz/i.test(msg.caption ?? "");
         // Pablo, 06/10 (m41): el cotizador trae los precios: se comparan con los de la web y se le pide confirmar artículo y valor.
-        const cmp = await compararCotizadorConWeb(r.hoja).catch((e) => { console.error("[adjunto] comparación de precios:", e instanceof Error ? e.message : e); return null; });
+        // Pablo, 07/10 (m41): con el código del cliente, una cadena con lista de precios propia no se compara por PRECIO (falsa alarma de "cotizador desactualizado").
+        const cmp = await compararCotizadorConWeb(r.hoja, customer.cod_cliente).catch((e) => { console.error("[adjunto] comparación de precios:", e instanceof Error ? e.message : e); return null; });
         // Pablo, 06/10 (m41): con varias direcciones de entrega hay que preguntarle para cuál es el pedido ("eso es muy importante").
         const sucursales = await sucursalesDelCliente(customer.customer_id).catch(() => []);
         respuestaFinal = textoConfirmacion(arts, { cotizador, seguir: await pedidosWaHabilitados(), condicion_code: r.condicion_code,
@@ -713,7 +714,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
         // Una línea del archivo que parecía una orden para el bot (dato-externo.ts) se avisa en la tarea: Ventas ve que el archivo trae texto raro.
         lectura = { articulos: arts, cotizador, ...(sospechaCruda || arts.some((a) => a.sospechosa) ? { texto_sospechoso: true } : {}), ...(r.condicion_code ? { condicion_code: r.condicion_code } : {}),
           ...(sucursales.length > 1 ? { sucursales_ofrecidas: sucursales.map((x) => x.slot) } : {}),
-          ...(cmp ? { comparacion_precios: { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } } : {}) };
+          ...(cmp ? { comparacion_precios: { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version, ...(cmp.precio_omitido_cadena ? { precio_omitido_cadena: cmp.precio_omitido_cadena } : {}) } } : {}) };
       } else lectura = { lectura_error: r.error ?? "no se encontraron líneas de pedido", ...(sospechaCruda ? { texto_sospechoso: true } : {}) };
     } catch (e) {
       lectura = { lectura_error: e instanceof Error ? e.message : String(e) };
