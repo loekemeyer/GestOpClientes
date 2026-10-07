@@ -15,7 +15,9 @@ import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
-import { pideConfirmacionPedido, textoEstadoRetiro, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
+import { depositoAbierto, pideConfirmacionPedido, textoEstadoRetiro, textoLlegando, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
+import { avisaFacturaPorMail, PREGUNTA_MAIL_FACTURAS } from "./mail-facturas.ts";
+export { avisaFacturaPorMail };
 import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
@@ -153,8 +155,14 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   if (RE_ALMUERZO.test(text)) {
     return { reply: `El depósito cierra para almorzar de 12 a 13. ${HORARIO_DEPOSITO}`, intent: "faq", automation_level: "full_auto" };
   }
+  // Pablo, 07/10 (m39): "Estoy llegando, ¿me esperan?" ya no promete "¡Te esperamos!": dice que consulta a Ventas y deja una alerta `entrega` (urgente con el depósito
+  // abierto, no urgente con el depósito cerrado) para que confirmen que pueden esperarlo.
   if (RE_LLEGANDO.test(text)) {
-    return { reply: `¡Te esperamos! ${HORARIO_DEPOSITO}`, intent: "faq", automation_level: "full_auto" };
+    await cargarCalendario(); // feriados de Planify: caché de 6 h, con tope de espera, nunca lanza
+    const abierto = depositoAbierto(new Date(), horarioEfectivo().feriados);
+    return { reply: textoLlegando(HORARIO_DEPOSITO), intent: "llegando_deposito", automation_level: "needs_human", topic: "Dice que está llegando al depósito",
+      alerta: { motivo: "entrega", urgente: abierto,
+        detalle: `Dice que está llegando al depósito y pregunta si lo esperan${abierto ? "" : " (el depósito está cerrado ahora)"}: ${text.slice(0, 200)}` } };
   }
   // Pablo, 30/09 (4.1): "Llegaron 59 aceiteras de 60, pido la NC". Disculpas y se le piden los datos de la factura (la tiene:
   // le llegó con el pedido). El reclamo queda registrado ya, para que no se pierda si no contesta.
@@ -208,12 +216,25 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       "Ahí ves los precios al día y armás el pedido. Si no tenés clave, escribinos y una persona de Ventas te la genera.",
       intent: "pide_cotizador", automation_level: "full_auto", faq_id: 11, topic: "Pide el cotizador" };
   }
+  // Pablo, 07/10 (m77): "¿Puedo hacer el pedido directo de la web? ¿Mismos precios, mismo todo?" → sí, con el acceso, y se le cuenta que por la web tiene un descuento extra (sin decir cuánto:
+  // hoy es el 2 % web, que por WhatsApp no aplica). No promete "mismos precios": el suyo es la lista menos su descuento por volumen. Texto aprobado por Pablo el 07/10.
+  if (customer && pidePedidoPorWeb(text)) {
+    return { reply: "Sí, podés hacer el pedido directo en la web: entrá a loekemeyer.com › Pedidos Mayorista con tu CUIT y tu clave. " +
+      "Ahí ves los precios al día y, por hacerlo por la web, tenés un descuento extra que se aplica solo al armar el pedido.",
+      intent: "pedido_por_web", automation_level: "full_auto", faq_id: 11, topic: "Pregunta si puede hacer el pedido por la web" };
+  }
   // Pablo, 30/09 (1.9): "Figura programado para el 30/09 pero en el detalle dice 13/10, ¿cuál es?". La IA le contestaba
   // "¿puede ser que el 13/10 lo hayas visto en otro lado?": nunca se asume que el cliente se equivocó. Lo revisa una persona.
   if (customer && RE_FECHAS_NO_COINCIDEN.test(text)) {
     return { reply: "Gracias por avisarnos. Le pido a una persona del equipo que revise las fechas de tu pedido y te confirme por acá cuál es la correcta. 🙏",
       intent: "fechas_no_coinciden", automation_level: "needs_human", topic: "Fechas del pedido que no coinciden",
       alerta: { motivo: "entrega", detalle: `Fechas que no coinciden: ${text.slice(0, 200)}` } };
+  }
+  // Pablo, 07/10 (m68): "Nos llegó al mail las facturas, ¿lo entregan hoy?" → la lista de pedidos y, debajo, "¿A qué mail te llegaron las facturas? Lo chequeo."; con la respuesta, respuesta-aviso.ts
+  // compara ese mail con el de la ficha (customers.mail) y, si no coincide, se lo pasa a Ventas.
+  if (customer && avisaFacturaPorMail(text)) {
+    const lista = await lookupOrderStatus(customer);
+    return { reply: lista ? `${lista}\n\n${PREGUNTA_MAIL_FACTURAS}` : PREGUNTA_MAIL_FACTURAS, intent: "faq", automation_level: "semi_auto", faq_id: 1 };
   }
   // Pablo, 30/09: "Hace 10 días hice un pedido, quería saber el estado" caía en la IA, que convertía "hace 10 días" en
   // una fecha equivocada ("el del 20/09 (14 de septiembre)"). Sin fecha explícita, va a la respuesta fija con los
@@ -586,6 +607,12 @@ export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text
 const RE_PIDE_COTIZADOR = /\b(me\s+(pas|mand|env[ií]|compart|pod|pued|tien|hac)[a-záéíóúñ]*|(pas|mand|env[ií]|compart)[aá](me|nos)|necesit[a-záéíóúñ]*|quer[a-záéíóúñ]*|quier[a-záéíóúñ]*|quisi[a-záéíóúñ]*|busc[a-záéíóúñ]*|ten[eé]s|tienen|tiene|hay|pod[eé]s|podr[ií][a-záéíóúñ]*|pued[a-záéíóúñ]*|manden|pasen|env[ií]en|solicit[a-záéíóúñ]*|piden)(?![a-záéíóúñ])[^.?!]{0,50}\bcotizador/i;
 const RE_COTIZADOR_OTRA_COSA = /\bsin\s+cotizador\b|\bdescuentos?\b|\bdtos?\b|\bno\s+(me\s+|nos\s+)?(abre|abren|deja|dejan|anda|funciona|carga|puedo|podemos|pude)|\b(error|falla|se\s+(tilda|traba|cuelga)|subir|llenar|completar)\b|\b(te|les)\s+(paso|mando|envi\w*)\b|\badjunt\w*/i;
 export const pideElCotizador = (text: string): boolean => RE_PIDE_COTIZADOR.test(text) && !RE_COTIZADOR_OTRA_COSA.test(text) && !RE_ENVIA_PEDIDO.test(text);
+// Pablo, 07/10 (m77): "¿Puedo hacer el pedido directo de la web? ¿Mismos precios, mismo todo?" → sí, y por la web tiene un descuento extra (sin decir cuánto). Hace falta
+// "puedo / podemos / se puede…" + pedir o hacer el pedido + la web (o la página, el sitio, online). No cuenta quien NO puede (clave, usuario, error, "no me deja": eso es acceso a la web),
+// ni quien manda el pedido por otro lado, ni quien nombra el cotizador (lo toma m41).
+const RE_PIDE_POR_WEB = /\b(pued[a-záéíóúñ]*|pod[eé]s|podemos|podr[ií][a-záéíóúñ]*|se\s+puede|es\s+posible)(?![a-záéíóúñ])[^.?!]{0,40}\b(pedido|pedidos|pedir|compra|comprar|cargar|hacer)(?![a-záéíóúñ])[^.?!]{0,40}\b(web|p[aá]gina|sitio|online|internet)(?![a-záéíóúñ])/i;
+const RE_PIDE_POR_WEB_OTRA_COSA = /\bno\s+(me\s+|nos\s+|se\s+)?(pued|pod|deja|dejan|abre|abren|anda|funciona|carga|entra|logr|pude|puedo)|\b(error|falla|se\s+(tilda|traba|cuelga)|clave|contrase[ñn]a|usuario|ingres\w*|entrar|acceso|registr\w*)(?![a-záéíóúñ])|\bcotizador\b|\bwhats\s?app\b|\bpor\s+(ac[aá]|mail|correo|tel[eé]fono)\b/i;
+export const pidePedidoPorWeb = (text: string): boolean => RE_PIDE_POR_WEB.test(text) && !RE_PIDE_POR_WEB_OTRA_COSA.test(text) && !RE_ENVIA_PEDIDO.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o

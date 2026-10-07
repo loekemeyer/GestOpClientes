@@ -75,6 +75,7 @@ const CORTO: Record<string, string> = {
   pedido_mail: "Pedido enviado por mail",
   nota_cliente: "Nota del cliente",
   tope_ia: "Cliente pasó el tope de consultas",
+  archivo_sospechoso: "Auditoría: archivo con texto sospechoso",
 };
 
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);

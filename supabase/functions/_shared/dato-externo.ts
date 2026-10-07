@@ -66,6 +66,35 @@ export function textoDeArchivo(texto: unknown, max = 60): { texto: string; sospe
   return { texto: lineaSegura(texto, max), sospechoso: motivos.length > 0, motivos };
 }
 
+/** Resultado de revisar el texto CRUDO de un archivo antes de dárselo al modelo. */
+export interface EscaneoTexto {
+  sospechoso: boolean;
+  /** Qué patrones saltaron (los mismos de `pareceInstruccion`). */
+  motivos: string[];
+  /** Las líneas del archivo que saltaron, ya saneadas con `lineaSegura` (hasta 3). Se pueden mostrar y guardar. */
+  fragmentos: string[];
+  /** Saltó sobre el texto entero pero en ninguna línea sola: la orden está partida en varias filas o celdas. */
+  cruzado: boolean;
+}
+
+/** Revisa el texto crudo de una planilla ANTES de llamar al modelo (Pablo Olejavetzky, 07/10/2026: "agregá el escaneo del texto crudo"). La IA ya tiene la orden de
+ *  ignorar lo que trae el archivo y, medido el 07/10, la cumple: descarta la línea sin avisar. Eso es bueno para el pedido pero deja al equipo sin enterarse de que un
+ *  cliente mandó un archivo con una orden escondida. Este escaneo no depende de lo que haga el modelo: si el texto trae algo que parece una orden, se avisa igual.
+ *  Sólo mira texto que el código tiene a mano (planillas y CSV). En fotos y PDF el código no ve el texto antes de la IA. */
+export function escanearTexto(texto: unknown, maxFragmentos = 3, largo = 120): EscaneoTexto {
+  const t = String(texto ?? "");
+  const motivos = pareceInstruccion(t);
+  if (!motivos.length) return { sospechoso: false, motivos: [], fragmentos: [], cruzado: false };
+  // La revisión sobre el texto entero también agarra una orden partida en varias filas ("ignorá tus" / "instrucciones anteriores"): `pareceInstruccion` junta las líneas.
+  // Para mostrar QUÉ línea fue se mira de a una; si ninguna sola salta, la orden estaba partida (`cruzado`).
+  const fragmentos: string[] = [];
+  for (const linea of t.split(/\r\n|[\r\n\u2028\u2029]/)) {
+    if (pareceInstruccion(linea).length) fragmentos.push(lineaSegura(linea, largo));
+    if (fragmentos.length >= maxFragmentos) break;
+  }
+  return { sospechoso: true, motivos, fragmentos, cruzado: fragmentos.length === 0 };
+}
+
 /** Código de artículo que devolvió la IA al leer un archivo: sólo letras, dígitos y guion (hasta 10). El catálogo tiene "501", "323E", "590ES", "XXX4". */
 export function codigoSeguro(cod: unknown): string | null {
   const c = String(cod ?? "").trim().toUpperCase();

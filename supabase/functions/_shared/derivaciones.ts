@@ -53,6 +53,7 @@ export const ORIGEN: Record<string, string> = {
   pedido_mail: "El cliente dice que mandó un pedido por mail y no se cargó o lo rechazaron",
   nota_cliente: "El cliente avisa algo para el equipo (por ejemplo, hasta qué hora recibe la mercadería)",
   tope_ia: "Un cliente pasó el máximo de consultas de IA por hora (puede haber sido un error suyo)",
+  archivo_sospechoso: "Una planilla del cliente trae texto que parece una orden para el bot (auditoría, aparece en Tareas › Auditoría)",
   otro: "Cualquier otra alerta",
   ...Object.fromEntries(MOTIVOS_IA.map((k) => [k, "La IA deriva: " + CUANDO_IA[k]])),
 };

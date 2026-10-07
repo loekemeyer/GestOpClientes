@@ -17,6 +17,7 @@ import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { franjaDeRetiro, retiroInformado, textoFranjaConfirmada, textoRetiroConfirmado } from "./fecha-retiro.ts";
+import { compararMails, mailsEscritos, mailsRegistrados, PREGUNTA_MAIL_FACTURAS, TEXTO_MAIL_COINCIDE, TEXTO_MAIL_NO_COINCIDE, TEXTO_MAIL_SIN_REGISTRO } from "./mail-facturas.ts";
 
 const VENTANA_HORAS = 48;
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -212,6 +213,24 @@ export async function pedidoDeCambio(
       });
       return textoFranjaConfirmada(info.dia, franja);
     }
+  }
+  // Pablo, 07/10 (m68): el cliente contesta "¿A qué mail te llegaron las facturas?" con un mail → se compara con el de su ficha (customers.mail). Si coincide, se lo confirma; si no coincide o
+  // la ficha no tiene mail, se lo pasa a Ventas (alerta nota_cliente, no urgente). Nunca se le muestra el mail registrado. Primero la prueba barata (el mensaje trae un mail).
+  const dichos = t.length <= 300 ? mailsEscritos(t) : [];
+  if (dichos.length && (await ultimoMensajeBot(phone)).includes(PREGUNTA_MAIL_FACTURAS)) {
+    let registrados: string[] = [];
+    try {
+      const { data: ficha } = await supabase.from("customers").select("mail").eq("id", customer.customer_id).maybeSingle();
+      registrados = mailsRegistrados(ficha?.mail as string | null | undefined);
+    } catch (e) { console.error("[mail-facturas] no pude leer el mail de la ficha:", e); }
+    const r = compararMails(dichos, registrados);
+    if (r.tipo === "coincide") return TEXTO_MAIL_COINCIDE;
+    await notificarHumano({
+      tipo: "otro", phone, customerId: customer.customer_id,
+      contexto: { motivo: "nota_cliente", urgente: false, texto_recibido: t.slice(0, 300), razon_social: customer.business_name,
+        detalle: `Dice que las facturas le llegan a ${dichos.join(", ")}: ${r.tipo === "no_coincide" ? "no coincide con el mail de la ficha" : "la ficha no tiene mail (o no se pudo leer)"}` },
+    });
+    return r.tipo === "no_coincide" ? TEXTO_MAIL_NO_COINCIDE : TEXTO_MAIL_SIN_REGISTRO;
   }
   // La fecha del PROPIO pedido ("el pedido del 30/09 me lo entregan o lo paso a buscar?") no es un día de retiro: se saca
   // antes de buscar el día pedido (Pablo, 01/10; antes eso se derivaba a un asesor "para reprogramar el retiro").

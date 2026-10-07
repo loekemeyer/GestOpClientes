@@ -90,3 +90,22 @@ export function retiroInformado(ultimoMensajeBot: string): { del: string; dia: s
   const m = /pedido del (\d{2}\/\d{2}) el ((?:lunes|martes|miércoles|jueves|viernes|sábado|domingo) \d{2}\/\d{2})/.exec(ultimoMensajeBot);
   return m ? { del: m[1], dia: m[2] } : null;
 }
+
+// ── "Estoy llegando, ¿me esperan?" (Pablo Olejavetzky, 07/10/2026, corrección m39: "darle un aviso urgente a Ventas para confirmar que pueden esperarlo") ──
+// Antes el bot prometía "¡Te esperamos!" sin saber si se podía y sin avisarle a nadie. Ahora le dice que consulta a Ventas y deja una alerta `entrega`: urgente si el depósito
+// está abierto en ese momento, no urgente si está cerrado (extensión mía, aprobada junto con el texto: Ventas no se despierta por alguien que llega a un depósito cerrado).
+
+/** El texto que aprobó Pablo; `horarioDeposito` es la línea fija del depósito ("Estamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (…)"). */
+export const textoLlegando = (horarioDeposito: string): string =>
+  `Le aviso ahora mismo a Ventas para confirmar que te puedan esperar y te escribimos por acá en un momento. 🙏\n${horarioDeposito}`;
+
+/** ¿Está abierto el DEPÓSITO en `ahora`? De lunes a viernes de 9 a 12 y de 13 a 16:30 (hora de Argentina, UTC-3), menos los `feriados` ("AAAA-MM-DD"). Distinto del
+ *  horario de atención telefónica de horario.ts (9 a 17, un solo tramo). */
+export function depositoAbierto(ahora: Date, feriados: string[] = []): boolean {
+  const ar = new Date(ahora.getTime() - 3 * 3600_000);
+  const dia = ar.getUTCDay();
+  if (dia === 0 || dia === 6) return false;
+  if (feriados.includes(ar.toISOString().slice(0, 10))) return false;
+  const min = ar.getUTCHours() * 60 + ar.getUTCMinutes();
+  return (min >= 9 * 60 && min < 12 * 60) || (min >= 13 * 60 && min < 16 * 60 + 30);
+}
