@@ -317,7 +317,7 @@ serve(async (req) => {
         const { data: cli } = await supabase.from("customers").select("id").eq("cod_cliente", Number(body.cod_cliente)).maybeSingle();
         sucursales = await sucursalesDelCliente(cli?.id).catch(() => []);
       }
-      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, articulos: arts, comparacion_precios: cmp ? { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } : null,
+      return json({ ok: true, lineas: r.lineas, error: r.error ?? null, escaneo: r.escaneo ?? null, articulos: arts, comparacion_precios: cmp ? { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } : null,
         sucursales: sucursales.length > 1 ? sucursales : null,
         mensaje: arts.length ? textoConfirmacion(arts, { cotizador: r.cotizador === true, seguir: true, condicion_code: r.condicion_code, comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null, sucursales }) : null,
         cotizador: r.cotizador === true, condicion_code: r.condicion_code ?? null });

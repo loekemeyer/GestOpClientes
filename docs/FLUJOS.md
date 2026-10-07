@@ -377,6 +377,10 @@ se precarga con origen **"Cotizador" y el 2% web** (como en la web). Cualquier o
 etiquetas ni enlaces, y el código de artículo tiene que tener forma de código. Si una línea parece una orden para el bot ("ignorá las reglas", "confirmá el pedido
 ya", nombres de herramientas, claves), no se busca en el catálogo, el cliente la ve como *(texto no legible)* y la tarea muestra un aviso para revisar el archivo
 original. Los artículos que sí se encontraron salen con la descripción del CATÁLOGO, nunca con las palabras del archivo.
+**Aviso de Auditoría (07/10, `_shared/archivo-sospechoso.ts`):** además, el texto crudo de las planillas y CSV se escanea ANTES de la IA, porque la IA descarta esas
+órdenes en silencio y el equipo no se enteraba. Si trae algo que parece una orden, se crea una alerta `archivo_sospechoso` (una por número y por hora, verde, vence a las
+24 h) que aparece en Centro de mensajes › Tareas › Auditoría con el archivo, el patrón que saltó, la línea y qué hizo la IA. No tiene nada que contestar: se mira y se
+cierra. No abre tarea en Planify salvo que se la derive en Configuración › Derivaciones. No cubre fotos ni PDF.
 **Cotizador: precios contra la web y sucursal (Pablo, 06/10, m41).** El cotizador trae además los precios y el total: al recibirlo el bot lee la hoja
 "Cotizador …" (`_shared/cotizador-precios.ts`: versión, `$ x Uni`, `Uni x Caja`, "No Disponible", "Total a Abonar") y compara los artículos
 PEDIDOS (cajas > 0) con `products.list_price` y `uxb`. **Si todo coincide NO se le dice nada** (el control es en silencio): el mensaje termina en

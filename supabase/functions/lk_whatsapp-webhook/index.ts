@@ -41,6 +41,7 @@ import { compararCotizadorConWeb, esArchivoDePedido, leerPedidoArchivo, resolver
 import { ALTA_INTRO, crearLead, esAfirmacion, extractCuit, getPendingLead, handleAltaStep, iniciaAlta, MSG_CUIT_INVALIDO, MSG_CUIT_NO_ENCONTRADO, MSG_NO_CLIENTE, procesarConstancia, promptActual, RE_ALTA_START, tryRegister, ultimoMensajeDelBot } from "../_shared/alta.ts";
 import { leerConstancia } from "../_shared/constancia.ts";
 import { lineaSegura } from "../_shared/dato-externo.ts";
+import { contextoAlertaArchivo, MOTIVO_ARCHIVO_SOSPECHOSO, VENTANA_AVISO_MS } from "../_shared/archivo-sospechoso.ts";
 
 // Auditoría de performance (02/10/2026): este webhook leía app_settings ~17 veces por mensaje, un viaje a la base cada una
 // (3 ó 4 sólo en loadConfig, antes de mirar el mensaje). Ahora la tabla (40 filas, 8 KB) se lee ENTERA una vez por mensaje
@@ -688,6 +689,12 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   if (clase === "otro" && customer && archivo && esArchivoDePedido(archivo.mime, msg.mediaFilename)) {
     try {
       const r = await leerPedidoArchivo(archivo.bytes, archivo.mime, cfg.anthropicKey, phone, msg.mediaFilename);
+      // Pablo, 07/10: el texto crudo de la planilla se escaneó ANTES de la IA. Si trae algo que parece una orden para el bot, se avisa a Auditoría (dashboard) aunque la IA
+      // la haya descartado en silencio, y el pedido lleva la marca para que Ventas revise el archivo original.
+      const sospechaCruda = r.escaneo?.sospechoso === true;
+      if (r.escaneo && sospechaCruda) {
+        await avisarArchivoSospechoso(phone, customer, msg.mediaFilename, r.escaneo, r.lineas.some((l) => l.sospechosa === true), comprobanteId);
+      }
       if (r.lineas.length) {
         const arts = await resolverArticulos(r.lineas, cfg.anthropicKey, phone);
         const cotizador = r.cotizador === true || /cotiz/i.test(msg.caption ?? "");
@@ -699,10 +706,10 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
           comparacion: cmp ? { texto: cmp.texto, hayDiferencias: cmp.diferencias.length > 0 } : null, sucursales });
         motivoFinal = "pedido_archivo";
         // Una línea del archivo que parecía una orden para el bot (dato-externo.ts) se avisa en la tarea: Ventas ve que el archivo trae texto raro.
-        lectura = { articulos: arts, cotizador, ...(arts.some((a) => a.sospechosa) ? { texto_sospechoso: true } : {}), ...(r.condicion_code ? { condicion_code: r.condicion_code } : {}),
+        lectura = { articulos: arts, cotizador, ...(sospechaCruda || arts.some((a) => a.sospechosa) ? { texto_sospechoso: true } : {}), ...(r.condicion_code ? { condicion_code: r.condicion_code } : {}),
           ...(sucursales.length > 1 ? { sucursales_ofrecidas: sucursales.map((x) => x.slot) } : {}),
           ...(cmp ? { comparacion_precios: { diferencias: cmp.diferencias, total_cotizador: cmp.total_cotizador, version: cmp.version } } : {}) };
-      } else lectura = { lectura_error: r.error ?? "no se encontraron líneas de pedido" };
+      } else lectura = { lectura_error: r.error ?? "no se encontraron líneas de pedido", ...(sospechaCruda ? { texto_sospechoso: true } : {}) };
     } catch (e) {
       lectura = { lectura_error: e instanceof Error ? e.message : String(e) };
       console.error("[adjunto] no se pudo leer el pedido:", lectura.lectura_error);
@@ -719,6 +726,27 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
     comprobante_id: comprobanteId, mime, archivo: lineaSegura(msg.mediaFilename, 120) || null,
     ...(falla ? { error_archivo: falla } : {}),
   });
+}
+
+/**
+ * Pablo, 07/10: aviso de AUDITORÍA cuando el texto crudo de una planilla del cliente parece una orden para el bot (Centro de mensajes › Tareas › Auditoría).
+ * Una sola vez por número y por hora (VENTANA_AVISO_MS): el archivo de pedido de cada envío sigue llevando su propia marca. Nunca lanza: un fallo acá no puede frenar la
+ * lectura del pedido. Va sólo al dashboard: no le habla a nadie por WhatsApp.
+ */
+async function avisarArchivoSospechoso(phone: string, customer: { customer_id?: string | null; business_name?: string | null } | null | undefined,
+  archivo: string | undefined, escaneo: Parameters<typeof contextoAlertaArchivo>[0]["escaneo"], iaLaCopio: boolean, comprobanteId: string | null): Promise<void> {
+  try {
+    const { data } = await supabase.from("wa_alertas_humano").select("id").eq("phone", phone).eq("contexto->>origen", MOTIVO_ARCHIVO_SOSPECHOSO)
+      .gte("created_at", new Date(Date.now() - VENTANA_AVISO_MS).toISOString()).limit(1);
+    if ((data ?? []).length > 0) return;
+    console.warn(`[archivo-sospechoso] planilla con texto que parece una orden (${escaneo.motivos.join(", ")}) …${phone.slice(-4)}`);
+    await notificarHumano({
+      tipo: "otro", phone, customerId: customer?.customer_id ?? null,
+      contexto: contextoAlertaArchivo({ archivo, escaneo, iaLaCopio, razonSocial: customer?.business_name ?? null, comprobanteId }),
+    });
+  } catch (e) {
+    console.error("[archivo-sospechoso] no se pudo avisar:", e instanceof Error ? e.message : e);
+  }
 }
 
 /**
