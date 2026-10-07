@@ -4,7 +4,7 @@
 // pedidos-marca.ts importa _shared/supabase.ts, que arma el cliente al cargar: se le dan una URL y una clave falsas (no se conecta).
 Deno.env.set("SUPABASE_URL", "http://localhost:54321");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "clave-falsa");
-const { textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido, diaConFecha, estadoRetiroParaIA } = await import("../supabase/functions/_shared/fecha-retiro.ts");
+const { textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido, diaConFecha, estadoRetiroParaIA, PREGUNTA_FRANJA, textoRetiroConfirmado, textoFranjaConfirmada, franjaDeRetiro, retiroInformado } = await import("../supabase/functions/_shared/fecha-retiro.ts");
 const { textoPedidosChef } = await import("../supabase/functions/_shared/pedidos-marca.ts");
 
 let fallas = 0;
@@ -57,6 +57,25 @@ const t3 = textoPedidosChef("Chef SRL", [ped({}) as never, ped({ retiro: null, c
 igual("lista mezclada: título 'pendientes'", t3.startsWith("Chef SRL, estos son tus pedidos de Chef pendientes:"), true);
 const t4 = textoPedidosChef("Chef SRL", [ped({ fecha_entrega: "2026-10-01", retiro: "2026-10-01" }) as never], "2026-10-06", { cierre: false });
 igual("retiro facturado con fecha pasada: sin día, igual dice 'listo para retirar'", t4.includes("— 🧾 facturado, listo para retirar") && !t4.includes("desde el"), true);
+
+// ── m36 y m37 (07/10): retiro con la pregunta de la franja y el aviso a Ventas ──
+igual("m36/m37: el texto aprobado por Pablo (con la pregunta)", textoRetiroConfirmado("30/09", "jueves 08/10", true),
+  "Sí, podés retirar tu pedido del 30/09 el jueves 08/10, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅\n¿Pasás por la mañana o por la tarde? Le avisamos a Ventas para que lo tenga a mano.");
+igual("hoy pasado el mediodía: sin la pregunta, con el aviso", textoRetiroConfirmado("30/09", "miércoles 07/10", false),
+  "Sí, podés retirar tu pedido del 30/09 el miércoles 07/10, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅\nLe avisamos a Ventas para que lo tenga a mano.");
+igual("la respuesta a la franja (texto aprobado)", textoFranjaConfirmada("jueves 08/10", "mañana"), "Perfecto, te esperamos el jueves 08/10 por la mañana. Ya le avisamos a Ventas.");
+igual("la respuesta a la franja, tarde", textoFranjaConfirmada("jueves 08/10", "tarde"), "Perfecto, te esperamos el jueves 08/10 por la tarde. Ya le avisamos a Ventas.");
+igual("la pregunta es la marca del texto", textoRetiroConfirmado("30/09", "jueves 08/10", true).includes(PREGUNTA_FRANJA), true);
+for (const [msg, esp] of [["A la mañana", "mañana"], ["por la mañana", "mañana"], ["mañana", "mañana"], ["Temprano", "mañana"], ["Por la tarde", "tarde"], ["tarde", "tarde"],
+  ["paso a la tarde, después de las 14", "tarde"], ["mañana a la tarde", "tarde"], ["a la mañana o a la tarde", null], ["gracias", null], ["sí", null], ["¿mañana puedo pasar?", null],
+  ["Buenas tardes, quería hacer otra consulta sobre mi pedido, que no me llegó la factura y necesito que me la manden por mail", null]] as Array<[string, string | null]>) {
+  igual(`franja: "${msg}"`, franjaDeRetiro(msg), esp);
+}
+const ult = textoRetiroConfirmado("30/09", "jueves 08/10", true);
+igual("retiroInformado saca el pedido y el día del mensaje con la pregunta", retiroInformado(ult), { del: "30/09", dia: "jueves 08/10" });
+igual("retiroInformado: sin la pregunta (hoy pasado el mediodía) no es una pregunta pendiente", retiroInformado(textoRetiroConfirmado("30/09", "jueves 08/10", false)), null);
+igual("retiroInformado: otro mensaje del bot", retiroInformado("Tu pedido del 30/09 está programado."), null);
+igual("retiroInformado: vacío", retiroInformado(""), null);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");

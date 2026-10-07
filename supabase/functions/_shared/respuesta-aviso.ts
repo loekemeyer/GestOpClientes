@@ -16,6 +16,7 @@ import { getSetting, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
+import { franjaDeRetiro, retiroInformado, textoFranjaConfirmada, textoRetiroConfirmado } from "./fecha-retiro.ts";
 
 const VENTANA_HORAS = 48;
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -198,6 +199,20 @@ export async function pedidoDeCambio(
 ): Promise<string | null> {
   if (!customer) return null;
   const t = text.trim();
+  // Pablo, 07/10 (m36, m37): el cliente contesta "¿Pasás por la mañana o por la tarde?" → se confirma y Ventas recibe la franja (segundo aviso, completa el primero).
+  // Primero la prueba barata (el mensaje dice una franja); recién ahí se mira el último mensaje del bot. "No puedo…" / un cambio de fecha siguen su camino.
+  const franja = franjaDeRetiro(t);
+  if (franja && !RE_CAMBIO_FUERTE.test(t) && !RE_NO_PUEDO.test(t)) {
+    const info = retiroInformado(await ultimoMensajeBot(phone));
+    if (info) {
+      await notificarHumano({
+        tipo: "escalation", phone, customerId: customer.customer_id,
+        contexto: { motivo: "entrega", urgente: false, texto_recibido: t.slice(0, 300), razon_social: customer.business_name,
+          detalle: `Retira el pedido del ${info.del} el ${info.dia}, por la ${franja} (completa el aviso anterior)` },
+      });
+      return textoFranjaConfirmada(info.dia, franja);
+    }
+  }
   // La fecha del PROPIO pedido ("el pedido del 30/09 me lo entregan o lo paso a buscar?") no es un día de retiro: se saca
   // antes de buscar el día pedido (Pablo, 01/10; antes eso se derivaba a un asesor "para reprogramar el retiro").
   const tDia = t.replace(/\b(pedidos?|ordenes|orden|compras?|facturas?)\s+(?:del?|de\s+la(?:\s+fecha)?|(?:con|de)\s+fecha)\s+(?:el\s+)?(?:d[ií]a\s+)?\d{1,2}\s*\/\s*\d{1,2}(?:\s*\/\s*\d{2,4})?/gi, "$1");
@@ -274,7 +289,15 @@ export async function pedidoDeCambio(
     const ahoraAR = new Date(Date.now() - 3 * 3600_000);
     const hoyCerrado = pedida === ahoraAR.toISOString().slice(0, 10) && ahoraAR.getUTCHours() * 60 + ahoraAR.getUTCMinutes() >= 16 * 60 + 30;
     if (esRetiro && pedida && lista && pedida >= lista && !hoyCerrado) {
-      return `Sí, podés retirar tu pedido del ${fechaCorta(ped.created_at)} el ${conDia(pedida)}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅`;
+      // Pablo, 07/10 (m36, m37): además pregunta si pasa por la mañana o por la tarde y deja un aviso a Ventas para que lo tengan a mano (motivo entrega, no urgente).
+      // Hoy pasado el mediodía ya no se pregunta: sólo queda la tarde.
+      const hoyPasadoMediodia = pedida === ahoraAR.toISOString().slice(0, 10) && ahoraAR.getUTCHours() >= 12;
+      await notificarHumano({
+        tipo: "escalation", phone, customerId: customer.customer_id,
+        contexto: { motivo: "entrega", urgente: false, pedido: ped.id, texto_recibido: t.slice(0, 300), razon_social: customer.business_name,
+          detalle: `Va a retirar el pedido del ${fechaCorta(ped.created_at)} el ${conDia(pedida)}${hoyPasadoMediodia ? " por la tarde" : " (franja sin confirmar)"}` },
+      });
+      return textoRetiroConfirmado(fechaCorta(ped.created_at), conDia(pedida), !hoyPasadoMediodia);
     }
     // Pablo, 01/10: pide un día ANTERIOR al que el pedido está listo: se le contesta con la fecha real (antes iba directo a un
     // asesor "para reprogramar", aunque sólo preguntaba). Si insiste (el último mensaje del bot ya fue éste), recién ahí deriva.

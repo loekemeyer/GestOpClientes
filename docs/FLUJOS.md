@@ -200,6 +200,10 @@ toma como día de retiro: antes iba a un asesor "para reprogramar" y ahora sigue
 estado real. (2) Si pide retirar un día anterior al que el pedido está listo ("¿puedo pasar a retirar mañana?"), se le dice
 la fecha real ("está programado: lo podés retirar desde el lunes 05/10…") y se le ofrece pasarlo a un asesor si necesita otro
 día; si insiste, recién ahí deriva. Si pide un día igual o posterior, se le confirma directo (como desde el 29/09).
+**Retiro: franja y aviso a Ventas (07/10, Pablo, m36 y m37):** al confirmar el día ("Sí, podés retirar tu pedido del 30/09 el jueves 08/10, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅")
+suma *"¿Pasás por la mañana o por la tarde? Le avisamos a Ventas para que lo tenga a mano."* y deja una alerta `entrega` (no urgente, → Ventas) con "Va a retirar el pedido del 30/09 el jueves 08/10 (franja sin confirmar)".
+Si el cliente contesta la franja ("a la mañana", "por la tarde", "mañana a la tarde" = la tarde; un mensaje corto, sin "puedo…" ni un cambio de fecha), el bot dice *"Perfecto, te esperamos el jueves 08/10 por la mañana. Ya le avisamos a Ventas."*
+y sale un segundo aviso `entrega` que completa el primero. Hoy pasado el mediodía no se pregunta la franja (sólo queda la tarde). Reconoce la respuesta porque el mensaje anterior del bot trae la pregunta (`PREGUNTA_FRANJA`). Código en `_shared/fecha-retiro.ts` y `pedidoDeCambio`.
 
 **Descuentos con fechas reales (30/09, Pablo):** la FAQ de descuentos (#8, `customer_discount`) suma el token
 `{{descuentos_facturas}}`: las facturas abiertas del cliente (`GV_Cobranza_Deuda_Viva` de Gestión, agrupadas por

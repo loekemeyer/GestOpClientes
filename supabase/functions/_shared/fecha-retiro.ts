@@ -48,3 +48,45 @@ export function estadoRetiroParaIA(estado: string, fecha: string | null): string
     default: return "recibido, todavía sin fecha";
   }
 }
+
+// ── Retiro en el depósito: preguntar la franja y avisar a Ventas (Pablo Olejavetzky, 07/10/2026, correcciones m36 y m37) ──
+// "También debería consultar en qué horario estimativo pasa (mañana o tarde) y dar un aviso a Ventas para que lo tengan a mano" → "sí, ese texto".
+// Quien usa esto es respuesta-aviso.ts (pedidoDeCambio): la respuesta fija "Sí, podés retirar…" suma la pregunta y deja un aviso a Ventas (motivo entrega); si el cliente
+// contesta la franja, se confirma y sale un segundo aviso que lo completa. Todo puro: se prueba en tests/fecha-retiro.test.ts.
+
+/** La pregunta de la franja; también es la marca con la que el bot reconoce, en el mensaje siguiente, que el cliente la está contestando. */
+export const PREGUNTA_FRANJA = "¿Pasás por la mañana o por la tarde?";
+
+/** "Sí, podés retirar tu pedido del 30/09 el jueves 08/10…" con la pregunta de la franja (si `preguntaFranja`) y el aviso a Ventas.
+ *  Sin la pregunta cuando ya no tiene sentido (hoy, pasado el mediodía: sólo queda la tarde). */
+export function textoRetiroConfirmado(del: string, dia: string, preguntaFranja: boolean): string {
+  const base = `Sí, podés retirar tu pedido del ${del} el ${dia}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅`;
+  return preguntaFranja
+    ? `${base}\n${PREGUNTA_FRANJA} Le avisamos a Ventas para que lo tenga a mano.`
+    : `${base}\nLe avisamos a Ventas para que lo tenga a mano.`;
+}
+
+/** Lo que contesta el cliente cuando elige la franja. */
+export const textoFranjaConfirmada = (dia: string, franja: "mañana" | "tarde"): string =>
+  `Perfecto, te esperamos el ${dia} por la ${franja}. Ya le avisamos a Ventas.`;
+
+/** La franja que elige el cliente en un mensaje corto ("a la mañana", "por la tarde", "mañana a la tarde" = la tarde). null si no dice una sola, o si el mensaje es largo
+ *  (una frase larga sobre otro tema no es la respuesta a la pregunta). */
+export function franjaDeRetiro(text: string): "mañana" | "tarde" | null {
+  const t = String(text ?? "").trim();
+  if (!t || t.length > 60) return null;
+  const n = t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/\b(puedo|podemos|podria|podriamos)\b/.test(n)) return null;   // "¿mañana puedo pasar?" es otra pregunta de día, no la franja
+  const tarde = /\btarde\b/.test(n);
+  const manana = /\b(manana|temprano)\b/.test(n);
+  if (tarde && manana) return /\bo\b/.test(n) ? null : "tarde";   // "mañana a la tarde" = mañana, por la tarde; "a la mañana o a la tarde" no eligió
+  return tarde ? "tarde" : manana ? "mañana" : null;
+}
+
+/** Del mensaje anterior del bot ("Sí, podés retirar tu pedido del 30/09 el jueves 08/10, …\n¿Pasás por la mañana o por la tarde? …") saca de qué pedido y qué día se hablaba.
+ *  null si ese mensaje no era la pregunta de la franja. */
+export function retiroInformado(ultimoMensajeBot: string): { del: string; dia: string } | null {
+  if (!String(ultimoMensajeBot ?? "").includes(PREGUNTA_FRANJA)) return null;
+  const m = /pedido del (\d{2}\/\d{2}) el ((?:lunes|martes|miércoles|jueves|viernes|sábado|domingo) \d{2}\/\d{2})/.exec(ultimoMensajeBot);
+  return m ? { del: m[1], dia: m[2] } : null;
+}
