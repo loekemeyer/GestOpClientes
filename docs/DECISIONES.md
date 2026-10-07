@@ -223,3 +223,6 @@ en la whitelist el agente de IA les contestaría y gastaría), caer a plantilla 
 que parafrasee o obedezca texto del cliente; (c) *consulta a pedido sin IA* ("¿qué tengo pendiente?", "me encargo yo"): la más barata y segura, queda para cuando se pida.
 **Hallazgo:** desde el 01/10/2026 Meta parece cobrar también las plantillas de utilidad dentro de la ventana (5 de 5 casos en `wa_message_status`), aunque su documentación diga que son gratis.
 
+**Decisión (07/10, Pablo: "esperemos al lanzamiento general").** Los avisos al equipo no se habilitan antes de tiempo: no se cargan números de personal en `wa_envio_contactos` (el bot les
+contestaría si escriben) ni se adelanta la llave. Se prenden junto con el lanzamiento a clientes, con las plantillas aprobadas y el «sí» al gasto. Lista de revisión previa: `docs/ESTADO.md` (07/10).
+
