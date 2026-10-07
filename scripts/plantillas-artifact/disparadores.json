@@ -297,6 +297,20 @@
       "para": "RR. HH.",
       "sale": "Planify (edge planify_cumple-wa, 8:00 hábiles): aviso de cumpleaños de un empleado, un día hábil antes (dos si cae en fin de semana o feriado). Desde el 05/10 reemplaza a cumple_empleado: es de utilidad, no de marketing."
     },
+    "informe_rrhh_asistencia": {
+      "grupo": "otros",
+      "orden": 12,
+      "estado": "otro_sistema",
+      "para": "RR. HH. · 1 destinatario (el WhatsApp de RR. HH.)",
+      "sale": "Planify (edge planify_informes_wa, disparado por pg_cron de lunes a viernes sin feriados): tres informes con la misma plantilla, llegadas a las 9:00, comida a las 13:45 y salidas a las 19:30 (hora de Argentina). Dice el tipo, el día y un resumen en una línea (ej. «Llegaron tarde (5) · Sin fichada en todo el día (3)») y trae el detalle adjunto. Hasta el 06/10 el adjunto era PDF y desde el 07/10 el de comida sale en Excel. ⚠ El texto de la plantilla en Meta todavía dice «PDF adjunto». Cada envío queda en planify.informes_wa_envios."
+    },
+    "reporte_quincenal_a_pedir": {
+      "grupo": "otros",
+      "orden": 13,
+      "estado": "otro_sistema",
+      "para": "Los números de la lista de prueba cuyo nombre empieza con app_settings.reporte_quincenal_destinos (sin configurar rige «Thomy,Damián»)",
+      "sale": "Gestión Virgilio + lk_reporte-quincenal: los días 1 y 16 el workflow reporte-quincenal-importacion.yml de Gestion-Virgilio arma el PDF de Pedidos Importación y lo sube (token OIDC), y la función lo manda con esta plantilla: lo que hay que pedir en US$ FOB y a cuántos proveedores, lo que está en curso y los proveedores más urgentes, con el PDF adjunto. Una quincena no sale dos veces. Pasa por la misma llave de envíos (con la llave en prueba sólo llega a la lista de prueba). Todavía no hay marca de envío: del 02/10 quedó el PDF subido sin enviado.json."
+    },
     "cumple_empleado": {
       "grupo": "legado",
       "orden": 9,
