@@ -14,6 +14,7 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: mira las cajas del pedido con consultar_mis_pedidos`, /consultar_mis_pedidos cu[aá]ntas cajas tiene hoy ese art[ií]culo en el pedido/.test(txt));
   ok(`${modo}: texto (a), si la cuenta da`, txt.includes("«Tu pedido del 02/10 tiene 12 cajas del Pelador Mgo Plástico (cód. 505): con 3 más serían 15. ¿Confirmo agregar 3 cajas?»"));
   ok(`${modo}: texto (b), si no da`, txt.includes("«En tu pedido del 02/10 hay 10 cajas del Pelador Mgo Plástico (cód. 505). ¿Querés llegar a 15 en total (agregar 5) o agregar 3 (quedarían 13)?»"));
+  ok(`${modo}: si la cifra es menor a lo que ya tiene, es sacar: lo ve Ventas (cambio_pedido)`, /es MENOR que las cajas que ya tiene, no es un agregado/.test(txt) && /motivo cambio_pedido\) o agregar las que dijo/.test(txt));
   ok(`${modo}: agrega por las cajas que SUMA, no por el total`, /solicitar_agregado_pedido por las cajas que SUMA, no por el total/.test(txt));
   ok(`${modo}: sin pedido nombrado toma el más reciente que no salió y no pregunta la fecha`, /tom[aá] el m[aá]s reciente que todav[ií]a no sali[oó]/.test(txt) && /no le preguntes de qu[eé] fecha es/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
