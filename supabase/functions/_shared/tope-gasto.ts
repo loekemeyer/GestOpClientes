@@ -7,8 +7,11 @@
 // Qué cuenta: sólo lo que gastan los CLIENTES, o sea las filas de `bot_token_usage` con function_name = 'lk_whatsapp-webhook' (el agente y la lectura
 // de archivos de pedido). El Simulador, el chat de prueba y el puntaje NO cuentan: sus gastos los gobierna la regla de "estimativo + sí" de Pablo y, si
 // contaran, cada tanda de pruebas dejaría al bot en respuestas fijas (el 07/10 el Simulador gastó US$ 1,76 en un día).
-// Medido el 07/10 sobre 10 días: promedio US$ 1,57 por día entre pruebas y clientes, clientes reales US$ 0,03 por día, proyección de ESTADO con Sonnet
-// para todo US$ 0,13 a 0,20 por día. El tope de US$ 2 es 10 veces la proyección alta: no se dispara un día normal, sí con un bucle o una caída del gratis.
+// Medido el 07/10 sobre 10 días: promedio US$ 1,57 por día entre pruebas y clientes, clientes reales US$ 0,03 por día (con Gemini gratis de #1).
+// ⚠ Ese mismo día Sonnet volvió a ser el #1 de la cadena (ESTADO): una llamada cuesta unos US$ 0,04 y un turno con herramientas unos US$ 0,10, así que
+// US$ 2 son unos 20 turnos o 50 llamadas por día. La estimación de ESTADO para producción es US$ 18 por mes, o sea US$ 0,60 por día (~12 consultas por
+// día, la mitad con IA; es una estimación, sin tráfico real): el tope queda a unas 3 veces un día normal y un día con el doble de tráfico ya pasa el aviso.
+// Es un monto para revisar con tráfico real; se cambia sin deploy (app_settings).
 //
 // Qué hace:
 //   • "aviso" (gasto >= aviso): una alerta para una persona, UNA vez por día (motivo `tope_gasto`, nivel `aviso`). El agente sigue contestando.
