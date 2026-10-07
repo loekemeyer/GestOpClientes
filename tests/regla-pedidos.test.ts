@@ -33,7 +33,7 @@ ok("muestra las formas de pago numeradas con 'opcion' y nunca el condicion_code"
 ok("al armar usa el condicion_code de la opción elegida", /usá el condicion_code de la opci[oó]n que eligi[oó]/.test(REGLA_PEDIDOS_WA));
 ok("no ofrece 'Prefiero no decidir ahora'", /No ofrezcas "Prefiero no decidir ahora"/.test(REGLA_PEDIDOS_WA));
 ok("si el cliente ya dijo que retira, pregunta en el mismo mensaje forma de pago, día y franja", /YA dijo que retira/.test(REGLA_PEDIDOS_WA) && /ESE mismo mensaje la forma de pago y el d[ií]a y la franja del retiro/.test(REGLA_PEDIDOS_WA));
-ok("trae el modelo aprobado de m12", REGLA_PEDIDOS_WA.includes("Confirmame los artículos:") && REGLA_PEDIDOS_WA.includes("¿Qué día y franja te quedan bien?"));
+ok("trae las frases aprobadas de m12 (artículos, forma de pago numerada, retiro)", REGLA_PEDIDOS_WA.includes("Confirmame los artículos:") && REGLA_PEDIDOS_WA.includes("¿Qué día y franja te quedan bien?") && REGLA_PEDIDOS_WA.includes("Y para el retiro: desde el <retiro_desde>"));
 ok("el modelo de m12 no lleva los códigos de pago ni la opción 'no decidir'", !/\b(8|9|18) - /.test(REGLA_PEDIDOS_WA));
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
