@@ -20,7 +20,6 @@ import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
-import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { palabraDeBusqueda, raizDeBusqueda } from "./articulo-nombre.ts";
@@ -378,7 +377,7 @@ const BOT_TOOLS: ToolDef[] = [
   },
   {
     name: "opciones_de_pedido",
-    description: "Pedidos por WhatsApp: devuelve las formas de pago que puede elegir el cliente (numeradas con `opcion` 1, 2, 3… para mostrarlas; el `condicion_code` es interno, sólo para armar_pedido: NUNCA se lo muestres al cliente) y sus direcciones de entrega (con su número de slot; las de tipo 'retiro' son retirar en el depósito), más la fecha mínima de retiro. Usala antes de preguntar forma de pago y entrega.",
+    description: "Pedidos por WhatsApp: devuelve las formas de pago que puede elegir el cliente (con su código) y sus direcciones de entrega (con su número de slot; las de tipo 'retiro' son retirar en el depósito), más la fecha mínima de retiro. Usala antes de preguntar forma de pago y entrega.",
     input_schema: { type: "object", properties: {} },
   },
   {
@@ -390,7 +389,7 @@ const BOT_TOOLS: ToolDef[] = [
         items: { type: "array", description: "Artículos confirmados", items: { type: "object",
           properties: { cod: { type: "string", description: "Código (ej. '501')" }, cajas: { type: "integer", description: "Cantidad de cajas" } },
           required: ["cod", "cajas"] } },
-        condicion_code: { type: "integer", enum: [...CODIGOS_FORMA_DE_PAGO], description: "El condicion_code (interno) de la forma de pago que eligió el cliente, de opciones_de_pedido; no el número de opción" },
+        condicion_code: { type: "integer", enum: [8, 9, 10, 11, 12, 13, 18], description: "Código de la forma de pago elegida (de opciones_de_pedido)" },
         slot: { type: "integer", description: "Dirección de entrega elegida (slot de opciones_de_pedido)" },
         retiro_fecha: { type: "string", description: "Sólo si retira: día elegido, YYYY-MM-DD" },
         retiro_franja: { type: "string", enum: ["9:00 a 12:00", "13:00 a 16:30"], description: "Sólo si retira" },
@@ -408,7 +407,7 @@ const BOT_TOOLS: ToolDef[] = [
       properties: {
         items: { type: "array", items: { type: "object",
           properties: { cod: { type: "string" }, cajas: { type: "integer" } }, required: ["cod", "cajas"] } },
-        condicion_code: { type: "integer", enum: [...CODIGOS_FORMA_DE_PAGO] },
+        condicion_code: { type: "integer", enum: [8, 9, 10, 11, 12, 13, 18] },
         slot: { type: "integer" },
         retiro_fecha: { type: "string" },
         retiro_franja: { type: "string", enum: ["9:00 a 12:00", "13:00 a 16:30"] },
@@ -1058,8 +1057,9 @@ async function executeTool(
         supabase.rpc("entrega_sumar_habiles", { p_desde: new Date().toISOString().slice(0, 10), p_n: 3 }),
       ]);
       const soloContado = cust?.escala_activa === true || Number(cust?.cod_cliente) === 5000;
-      // Pablo, 07/10 (m12): numeradas 1, 2, 3… para el cliente (los códigos internos 8, 9, 10… ya no se muestran) y sin "Prefiero no decidir ahora" (formas-pago.ts).
-      const formas = formasDePago(soloContado);
+      const formas = [[8, "Contado (25% de descuento)"], [9, "15 a 30 días (20%)"], [10, "31 a 45 días (15%)"], [11, "46 a 60 días (10%)"],
+        [12, "E-cheq a 90 días (5%)"], [13, "E-cheq a 120 días (sin descuento)"], [18, "Prefiero no decidir ahora (sin descuento)"]]
+        .filter(([code]) => !soloContado || code === 8).map(([code, texto]) => ({ code, texto }));
       const entregas = (dirs ?? []).map((d: { slot: number; label: string; zona_expreso: string | null; nombre_expreso: string | null }) => {
         const retiro = /^retira$/i.test(String(d.zona_expreso ?? "").trim());
         return { slot: d.slot, direccion: d.label, tipo: retiro ? "retiro en el depósito (Virgilio 2788)" : d.nombre_expreso ? `por expreso ${d.nombre_expreso}` : "reparto propio" };
