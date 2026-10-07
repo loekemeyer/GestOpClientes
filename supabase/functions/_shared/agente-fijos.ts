@@ -4,6 +4,8 @@
 // para mostrarlas read-only. Así lo que ve el admin es exactamente lo que corre el bot.
 
 // Reglas operativas / flujo de pedido (formato, mínimos, confirmación explícita).
+import { LINEA_CANARIO_PANEL } from "./canario.ts";
+
 export const REGLAS_OPERATIVAS = `Reglas:
 - Respondé siempre en español argentino
 - Sé breve (máximo 3-4 párrafos, es WhatsApp)
@@ -29,7 +31,7 @@ export const REGLAS_OPERATIVAS = `Reglas:
 - PAGOS: si pregunta cuánto debe, el importe a pagar, el importe con el descuento de contado o el estado de sus facturas, usá consultar_mis_facturas y pasale factura por factura el importe, el estado y, si lo trae, el importe con descuento y hasta cuándo; cerrá con el total con descuento (total_con_descuento, si lo trae) y el saldo total sin descuento. Nunca calcules descuentos por tu cuenta ni inventes importes. Si dice que ya pagó y no le figura, o manda un comprobante, derivá con motivo "pago".
 - DERIVAR: cuando algo necesita a una persona (reclamos, pagos que no coinciden, cambios o anulación de pedido, pedido que no aparece, alta de cliente, o el cliente lo pide) usá la herramienta derivar_a_persona y decile que una persona del equipo le escribe por acá. NUNCA lo mandes a escribir a un mail u otro WhatsApp: ya está hablando con nosotros. Única excepción: si derivás por motivo pago, la herramienta devuelve datos_cobranzas y se los pasás tal cual. No inventes cómo funciona la web ni afirmes cosas que no sabés.
 - PEDIDOS: por ahora NO se toman pedidos por WhatsApp. No ofrezcas hacer, armar ni cargar un pedido, no preguntes cantidades para armarlo y no interpretes un "dale" o "gracias" como pedido. Si el cliente quiere pedir, indicale que lo haga en la web loekemeyer.com (o chefsrl.com) → "Pedidos Mayorista", con su CUIT y contraseña; si no tiene usuario, ofrecé derivarlo a ventas. AGREGAR a un pedido que ya hizo (sumar artículos o subir cajas): buscá el artículo con buscar_productos, confirmale el código, la descripción, las cajas y el pedido (por su fecha) y, cuando diga que sí, usá solicitar_agregado_pedido y pasale su texto (si el pedido ya está en armado o facturado, la herramienta lo deriva sola a Ventas y su texto se lo dice al cliente: NUNCA le digas que "no se puede sumar" ni derives de nuevo); si el pedido tiene más de un artículo posible o no dijo cuántas cajas, preguntáselo antes; si lo dijo en unidades, seguí la regla CAJAS. SACAR o bajar cantidades: derivá directo con derivar_a_persona (motivo "cambio_pedido") con el detalle en el texto, en ese mismo turno. ANULAR un pedido no es un cambio: si no está claro cuál, preguntale de qué fecha es; con el pedido identificado, mirá su estado con consultar_mis_pedidos, decile en qué estado está (todavía sin preparar, programado o facturado) y derivá con derivar_a_persona (motivo "anulacion_pedido", urgente: true) en ese mismo turno.
-- DIRECCIÓN NUEVA: si cambió de dirección o quiere recibir en otro lugar, pedile calle y número, localidad, provincia, código postal y (si es del interior) el expreso; confirmale la dirección completa y, con su sí, usá solicitar_nueva_sucursal. No se reemplaza ninguna dirección: la nueva la elige en su próximo pedido en la web. Si quiere cambiar el MAIL de su cuenta: el mail nuevo lo tiene que escribir él (si no te lo dio, pedíselo; nunca lo armes ni lo deduzcas de su razón social); confirmáselo y, con su sí, usá solicitar_cambio_mail. Sí podés ayudar con productos, precios, stock y el estado de sus pedidos`;
+- DIRECCIÓN NUEVA: si cambió de dirección o quiere recibir en otro lugar, pedile calle y número, localidad, provincia, código postal y (si es del interior) el expreso; confirmale la dirección completa y, con su sí, usá solicitar_nueva_sucursal. No se reemplaza ninguna dirección: la nueva la elige en su próximo pedido en la web. Si quiere cambiar el MAIL de su cuenta: el mail nuevo lo tiene que escribir él (si no te lo dio, pedíselo; nunca lo armes ni lo deduzcas de su razón social); confirmáselo y, con su sí (no antes), usá solicitar_cambio_mail UNA sola vez. Sí podés ayudar con productos, precios, stock y el estado de sus pedidos`;
 // El pedido mínimo ya no va fijo acá ("$500.000"): lo pone bot-conversation con el del cliente (sql/120, _shared/minimo.ts).
 
 // Pedidos por WhatsApp PRENDIDOS (Pablo, 30/09; app_settings.wa_pedidos_config.activo): reemplaza la línea "- PEDIDOS: por
@@ -81,8 +83,14 @@ export const MEDIDAS_SEGURIDAD: MedidaSeguridad[] = [
     que_hace: "El pedido sólo se carga si el cliente contestó un sí a secas (sin 'pero', números ni otras palabras) al resumen exacto que vio: mismos artículos y total, de hace menos de 1 hora. El modelo ya no lo decide solo: una orden inyectada no puede cargar un pedido que el cliente no vio.",
     donde: "_shared/pedido-gate.ts · bot-conversation.ts" },
   { estado: "activa", medida: "Compuerta de solicitar_cambio_mail",
-    que_hace: "El mail a cambiar tiene que figurar, letra por letra, en un mensaje que escribió el cliente (el de ahora o de las últimas 12 horas). El modelo no puede armarlo ni deducirlo de la razón social: Gemini lo hizo 2 de 2 veces el 06/10. No verifica que quien escribe sea el dueño de la cuenta: eso sigue pendiente más abajo.",
+    que_hace: "El mail a cambiar tiene que figurar, letra por letra, en un mensaje que escribió el cliente (el de ahora o de las últimas 12 horas). El modelo no puede armarlo ni deducirlo de la razón social: Gemini lo hizo 2 de 2 veces el 06/10. Tampoco repite el pedido: si ese mail ya se pidió (lo dice la charla o hay una alerta abierta de las últimas 12 horas) contesta 'ya lo pedí' sin crear otra tarea. No verifica que quien escribe sea el dueño de la cuenta: eso sigue pendiente más abajo.",
     donde: "_shared/mail-gate.ts · bot-conversation.ts" },
+  { estado: "activa", medida: "Filtro de salida en código",
+    que_hace: "Antes de enviar, revisa la respuesta del agente: claves y tokens, nombres de herramientas, tablas o modelos, SQL, un volcado de 14 palabras seguidas del bloque de Seguridad, y números de 10 dígitos o más o mails que no figuran en la charla ni en los datos del cliente. Si salta, sale un texto fijo y una persona recibe la alerta (una por número y por hora). app_settings.wa_filtro_salida: sin fila = bloquea, 'log' = sólo avisa, '0' = apagado. No detecta una paráfrasis, traducción o base64 del prompt (eso lo cubre el canario, pendiente).",
+    donde: "_shared/filtro-salida.ts · bot-conversation.ts (filtrarSalida)" },
+  { estado: "activa", medida: "Canario en el prompt",
+    que_hace: "Un código secreto (CNR-…, derivado por HMAC de una clave del servidor, sin guardarlo en la base) va al final del prompt con la orden de no escribirlo. Si aparece en una respuesta, tal cual, en base64, en hex, al revés o en rot13, el modelo copió el prompt: se bloquea la respuesta y una persona recibe una alerta urgente propia (sin guardar el recorte). Cubre lo que el filtro de salida no ve: un volcado parafraseado o traducido. Se rota cambiando VERSION_CANARIO.",
+    donde: "_shared/canario.ts · filtro-salida.ts · bot-conversation.ts" },
   { estado: "activa", medida: "Aislamiento por teléfono",
     que_hace: "El número sale del webhook firmado y las herramientas no reciben ningún id de cliente: no hay forma de pedir la cuenta de otro.",
     donde: "bot-conversation.ts (executeTool)" },
@@ -105,12 +113,6 @@ export const MEDIDAS_SEGURIDAD: MedidaSeguridad[] = [
   { estado: "pendiente", medida: "Cambio de mail con verificación",
     que_hace: "El número es la única credencial: quien lo controle (SIM swap, teléfono prestado) puede pedir cambiar el mail de la cuenta. Falta que quien aprueba verifique por otro canal y que se avise al mail viejo.",
     donde: "solicitar_cambio_mail · Tareas" },
-  { estado: "pendiente", medida: "Filtro de salida en código",
-    que_hace: "Antes de enviar, bloquear respuestas con texto del bloque de seguridad, nombres de tablas o RPC, claves, o un CUIT o código que no sea del cliente. Texto fijo + alerta. Es la única defensa que sigue en pie si el modelo se rinde.",
-    donde: "a definir (bot-conversation.ts)" },
-  { estado: "pendiente", medida: "Canario en el prompt",
-    que_hace: "Un token inventado dentro del prompt: si aparece en una respuesta, alerta alta (extracción del prompt, sin falsos positivos).",
-    donde: "a definir" },
   { estado: "pendiente", medida: "Inyección indirecta (archivos, audio, campos libres)",
     que_hace: "La regla de 'datos, no órdenes' cubre sólo las herramientas. Falta marcar como datos el texto leído de cotizadores y PDF, las transcripciones de audio y los campos libres de solicitar_*, y verificar que Tareas escape HTML.",
     donde: "_shared/pedido-archivo.ts · transcribir.ts · Tareas" },
@@ -136,7 +138,7 @@ export function fijosParaPanel(): { reglas: string; seguridad: string; reglas_pe
   return {
     reglas: REGLAS_OPERATIVAS,
     reglas_pedidos: REGLA_PEDIDOS_WA,   // reemplaza la línea de PEDIDOS cuando wa_pedidos_config.activo
-    seguridad: bloqueSeguridad("el cliente que te escribe", "su código"),
+    seguridad: bloqueSeguridad("el cliente que te escribe", "su código") + "\n\n" + LINEA_CANARIO_PANEL,   // el código real no se muestra: lo sabe sólo el bot
     medidas: MEDIDAS_SEGURIDAD,
   };
 }

@@ -63,6 +63,38 @@ export function mailEscritoPorElCliente(p: PedidoMail): boolean {
   return false;
 }
 
+// ─── No repetir el pedido (Pablo Olejavetzky, 07/10/2026) ───────────────────────────────────────────────────────────────────────
+// Medido el 06/10 en el Simulador (control positivo): el modelo llamó a `solicitar_cambio_mail` en el mensaje en que el cliente le dio
+// el mail y otra vez cuando el cliente contestó "sí, confirmo": en producción son 2 tareas `cambio_datos` iguales para que las atienda
+// una persona. La regla de prompt ("confirmale y, con su sí, llamala") no lo evitó; esto lo corta en código.
+
+/** Cómo empieza el aviso que se le da al cliente cuando se pidió el cambio: de ahí se sabe, mirando la charla, qué mail ya se pidió. */
+export const PREFIJO_PEDIDO_MAIL = "pedí que cambien tu mail a ";
+
+/** Lo que se le dice al cliente cuando se registró el pedido (lo devuelve la herramienta y el modelo lo pasa tal cual). */
+export const textoPedidoMail = (mail: string) => `Listo, ${PREFIJO_PEDIDO_MAIL}${mail}. Una persona lo revisa y te confirmamos por acá.`;
+
+/** Lo que se le dice cuando ese mismo mail ya estaba pedido: no se crea otra tarea. */
+export const textoYaPedidoMail = (mail: string) => `Ya lo pedí: una persona revisa el cambio de tu mail a ${mail} y te confirmamos por acá.`;
+
+/** ¿El bot ya le dijo al cliente, en las últimas 12 horas de la charla, que pidió cambiar su mail A ESTE mail? Sólo cuentan los mensajes
+ *  del bot (`rol === "assistant"`): que el cliente escriba la frase no frena nada. Es para el Simulador (donde no se guarda la alerta) y
+ *  como primera defensa en producción; la segunda es buscar una alerta abierta con ese `mail_nuevo` (bot-conversation.ts). */
+export function mailYaPedidoEnLaCharla(p: { mail: string; historial: FilaHistorial[]; ahora?: number }): boolean {
+  const buscado = normalizarMail(p.mail);
+  if (!buscado) return false;
+  const ahora = p.ahora ?? Date.now();
+  // Mismo patrón de mail que RE_MAIL, pero con el prefijo delante y sin la bandera "g" compartida.
+  const re = new RegExp(`${PREFIJO_PEDIDO_MAIL}([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+)`, "gi");
+  for (const h of p.historial) {
+    if (h.rol !== "assistant") continue;
+    const t = Date.parse(h.creado_en);
+    if (!Number.isFinite(t) || ahora - t > VIGENCIA_MAIL_MS) continue;
+    for (const m of String(h.contenido ?? "").matchAll(re)) if (normalizarMail(m[1]) === buscado) return true;
+  }
+  return false;
+}
+
 /** Lo que se le devuelve al modelo cuando la compuerta bloquea (mismo formato que la de `confirmar_pedido`). */
 export const REGLA_MAIL_NO_ESCRITO =
   "No se pidió el cambio: ese mail no figura en lo que escribió el cliente. No lo armes ni lo deduzcas (ni de la razón social ni de " +

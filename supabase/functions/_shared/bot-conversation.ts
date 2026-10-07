@@ -14,7 +14,9 @@ import { timeoutDeModelo } from "./timeouts.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
-import { mailEscritoPorElCliente, REGLA_MAIL_NO_ESCRITO } from "./mail-gate.ts";
+import { mailEscritoPorElCliente, mailYaPedidoEnLaCharla, REGLA_MAIL_NO_ESCRITO, textoPedidoMail, textoYaPedidoMail, VIGENCIA_MAIL_MS } from "./mail-gate.ts";
+import { decidirSalida, type Hallazgo, modoDelFiltro, redactarSecretos, revisarSalida, TEXTO_SALIDA_BLOQUEADA } from "./filtro-salida.ts";
+import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -191,7 +193,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     // Pablo, 29/09: cambio de mail con aprobación de una persona (lk_alertas mail_cambiar).
     name: "solicitar_cambio_mail",
-    description: "Pide cambiar el mail de la cuenta del cliente; una persona lo aprueba. El mail lo tiene que haber ESCRITO el cliente: si no te lo dio, pedíselo; nunca lo armes ni lo deduzcas. Confirmale el mail nuevo (\"¿Cambio tu mail a nombre@dominio.com?\") y recién con su sí, llamala.",
+    description: "Pide cambiar el mail de la cuenta del cliente; una persona lo aprueba. El mail lo tiene que haber ESCRITO el cliente: si no te lo dio, pedíselo; nunca lo armes ni lo deduzcas. Confirmale el mail nuevo (\"¿Cambio tu mail a nombre@dominio.com?\") y recién con su sí, llamala: no en el mismo mensaje en que te lo dio. Llamala UNA sola vez por mail: si ya le dijiste \"pedí que cambien tu mail\", no la repitas.",
     input_schema: { type: "object", properties: { mail: { type: "string", description: "Mail nuevo, tal cual lo escribió el cliente y confirmado con él" } }, required: ["mail"] },
   },
   {
@@ -422,6 +424,7 @@ async function buildSystemPrompt(
   customerName: string,
   codCliente: number,
   dtoVol: number,
+  canario: string | null = null,
 ): Promise<string> {
   const dtoText =
     dtoVol > 0
@@ -473,7 +476,7 @@ ${infoPedidos}- Descuentos por forma de pago (contado, 30/60/90 días, e-cheq): 
 ${rectorBloque}
 ${reglasOperativas(pedidosOn)}
 
-${bloqueSeguridad(customerName, codCliente)}`;
+${bloqueSeguridad(customerName, codCliente)}${canario ? `\n\n${lineaCanario(canario)}` : ""}`;
 }
 
 // ─── Tool execution (despacho a RPCs bot_*) ────────────────────────
@@ -573,6 +576,22 @@ async function executeTool(
         console.warn(`[gate-mail] solicitar_cambio_mail bloqueado (mail no escrito por el cliente) …${phone.slice(-4)}`);
         return { data: { ok: false, no_cargado: true, regla: REGLA_MAIL_NO_ESCRITO } };
       }
+      // No repetir (Pablo, 07/10): el modelo la llamó en el mensaje con el mail y otra vez tras el "sí" del cliente, y salían 2 tareas
+      // cambio_datos iguales. Si ese mail ya se pidió no se crea otra: lo dice la charla (también en el Simulador) o, en producción,
+      // hay una alerta abierta del mismo teléfono con ese mail_nuevo de las últimas 12 h. Si la consulta falla, sigue y la crea.
+      let yaPedido = mailYaPedidoEnLaCharla({ mail, historial: ctx.historial });
+      if (!yaPedido && !SIM.activo) {
+        try {
+          const { data: abiertas } = await supabase.from("wa_alertas_humano").select("id").eq("phone", phone).eq("tipo", "escalation")
+            .in("estado", ["pendiente", "notificado"]).eq("contexto->>mail_nuevo", mail)
+            .gte("created_at", new Date(Date.now() - VIGENCIA_MAIL_MS).toISOString()).limit(1);
+          yaPedido = (abiertas?.length ?? 0) > 0;
+        } catch (e) { console.warn("[gate-mail] no pude buscar un pedido igual:", e instanceof Error ? e.message : e); }
+      }
+      if (yaPedido) {
+        console.warn(`[gate-mail] solicitar_cambio_mail repetido, no se crea otra tarea …${phone.slice(-4)}`);
+        return { data: { ok: true, ya_pedido: true, texto_para_el_cliente: textoYaPedidoMail(mail), regla: "Pasale este texto tal cual." } };
+      }
       const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
       if (!cli?.[0]?.customer_id) return { data: { error: "No identifiqué la cuenta de este número. Derivá con derivar_a_persona." } };
       await notificarHumano({
@@ -580,7 +599,7 @@ async function executeTool(
         contexto: { motivo: "cambio_datos", origen: "agente_ia", mail_nuevo: mail, texto: `Cambiar el mail a ${mail}`,
           razon_social: cli[0].customer_name ?? null, urgente: false },
       });
-      return { data: { ok: true, texto_para_el_cliente: `Listo, pedí que cambien tu mail a ${mail}. Una persona lo revisa y te confirmamos por acá.`, regla: "Pasale este texto tal cual." } };
+      return { data: { ok: true, texto_para_el_cliente: textoPedidoMail(mail), regla: "Pasale este texto tal cual." } };
     }
 
     case "solicitar_nueva_sucursal": {
@@ -1282,6 +1301,9 @@ export interface ConversationResult {
   timeout?: boolean;
   /** true = falla del LLM que no es timeout (HTTP 4xx/5xx). Misma política que timeout. */
   llmError?: boolean;
+  /** El filtro de salida (filtro-salida.ts) encontró algo que no podía salir en la respuesta. En modo "bloquear" `reply` ya es el texto fijo;
+   *  en modo "log" `reply` es la original y sólo se avisó a una persona. */
+  bloqueada?: Hallazgo[];
   /** Herramientas que usó en el turno, con su resultado recortado. Lo usa el puntaje de la IA (sql/101). */
   herramientas?: Array<{ nombre: string; input: unknown; resultado: string }>;
   /** Modelo que contestó. */
@@ -1358,6 +1380,81 @@ const ejemplosAprobados = lectorConTope<EjemploAprobado[]>(async () => {
 }, { topeMs: 2500, vigenciaMs: 5 * 60_000, vigenciaFallaMs: 60_000 }, [],
 (e) => console.error("[ejemplosAprobados]", e instanceof Error ? e.message : e));
 
+// ─── Filtro de salida (medida 3 de seguridad, Pablo Olejavetzky 06/10/2026) ───────────────────────────────────────────────────
+// Revisa EN CÓDIGO la respuesta del agente antes de que llegue al cliente: claves, nombres de herramientas o tablas, SQL, un volcado del
+// bloque de Seguridad o un número / mail que no figura en nada de lo que el modelo vio. Si algo salta, sale un texto fijo y una persona
+// recibe la alerta. Las reglas y su calibración contra las respuestas reales: _shared/filtro-salida.ts. Todas las salidas del agente pasan
+// por acá (webhook, Simulador y Chat de prueba llaman a runConversation).
+// `app_settings.wa_filtro_salida`: sin fila o "1" = bloquea y avisa; "log" = sólo avisa (para mirar falsos positivos sin cortarle nada a un
+// cliente); "0" = apagado. Si el filtro mismo falla, la respuesta sale sin filtrar: un bug acá no puede dejar al bot mudo.
+
+// Canario del prompt (medida 4 de seguridad, Pablo 07/10/2026): un código derivado por HMAC de una clave del servidor, que va al final del prompt del
+// agente con la orden de no escribirlo. Si aparece en una respuesta (tal cual, en base64, en hex, al revés…), el modelo copió el prompt: el filtro de
+// salida la bloquea y avisa. Se calcula una vez por instancia. Sin clave no hay canario y el prompt sale como siempre. Ver _shared/canario.ts.
+let _canario: Promise<string | null> | null = null;
+function canarioDelServidor(): Promise<string | null> {
+  return _canario ??= derivarCanario(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").then((t) => {
+    if (!t) console.warn("[canario] no hay SUPABASE_SERVICE_ROLE_KEY: el prompt va sin canario");
+    return t;
+  }).catch((e) => { console.error("[canario] no se pudo derivar:", e instanceof Error ? e.message : e); return null; });
+}
+
+/** Todo lo que el modelo vio en este turno: prompt, mensajes de la charla y resultados de herramientas. Lo que no está acá no está respaldado. */
+function corpusDelTurno(systemPrompt: string, history: NormMsg[]): string[] {
+  const out = [systemPrompt];
+  for (const m of history) {
+    if (m.role === "tool") for (const r of m.results) out.push(r.content);
+    else out.push(m.text);
+  }
+  return out;
+}
+
+async function filtrarSalida(reply: string, c: {
+  phone: string; userText: string; customerName: string; codCliente: number; systemPrompt: string; history: NormMsg[]; herramientas: ToolDef[];
+  canario: string | null;
+}): Promise<{ reply: string; bloqueada?: Hallazgo[] }> {
+  try {
+    const modo = modoDelFiltro(await getSetting("wa_filtro_salida"));
+    if (modo === "apagado") return { reply };
+    const v = revisarSalida({
+      reply, corpus: corpusDelTurno(c.systemPrompt, c.history), herramientas: c.herramientas.map((t) => t.name),
+      bloqueSeguridad: bloqueSeguridad(c.customerName, c.codCliente), canario: c.canario,
+    });
+    if (v.ok) return { reply };
+    const queSalto = v.hallazgos.map((h) => h.que);
+    // Un canario en la respuesta es la señal más fuerte (el modelo copió el prompt): alerta propia y urgente, y bloquea aunque el modo sea "log".
+    // El recorte de la respuesta NO se guarda en ese caso: tendría el código. Ver decidirSalida (filtro-salida.ts).
+    const { bloquea, hayCanario, origen, urgente } = decidirSalida(modo, v.hallazgos);
+    console.warn(`[filtro-salida] ${bloquea ? "bloqueada" : "detectada (sale igual)"}: ${v.hallazgos.map((h) => h.categoria).join(", ")} …${c.phone.slice(-4)}`);
+    // Una alerta por número y por hora: un atacante con 20 consultas/h no puede inundar al equipo (pendiente "Topes por acción").
+    let yaAvisado = false;
+    if (!SIM.activo) {
+      const { data } = await supabase.from("wa_alertas_humano").select("id").eq("phone", c.phone).eq("contexto->>origen", origen)
+        .gte("created_at", new Date(Date.now() - 3600_000).toISOString()).limit(1);
+      yaAvisado = (data ?? []).length > 0;
+    }
+    if (!yaAvisado) {
+      const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: c.phone });
+      await notificarHumano({
+        tipo: "escalation", phone: c.phone, customerId: cli?.[0]?.customer_id ?? null,
+        contexto: {
+          motivo: "escalation", origen, urgente, razon_social: c.customerName,
+          texto: `${bloquea ? "Se bloqueó" : "Se detectó"} una respuesta del asistente antes de enviarla (${queSalto.join("; ")}). `
+            + (hayCanario
+              ? "⚠ El modelo copió el código de control del prompt: un intento de extraer las instrucciones del bot funcionó, al menos en parte. Mirá el chat y, si hace falta, rotá el código (VERSION_CANARIO en _shared/canario.ts)."
+              : "Puede ser un intento de sacarle datos o instrucciones al bot, o un falso positivo del filtro: mirá el chat."),
+          texto_recibido: c.userText.slice(0, 200), bloqueo_salida: { modo, hallazgos: v.hallazgos },
+          respuesta_bloqueada: hayCanario ? "[omitida: contiene el código de control del prompt]" : taparCanario(redactarSecretos(reply), c.canario).slice(0, 300),
+        },
+      });
+    }
+    return bloquea ? { reply: TEXTO_SALIDA_BLOQUEADA, bloqueada: v.hallazgos } : { reply, bloqueada: v.hallazgos };
+  } catch (e) {
+    console.error("[filtro-salida] falló: la respuesta sale sin filtrar:", e instanceof Error ? e.message : e);
+    return { reply };
+  }
+}
+
 export async function runConversation(
   userText: string,
   phone: string,
@@ -1369,9 +1466,10 @@ export async function runConversation(
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
+  const canario = await canarioDelServidor();
   const [rawHistory, promptBase, herramientas, chain, ejemplos] = await Promise.all([
     loadHistory(phone, 16),
-    buildSystemPrompt(customerName, codCliente, dtoVol),
+    buildSystemPrompt(customerName, codCliente, dtoVol, canario),
     herramientasDelTurno(),
     resolveChain(),
     ejemplosAprobados(),
@@ -1514,7 +1612,10 @@ export async function runConversation(
       // El texto de respaldo (la IA no devolvió nada) tampoco cierra con "¿en qué más…?": pide que cuente la consulta.
       // En un turno de pedido "¿Algo más?" puede ser una pregunta de verdad (¿más artículos?): ahí sólo se sacan los cierres de ayuda.
       const enPedido = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
-      return { reply: sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo.", enPedido), media: allMedia, herramientas: usadas, modelo: used.model };
+      const textoFinal = sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo.", enPedido);
+      const salida = await filtrarSalida(textoFinal, { phone, userText, customerName, codCliente, systemPrompt, history, herramientas, canario });
+      return { reply: salida.reply, media: salida.reply === textoFinal ? allMedia : [],   // respuesta reemplazada: tampoco salen las fotos del turno
+        herramientas: usadas, modelo: used.model, ...(salida.bloqueada ? { bloqueada: salida.bloqueada } : {}) };
     }
 
     // El modelo pidió herramientas: las ejecutamos y devolvemos los resultados.
