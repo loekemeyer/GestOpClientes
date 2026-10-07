@@ -51,8 +51,10 @@ export const MAX_EDAD_H = 720;
 export const MAX_TOPE_HORA = 200;
 
 // "Que sobre" (Pablo, 07/10): lo que no se toca avisa de más, no de menos.
+// sector "linea" por defecto (Pablo, 07/10): cada sector tiene UN número que comparten por WhatsApp Web (Ventas: la línea del sector), así que un aviso
+// de sector es UN mensaje, no uno por persona. «cada persona» y «las dos» se eligen en Configuración › Derivaciones.
 export const CONFIG_WA_DEFECTO: Readonly<ConfigWa> = {
-  activo: true, sector: "personas", extra: [], solo_horario: false, urgentes_siempre: true, con_detalle: true,
+  activo: true, sector: "linea", extra: [], solo_horario: false, urgentes_siempre: true, con_detalle: true,
   escalada_min: { rojo: null, amarillo: null, verde: null }, max_edad_h: 48, tope_hora: 20,
 };
 const copia = (c: Readonly<ConfigWa>): ConfigWa => ({ ...c, extra: c.extra.map((x) => ({ ...x })), escalada_min: { ...c.escalada_min } });
@@ -79,7 +81,7 @@ export function validarConfigWa(v: unknown): { ok: true; config: ConfigWa } | { 
   const bool = (k: string, def: boolean): boolean | null => (o[k] === undefined || o[k] === null ? def : typeof o[k] === "boolean" ? (o[k] as boolean) : null);
   const activo = bool("activo", true), solo = bool("solo_horario", false), urg = bool("urgentes_siempre", true), det = bool("con_detalle", true);
   if (activo === null || solo === null || urg === null || det === null) return { ok: false, error: "Los interruptores del aviso por WhatsApp tienen que ser sí o no." };
-  const sector = o.sector === undefined || o.sector === null || o.sector === "" ? "personas" : String(o.sector);
+  const sector = o.sector === undefined || o.sector === null || o.sector === "" ? CONFIG_WA_DEFECTO.sector : String(o.sector);
   if (!(SECTORES_WA as readonly string[]).includes(sector)) return { ok: false, error: "«Cuando el destino es un sector» tiene que ser personas, línea o las dos." };
   const esc = { rojo: null, amarillo: null, verde: null } as Record<Nivel, number | null>;
   const e = (o.escalada_min ?? {}) as Record<string, unknown>;

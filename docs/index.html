@@ -95,6 +95,7 @@
     .ia-comp-ley i { display: inline-block; width: 18px; border-top: 2px solid; vertical-align: middle; margin-right: 0.35rem; }
     .ia-comp-graf { position: relative; }
     .ia-comp-graf svg { display: block; width: 100%; height: 190px; overflow: visible; }
+    /* v0.28.4 (Pablo, 07/10): aviso por WhatsApp al equipo: el defecto para un sector es «la línea del sector» (un número compartido por WhatsApp Web), no cada persona. */
     /* v0.28.3 (Pablo, 07/10): gasto o tokens por día y modelo + % de llamadas gratis por día. Paleta categórica validada (validate_palette.js, claro y oscuro: CVD ΔE ≥ 8,4, visión normal ≥ 19,3);
        el color sigue al modelo, no a su puesto, así que un filtro no repinta a los que quedan. */
     .ia-tok { --ia-tok-0:#2a78d6; --ia-tok-1:#eb6834; --ia-tok-2:#1baf7a; --ia-tok-3:#eda100; --ia-tok-4:#e87ba4; --ia-tok-5:#008300; --ia-tok-otros:#8c8a84; }
@@ -4211,7 +4212,7 @@ function derivWaOpts(m, destino, elegido) {
 function pintarWhatsApp(data) {
   const box = document.getElementById("derivWa");
   if (!box) return;
-  const w = data.whatsapp || { activo: true, sector: "personas", extra: [], solo_horario: false, urgentes_siempre: true, con_detalle: true, escalada_min: {}, max_edad_h: 48, tope_hora: 20 };
+  const w = data.whatsapp || { activo: true, sector: "linea", extra: [], solo_horario: false, urgentes_siempre: true, con_detalle: true, escalada_min: {}, max_edad_h: 48, tope_hora: 20 };
   const tm = data.tiempos || { rojo: 20, amarillo: 120, verde: 240 };
   const ck = (k, v) => `<input type="checkbox" data-w="${k}"${v ? " checked" : ""}>`;
   const emps = data.empleados || [], secs = data.sectores || [];
@@ -4302,7 +4303,7 @@ function derivLeerWa() {
   const q = (k) => document.querySelector(`#derivWa [data-w="${k}"]`);
   const num = (k) => { const x = q(k)?.value; return x === "" || x == null ? null : Number(x); };
   return {
-    activo: !!q("activo")?.checked, sector: q("sector")?.value || "personas",
+    activo: !!q("activo")?.checked, sector: q("sector")?.value || "linea",
     solo_horario: !!q("solo_horario")?.checked, urgentes_siempre: !!q("urgentes_siempre")?.checked, con_detalle: !!q("con_detalle")?.checked,
     escalada_min: { rojo: num("esc_rojo"), amarillo: num("esc_amarillo"), verde: num("esc_verde") },
     max_edad_h: num("max_edad_h"), tope_hora: num("tope_hora"),
@@ -5434,7 +5435,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.4</div>
 <script src="gestop2.js?v=0.27.24"></script>
 </body>
 </html>
