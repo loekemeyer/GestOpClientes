@@ -13,7 +13,10 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: no explica por qué un pedido no aparece ni cuánto tarda (con el ejemplo prohibido)`, /nunca expliques por qu[eé] un pedido no aparece ni cu[aá]nto tarda en aparecer/.test(txt) && txt.includes("«por lo general demora unos minutos en aparecer en el sistema»"));
   ok(`${modo}: los pedidos de la web se ven en cuanto se hacen`, /los pedidos de la web se ven en cuanto se hacen/.test(txt));
   ok(`${modo}: si no figura el pedido que dice, lo dice sin explicar y deriva con pedido_no_encontrado en ese turno`, /decile que no te figura ese pedido, sin explicar por qu[eé]/.test(txt) && /en ESE mismo turno con derivar_a_persona \(motivo «pedido_no_encontrado»\)/.test(txt));
-  ok(`${modo}: si figura otro pedido, cuenta ése y aclara que el otro no figura`, /Si figura otro pedido, contale [eé]se \(con su estado y su fecha\) y aclarale que el que dice no te figura/.test(txt));
+  ok(`${modo}: si figura otro pedido, cuenta ése, aclara que el otro no figura y deriva igual en ese turno`, /Si figura otro pedido \(uno de otra fecha no es el que dice haber hecho reci[eé]n\), contale [eé]se \(con su estado y su fecha\), aclarale que el que dice no te figura y deriv[aá] igual en ESE mismo turno \(motivo «pedido_no_encontrado»\)/.test(txt));
+  ok(`${modo}: texto aprobado cuando figura otro pedido`, txt.includes("«No me figura ese pedido. Lo que veo es tu pedido del 02/10, que ya fue retirado el 07/10. Le aviso a una persona de Ventas para que lo revise y te escriba por acá. 🙏»"));
+  ok(`${modo}: no empieza con «Sí, lo recibimos» ni da por recibido el pedido anterior`, /No empieces con «S[ií], lo recibimos» ni des por recibido el pedido anterior/.test(txt));
+  ok(`${modo}: no agrega «puede ser que…» ni explica por qué no figura`, /no agregues «puede ser que…» ni ninguna explicaci[oó]n de por qu[eé] no figura/.test(txt));
   ok(`${modo}: nunca promete que va a aparecer`, /Nunca prometas que va a aparecer/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
 }
