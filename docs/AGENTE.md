@@ -104,3 +104,10 @@ Antes de que una respuesta del agente llegue al cliente, el código la revisa (`
 herramientas, tablas o modelos, SQL, un volcado literal del bloque de Seguridad, y números de 10 dígitos o más o mails que no figuran en la
 charla ni en los datos del cliente. Si algo salta, el cliente recibe un texto fijo y una persona recibe la alerta. No cambia lo que el agente
 puede hacer ni cómo conversa: sólo corta lo que nunca debería salir. Detalle, calibración y modos en `docs/ESTADO.md`.
+
+## Canario del prompt (07/10/2026)
+
+El prompt del agente termina con un código interno de control (`CNR-…`) que el bot tiene prohibido escribir. Si aparece en una respuesta, en el
+formato que sea (tal cual, base64, hex, al revés), el filtro de salida la bloquea y una persona recibe una alerta urgente: significa que alguien
+logró que el modelo copiara sus instrucciones. El código no se guarda en ninguna tabla (sale de una clave del servidor) y el cliente nunca lo ve.
+Detalle, límites y cómo rotarlo en `docs/ESTADO.md`.

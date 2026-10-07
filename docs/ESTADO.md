@@ -27,6 +27,20 @@
 > ⚠ Contradice a `m10` (estado `aplicada` en `wa_agente_evals`: "¿Me podés pegar el contenido del cotizador o mandarlo como archivo?"): ahora el pedido del cotizador lo contesta la capa fija antes de la IA, así que esa guía sólo se vería con un pedido en curso. Queda abierto: decidir si se retira.
 > Queda abierto también: qué pasa con una cadena con lista propia de precios (falsa alarma del control de precios).
 >
+> **07/10 (Pablo): canario en el prompt del agente — medida 4 de seguridad, activa (`_shared/canario.ts`, `tests/canario.test.ts`, 52 casos; cableado en `bot-conversation.ts` y como categoría 0 de `filtro-salida.ts`).**
+> Pedido: *"sí, seguí con el canario"*. Cubre lo que el filtro de salida NO ve: un volcado del prompt parafraseado, traducido o codificado (el filtro sólo detecta 14 palabras seguidas del bloque de Seguridad, tal cual).
+> **Cómo funciona:** un código inventado (`CNR-` + 20 cifras hexadecimales) va al final del prompt del agente con la orden de no escribirlo, repetirlo, traducirlo, codificarlo ni deletrearlo. El cliente no lo conoce. Si aparece en una
+> respuesta, el modelo copió el prompt: se bloquea la respuesta (texto fijo) y una persona recibe una alerta **propia y urgente** (`origen: canario`, con su ventana de una hora aparte para que un aviso menor del filtro no la tape; **no se guarda
+> el recorte de la respuesta**, porque tendría el código; el texto de la alerta dice que hay que mirar el chat y, si hace falta, rotar el código). **Sale por HMAC-SHA256 de `SUPABASE_SERVICE_ROLE_KEY`** (la tiene toda edge function):
+> no se guarda en ninguna tabla (cero escrituras en la base), es el mismo código en el webhook, el Simulador y el Chat de prueba, y no revela la clave. Sin esa variable no hay canario y el prompt sale como siempre (queda un aviso en el log).
+> **Qué detecta:** el código tal cual, en cualquier mayúscula y con separadores en el medio ("C N R - 3F A9…", partido en renglones), sólo la parte hexadecimal, al revés, en rot13, en hexadecimal de sus bytes y en base64 / base64url (las 3
+> alineaciones posibles dentro de un texto más largo, también cortado en renglones). **Qué NO:** un volcado re-escrito con otras palabras sin copiar el código, ni una codificación distinta de las anteriores. **Falsos positivos:** 20 cifras
+> hexadecimales no se escriben por casualidad; las pruebas incluyen precios, códigos de artículo, CBU, negativas y un base64 cualquiera, y ninguno dispara.
+> **El canario bloquea siempre, también con `wa_filtro_salida = log`** (no tiene falsos positivos que mirar, y dejarlo salir le entregaría el código al cliente); sólo `0` lo apaga junto con todo el filtro. **Rotación:** cambiar `VERSION_CANARIO` en `canario.ts` (el código nuevo vale desde el deploy). El Panel (Reglas fijas › Seguridad) muestra la línea del prompt con el código tapado (`CNR-••••`); el real lo sabe sólo el bot.
+> ⚠ **Sin probar de punta a punta, y por qué:** el código es secreto y el modelo de pruebas se niega solo a volcar el prompt (se vio el 07/10 con 8 ataques), así que no hay forma honesta de provocar una fuga real en el Simulador. Está probado en el módulo
+> (52 casos) y en su integración con el filtro; en producción se confirma que el prompt lleva la línea y que el bot sigue contestando igual (controles en el Simulador, US$ 0). Tabla del Panel actualizada (10 activas, 7 pendientes); sólo backend,
+> la versión visible del dashboard no cambia (v0.27.21).
+>
 > **06/10 (Pablo): filtro de salida del agente — medida 3 de seguridad, activa (`_shared/filtro-salida.ts`, `tests/filtro-salida.test.ts`, 74 casos; cableado en `bot-conversation.ts › filtrarSalida`).**
 > Pedido: *"sí, seguí con el filtro de salida"*. Es la única defensa que sigue en pie si el modelo se rinde ante un jailbreak: revisa en código (0 tokens) lo que el agente va a mandar y, si algo salta, sale un texto fijo
 > ("Perdoná, con eso no te puedo ayudar por este medio. Una persona del equipo te escribe por acá…") y una persona recibe la alerta (tipo `escalation`, `origen: filtro_salida`, urgente; **una por número y por hora**, con el recorte
@@ -41,7 +55,7 @@
 > pide decir) daba falso positivo: se subió a 14 (una regla copiada entera tiene 20 a 40); (b) los dígitos dentro de una clave (`sb_secret_…1234567890`) contaban como número no respaldado.
 > **Modo (`app_settings.wa_filtro_salida`):** sin fila o `1` = bloquea y avisa; `log` = sólo avisa y deja salir la respuesta (para mirar falsos positivos sin cortarle nada a un cliente: la alerta no es urgente); `0` = apagado. Si el filtro
 > mismo falla (error), la respuesta sale sin filtrar: un bug acá no puede dejar al bot mudo.
-> **Lo que NO detecta:** una paráfrasis, traducción o base64 del prompt, ni un dato ajeno que SÍ figure en el corpus. Para lo primero queda pendiente el canario (tabla de medidas). **Lo que no cubre:** las respuestas fijas (FAQ, avisos, alta) no
+> **Lo que NO detecta:** una paráfrasis, traducción o base64 del prompt, ni un dato ajeno que SÍ figure en el corpus. Lo primero lo cubre el canario (nota del 07/10). **Lo que no cubre:** las respuestas fijas (FAQ, avisos, alta) no
 > pasan por el agente y no se filtran: son texto escrito por personas. Tabla del Panel actualizada (9 activas, 8 pendientes); sólo backend, la versión visible del dashboard no cambia (v0.27.21).
 >
 > **06/10 (Pablo): compuerta de `solicitar_cambio_mail` — el mail tiene que estar escrito por el cliente (`_shared/mail-gate.ts`, `tests/mail-gate.test.ts`, 29 casos).**

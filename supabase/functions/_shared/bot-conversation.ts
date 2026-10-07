@@ -14,7 +14,8 @@ import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteE
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
 import { mailEscritoPorElCliente, mailYaPedidoEnLaCharla, REGLA_MAIL_NO_ESCRITO, textoPedidoMail, textoYaPedidoMail, VIGENCIA_MAIL_MS } from "./mail-gate.ts";
-import { type Hallazgo, modoDelFiltro, redactarSecretos, revisarSalida, TEXTO_SALIDA_BLOQUEADA } from "./filtro-salida.ts";
+import { decidirSalida, type Hallazgo, modoDelFiltro, redactarSecretos, revisarSalida, TEXTO_SALIDA_BLOQUEADA } from "./filtro-salida.ts";
+import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -422,6 +423,7 @@ async function buildSystemPrompt(
   customerName: string,
   codCliente: number,
   dtoVol: number,
+  canario: string | null = null,
 ): Promise<string> {
   const dtoText =
     dtoVol > 0
@@ -473,7 +475,7 @@ ${infoPedidos}- Descuentos por forma de pago (contado, 30/60/90 días, e-cheq): 
 ${rectorBloque}
 ${reglasOperativas(pedidosOn)}
 
-${bloqueSeguridad(customerName, codCliente)}`;
+${bloqueSeguridad(customerName, codCliente)}${canario ? `\n\n${lineaCanario(canario)}` : ""}`;
 }
 
 // ─── Tool execution (despacho a RPCs bot_*) ────────────────────────
@@ -1381,6 +1383,17 @@ const ejemplosAprobados = lectorConTope<EjemploAprobado[]>(async () => {
 // `app_settings.wa_filtro_salida`: sin fila o "1" = bloquea y avisa; "log" = sólo avisa (para mirar falsos positivos sin cortarle nada a un
 // cliente); "0" = apagado. Si el filtro mismo falla, la respuesta sale sin filtrar: un bug acá no puede dejar al bot mudo.
 
+// Canario del prompt (medida 4 de seguridad, Pablo 07/10/2026): un código derivado por HMAC de una clave del servidor, que va al final del prompt del
+// agente con la orden de no escribirlo. Si aparece en una respuesta (tal cual, en base64, en hex, al revés…), el modelo copió el prompt: el filtro de
+// salida la bloquea y avisa. Se calcula una vez por instancia. Sin clave no hay canario y el prompt sale como siempre. Ver _shared/canario.ts.
+let _canario: Promise<string | null> | null = null;
+function canarioDelServidor(): Promise<string | null> {
+  return _canario ??= derivarCanario(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").then((t) => {
+    if (!t) console.warn("[canario] no hay SUPABASE_SERVICE_ROLE_KEY: el prompt va sin canario");
+    return t;
+  }).catch((e) => { console.error("[canario] no se pudo derivar:", e instanceof Error ? e.message : e); return null; });
+}
+
 /** Todo lo que el modelo vio en este turno: prompt, mensajes de la charla y resultados de herramientas. Lo que no está acá no está respaldado. */
 function corpusDelTurno(systemPrompt: string, history: NormMsg[]): string[] {
   const out = [systemPrompt];
@@ -1393,21 +1406,25 @@ function corpusDelTurno(systemPrompt: string, history: NormMsg[]): string[] {
 
 async function filtrarSalida(reply: string, c: {
   phone: string; userText: string; customerName: string; codCliente: number; systemPrompt: string; history: NormMsg[]; herramientas: ToolDef[];
+  canario: string | null;
 }): Promise<{ reply: string; bloqueada?: Hallazgo[] }> {
   try {
     const modo = modoDelFiltro(await getSetting("wa_filtro_salida"));
     if (modo === "apagado") return { reply };
     const v = revisarSalida({
       reply, corpus: corpusDelTurno(c.systemPrompt, c.history), herramientas: c.herramientas.map((t) => t.name),
-      bloqueSeguridad: bloqueSeguridad(c.customerName, c.codCliente),
+      bloqueSeguridad: bloqueSeguridad(c.customerName, c.codCliente), canario: c.canario,
     });
     if (v.ok) return { reply };
     const queSalto = v.hallazgos.map((h) => h.que);
-    console.warn(`[filtro-salida] ${modo === "log" ? "detectada (sale igual)" : "bloqueada"}: ${v.hallazgos.map((h) => h.categoria).join(", ")} …${c.phone.slice(-4)}`);
+    // Un canario en la respuesta es la señal más fuerte (el modelo copió el prompt): alerta propia y urgente, y bloquea aunque el modo sea "log".
+    // El recorte de la respuesta NO se guarda en ese caso: tendría el código. Ver decidirSalida (filtro-salida.ts).
+    const { bloquea, hayCanario, origen, urgente } = decidirSalida(modo, v.hallazgos);
+    console.warn(`[filtro-salida] ${bloquea ? "bloqueada" : "detectada (sale igual)"}: ${v.hallazgos.map((h) => h.categoria).join(", ")} …${c.phone.slice(-4)}`);
     // Una alerta por número y por hora: un atacante con 20 consultas/h no puede inundar al equipo (pendiente "Topes por acción").
     let yaAvisado = false;
     if (!SIM.activo) {
-      const { data } = await supabase.from("wa_alertas_humano").select("id").eq("phone", c.phone).eq("contexto->>origen", "filtro_salida")
+      const { data } = await supabase.from("wa_alertas_humano").select("id").eq("phone", c.phone).eq("contexto->>origen", origen)
         .gte("created_at", new Date(Date.now() - 3600_000).toISOString()).limit(1);
       yaAvisado = (data ?? []).length > 0;
     }
@@ -1416,15 +1433,17 @@ async function filtrarSalida(reply: string, c: {
       await notificarHumano({
         tipo: "escalation", phone: c.phone, customerId: cli?.[0]?.customer_id ?? null,
         contexto: {
-          motivo: "escalation", origen: "filtro_salida", urgente: modo === "bloquear", razon_social: c.customerName,
-          texto: `${modo === "log" ? "Se detectó" : "Se bloqueó"} una respuesta del asistente antes de enviarla (${queSalto.join("; ")}). `
-            + "Puede ser un intento de sacarle datos o instrucciones al bot, o un falso positivo del filtro: mirá el chat.",
+          motivo: "escalation", origen, urgente, razon_social: c.customerName,
+          texto: `${bloquea ? "Se bloqueó" : "Se detectó"} una respuesta del asistente antes de enviarla (${queSalto.join("; ")}). `
+            + (hayCanario
+              ? "⚠ El modelo copió el código de control del prompt: un intento de extraer las instrucciones del bot funcionó, al menos en parte. Mirá el chat y, si hace falta, rotá el código (VERSION_CANARIO en _shared/canario.ts)."
+              : "Puede ser un intento de sacarle datos o instrucciones al bot, o un falso positivo del filtro: mirá el chat."),
           texto_recibido: c.userText.slice(0, 200), bloqueo_salida: { modo, hallazgos: v.hallazgos },
-          respuesta_bloqueada: redactarSecretos(reply).slice(0, 300),
+          respuesta_bloqueada: hayCanario ? "[omitida: contiene el código de control del prompt]" : taparCanario(redactarSecretos(reply), c.canario).slice(0, 300),
         },
       });
     }
-    return modo === "log" ? { reply, bloqueada: v.hallazgos } : { reply: TEXTO_SALIDA_BLOQUEADA, bloqueada: v.hallazgos };
+    return bloquea ? { reply: TEXTO_SALIDA_BLOQUEADA, bloqueada: v.hallazgos } : { reply, bloqueada: v.hallazgos };
   } catch (e) {
     console.error("[filtro-salida] falló: la respuesta sale sin filtrar:", e instanceof Error ? e.message : e);
     return { reply };
@@ -1442,9 +1461,10 @@ export async function runConversation(
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
+  const canario = await canarioDelServidor();
   const [rawHistory, promptBase, herramientas, chain, ejemplos] = await Promise.all([
     loadHistory(phone, 16),
-    buildSystemPrompt(customerName, codCliente, dtoVol),
+    buildSystemPrompt(customerName, codCliente, dtoVol, canario),
     herramientasDelTurno(),
     resolveChain(),
     ejemplosAprobados(),
@@ -1588,7 +1608,7 @@ export async function runConversation(
       // En un turno de pedido "¿Algo más?" puede ser una pregunta de verdad (¿más artículos?): ahí sólo se sacan los cierres de ayuda.
       const enPedido = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
       const textoFinal = sinCierreGenerico(res.text || "Contame un poco más tu consulta así te ayudo.", enPedido);
-      const salida = await filtrarSalida(textoFinal, { phone, userText, customerName, codCliente, systemPrompt, history, herramientas });
+      const salida = await filtrarSalida(textoFinal, { phone, userText, customerName, codCliente, systemPrompt, history, herramientas, canario });
       return { reply: salida.reply, media: salida.reply === textoFinal ? allMedia : [],   // respuesta reemplazada: tampoco salen las fotos del turno
         herramientas: usadas, modelo: used.model, ...(salida.bloqueada ? { bloqueada: salida.bloqueada } : {}) };
     }

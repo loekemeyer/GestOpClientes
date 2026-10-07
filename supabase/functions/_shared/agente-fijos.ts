@@ -4,6 +4,8 @@
 // para mostrarlas read-only. Así lo que ve el admin es exactamente lo que corre el bot.
 
 // Reglas operativas / flujo de pedido (formato, mínimos, confirmación explícita).
+import { LINEA_CANARIO_PANEL } from "./canario.ts";
+
 export const REGLAS_OPERATIVAS = `Reglas:
 - Respondé siempre en español argentino
 - Sé breve (máximo 3-4 párrafos, es WhatsApp)
@@ -85,6 +87,9 @@ export const MEDIDAS_SEGURIDAD: MedidaSeguridad[] = [
   { estado: "activa", medida: "Filtro de salida en código",
     que_hace: "Antes de enviar, revisa la respuesta del agente: claves y tokens, nombres de herramientas, tablas o modelos, SQL, un volcado de 14 palabras seguidas del bloque de Seguridad, y números de 10 dígitos o más o mails que no figuran en la charla ni en los datos del cliente. Si salta, sale un texto fijo y una persona recibe la alerta (una por número y por hora). app_settings.wa_filtro_salida: sin fila = bloquea, 'log' = sólo avisa, '0' = apagado. No detecta una paráfrasis, traducción o base64 del prompt (eso lo cubre el canario, pendiente).",
     donde: "_shared/filtro-salida.ts · bot-conversation.ts (filtrarSalida)" },
+  { estado: "activa", medida: "Canario en el prompt",
+    que_hace: "Un código secreto (CNR-…, derivado por HMAC de una clave del servidor, sin guardarlo en la base) va al final del prompt con la orden de no escribirlo. Si aparece en una respuesta, tal cual, en base64, en hex, al revés o en rot13, el modelo copió el prompt: se bloquea la respuesta y una persona recibe una alerta urgente propia (sin guardar el recorte). Cubre lo que el filtro de salida no ve: un volcado parafraseado o traducido. Se rota cambiando VERSION_CANARIO.",
+    donde: "_shared/canario.ts · filtro-salida.ts · bot-conversation.ts" },
   { estado: "activa", medida: "Aislamiento por teléfono",
     que_hace: "El número sale del webhook firmado y las herramientas no reciben ningún id de cliente: no hay forma de pedir la cuenta de otro.",
     donde: "bot-conversation.ts (executeTool)" },
@@ -107,9 +112,6 @@ export const MEDIDAS_SEGURIDAD: MedidaSeguridad[] = [
   { estado: "pendiente", medida: "Cambio de mail con verificación",
     que_hace: "El número es la única credencial: quien lo controle (SIM swap, teléfono prestado) puede pedir cambiar el mail de la cuenta. Falta que quien aprueba verifique por otro canal y que se avise al mail viejo.",
     donde: "solicitar_cambio_mail · Tareas" },
-  { estado: "pendiente", medida: "Canario en el prompt",
-    que_hace: "Un token inventado dentro del prompt: si aparece en una respuesta, alerta alta (extracción del prompt, sin falsos positivos).",
-    donde: "a definir" },
   { estado: "pendiente", medida: "Inyección indirecta (archivos, audio, campos libres)",
     que_hace: "La regla de 'datos, no órdenes' cubre sólo las herramientas. Falta marcar como datos el texto leído de cotizadores y PDF, las transcripciones de audio y los campos libres de solicitar_*, y verificar que Tareas escape HTML.",
     donde: "_shared/pedido-archivo.ts · transcribir.ts · Tareas" },
@@ -135,7 +137,7 @@ export function fijosParaPanel(): { reglas: string; seguridad: string; reglas_pe
   return {
     reglas: REGLAS_OPERATIVAS,
     reglas_pedidos: REGLA_PEDIDOS_WA,   // reemplaza la línea de PEDIDOS cuando wa_pedidos_config.activo
-    seguridad: bloqueSeguridad("el cliente que te escribe", "su código"),
+    seguridad: bloqueSeguridad("el cliente que te escribe", "su código") + "\n\n" + LINEA_CANARIO_PANEL,   // el código real no se muestra: lo sabe sólo el bot
     medidas: MEDIDAS_SEGURIDAD,
   };
 }

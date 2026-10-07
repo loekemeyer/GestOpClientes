@@ -3,11 +3,13 @@
 //
 // POR QUÉ: el bloque de Seguridad del prompt (agente-fijos.ts) le pide buena conducta a un modelo, y un jailbreak lo rompe. Este filtro es la
 // única defensa que sigue en pie si el modelo se rinde: mira la respuesta ya escrita y, si trae algo que NUNCA debería salir, la reemplaza por un
-// texto fijo y avisa a una persona (bot-conversation.ts › filtrarSalida). Cuatro categorías, de lo más a lo menos seguro de bloquear:
+// texto fijo y avisa a una persona (bot-conversation.ts › filtrarSalida). Cinco categorías, de lo más a lo menos seguro de bloquear:
+//   0. canario               el código de control que va dentro del prompt (canario.ts) apareció en la respuesta: el modelo copió el prompt, aunque lo
+//                            haya parafraseado o codificado. Cubre lo que la categoría 3 no ve.
 //   1. secreto               claves, tokens, JWT, nombres de variables de entorno, hosts de APIs internas. Nunca tienen un uso legítimo en un chat.
 //   2. identificador_interno nombres de herramientas, tablas, funciones y modelos, y SQL. Un cliente no tiene por qué ver "armar_pedido" ni "bot_*".
 //   3. prompt                un volcado literal del bloque de Seguridad (14 palabras seguidas). Una paráfrasis, traducción o base64 NO la detecta:
-//                            para eso queda pendiente el canario (MEDIDAS_SEGURIDAD).
+//                            para eso está el canario (categoría 0), mientras el modelo copie el código.
 //   4. dato_no_respaldado    un número de 10 dígitos o más (CUIT, teléfono, CBU, factura) o un mail que NO está en nada de lo que el modelo vio
 //                            en este turno (prompt, mensajes de la charla, resultados de herramientas). Las herramientas ya operan sólo sobre la
 //                            cuenta de quien escribe, así que un dato ajeno sólo puede venir de una alucinación o de una fuga: en los dos casos no sale.
@@ -16,7 +18,9 @@
 // claves; los números largos que aparecen son el teléfono y el CBU de la empresa, CUITs y teléfonos del propio cliente, y los únicos mails son
 // @loekemeyer.com. Falla "abierto" sólo en lo que no se puede juzgar sin corpus: si no se pasa corpus, la categoría 4 no corre.
 
-export type CategoriaBloqueo = "secreto" | "identificador_interno" | "prompt" | "dato_no_respaldado";
+import { contieneCanario } from "./canario.ts";
+
+export type CategoriaBloqueo = "canario" | "secreto" | "identificador_interno" | "prompt" | "dato_no_respaldado";
 export interface Hallazgo { categoria: CategoriaBloqueo; que: string }
 export type VeredictoSalida = { ok: true } | { ok: false; hallazgos: Hallazgo[] };
 
@@ -29,6 +33,8 @@ export interface EntradaFiltro {
   herramientas: string[];
   /** Texto del bloque de Seguridad tal como lo recibió el modelo (para detectar un volcado). */
   bloqueSeguridad?: string;
+  /** Código de control que va dentro del prompt (canario.ts). Si aparece en la respuesta, el modelo copió el prompt. */
+  canario?: string | null;
 }
 
 /** Texto fijo que reemplaza una respuesta bloqueada. No dice por qué (no revela el mecanismo) y es verdad: una persona recibe la alerta. */
@@ -127,6 +133,10 @@ export function revisarSalida(e: EntradaFiltro): VeredictoSalida {
   const hallazgos: Hallazgo[] = [];
   const agregar = (categoria: CategoriaBloqueo, que: string) => { if (!hallazgos.some((h) => h.categoria === categoria && h.que === que)) hallazgos.push({ categoria, que }); };
 
+  // 0. Canario: el código de control del prompt en la respuesta, tal cual o disfrazado (base64, hex, al revés…). Es la señal más fuerte de todas.
+  const can = contieneCanario(reply, e.canario);
+  if (can.hallado) agregar("canario", `código de control del prompt copiado (${can.como})`);
+
   // 1. Secretos
   for (const [re, que] of SECRETOS) if (re.test(reply)) agregar("secreto", que);
 
@@ -177,4 +187,13 @@ export function modoDelFiltro(valor: string | null | undefined): ModoFiltro {
   if (v === "0" || v === "off" || v === "apagado") return "apagado";
   if (v === "log" || v === "solo_log" || v === "aviso") return "log";
   return "bloquear";
+}
+
+/** Qué hacer con lo que encontró el filtro, según el modo. El canario bloquea SIEMPRE, también en modo "log": no tiene falsos positivos que
+ *  mirar, y dejarlo salir le entregaría el código al cliente. Su alerta es propia (`origen: canario`) para que un aviso menor del filtro, dentro
+ *  de la misma hora, no la tape. */
+export function decidirSalida(modo: ModoFiltro, hallazgos: Hallazgo[]): { bloquea: boolean; hayCanario: boolean; origen: "canario" | "filtro_salida"; urgente: boolean } {
+  const hayCanario = hallazgos.some((h) => h.categoria === "canario");
+  const bloquea = modo === "bloquear" || hayCanario;
+  return { bloquea, hayCanario, origen: hayCanario ? "canario" : "filtro_salida", urgente: bloquea };
 }
