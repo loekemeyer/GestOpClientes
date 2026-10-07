@@ -379,7 +379,7 @@
       "orden": 1,
       "estado": "prueba",
       "para": "Personal de Ventas (o del sector que se elija en Configuración › Derivaciones) · no es para el cliente",
-      "sale": "Apenas nace una alerta que necesita a una persona y su motivo avisa por WhatsApp (por defecto, todo lo que va a Planify y los cambios de datos o clave). Una sola plantilla para todos los motivos: dice para quién, el motivo, el cliente y lo que escribió en una línea. Sale por la cola (wa_outbox) desde lk_alerta-planify. Con la llave en prueba sólo llega a los números de la lista de prueba. Creada en Meta el 07/10 como UTILITY: Meta la aprobó pero la reclasificó a MARKETING (US$ 0,0618 por mensaje en vez de 0,026), así que se pidió una v2 con texto «Alerta operativa … Sistema Planify - notificación automática». La v2 (aviso_equipo_v2) también quedó como MARKETING (US$ 0,0618 por mensaje) y es la que sale hoy."
+      "sale": "Apenas nace una alerta que necesita a una persona y su motivo avisa por WhatsApp (por defecto, todo lo que va a Planify y los cambios de datos o clave). Una sola plantilla para todos los motivos: dice para quién, el motivo, el cliente y lo que escribió en una línea. Sale por la cola (wa_outbox) desde lk_alerta-planify. Con la llave en prueba sólo llega a los números de la lista de prueba. Creada en Meta el 07/10 como UTILITY: Meta la aprobó pero la reclasificó a MARKETING (US$ 0,0618 por mensaje en vez de 0,026), así que se pidió una v2 con texto «Alerta operativa … Sistema Planify - notificación automática». La v2 (aviso_equipo_v2) también quedó como MARKETING y la v3 («sin atender, asignada a …», aviso_equipo_v3) quedó como UTILITY (US$ 0,026 por mensaje): es la que sale hoy."
     },
     "aviso_equipo_sin_tomar": {
       "grupo": "equipo",
