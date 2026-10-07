@@ -17,6 +17,7 @@ import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { franjaDeRetiro, retiroInformado, textoFranjaConfirmada, textoRetiroConfirmado } from "./fecha-retiro.ts";
+import { claseNombrada, derivacionExcel, esRespuestaAExcel, PREGUNTA_EXCEL } from "./pasar-excel.ts";
 import { compararMails, mailsEscritos, mailsRegistrados, PREGUNTA_MAIL_FACTURAS, TEXTO_MAIL_COINCIDE, TEXTO_MAIL_NO_COINCIDE, TEXTO_MAIL_SIN_REGISTRO } from "./mail-facturas.ts";
 
 const VENTANA_HORAS = 48;
@@ -231,6 +232,16 @@ export async function pedidoDeCambio(
         detalle: `Dice que las facturas le llegan a ${dichos.join(", ")}: ${r.tipo === "no_coincide" ? "no coincide con el mail de la ficha" : "la ficha no tiene mail (o no se pudo leer)"}` },
     });
     return r.tipo === "no_coincide" ? TEXTO_MAIL_NO_COINCIDE : TEXTO_MAIL_SIN_REGISTRO;
+  }
+  // Pablo, 07/10 (m42): el cliente contesta "¿Qué querés pasar a Excel…?" → se deriva según lo que nombra: lista de precios y pedidos a Ventas (nota_cliente), facturas a Cobranzas (pago), otra cosa a
+  // Ventas. Sólo un mensaje corto y sin signo de pregunta (una pregunta nueva sigue su camino); la prueba barata va primero.
+  if (esRespuestaAExcel(t) && (await ultimoMensajeBot(phone)).includes(PREGUNTA_EXCEL)) {
+    const d = derivacionExcel(claseNombrada(t) ?? "otra", t);
+    await notificarHumano({
+      tipo: "otro", phone, customerId: customer.customer_id,
+      contexto: { motivo: d.motivo, urgente: false, texto_recibido: t.slice(0, 300), razon_social: customer.business_name, detalle: d.detalle },
+    });
+    return d.reply;
   }
   // La fecha del PROPIO pedido ("el pedido del 30/09 me lo entregan o lo paso a buscar?") no es un día de retiro: se saca
   // antes de buscar el día pedido (Pablo, 01/10; antes eso se derivaba a un asesor "para reprogramar el retiro").

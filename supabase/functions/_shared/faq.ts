@@ -17,6 +17,8 @@ import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
 import { depositoAbierto, pideConfirmacionPedido, textoEstadoRetiro, textoLlegando, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
 import { avisaFacturaPorMail, PREGUNTA_MAIL_FACTURAS } from "./mail-facturas.ts";
+import { claseNombrada, derivacionExcel, pideExcel, PREGUNTA_EXCEL } from "./pasar-excel.ts";
+export { pideExcel };
 export { avisaFacturaPorMail };
 import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
@@ -155,6 +157,15 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     return { reply: "Recibimos tu orden de compra. Una persona de Ventas la revisa y te escribe por acá a la brevedad para confirmártela. 🙏",
       intent: "orden_de_compra", automation_level: "needs_human", topic: "Orden de compra",
       alerta: { motivo: "pedido_archivo", urgente: false, detalle: `Dice que adjunta una orden de compra: ${text.slice(0, 200)}` } };
+  }
+  // Pablo, 07/10 (m42): "¿Hay forma de pasarla a Excel?" → se pregunta qué quiere pasar (lista de precios, pedidos, facturas u otra cosa) y con la respuesta se deriva (respuesta-aviso.ts,
+  // `pedidoDeCambio`): lista y pedidos a Ventas, facturas a Cobranzas, otra cosa a Ventas. Si el mismo mensaje ya dice qué es ("¿puedo bajar mis pedidos en Excel?") no se repregunta: se deriva
+  // directo (extensión mía). Va ANTES de vaALaIA por si el verbo cuenta como pedido en curso. Textos y tabla aprobados por Pablo.
+  if (customer && pideExcel(text)) {
+    const clase = claseNombrada(text);
+    if (!clase) return { reply: PREGUNTA_EXCEL, intent: "pide_excel", automation_level: "full_auto", topic: "Pide pasar algo a Excel" };
+    const d = derivacionExcel(clase, text);
+    return { reply: d.reply, intent: "pide_excel", automation_level: "needs_human", topic: "Pide pasar algo a Excel", alerta: { motivo: d.motivo, urgente: false, detalle: d.detalle } };
   }
   if (customer && vaALaIA(text)) return null;
   // Pablo, 06/10 (m59): "¿hay posibilidades de entrega rápida?" / "¿pueden adelantar la entrega?" → lo ve Ventas (motivo entrega): "todas las dudas pasan por Ventas primero".
