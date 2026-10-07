@@ -4,7 +4,7 @@
 // pedidos-marca.ts importa _shared/supabase.ts, que arma el cliente al cargar: se le dan una URL y una clave falsas (no se conecta).
 Deno.env.set("SUPABASE_URL", "http://localhost:54321");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "clave-falsa");
-const { textoEstadoRetiro, tituloPorRetiro } = await import("../supabase/functions/_shared/fecha-retiro.ts");
+const { textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido } = await import("../supabase/functions/_shared/fecha-retiro.ts");
 const { textoPedidosChef } = await import("../supabase/functions/_shared/pedidos-marca.ts");
 
 let fallas = 0;
@@ -27,6 +27,14 @@ igual("título: varios, todos de retiro", tituloPorRetiro([true, true], false), 
 igual("título: retiro mezclado con reparto", tituloPorRetiro([true, false], false), "estos son tus pedidos pendientes");
 igual("título: nada de retiro → el de siempre", tituloPorRetiro([false, false], false), null);
 igual("título de Chef", tituloPorRetiro([true], true, "de Chef"), "este es tu pedido de Chef que falta retirar");
+
+// m2 (07/10): "¿está confirmado?" abre la lista con "tu pedido está confirmado:".
+igual("título confirmado: un pedido", tituloConfirmado(true), "tu pedido está confirmado");
+igual("título confirmado: varios", tituloConfirmado(false), "tus pedidos están confirmados");
+for (const t of ["Hice un pedido hace 10 días, quería saber si está confirmado", "¿Ya confirmaron mi pedido?", "¿Tienen la confirmación del pedido?", "el pedido está confirmada?"])
+  igual(`pide confirmación: ${t}`, pideConfirmacionPedido(t), true);
+for (const t of ["¿Sabés cuándo me entregan el pedido?", "Hace 10 días hice un pedido, quería saber el estado", "¿Hoy entregan el pedido?", "Nos llegó al mail las facturas"])
+  igual(`no pide confirmación: ${t}`, pideConfirmacionPedido(t), false);
 
 // El texto completo (lista de Chef, mismo formato que la de Loekemeyer).
 const ped = (o: Record<string, unknown>) => ({ creado: "2026-09-30T15:00:00Z", estado: "facturado", fecha_entrega: "2026-10-06", retiro: "2026-10-06", sucursal: null, reingreso: null, entregado_at: null, ...o });

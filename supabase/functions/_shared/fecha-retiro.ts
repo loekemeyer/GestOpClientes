@@ -20,3 +20,10 @@ export function tituloPorRetiro(retiros: boolean[], unoSolo: boolean, de = ""): 
   if (retiros.every(Boolean)) return unoSolo ? `este es tu pedido${d} que falta retirar` : `estos son tus pedidos${d} que faltan retirar`;
   return `estos son tus pedidos${d} pendientes`;
 }
+
+/** Pablo, 07/10 (m2): "Hice un pedido hace 10 días, quería saber si está confirmado" → la lista abre con "tu pedido está confirmado:" en vez de "este es tu pedido que falta…". */
+export function tituloConfirmado(unoSolo: boolean): string {
+  return unoSolo ? "tu pedido está confirmado" : "tus pedidos están confirmados";
+}
+/** El cliente pregunta si el pedido está confirmado ("¿está confirmado?", "¿lo confirmaron?", "¿tienen la confirmación?"). */
+export const pideConfirmacionPedido = (text: string): boolean => /\bconfirm(ad[oa]s?|[oó]|aron|aci[oó]n)(?![a-záéíóúñ])/i.test(text);
