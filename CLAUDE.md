@@ -53,6 +53,9 @@ siempre y no dependan de que estén cargadas en la sesión.
 - **Después de escribir: SELECT de verificación.** Siempre.
 - **EXCEPCIÓN — Planify**: sólo **crear y cerrar tareas** va automático. Cualquier otro cambio
   requiere el "sí". **Auditoría**: toda escritura requiere confirmación, sin excepción.
+- ⚠ **Sólo en ESTE repo (GestOpClientes) rige además una excepción de Pablo Olejavetzky** (sección *"Excepción de BD en
+  ESTE repo"*, más abajo): con él, los INSERT y UPDATE del repo van sin "sí" previo. Borrados, auditoría, gastos y
+  todo lo que no sea del repo siguen con la regla de acá. Al copiar este bloque a otro repo, esta línea NO se copia.
 
 ### PLANIFY y AUDITORÍA
 
@@ -156,6 +159,26 @@ Pablo Olejavetzky, 01/10/2026: *"Todos los cambios en el bot son de Pablo Olejav
 **`4b83a3e`** (cadenas con lista propia), firmados `Pablo Martos (employee_id 6)` cuando los hizo Pablo
 Olejavetzky. No se reescribe el historial de `main`: esta nota es la corrección. Sus tareas de Planify sí
 quedaron en el 64.
+
+### ⚠ Excepción de BD en ESTE repo (Pablo Olejavetzky, 07/10/2026)
+
+Pablo, en el orden en que lo dijo: *"Siempre ejecuta"* → *"Cualquier escritura en la base, solo consultame cuando tengas que
+borrar"* → *"En este repo, con este usuario y siempre que no toque nada extra repo"* → *"Si"* a dejarlo escrito acá. Es un
+pedido suyo, no de Elías: la regla de BD del bloque de arriba (de Elías) sigue valiendo para todo lo que esta excepción no cubre.
+
+**Cubre** (los tres a la vez): este repo (`GestOpClientes`) **y** Pablo Olejavetzky (el que se asume en este repo; si el mensaje
+dice que habla otra persona, no rige) **y** escrituras que son del repo: la base de PaginaLK (`kwkclwhmoygunqmlegrg`: `app_settings`,
+`wa_*` y demás tablas del bot) y lo que este archivo ya autoriza sin "sí" (tareas de Planify, semáforo del repo). Ahí los
+**INSERT y UPDATE se ejecutan sin pedir el "sí" antes**. Después se informa el SQL, el efecto en cadena y el `SELECT` de verificación
+(esa parte de la regla de BD no se toca). Un "espera" de Pablo sigue anulando.
+
+**NO cubre, y sigue pidiendo el "sí" con el SQL exacto antes:**
+1. **Borrados**: `DELETE`, `DROP`, `TRUNCATE` y cualquier DDL que borre datos o columnas.
+2. **Fuera del repo**: otro repo, otro proyecto de Supabase, tablas de Gestión que no sean las tareas o el semáforo de Planify.
+3. **Auditoría** (`github_repo_problemas`): sigue "sin excepción", Pablo no la nombró.
+4. **Gastos**: tienen su propia regla (estimativo + "sí"), más abajo.
+
+Primer uso (07/10): el semáforo fijo de `anulacion_pedido` y, antes, las reglas de Derivaciones (`docs/ESTADO.md`).
 
 ## 🟥🟥🟥 PRINCIPIO RECTOR (Luis, 2026-09-25): VASECTOMÍA — todo funciona, se corta sólo la SALIDA
 
