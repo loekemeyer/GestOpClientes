@@ -9,6 +9,8 @@ import { derivaciones, MAX_TAMBIEN, MOTIVOS_IA, ORIGEN, SETTING_DERIVACIONES } f
 import { getGestionClient } from "../_shared/supabase.ts";
 import { COD_CLIENTE_PRUEBA } from "../_shared/cliente-prueba.ts";
 import { minimoGeneral, SETTING_MINIMO } from "../_shared/minimo.ts";
+import { canonTel, CONFIG_WA_DEFECTO, esModoWa, modoDeMotivo, SENSIBLES, validarConfigWa } from "../_shared/aviso-equipo.ts";
+import { PLANTILLAS } from "../_shared/plantillas-meta.ts";
 
 // Tarea creada desde el Simulador con un cliente real: se ve, pero no se aplica (no toca pedidos ni claves reales).
 // deno-lint-ignore no-explicit-any
@@ -31,6 +33,8 @@ async function bloqueoPrueba(a: any): Promise<string | null> {
 //   {action:"config_get"} / {action:"config_save", vencimientos:{categoria: minutos}}
 //   {action:"derivaciones_get"} / {action:"derivaciones_save", prueba_employee_id, motivos:{cat:{destino, employee_id, department_id, nivel?, tambien?:[{employee_id, department_id}]}}, extra:[…]}
 //        → Configuración › Derivaciones: a dónde va cada motivo (app_settings.wa_derivaciones, _shared/derivaciones.ts)
+//        07/10: además `whatsapp:{activo, sector, extra:[{nombre,telefono}], solo_horario, urgentes_siempre, con_detalle, escalada_min:{rojo,amarillo,verde}, max_edad_h, tope_hora}` y,
+//        por motivo, `wa: "off"|"inmediato"|"escalada"|"ambos"|null` = el aviso por WhatsApp al equipo (_shared/aviso-equipo.ts; lo manda lk_alerta-planify por la cola).
 //
 // Vencimiento (06/10, Pablo): lo manda el SEMÁFORO de la alerta — 🔴 20 min, 🟡 2 h, 🟢 4 h por defecto, editable en Derivaciones
 // (app_settings.wa_derivaciones.tiempos). vence_at = venceAtDe(alerta): sus minutos contados en tiempo de atención (horario telefónico, 06/10). Los minutos por categoría de
@@ -149,12 +153,16 @@ serve(async (req) => {
       try {
         const g = await getGestionClient("planify");
         const [e, d] = await Promise.all([
-          g.from("employees").select("id, nombre, department_id").eq("activo", true).order("nombre"), // department_id: el panel filtra las personas por sector
-          g.from("departments").select("id, nombre").eq("activo", true).order("nombre"),
+          g.from("employees").select("id, nombre, department_id, telefono").eq("activo", true).order("nombre"), // department_id: el panel filtra las personas por sector
+          g.from("departments").select("id, nombre, telefono").eq("activo", true).order("nombre"),
         ]);
-        empleados = e.data ?? []; sectores = d.data ?? [];
+        // Aviso por WhatsApp (07/10): el panel marca a quién no se le puede avisar. Del teléfono viajan sólo las últimas 4 cifras (tel_fin), nunca el número.
+        const fin = (t: unknown) => canonTel(t)?.slice(-4) ?? null;
+        empleados = (e.data ?? []).map(({ telefono, ...x }: Record<string, unknown>) => ({ ...x, tel_fin: fin(telefono) }));
+        sectores = (d.data ?? []).map(({ telefono, ...x }: Record<string, unknown>) => ({ ...x, linea_fin: fin(telefono) }));
       } catch (e) { console.error("lk_alertas derivaciones: Planify no respondió", e); }
       const { data: llave } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
+      const cfgWa = der.wa ?? CONFIG_WA_DEFECTO;
       const niv = (cat: string) => nivel({ tipo: cat, contexto: { motivo: cat } }); // el que rige: el fijado a mano o, si no, el "Auto"
       const extras = new Map(der.extra.map((e) => [e.clave, e]));
       return json({
@@ -166,12 +174,17 @@ serve(async (req) => {
           categoria: k, label: c.label, nivel: niv(k), nivel_auto: nivelAutoDeMotivo(k), nivel_fijo: nivelFijo(k), minutos: tiempoDeNivel(niv(k)),
           origen: extras.has(k) ? "La IA deriva: " + (extras.get(k)!.cuando || c.label) : ORIGEN[k] ?? "",
           de_ia: MOTIVOS_IA.includes(k) || extras.has(k), extra: extras.get(k) ?? null, ...der.motivos[k],
+          // wa = lo elegido en el panel (null = sin elegir); wa_defecto = lo que rige si no se elige (depende de si el motivo va a Planify).
+          wa_defecto: modoDeMotivo({ ...cfgWa, activo: true }, null, k, { planify: der.motivos[k]?.destino === "planify", urgente: false }), wa_sensible: SENSIBLES.has(k),
         })),
+        whatsapp: cfgWa,
+        plantillas_wa: PLANTILLAS.filter((p) => p.name.startsWith("aviso_equipo")).map((p) => ({ name: p.name, body: p.body, disparo: p.disparo })),
       });
     }
 
     if (body.action === "derivaciones_save") {
       await vencimientos(); // registra los extras ya guardados
+      const derActual = await derivaciones(); // lo ya guardado: lo que el panel no manda (versión vieja) se conserva
       const id = (x: unknown) => (x === null || x === "" || x === undefined ? null : Number(x) > 0 ? Math.round(Number(x)) : NaN);
       const prueba = id(body.prueba_employee_id);
       if (Number.isNaN(prueba)) return json({ ok: false, error: "Persona de prueba inválida." }, 400);
@@ -210,7 +223,10 @@ serve(async (req) => {
           if (te === null && td === null) return json({ ok: false, error: `Falta elegir a quién va el destino adicional de ${k}.` }, 400);
           tambien.push({ employee_id: te, department_id: td });
         }
-        motivos[k] = { destino: dest, employee_id: e, department_id: d, ...(nv ? { nivel: nv } : {}), ...(tambien.length ? { tambien } : {}) };
+        // WhatsApp al equipo (07/10): qué avisa este motivo. Sin el campo (panel viejo) se conserva el guardado; null o "" = sin elegir (rige el defecto).
+        const waElegido = r.wa === undefined ? (derActual.motivos[k]?.wa ?? null) : r.wa === null || r.wa === "" ? null : r.wa;
+        if (waElegido !== null && !esModoWa(waElegido)) return json({ ok: false, error: `Modo de WhatsApp inválido en ${k}` }, 400);
+        motivos[k] = { destino: dest, employee_id: e, department_id: d, ...(nv ? { nivel: nv } : {}), ...(tambien.length ? { tambien } : {}), ...(waElegido ? { wa: waElegido } : {}) };
       }
       // Tiempo de respuesta de cada semáforo (06/10): minutos, de 1 a 30 días. Si el panel no lo manda (versión vieja) se conserva el vigente.
       const tiempos: Record<string, number> = tiemposVigentes();
@@ -229,8 +245,15 @@ serve(async (req) => {
         if (!r.ok) return json({ ok: false, error: r.error }, 400);
         horario = r.horario;
       }
+      // Configuración del aviso por WhatsApp (07/10). Si el panel no la manda (versión vieja) se conserva la vigente.
+      let whatsapp = derActual.wa ?? CONFIG_WA_DEFECTO;
+      if (body.whatsapp !== undefined && body.whatsapp !== null) {
+        const r = validarConfigWa(body.whatsapp);
+        if (!r.ok) return json({ ok: false, error: r.error }, 400);
+        whatsapp = r.config;
+      }
       const { error } = await supabase.from("app_settings")
-        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra, tiempos, horario }) }, { onConflict: "key" });
+        .upsert({ key: SETTING_DERIVACIONES, value: JSON.stringify({ prueba_employee_id: prueba, motivos, extra, tiempos, horario, whatsapp }) }, { onConflict: "key" });
       if (error) return json({ ok: false, error: error.message }, 200);
       console.log(`lk_alertas: derivaciones actualizadas por ${gate.email}`);
       return json({ ok: true });

@@ -214,6 +214,29 @@ export const PLANTILLAS: PlantillaMeta[] = [
     // El botón le llega al webhook como texto; la charla queda en modo humano (lo pone "Reabrir con plantilla"), así que el bot no contesta.
     botones: ["Retomar consulta"],
   },
+
+  // ── Aviso al EQUIPO (no al cliente): lo que sale en Planify también por WhatsApp (Pablo, 07/10) ──
+  // Van a las personas de Ventas (y de cualquier sector que se elija en Configuración › Derivaciones), que no le escribieron al bot en las últimas
+  // 24 h: sin plantilla Meta rechaza el mensaje (131047). Una sola plantilla para TODOS los motivos, con el motivo como variable: aprobar varias lleva
+  // días y una aprobada se edita una vez cada 24 h. Sin botones a propósito: si alguien contesta, cae al webhook como número desconocido (la whitelist
+  // lo descarta); el texto manda a gestionar en Planify. {{4}} es lo que escribió el cliente en una línea y sin enlaces (lineaSegura), o "ver en Planify".
+  // Las manda lk_alerta-planify por la cola (wa_outbox), así que pasan por la llave wa_envio_automatico. Lógica en _shared/aviso-equipo.ts.
+  {
+    name: "aviso_equipo",
+    language: ES, category: UT,
+    disparo: "Nace una alerta que necesita a una persona y su motivo avisa por WhatsApp (Configuración › Derivaciones › WhatsApp: «apenas nace» o «ambos»). Va a quien corresponda según el destino del motivo.",
+    variables: ["para quién (persona o sector)", "motivo (ej. Consulta de entrega)", "cliente con su código", "detalle: lo que escribió el cliente en una línea, o \"ver en Planify\""],
+    body: "Hay un aviso nuevo en Planify para {{1}}.\nMotivo: {{2}}.\nCliente: {{3}}.\nDetalle: {{4}}.\nAbrí Planify para tomarlo.",
+    ejemplos: ["Ventas", "Consulta de entrega", "Chef S.R.L. (411)", "Retira el lunes 12/10, franja sin confirmar"],
+  },
+  {
+    name: "aviso_equipo_sin_tomar",
+    language: ES, category: UT,
+    disparo: "Una alerta sigue abierta y nadie se encargó (\"Me encargo yo\") al vencer el tiempo del semáforo, o el que se fije en Configuración › Derivaciones › WhatsApp (los motivos «si nadie lo toma» o «ambos»). Una sola vez por alerta.",
+    variables: ["hace cuánto nació (ej. 2 h)", "motivo", "cliente con su código", "detalle: lo que escribió el cliente en una línea, o \"ver en Planify\""],
+    body: "Hace {{1}} hay un aviso sin tomar en Planify.\nMotivo: {{2}}.\nCliente: {{3}}.\nDetalle: {{4}}.\nAbrí Planify para tomarlo.",
+    ejemplos: ["2 h", "Consulta de entrega", "Autoservicio Capo SA (4210)", "Retira el lunes 12/10, franja sin confirmar"],
+  },
 ];
 
 /** Payload de `components` que espera Meta para crear/editar. */

@@ -211,6 +211,18 @@
     #derivList .dv-tb select { flex: 1; min-width: 0; }
     #derivList .dv-x { padding: 2px 7px; }
     #derivTiempos .dv-tiempo { margin-right: 0.8rem; white-space: nowrap; }
+    /* v0.28.0 (Pablo, 07/10): aviso por WhatsApp al equipo */
+    #derivWa { flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font-size: 0.82rem; }
+    #derivWa .dv-wa-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; }
+    #derivWa .dv-wa-fila > label:first-child { min-width: 0; }
+    #derivWa input[type="number"] { width: 70px; }
+    #derivWa .dv-dia { cursor: pointer; }
+    #derivWa .dv-num { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0; }
+    #derivWa .dv-num input[type="text"] { padding: 0.25rem 0.4rem; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
+    #derivWa .dv-num input[data-w="n_tel"] { width: 150px; }
+    #derivWa pre { white-space: pre-wrap; font-size: 0.75rem; margin: 2px 0 6px; padding: 6px 8px; background: rgba(0, 0, 0, 0.05); border-radius: 6px; }
+    #derivWa summary { cursor: pointer; color: var(--muted); }
+    #derivList .al-tabla select[data-f="wa"] { width: 185px; max-width: 185px; margin-top: 2px; }
     #derivTiempos input { width: 70px; }
     #derivHorario .dv-dia { margin-right: 0.5rem; white-space: nowrap; cursor: pointer; }
     #derivHorario input[type="time"] { width: 110px; }
@@ -1075,6 +1087,7 @@
             <div id="derivPrueba" class="config-row" style="margin-bottom:0.6rem;"></div>
             <div id="derivTiempos" class="config-row" style="margin-bottom:0.6rem;"></div>
             <div id="derivHorario" class="config-row" style="margin-bottom:0.6rem;flex-wrap:wrap;"></div>
+            <div id="derivWa" class="config-row" style="margin-bottom:0.6rem;"></div>
             <div id="derivList" style="overflow-x:auto;"><div class="bl-empty">Cargando…</div></div>
             <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.7rem;">
               <button class="config-btn primary" onclick="saveDerivaciones()">Guardar</button>
@@ -3928,6 +3941,7 @@ function pintarDerivaciones() {
     <label class="dv-dia" style="flex-basis:100%"><input type="checkbox" data-h="puentes"${hr.incluir_puentes ? " checked" : ""}> Contar también los «puentes turísticos no laborables» como días sin atención (ante la duda, cerrado: viene tildado)</label>
     <label class="dv-fer" style="flex-basis:100%">Otros días sin atención (a mano): <input type="text" data-h="feriados" value="${esc((hr.feriados || []).join(", "))}" placeholder="AAAA-MM-DD, AAAA-MM-DD"></label>
     <span class="hint" style="flex-basis:100%">Si un cliente escribe fuera de este horario y el bot lo pasa a una persona, le avisa cuándo se le va a responder. Es el horario telefónico: el del depósito (9 a 12 y 13 a 16:30) es otro dato. Los feriados vienen del calendario de Planify (nacionales y trasladables); los puentes no laborables también se dan por cerrados (podés destildarlo).</span>`;
+  pintarWhatsApp(data);
   const destOpt = (m) => [["planify", "Planify + Tareas"], ["tareas", "Sólo Tareas"], ...(m.de_ia ? [["bot", "Lo responde el bot"]] : [])]
     .map(([v, t]) => `<option value="${v}"${m.destino === v ? " selected" : ""}>${t}</option>`).join("");
   const fila = (m) => {
@@ -3945,7 +3959,8 @@ function pintarDerivaciones() {
     const conPlanify = m.destino === "planify";
     return `<tr data-cat="${esc(m.categoria)}"${ex ? ' data-extra="1"' : ""}${m.nuevo ? ' class="dv-nuevo"' : ""}><td>${nombreCel}</td><td class="hint" style="max-width:260px;">${origenCel}</td>
       <td style="white-space:nowrap;">${semaforoSel(m)}<div class="hint" data-vence>vence ${durTexto(derivMinutosDe(m.nivel_fijo || m.nivel_auto || m.nivel) * 60000)}</div></td>
-      <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select></td>
+      <td><select data-f="destino" onchange="derivCambioDestino(this)">${destOpt(m)}</select>
+        <div class="hint" style="margin-top:5px;">📲 WhatsApp al equipo</div><select data-f="wa" title="Qué avisa este motivo por WhatsApp. Apenas nace: sale junto con la tarea. Si nadie lo toma: sólo si pasa el tiempo sin que nadie toque «Me encargo yo». Nace y escala: las dos cosas.">${derivWaOpts(m, m.destino)}</select></td>
       <td class="dv-quien">
         <label><span>Sector</span><select data-f="department_id" onchange="derivCambioSector(this)"${conPlanify ? "" : " disabled"}>${opt(data.sectores, m.department_id, "— ninguno —")}</select></label>
         <label><span>Persona</span><select data-f="employee_id"${conPlanify ? "" : " disabled"}>${derivPersonasOpts(m.department_id, m.employee_id)}</select></label>
@@ -3962,6 +3977,8 @@ function pintarDerivaciones() {
 }
 function derivCambioDestino(sel) {
   const tr = sel.closest("tr"), p = sel.value === "planify";
+  const mw = DERIV.motivos.find((x) => x.categoria === tr.dataset.cat), selWa = tr.querySelector('[data-f="wa"]');
+  if (mw && selWa) selWa.innerHTML = derivWaOpts(mw, sel.value, selWa.value); // el "Auto" depende de si el motivo va a Planify
   tr.querySelectorAll('[data-f="employee_id"],[data-f="department_id"],[data-f="tambien"],.dv-x').forEach((x) => { x.disabled = !p; });
   const mas = tr.querySelector(".dv-add");
   if (mas) mas.disabled = !p || tr.querySelectorAll('[data-f="tambien"]').length >= DERIV_MAX_TAMBIEN;
@@ -4030,12 +4047,102 @@ function derivLeerForm() {
     const v = (f) => tr.querySelector(`[data-f="${f}"]`)?.value;
     m.destino = v("destino"); m.employee_id = v("employee_id") || null; m.department_id = v("department_id") || null;
     m.nivel_fijo = v("nivel") || null;
+    m.wa = v("wa") || null;
     m.tambien = [...tr.querySelectorAll('[data-f="tambien"]')].map((x) => derivLeerDestino(x.value));
     if (m.extra) { m.extra.nombre = v("nombre") || ""; m.extra.cuando = v("cuando") || ""; m.extra.min = Number(v("min")) || m.extra.min || 120; m.label = m.extra.nombre; }
   });
   DERIV.prueba_employee_id = document.getElementById("derivPruebaEmp")?.value || null;
   if (document.querySelector("#derivTiempos [data-t]")) DERIV.tiempos = derivLeerTiempos();
   if (document.querySelector("#derivHorario [data-h]")) DERIV.horario = derivLeerHorario();
+  if (document.querySelector("#derivWa [data-w]")) DERIV.whatsapp = derivLeerWa();
+}
+// --- Aviso por WhatsApp al equipo (v0.28.0, Pablo 07/10: "agregues todo al panel, hoy prefiero que sobre y no que falte") ---
+// Config general en #derivWa (wa_derivaciones.whatsapp) y un selector por motivo (motivos[motivo].wa). Lo manda lk_alerta-planify por la cola con una plantilla,
+// así que respeta la llave de envío. Lógica y límites: supabase/functions/_shared/aviso-equipo.ts.
+// «Nace y escala» = avisa apenas nace y, si nadie lo toma a tiempo, avisa otra vez.
+const WA_MODO_TXT = { off: "Sin WhatsApp", inmediato: "Apenas nace", escalada: "Si nadie lo toma", ambos: "Nace y escala" };
+// El modo que rige si no se elige (igual que modoDeMotivo() del servidor): lo sensible avisa apenas nace, lo que va a Planify avisa y escala, el resto no avisa.
+const derivWaAuto = (m, destino) => (m.wa_sensible ? "inmediato" : destino === "planify" ? "ambos" : "off");
+function derivWaOpts(m, destino, elegido) {
+  const sel = elegido !== undefined ? elegido : m.wa || "", auto = derivWaAuto(m, destino);
+  return `<option value=""${sel === "" ? " selected" : ""}>Auto: ${WA_MODO_TXT[auto]}</option>` +
+    Object.entries(WA_MODO_TXT).map(([v, t]) => `<option value="${v}"${sel === v ? " selected" : ""}>${t}</option>`).join("");
+}
+function pintarWhatsApp(data) {
+  const box = document.getElementById("derivWa");
+  if (!box) return;
+  const w = data.whatsapp || { activo: true, sector: "personas", extra: [], solo_horario: false, urgentes_siempre: true, con_detalle: true, escalada_min: {}, max_edad_h: 48, tope_hora: 20 };
+  const tm = data.tiempos || { rojo: 20, amarillo: 120, verde: 240 };
+  const ck = (k, v) => `<input type="checkbox" data-w="${k}"${v ? " checked" : ""}>`;
+  const emps = data.empleados || [], secs = data.sectores || [];
+  const quien = secs.map((s) => {
+    const ps = emps.filter((e) => Number(e.department_id) === s.id);
+    if (!ps.length && !s.linea_fin) return "";
+    const personas = ps.map((p) => p.tel_fin ? `${esc(p.nombre)} ✓ …${esc(p.tel_fin)}` : `<span style="color:var(--danger);">${esc(p.nombre)} ✗ sin teléfono</span>`).join(" · ");
+    return `<div><b>${esc(s.nombre)}</b>: ${personas || "sin personas"} · línea del sector ${s.linea_fin ? "✓ …" + esc(s.linea_fin) : "✗ sin teléfono"}</div>`;
+  }).join("");
+  box.innerHTML = `<div class="dv-wa-fila"><b>📲 Aviso por WhatsApp al equipo</b>
+      <label class="dv-dia" title="Interruptor general. El corte real sigue siendo la llave de envío: con ella en prueba o apagada, nada le llega a nadie.">${ck("activo", w.activo)} Activo</label>
+      <span class="hint">Lo que sale en Planify también por WhatsApp. Va por la cola con una plantilla (Meta no deja texto libre fuera de las 24 h) y respeta la llave de envío: ${
+        data.llave === "1" ? "hoy está en <b>producción</b>." : data.llave === "prueba" ? "hoy está en <b>prueba</b>: sólo llega a los números de la lista de prueba, y en lugar del equipo se avisa a la persona de prueba." : "hoy está <b>apagada</b>: los avisos quedan en cola retenidos."}</span></div>
+    <div class="dv-wa-fila"><span>Cuando el destino es un sector, avisar a</span>
+      <select data-w="sector"><option value="personas"${w.sector === "personas" ? " selected" : ""}>cada persona del sector</option><option value="linea"${w.sector === "linea" ? " selected" : ""}>la línea del sector</option><option value="ambos"${w.sector === "ambos" ? " selected" : ""}>las dos</option></select>
+      <span class="hint">Una persona elegida en la tabla recibe sólo ella.</span></div>
+    <div class="dv-wa-fila"><span>«Si nadie lo toma»: avisar a los</span>
+      ${["rojo", "amarillo", "verde"].map((n) => `<span class="dv-tiempo">${{ rojo: "🔴", amarillo: "🟡", verde: "🟢" }[n]} <input type="number" min="1" max="43200" data-w="esc_${n}" value="${w.escalada_min?.[n] ?? ""}" placeholder="${tm[n]}"> min</span>`).join("")}
+      <span class="hint">Vacío = el tiempo de respuesta del semáforo (el que está arriba). Se cuenta en tiempo de atención y se revisa cada 10 minutos.</span></div>
+    <label class="dv-dia">${ck("solo_horario", w.solo_horario)} Mandar sólo dentro del horario de atención (fuera de él, el aviso espera a la próxima apertura)</label>
+    <label class="dv-dia">${ck("urgentes_siempre", w.urgentes_siempre)} Lo 🔴 urgente siempre avisa por WhatsApp, aunque su motivo diga «Sin WhatsApp»</label>
+    <label class="dv-dia">${ck("con_detalle", w.con_detalle)} Incluir lo que escribió el cliente (en una línea y sin enlaces); si no, dice «ver en Planify»</label>
+    <div class="dv-wa-fila"><span>No avisar de alertas con más de</span><input type="number" min="1" max="720" data-w="max_edad_h" value="${w.max_edad_h}"> <span>horas (evita una ráfaga de avisos viejos al prender)</span>
+      <span>· Tope:</span><input type="number" min="1" max="200" data-w="tope_hora" value="${w.tope_hora}"> <span>avisos por hora a cada número</span></div>
+    <div><span>Números adicionales (reciben TODO lo que se avise, además de los de cada motivo):</span>
+      ${(w.extra || []).map((x) => `<div class="dv-num"><input type="text" data-w="n_nombre" value="${esc(x.nombre)}" placeholder="Nombre" maxlength="40"><input type="text" data-w="n_tel" value="${esc(x.telefono)}" placeholder="11 3118 1021"><button type="button" class="config-btn small dv-x" title="Quitar este número" onclick="derivNumQuitar(this)">✕</button></div>`).join("")}
+      <button type="button" class="config-btn small" onclick="derivNumAgregar()"${(w.extra || []).length >= 10 ? " disabled" : ""}>+ número</button></div>
+    ${quien ? `<details><summary>A quién le llegaría hoy (según los teléfonos de Planify)</summary><div class="hint" style="margin-top:4px;line-height:1.7;">${quien}<div>✗ = no se le puede avisar: cargale el teléfono en Planify (empleados). Sólo se muestran las últimas 4 cifras.</div></div></details>` : ""}
+    ${(data.plantillas_wa || []).length ? `<details><summary>Textos de las plantillas</summary><div class="hint" style="margin:4px 0;">Hay que crearlas en Meta una vez (pestaña Plantillas › sincronizar) y esperar la aprobación; hasta entonces los avisos quedan en cola y Meta los rechaza.</div>${data.plantillas_wa.map((p) => `<div><code>${esc(p.name)}</code></div><pre>${esc(p.body)}</pre>`).join("")}</details>` : ""}`;
+}
+function derivNumAgregar() {
+  derivLeerForm();
+  DERIV.whatsapp = DERIV.whatsapp || {};
+  DERIV.whatsapp.extra = [...(DERIV.whatsapp.extra || []), { nombre: "", telefono: "" }].slice(0, 10);
+  pintarDerivaciones();
+  const n = document.querySelectorAll('#derivWa [data-w="n_nombre"]');
+  n[n.length - 1]?.focus();
+}
+function derivNumQuitar(btn) {
+  const i = [...document.querySelectorAll("#derivWa .dv-num")].indexOf(btn.closest(".dv-num"));
+  derivLeerForm();
+  if (i >= 0) DERIV.whatsapp.extra.splice(i, 1);
+  pintarDerivaciones();
+}
+function derivLeerWa() {
+  const q = (k) => document.querySelector(`#derivWa [data-w="${k}"]`);
+  const num = (k) => { const x = q(k)?.value; return x === "" || x == null ? null : Number(x); };
+  return {
+    activo: !!q("activo")?.checked, sector: q("sector")?.value || "personas",
+    solo_horario: !!q("solo_horario")?.checked, urgentes_siempre: !!q("urgentes_siempre")?.checked, con_detalle: !!q("con_detalle")?.checked,
+    escalada_min: { rojo: num("esc_rojo"), amarillo: num("esc_amarillo"), verde: num("esc_verde") },
+    max_edad_h: num("max_edad_h"), tope_hora: num("tope_hora"),
+    extra: [...document.querySelectorAll("#derivWa .dv-num")].map((r) => ({ nombre: r.querySelector('[data-w="n_nombre"]').value.trim(), telefono: r.querySelector('[data-w="n_tel"]').value.trim() })),
+  };
+}
+// Revisa lo que el servidor rechazaría, señalando el campo. Devuelve el mensaje o null.
+function derivWaValidar(w) {
+  const marcar = (k, msg) => { const c = document.querySelector(`#derivWa [data-w="${k}"]`); c?.scrollIntoView({ block: "center" }); c?.focus({ preventScroll: true }); return msg; };
+  for (const n of ["rojo", "amarillo", "verde"]) {
+    const m = w.escalada_min[n];
+    if (m !== null && !(Number.isInteger(m) && m >= 1 && m <= 43200)) return marcar("esc_" + n, `El tiempo de «si nadie lo toma» del semáforo ${{ rojo: "🔴", amarillo: "🟡", verde: "🟢" }[n]} tiene que estar entre 1 minuto y 30 días (o vacío).`);
+  }
+  if (w.max_edad_h !== null && !(Number.isInteger(w.max_edad_h) && w.max_edad_h >= 1 && w.max_edad_h <= 720)) return marcar("max_edad_h", "«No avisar de alertas con más de» va de 1 a 720 horas.");
+  if (w.tope_hora !== null && !(Number.isInteger(w.tope_hora) && w.tope_hora >= 1 && w.tope_hora <= 200)) return marcar("tope_hora", "El tope de avisos por hora va de 1 a 200.");
+  const filas = [...document.querySelectorAll("#derivWa .dv-num")];
+  for (let i = 0; i < w.extra.length; i++) {
+    const x = w.extra[i];
+    if (!x.nombre) { filas[i].querySelector('[data-w="n_nombre"]').focus(); return "A cada número adicional le falta el nombre."; }
+    if (x.telefono.replace(/\D/g, "").length < 10) { filas[i].querySelector('[data-w="n_tel"]').focus(); return `El teléfono de «${x.nombre}» no parece válido (código de área y número, por ejemplo 11 3118 1021).`; }
+  }
+  return null;
 }
 function derivLeerHorario() {
   const q = (k) => document.querySelector(`#derivHorario [data-h="${k}"]`);
@@ -4106,6 +4213,10 @@ async function saveDerivaciones() {
     st.textContent = "✗ " + malHorario[1]; st.className = "config-status err";
     return;
   }
+  if (DERIV.whatsapp) {
+    const malWa = derivWaValidar(DERIV.whatsapp);
+    if (malWa) { st.textContent = "✗ " + malWa; st.className = "config-status err"; return; }
+  }
   const malTiempo = ["rojo", "amarillo", "verde"].find((n) => !(DERIV.tiempos?.[n] >= 1 && DERIV.tiempos[n] <= 43200));
   if (malTiempo) {
     const campo = document.querySelector(`#derivTiempos [data-t="${malTiempo}"]`);
@@ -4137,11 +4248,11 @@ async function saveDerivaciones() {
   }
   const motivos = {}, extra = [];
   for (const m of DERIV.motivos) {
-    motivos[m.categoria] = { destino: m.destino, employee_id: m.employee_id, department_id: m.department_id, nivel: m.nivel_fijo || null, tambien: m.tambien || [] };
+    motivos[m.categoria] = { destino: m.destino, employee_id: m.employee_id, department_id: m.department_id, nivel: m.nivel_fijo || null, tambien: m.tambien || [], wa: m.wa || null };
     if (m.extra) extra.push({ clave: m.categoria, nombre: m.extra.nombre, cuando: m.extra.cuando, min: m.extra.min });
   }
   st.textContent = "Guardando…"; st.className = "config-status";
-  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: DERIV.prueba_employee_id, motivos, extra, tiempos: DERIV.tiempos, horario: DERIV.horario });
+  const { data, error } = await authedInvoke("lk_alertas", { action: "derivaciones_save", prueba_employee_id: DERIV.prueba_employee_id, motivos, extra, tiempos: DERIV.tiempos, horario: DERIV.horario, whatsapp: DERIV.whatsapp });
   if (error || !data?.ok) { st.textContent = "✗ " + (data?.error || error?.message || "Error"); st.className = "config-status err"; return; }
   st.textContent = "✓ Guardado"; st.className = "config-status ok";
   loadDerivaciones();
@@ -4992,7 +5103,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.27.22</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.0</div>
 <script src="gestop2.js?v=0.27.17"></script>
 </body>
 </html>

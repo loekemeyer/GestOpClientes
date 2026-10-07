@@ -199,3 +199,17 @@ reciente, que su descuento coincida; el resto a una persona.
 **Códigos duales (Pablo, 01/10): "el producto es el mismo, pero el precio es diferente".** Medido: 437E, 438E y 439E cuestan 10,7 % a 11,3 %
 más en Chef que en Loekemeyer (precio de lista) y el 809E se describe distinto en cada web (Corta Queso en Chef, Corta Pizza en
 Loekemeyer) pero es el mismo producto. Regla para el bot: descripción y precio salen SIEMPRE del catálogo de la empresa que consulta.
+
+
+## D009 — Avisos al equipo por WhatsApp: sale por la cola, es opcional por motivo y escala (2026-10-07)
+
+**Pablo Olejavetzky:** *"que los avisos que salen en el Planify también lleguen al WhatsApp, sobre todo a Ventas"*; después, sobre el cartel de
+Planify: *"siento que el Planify es mucho más invasivo"* y *"agregues todo al panel de configuración, hoy prefiero que sobre y no que falte"*.
+
+**Decisión:** (1) el aviso al equipo es **una salida más de la cola** (`wa_outbox` + plantilla, `lk_outbox-flush`), no un envío directo a Meta: respeta la
+llave `wa_envio_automatico` y D007; (2) **plantilla obligatoria** (al equipo no le escribió al bot en 24 h: texto libre fuera de la ventana da 131047);
+(3) cada motivo elige **apenas nace / si nadie lo toma / las dos / ninguno** en Configuración › Derivaciones, con un defecto que avisa de más; (4) la
+**escalada** manda un solo WhatsApp si nadie tocó «Me encargo yo» al vencer el semáforo: acota el ruido sin conocer el volumen real.
+**Por qué la escalada y no sólo el espejo:** un WhatsApp llega a cualquier hora, no se apaga cuando alguien toma el caso y duplica cada cartel; el
+volumen de producción no se puede medir hoy (el bot atiende 2 números). **Pendiente de Pablo/Thomas:** tarifa y volumen para el estimativo de gasto, y
+si los avisos de Ventas van a las 3 personas o a la línea del sector (hoy: cada persona; se cambia en el panel sin tocar código).

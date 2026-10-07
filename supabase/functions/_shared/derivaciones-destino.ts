@@ -16,11 +16,10 @@ export type DestinoTarea = { asignar: Dest; real: Dest | null };
 
 const clave = (x: Dest) => ("employee_id" in x ? `e${x.employee_id}` : `d${x.department_id}`);
 
-/** Destinos de una alerta en Planify, el principal primero. Vacío si el motivo sólo va a Tareas (o no hay a quién). */
-export function destinosDe(d: Derivaciones, cat: string, esUrgente: boolean, produccion: boolean): DestinoTarea[] {
+/** Los destinos que configuró el motivo (el principal primero, después los "también a"), sin repetidos. Sin ninguno configurado: el sector o la persona
+ *  "por defecto". No mira si el motivo va a Planify: lo comparten la tarea y el aviso por WhatsApp. */
+function destinosReales(d: Derivaciones, cat: string): Dest[] {
   const r = d.motivos[cat] ?? d.motivos.otro;
-  if (cat === "whitelist_gate") return [];
-  if (!r?.planify && !esUrgente) return [];
   const reales: Dest[] = [];
   // Principal: la persona gana al sector; sin ninguno de los dos, el sector o la persona "por defecto".
   if (r?.employee_id) reales.push({ employee_id: r.employee_id });
@@ -33,7 +32,24 @@ export function destinosDe(d: Derivaciones, cat: string, esUrgente: boolean, pro
     if (t.employee_id) reales.push({ employee_id: t.employee_id });
     else if (t.department_id) reales.push({ department_id: t.department_id });
   }
-  const unicos = reales.filter((x, i) => reales.findIndex((y) => clave(y) === clave(x)) === i);
+  return reales.filter((x, i) => reales.findIndex((y) => clave(y) === clave(x)) === i);
+}
+
+/** A quién se le avisa por WhatsApp (07/10, Pablo: "los avisos que salen en el Planify también lleguen al WhatsApp"). Los mismos destinos que la tarea,
+ *  PERO sin depender de que el motivo vaya a Planify (cambio de mail o de clave van sólo a Tareas y igual avisan). Con la llave en prueba, un solo
+ *  destino —la persona de prueba—: a diferencia de las tareas (una por destino, para poder probarlas) no hace falta repetir el mismo WhatsApp. */
+export function destinosDeAviso(d: Derivaciones, cat: string, produccion: boolean): Dest[] {
+  if (cat === "whitelist_gate") return [];
+  if (!produccion) return d.prueba_employee_id ? [{ employee_id: d.prueba_employee_id }] : [];
+  return destinosReales(d, cat);
+}
+
+/** Destinos de una alerta en Planify, el principal primero. Vacío si el motivo sólo va a Tareas (o no hay a quién). */
+export function destinosDe(d: Derivaciones, cat: string, esUrgente: boolean, produccion: boolean): DestinoTarea[] {
+  const r = d.motivos[cat] ?? d.motivos.otro;
+  if (cat === "whitelist_gate") return [];
+  if (!r?.planify && !esUrgente) return [];
+  const unicos = destinosReales(d, cat);
   if (!produccion) {
     if (!d.prueba_employee_id) return [];
     const prueba: Dest = { employee_id: d.prueba_employee_id };

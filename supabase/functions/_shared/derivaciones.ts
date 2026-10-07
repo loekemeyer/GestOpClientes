@@ -10,12 +10,14 @@
 // destino: "planify" = Tareas + tarea en Planify · "tareas" = sólo Centro de mensajes › Tareas ·
 //          "bot" = lo responde el bot: la IA NO deriva ese motivo (sólo los motivos que deriva la IA).
 // Varios destinos (06/10): motivos[motivo].tambien = [{employee_id, department_id}, …] suma destinos al principal; cada uno abre su tarea.
+// Aviso por WhatsApp al equipo (07/10): wa_derivaciones.whatsapp = ConfigWa y motivos[motivo].wa = "off" | "inmediato" | "escalada" | "ambos" (aviso-equipo.ts).
 // En producción (llave '1'), ver derivaciones-destino.ts: persona elegida (sola o dentro de un sector) → esa persona; sólo sector → le aparece
 // a todo el sector y gana el primero que toca "Me encargo yo". Lo urgente (🔴) va a Planify aunque diga otra cosa.
 // Sin fila, rige la config vieja app_settings.wa_alertas_planify (employee_id, categorias, department_id).
 import { supabase } from "./supabase.ts";
 import { CATEGORIAS, type MotivoExtra, registrarExtras, registrarNiveles, registrarTiempos } from "./alertas-vencimiento.ts";
 import { registrarHorario } from "./horario.ts";
+import { type ConfigWa, esModoWa, leerConfigWa, type ModoWa } from "./aviso-equipo.ts";
 
 export const SETTING_DERIVACIONES = "wa_derivaciones";
 
@@ -61,13 +63,16 @@ export type Blanco = { employee_id: number | null; department_id: number | null 
 // "También a" (Pablo, 06/10: "qué pasa si hay algún mensaje que tenga que derivarlo a varios lugares"): destinos ADICIONALES al principal.
 // Cada destino abre su propia tarea en Planify para la misma alerta. Tope: el principal + 4.
 export const MAX_TAMBIEN = 4;
-export type Regla = { destino: Destino; planify: boolean; employee_id: number | null; department_id: number | null; tambien: Blanco[] };
+// `wa` (07/10, Pablo): qué avisa el motivo por WhatsApp al equipo (_shared/aviso-equipo.ts). null = sin elegir: rige el defecto de modoDeMotivo().
+export type Regla = { destino: Destino; planify: boolean; employee_id: number | null; department_id: number | null; tambien: Blanco[]; wa?: ModoWa | null };
 export type Derivaciones = {
   prueba_employee_id: number | null;
   broadcast: boolean;
   defecto: { employee_id: number | null; department_id: number | null };
   motivos: Record<string, Regla>;
   extra: MotivoExtra[];
+  /** Configuración del aviso por WhatsApp al equipo (app_settings.wa_derivaciones.whatsapp). Sin fila: CONFIG_WA_DEFECTO. */
+  wa?: ConfigWa;
 };
 
 const num = (v: unknown) => (Number(v) > 0 ? Number(v) : null);
@@ -111,13 +116,15 @@ export async function derivaciones(usarCache = false): Promise<Derivaciones> {
       : catsViejas.includes(cat) || SIEMPRE_DEF.has(cat) || esIA.has(cat) ? "planify" : "tareas";
     if (destino === "bot" && !esIA.has(cat)) destino = "tareas";
     if (cat === "whitelist_gate") destino = "tareas";
-    motivos[cat] = { destino, planify: destino === "planify", employee_id: num(g?.employee_id), department_id: num(g?.department_id), tambien: leerTambien(g?.tambien) };
+    motivos[cat] = { destino, planify: destino === "planify", employee_id: num(g?.employee_id), department_id: num(g?.department_id), tambien: leerTambien(g?.tambien),
+      wa: esModoWa(g?.wa) ? g.wa : null };
   }
   const d: Derivaciones = {
     prueba_employee_id: num(nuevo.prueba_employee_id) ?? num(viejo.employee_id),
     broadcast: viejo.broadcast ?? true,
     defecto: { employee_id: num(viejo.employee_id), department_id: num(viejo.department_id) },
     motivos, extra,
+    wa: leerConfigWa(nuevo.whatsapp),
   };
   cache = { hasta: Date.now() + 60_000, d };
   return d;
@@ -133,4 +140,4 @@ export async function motivosIA(): Promise<Array<{ clave: string; cuando: string
   return todos.filter((m) => d.motivos[m.clave]?.destino !== "bot");
 }
 
-export { destino, destinosDe } from "./derivaciones-destino.ts";
+export { destino, destinosDe, destinosDeAviso } from "./derivaciones-destino.ts";

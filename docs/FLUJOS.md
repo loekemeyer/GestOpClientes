@@ -498,3 +498,17 @@ CLIENTE: No quiero recibir más mensajes
 BOT: Listo, no te vamos a enviar más notificaciones.
      Si cambiás de opinión, escribinos cuando quieras.
 ```
+
+## Aviso al equipo por WhatsApp (07/10)
+
+Cuando una consulta del cliente necesita a una persona, el bot deja la alerta (Tareas + tarea de Planify según Configuración › Derivaciones) y, además,
+puede avisar por WhatsApp al equipo (sobre todo Ventas). Es lo que ve la persona, no el cliente:
+
+```
+(alerta nace) → WhatsApp «Hay un aviso nuevo en Planify para Ventas. Motivo: … Cliente: … Detalle: … Abrí Planify para tomarlo.»
+(nadie toca «Me encargo yo» a tiempo) → WhatsApp «Hace 2 h hay un aviso sin tomar en Planify. Motivo: … Cliente: … Detalle: …»
+```
+
+Cada motivo elige cuándo avisa (apenas nace, si nadie lo toma, las dos o ninguno) y a quién (los mismos destinos de la tarea; un sector puede ser cada
+persona, su línea o las dos). Los cambios de datos o de clave avisan apenas nacen aunque vayan sólo a Tareas. Sale por la cola con plantilla y respeta la
+llave de envío. Detalle y límites: `docs/ESTADO.md` (07/10) y `docs/DECISIONES.md` D009.

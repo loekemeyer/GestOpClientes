@@ -1,10 +1,12 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, supabase } from "../_shared/supabase.ts";
-import { CATEGORIAS, categoria, nivel, SEMAFORO, urgente } from "../_shared/alertas-vencimiento.ts";
+import { CATEGORIAS, categoria, nivel, SEMAFORO, urgente, vencimientos } from "../_shared/alertas-vencimiento.ts";
 import { derivaciones, destinosDe } from "../_shared/derivaciones.ts";
 import type { Dest } from "../_shared/derivaciones-destino.ts";
 import { alertaAtendida, contextoConTareas, idsDeTareas, quienTomo, trozos } from "../_shared/tareas-alerta.ts";
 import { lineaSegura } from "../_shared/dato-externo.ts";
+import { avisarAlCrear as avisarAlCrearWa, escalar as escalarWa, type Io } from "../_shared/aviso-equipo-envio.ts";
+import { cargarCalendario } from "../_shared/feriados.ts";
 const CATEGORIAS_LABEL = (c: string) => CORTO[c] ?? CATEGORIAS[c]?.label ?? c;
 
 // lk_alerta-planify — cada alerta que necesita a una persona se vuelve TAREA en Planify.
@@ -26,6 +28,12 @@ const CATEGORIAS_LABEL = (c: string) => CORTO[c] ?? CATEGORIAS[c]?.label ?? c;
 // Destino según la llave de envío (Pablo, 28/09): en prueba (wa_envio_automatico ≠ '1') va SIEMPRE a
 // employee_id (quien desarrolla); en producción ('1') ver destino() en _shared/derivaciones-destino.ts.
 // Semáforo en el nombre: 🔴 / 🟡 / 🟢 (ver nivel() en _shared/alertas-vencimiento.ts).
+// Aviso por WhatsApp al equipo (Pablo, 07/10: "los avisos que salen en el Planify también lleguen al WhatsApp, sobre todo a Ventas"). Aparte de la tarea y
+// SIN frenarla: nunca hace fallar la creación. Dos momentos (cada motivo elige, Configuración › Derivaciones › WhatsApp, lógica en _shared/aviso-equipo.ts):
+//   · apenas nace la alerta (avisarAlCrear, lo llama el mismo trigger que crea la tarea; también para motivos que van sólo a Tareas);
+//   · si nadie "se encargó" al vencer el tiempo (escalar, lo llama el sync de lk_fallas-mail cada 10 min, o {action:"escalar"}).
+// No manda nada a Meta: ENCOLA en wa_outbox una plantilla (aviso_equipo / aviso_equipo_sin_tomar) y la despacha lk_outbox-flush, que pasa por la llave
+// wa_envio_automatico. Las tareas 🧪 del Simulador nunca avisan. El estado (a quién, cuándo) queda en contexto.wa_aviso para no mandar dos veces.
 
 const SECRET_NAME = "LK_FN_CRON_SECRET";
 const TZ = "America/Argentina/Buenos_Aires";
@@ -71,7 +79,28 @@ const CORTO: Record<string, string> = {
 
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);
 
+// Nombre del cliente de una alerta, tal como sale en la tarea y en el aviso por WhatsApp ("" si no se sabe).
+// deno-lint-ignore no-explicit-any
+async function nombreDeCliente(a: any): Promise<string> {
+  const ctx = a.contexto ?? {};
+  let cliente = String(ctx.razon_social ?? "");
+  // Cliente de Chef (sql/115): sin customer_id; el código es de Chef y se aclara para no confundirlo con uno de LK.
+  if (ctx.empresa === "CH") cliente = `${cliente || "sin razón social"} (Chef ${String(ctx.cod_cliente_chef ?? "")})`.trim();
+  else if (a.customer_id) {
+    const { data: c } = await supabase.from("customers").select("cod_cliente, business_name").eq("id", a.customer_id).maybeSingle();
+    if (c) cliente = `${c.business_name} (${c.cod_cliente})`;
+  }
+  return cliente;
+}
+
+// La tarea y, aparte, el aviso por WhatsApp: si el aviso falla, la tarea ya está y el error queda en el log.
 async function crear(alertaId: number) {
+  const r = await crearTareas(alertaId);
+  try { await avisarAlCrear(alertaId); } catch (e) { console.error("lk_alerta-planify: el aviso por WhatsApp falló", e); }
+  return r;
+}
+
+async function crearTareas(alertaId: number) {
   // A dónde va: Configuración › Derivaciones (_shared/derivaciones.ts). Se lee antes de categoria() porque
   // registra los motivos agregados desde el panel.
   const der = await derivaciones();
@@ -91,13 +120,7 @@ async function crear(alertaId: number) {
   const yaIds = idsDeTareas(ctx);
   if (yaIds.length >= dests.length) return { ok: true, creada: false, motivo: "ya tenía tarea" };
 
-  let cliente = String(ctx.razon_social ?? "");
-  // Cliente de Chef (sql/115): sin customer_id; el código es de Chef y se aclara para no confundirlo con uno de LK.
-  if (ctx.empresa === "CH") cliente = `${cliente || "sin razón social"} (Chef ${String(ctx.cod_cliente_chef ?? "")})`.trim();
-  else if (a.customer_id) {
-    const { data: c } = await supabase.from("customers").select("cod_cliente, business_name").eq("id", a.customer_id).maybeSingle();
-    if (c) cliente = `${c.business_name} (${c.cod_cliente})`;
-  }
+  const cliente = await nombreDeCliente(a);
   let pedido = "";
   if (Number(ctx.pedido) > 0) {
     const { data: o } = await supabase.from("orders").select("created_at").eq("id", Number(ctx.pedido)).maybeSingle();
@@ -181,7 +204,25 @@ async function cerrar(alertaId: number) {
   return error ? { ok: false, error: error.message } : { ok: true, cerrada: true, task_id: ids[0], task_ids: ids };
 }
 
+// ── Aviso por WhatsApp al equipo (la lógica vive en _shared/aviso-equipo-envio.ts) ──
+async function esProduccion(): Promise<boolean> {
+  const { data } = await supabase.from("app_settings").select("value").eq("key", "wa_envio_automatico").maybeSingle();
+  return data?.value === "1";
+}
+const ioWa = (): Io => ({
+  db: supabase, planify: () => getGestionClient("planify"), derivaciones, calendario: cargarCalendario, registrar: vencimientos,
+  cliente: nombreDeCliente, produccion: esProduccion, motivo: CATEGORIAS_LABEL,
+});
+const avisarAlCrear = (alertaId: number) => avisarAlCrearWa(ioWa(), alertaId);
+const escalar = () => escalarWa(ioWa());
+
+// El sync de las tareas y, después, el aviso por WhatsApp de lo que nadie tomó (siempre se corre: no depende de que haya tareas abiertas).
 async function sync() {
+  const r = await syncTareas();
+  try { return { ...r, wa: await escalar() }; } catch (e) { console.error("lk_alerta-planify: escalar falló", e); return { ...r, wa: { ok: false, error: e instanceof Error ? e.message : String(e) } }; }
+}
+
+async function syncTareas() {
   const { data: abiertas } = await supabase.from("wa_alertas_humano")
     .select("id, contexto").in("estado", ["pendiente", "notificado"]).not("contexto->planify_task_id", "is", null).limit(500);
   const alertas = (abiertas ?? []).map((a) => ({ a, ids: idsDeTareas(a.contexto) })).filter((x) => x.ids.length);
@@ -219,6 +260,7 @@ serve(async (req) => {
     if (!(await esLlamadaInterna(req))) return json({ error: "no autorizado" }, 401);
     const body = await req.json().catch(() => ({}));
     if (body.action === "sync") return json(await sync());
+    if (body.action === "escalar") return json(await escalar());
     const id = Number(body.alerta_id);
     if (!id) return json({ error: "falta alerta_id" }, 400);
     if (body.action === "cerrar") return json(await cerrar(id));
