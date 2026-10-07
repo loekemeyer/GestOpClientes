@@ -110,7 +110,7 @@ for (const n of ["aviso_equipo", "aviso_equipo_sin_tomar"]) {
   igual(`plantilla ${n} es UTILITY y es_AR`, p ? [p.category, p.language] : [], ["UTILITY", "es_AR"]);
 }
 igual("la plantilla inmediata se ve completa con sus variables", renderPlantilla("aviso_equipo", paramsInmediato(datos, cfg())),
-  "Alerta operativa: consulta de cliente pendiente de atender.\n\nPara: Ventas\nMotivo: Consulta de entrega\nCliente: Chef S.R.L. (411)\nDetalle: Retira el lunes 12/10 · franja sin confirmar\n\nSistema Planify - notificación automática.");
+  "Alerta operativa: consulta de cliente sin atender, asignada a Ventas.\n\nMotivo: Consulta de entrega\nCliente: Chef S.R.L. (411)\nDetalle: Retira el lunes 12/10 · franja sin confirmar\n\nSistema Planify - notificación automática.");
 igual("la plantilla de escalada se ve completa con sus variables", renderPlantilla("aviso_equipo_sin_tomar", paramsEscalada(datos, cfg())),
   "Alerta operativa: consulta de cliente sin atender hace 2 h.\n\nMotivo: Consulta de entrega\nCliente: Chef S.R.L. (411)\nDetalle: Retira el lunes 12/10 · franja sin confirmar\n\nSistema Planify - notificación automática.");
 

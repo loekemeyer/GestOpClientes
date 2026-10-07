@@ -224,12 +224,15 @@ export const PLANTILLAS: PlantillaMeta[] = [
   // v2 (07/10): la v1 («Hay un aviso nuevo en Planify… Abrí Planify para tomarlo») la aprobó Meta pero la reclasificó a MARKETING (US$ 0,0618 por mensaje
   // en vez de 0,026). El texto v2 sigue el molde de las plantillas internas de Planify que Meta aprobó como UTILITY («Alerta operativa … Sistema Planify -
   // notificación automática»): sin invitación a actuar. Mismas 4 variables en el mismo orden, así que no cambia nada del código que las arma.
+  // v2 quedó mezclada (07/10, 15:40 UTC): aviso_equipo_sin_tomar_v2 UTILITY y aviso_equipo_v2 MARKETING. Entre las dos sólo cambiaban «pendiente de atender» +
+  // la línea «Para: {{1}}» (inmediato) contra «sin atender hace {{1}}» (escalada). v3 del inmediato copia la frase que pasó («sin atender») y mete el «Para»
+  // en la primera línea. Mismas 4 variables en el mismo orden. Sin garantía: Meta no explica su criterio (rejected_reason viene vacío).
   {
     name: "aviso_equipo",
     language: ES, category: UT,
     disparo: "Nace una alerta que necesita a una persona y su motivo avisa por WhatsApp (Configuración › Derivaciones › WhatsApp: «apenas nace» o «ambos»). Va a quien corresponda según el destino del motivo.",
     variables: ["para quién (persona o sector)", "motivo (ej. Consulta de entrega)", "cliente con su código", "detalle: lo que escribió el cliente en una línea, o \"ver en Planify\""],
-    body: "Alerta operativa: consulta de cliente pendiente de atender.\n\nPara: {{1}}\nMotivo: {{2}}\nCliente: {{3}}\nDetalle: {{4}}\n\nSistema Planify - notificación automática.",
+    body: "Alerta operativa: consulta de cliente sin atender, asignada a {{1}}.\n\nMotivo: {{2}}\nCliente: {{3}}\nDetalle: {{4}}\n\nSistema Planify - notificación automática.",
     ejemplos: ["Ventas", "Consulta de entrega", "Chef S.R.L. (411)", "Retira el lunes 12/10, franja sin confirmar"],
   },
   {
