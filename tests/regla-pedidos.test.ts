@@ -23,6 +23,11 @@ ok("si prefiere pasarlo por acá, también se toma", /tambi[eé]n lo tom[aá]s/.
 ok("nunca dice que 'no hace falta' entrar a la web", /NUNCA le digas que "no hace falta" entrar a la web/.test(REGLA_PEDIDOS_WA));
 ok("el pedido por WhatsApp sigue con sus pasos", /Cuando el pedido se hace por ac[aá], pod[eé]s tomarlo, siguiendo estos pasos sin saltear ninguno/.test(REGLA_PEDIDOS_WA));
 ok("la regla sigue empezando con la marca que reemplaza a la línea de PEDIDOS", REGLA_PEDIDOS_WA.startsWith("- PEDIDOS POR WHATSAPP:"));
+ok("prohíbe decir el porcentaje del descuento web al invitar a la web", /NUNCA digas el porcentaje ni la cifra del descuento/.test(REGLA_PEDIDOS_WA));
+ok("primero la web, no las dos vías al mismo nivel", /Primero la web/.test(REGLA_PEDIDOS_WA) && /no pongas las dos v[ií]as al mismo nivel/.test(REGLA_PEDIDOS_WA));
+ok("trae el modelo aprobado de m19 (¿tengo que entrar a la web?)", REGLA_PEDIDOS_WA.includes("Lo mejor es que lo hagas en la web: entrá a loekemeyer.com › Pedidos Mayorista con tu CUIT y tu clave."));
+ok("trae el modelo aprobado de m18 (¿por acá o por otro medio?)", REGLA_PEDIDOS_WA.includes("La prioridad es la web (loekemeyer.com › Pedidos Mayorista, con tu CUIT y tu clave)"));
+ok("los modelos de respuesta no llevan el porcentaje", !/\b2\s?%/.test(REGLA_PEDIDOS_WA.slice(REGLA_PEDIDOS_WA.indexOf("PRIORIDAD"), REGLA_PEDIDOS_WA.indexOf("Cuando el pedido se hace por ac"))));
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");
