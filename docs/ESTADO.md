@@ -4,6 +4,10 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-07.
 >
+> **07/10 (Pablo): ícono de la pestaña del navegador (favicon) — dashboard v0.28.1, `docs/index.html` (`<head>`) + `docs/assets/favicon-32.png`, `favicon-192.png`, `apple-touch-icon.png`; sólo front, no toca el bot.**
+> Pedido: *"¿Se le puede poner un logo ahí?"* (la pestaña mostraba el globo genérico). `assets/logo.png` es una tira horizontal de 1240 × 185 px y a 16 px no se lee, así que el ícono es aparte: la "L" real del logo (recortada de ese PNG) en crema sobre el bordó de la marca (`#661317`, con degradé), esquinas redondeadas (el de Apple va sin redondear: iOS lo hace solo).
+> 3 PNG (1,5 + 8,9 + 5,5 KB) con rutas relativas, igual que el resto de `assets/`. Si se quiere el ícono con el estilo neón del login nuevo, se regeneran esos 3 archivos y no hace falta tocar el HTML. Las otras páginas de `docs/` (`faq-dashboard.html`, `mapa-flujo-bot.html`, `top30-faq.html`) siguen sin ícono.
+>
 > **07/10 (Pablo): lo que sale en Planify también sale por WhatsApp al equipo (sobre todo Ventas) — dashboard v0.28.0, Configuración › Derivaciones › «📲 Aviso por WhatsApp al equipo» (`_shared/aviso-equipo.ts`, `_shared/aviso-equipo-envio.ts`, `lk_alerta-planify`, `lk_alertas`, `_shared/plantillas-meta.ts`; `tests/aviso-equipo.test.ts` 109 casos y `tests/aviso-equipo-envio.test.ts` 48).**
 > Pedido: *"que los avisos que salen en el Planify también lleguen al WhatsApp, sobre todo a Ventas. Por ej. cuando hay un cambio en el retiro del pedido, o cambio de algún dato para darle más seguridad"* y, mirando el costo y lo invasivo del cartel, *"agregues todo al panel de configuración, hoy prefiero que sobre y no que falte"*.
 > **Cómo funciona:** el mismo trigger que crea la tarea (`alerta_a_planify`, sql/077) llama a `lk_alerta-planify`, que además ENCOLA en `wa_outbox` una plantilla por destinatario (`aviso_equipo`) y anota el estado en `wa_alertas_humano.contexto.wa_aviso` (idempotente: un trigger repetido no manda dos veces).
