@@ -22,6 +22,8 @@ for (const t of [
 for (const t of [
   "Ya cargué el pedido en la web", "Puse 10 cajas de abrelatas", "¿Cuántas unidades trae la caja?", "Quiero 10 unidades del 501", "Me equivoqué de día, vengo mañana",
   "Hola, buen día", "Edité mi perfil", "Cargué el comprobante de pago",
+  // m79 (Simulador, 07/10): avisa que NO hizo el pedido y lo va a pasar ahora.
+  "Perdón, me confundí: pensé que te había hecho un pedido pero no hay pedido hecho, te lo paso ahora", "Me confundí, no hice el pedido todavía", "Nos confundimos, no habíamos hecho ningún pedido",
 ]) igual(`no es error de carga: ${t}`, avisaErrorDeCarga(t), false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }

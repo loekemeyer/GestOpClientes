@@ -571,8 +571,11 @@ const RE_HORARIO_RECEPCION = /\b(recibimos|reciben|recibe|recepcionamos|descarga
 // con pedido/carga/cantidad: "ya cargué el pedido" o "puse 10 cajas" solos no cuentan.
 const RE_CARGA_EDICION = /\b(cargu[eé]|cargamos|cargaron|edit[eé]|editamos|cambi[eé]|cambiamos|puse|pusimos)(?![a-záéíóúñ])/i;
 const RE_EQUIVOCACION_DE_CARGA = /\b(me\s+equivoqu[eé]|nos\s+equivocamos|me\s+confund[ií]|nos\s+confundimos)(?![a-záéíóúñ])[^.?!]{0,60}\b(pedido|carga|cargar|unidad(es)?|cajas?|cantidad(es)?)\b/i;
+// Visto en el Simulador el 07/10 (m79): "Perdón, me confundí: pensé que te había hecho un pedido pero no hay pedido hecho, te lo paso ahora" disparaba esta respuesta
+// ("revisa cómo quedó cargado tu pedido") + alerta a Ventas, y es lo contrario: el cliente avisa que NO hizo el pedido y lo va a pasar. No es un error de carga.
+const RE_NO_HIZO_EL_PEDIDO = /\bno\s+(hay|hab[ií]a(mos)?|hice|hicimos|lo\s+hice|lo\s+hicimos|se\s+hizo|existe|tengo|ten[ií]a)(?![a-záéíóúñ])[^.?!]{0,30}\bpedidos?\b|\bpens[eé]\s+que\b[^.?!]{0,50}\bpedido\b/i;
 export const avisaErrorDeCarga = (text: string): boolean =>
-  (/\bunidad(es)?\b/i.test(text) && /\bcajas?\b/i.test(text) && RE_CARGA_EDICION.test(text)) || RE_EQUIVOCACION_DE_CARGA.test(text);
+  ((/\bunidad(es)?\b/i.test(text) && /\bcajas?\b/i.test(text) && RE_CARGA_EDICION.test(text)) || RE_EQUIVOCACION_DE_CARGA.test(text)) && !RE_NO_HIZO_EL_PEDIDO.test(text);
 export const avisaHorarioRecepcion = (text: string): boolean => RE_HORARIO_RECEPCION.test(text);
 export const quiereDevolver = (text: string): boolean => RE_DEVOLUCION.test(text) && !RE_DEVOLVER_OTRA_COSA.test(text);
 // Pablo, 06/10 (corrección m41): "Me pasás el cotizador actualizado" salía con la respuesta de la lista de precios (#11). Los clientes ya no deben usar el cotizador: los
