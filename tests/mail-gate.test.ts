@@ -1,6 +1,9 @@
 // Pruebas de la compuerta de solicitar_cambio_mail (supabase/functions/_shared/mail-gate.ts). Sin red, sin IA.
 // Correr: deno run tests/mail-gate.test.ts   (sale con código 1 si algo falla)
-import { mailEscritoPorElCliente, mailsEscritos, normalizarMail, REGLA_MAIL_NO_ESCRITO, VIGENCIA_MAIL_MS } from "../supabase/functions/_shared/mail-gate.ts";
+import {
+  mailEscritoPorElCliente, mailsEscritos, mailYaPedidoEnLaCharla, normalizarMail, PREFIJO_PEDIDO_MAIL, REGLA_MAIL_NO_ESCRITO, textoPedidoMail,
+  textoYaPedidoMail, VIGENCIA_MAIL_MS,
+} from "../supabase/functions/_shared/mail-gate.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -49,6 +52,27 @@ igual("BLOQUEA: lo escribió hace más de 12 horas", va("juan@gmail.com", "sí",
 igual("BLOQUEA: la fecha del mensaje no se lee", va("juan@gmail.com", "sí", [{ rol: "user", contenido: "juan@gmail.com", creado_en: "ayer" }]), false);
 igual("BLOQUEA: el mail está en una herramienta o en otro rol", va("juan@gmail.com", "sí", [fila("tool", "juan@gmail.com", 1), fila("system", "juan@gmail.com", 1)]), false);
 igual("BLOQUEA: dictado ('arroba') no pasa, hay que pedirle que lo escriba", va("juan@gmail.com", "juan arroba gmail punto com", []), false);
+
+// ── No repetir el pedido (07/10): el modelo la llamó con el mail y otra vez tras el "sí" ──
+const yaPedido = (mail: string, historial: ReturnType<typeof fila>[]) => mailYaPedidoEnLaCharla({ mail, historial, ahora: AHORA });
+const AVISO = textoPedidoMail("prueba.cambio@example.com");
+igual("el aviso al cliente lleva el prefijo que se busca", AVISO.includes(PREFIJO_PEDIDO_MAIL + "prueba.cambio@example.com. "), true);
+igual("ya pedido: lo dijo el bot en la charla (ida y vuelta con el texto real)",
+  yaPedido("prueba.cambio@example.com", [fila("user", "sí, confirmo", 0), fila("assistant", AVISO, 1), fila("user", "cambiá mi mail a prueba.cambio@example.com", 2)]), true);
+igual("ya pedido: sin importar mayúsculas", yaPedido("PRUEBA.Cambio@Example.com", [fila("assistant", AVISO, 3)]), true);
+igual("ya pedido: el bot lo dijo dentro de un texto más largo", yaPedido("prueba.cambio@example.com", [fila("assistant", `Hola 👋 ${AVISO}\n¿Algo más?`, 5)]), true);
+igual("ya pedido: justo dentro de la vigencia", yaPedido("prueba.cambio@example.com", [fila("assistant", AVISO, VIGENCIA_MAIL_MS / 60_000 - 1)]), true);
+igual("NO repetido: charla vacía", yaPedido("prueba.cambio@example.com", []), false);
+igual("NO repetido: es otro mail", yaPedido("otro@example.com", [fila("assistant", AVISO, 1)]), false);
+igual("NO repetido: el pedido fue a un dominio más largo", yaPedido("prueba.cambio@example.com", [fila("assistant", textoPedidoMail("prueba.cambio@example.com.ar"), 1)]), false);
+igual("NO repetido: el pedido fue a un dominio más corto", yaPedido("prueba.cambio@example.com.ar", [fila("assistant", AVISO, 1)]), false);
+igual("NO repetido: sólo la confirmación '¿Cambio tu mail a…?' (todavía no se pidió)",
+  yaPedido("prueba.cambio@example.com", [fila("assistant", "¿Cambio tu mail a prueba.cambio@example.com?", 1)]), false);
+igual("NO repetido: la frase la escribió el cliente, no el bot", yaPedido("prueba.cambio@example.com", [fila("user", AVISO, 1)]), false);
+igual("NO repetido: pasaron más de 12 horas", yaPedido("prueba.cambio@example.com", [fila("assistant", AVISO, VIGENCIA_MAIL_MS / 60_000 + 1)]), false);
+igual("NO repetido: la fecha del mensaje no se lee", yaPedido("prueba.cambio@example.com", [{ rol: "assistant", contenido: AVISO, creado_en: "ayer" }]), false);
+igual("NO repetido: mail vacío", yaPedido("", [fila("assistant", AVISO, 1)]), false);
+igual("el texto de 'ya lo pedí' nombra el mail y no dispara el prefijo", [textoYaPedidoMail("a@b.com").includes("a@b.com"), textoYaPedidoMail("a@b.com").includes(PREFIJO_PEDIDO_MAIL)], [true, false]);
 
 // ── La regla que ve el modelo ──
 igual("la regla le dice qué hacer", /nombre@dominio\.com/.test(REGLA_MAIL_NO_ESCRITO) && /No lo armes/.test(REGLA_MAIL_NO_ESCRITO), true);

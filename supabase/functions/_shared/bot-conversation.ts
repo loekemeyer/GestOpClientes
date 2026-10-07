@@ -13,7 +13,7 @@ import { timeoutDeModelo } from "./timeouts.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
-import { mailEscritoPorElCliente, REGLA_MAIL_NO_ESCRITO } from "./mail-gate.ts";
+import { mailEscritoPorElCliente, mailYaPedidoEnLaCharla, REGLA_MAIL_NO_ESCRITO, textoPedidoMail, textoYaPedidoMail, VIGENCIA_MAIL_MS } from "./mail-gate.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -190,7 +190,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     // Pablo, 29/09: cambio de mail con aprobación de una persona (lk_alertas mail_cambiar).
     name: "solicitar_cambio_mail",
-    description: "Pide cambiar el mail de la cuenta del cliente; una persona lo aprueba. El mail lo tiene que haber ESCRITO el cliente: si no te lo dio, pedíselo; nunca lo armes ni lo deduzcas. Confirmale el mail nuevo (\"¿Cambio tu mail a nombre@dominio.com?\") y recién con su sí, llamala.",
+    description: "Pide cambiar el mail de la cuenta del cliente; una persona lo aprueba. El mail lo tiene que haber ESCRITO el cliente: si no te lo dio, pedíselo; nunca lo armes ni lo deduzcas. Confirmale el mail nuevo (\"¿Cambio tu mail a nombre@dominio.com?\") y recién con su sí, llamala: no en el mismo mensaje en que te lo dio. Llamala UNA sola vez por mail: si ya le dijiste \"pedí que cambien tu mail\", no la repitas.",
     input_schema: { type: "object", properties: { mail: { type: "string", description: "Mail nuevo, tal cual lo escribió el cliente y confirmado con él" } }, required: ["mail"] },
   },
   {
@@ -572,6 +572,22 @@ async function executeTool(
         console.warn(`[gate-mail] solicitar_cambio_mail bloqueado (mail no escrito por el cliente) …${phone.slice(-4)}`);
         return { data: { ok: false, no_cargado: true, regla: REGLA_MAIL_NO_ESCRITO } };
       }
+      // No repetir (Pablo, 07/10): el modelo la llamó en el mensaje con el mail y otra vez tras el "sí" del cliente, y salían 2 tareas
+      // cambio_datos iguales. Si ese mail ya se pidió no se crea otra: lo dice la charla (también en el Simulador) o, en producción,
+      // hay una alerta abierta del mismo teléfono con ese mail_nuevo de las últimas 12 h. Si la consulta falla, sigue y la crea.
+      let yaPedido = mailYaPedidoEnLaCharla({ mail, historial: ctx.historial });
+      if (!yaPedido && !SIM.activo) {
+        try {
+          const { data: abiertas } = await supabase.from("wa_alertas_humano").select("id").eq("phone", phone).eq("tipo", "escalation")
+            .in("estado", ["pendiente", "notificado"]).eq("contexto->>mail_nuevo", mail)
+            .gte("created_at", new Date(Date.now() - VIGENCIA_MAIL_MS).toISOString()).limit(1);
+          yaPedido = (abiertas?.length ?? 0) > 0;
+        } catch (e) { console.warn("[gate-mail] no pude buscar un pedido igual:", e instanceof Error ? e.message : e); }
+      }
+      if (yaPedido) {
+        console.warn(`[gate-mail] solicitar_cambio_mail repetido, no se crea otra tarea …${phone.slice(-4)}`);
+        return { data: { ok: true, ya_pedido: true, texto_para_el_cliente: textoYaPedidoMail(mail), regla: "Pasale este texto tal cual." } };
+      }
       const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
       if (!cli?.[0]?.customer_id) return { data: { error: "No identifiqué la cuenta de este número. Derivá con derivar_a_persona." } };
       await notificarHumano({
@@ -579,7 +595,7 @@ async function executeTool(
         contexto: { motivo: "cambio_datos", origen: "agente_ia", mail_nuevo: mail, texto: `Cambiar el mail a ${mail}`,
           razon_social: cli[0].customer_name ?? null, urgente: false },
       });
-      return { data: { ok: true, texto_para_el_cliente: `Listo, pedí que cambien tu mail a ${mail}. Una persona lo revisa y te confirmamos por acá.`, regla: "Pasale este texto tal cual." } };
+      return { data: { ok: true, texto_para_el_cliente: textoPedidoMail(mail), regla: "Pasale este texto tal cual." } };
     }
 
     case "solicitar_nueva_sucursal": {

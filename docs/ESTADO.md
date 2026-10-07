@@ -4,6 +4,16 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-07.
 >
+> **07/10 (Pablo): `solicitar_cambio_mail` ya no crea 2 tareas iguales (`_shared/mail-gate.ts`, `tests/mail-gate.test.ts`, ahora 44 casos).**
+> Origen: el control positivo del 06/10 en el Simulador (Gemini, US$ 0): el cliente escribe *"Quiero cambiar el mail de mi cuenta a prueba.cambio@example.com"*, el modelo llama a la herramienta en ESE mensaje
+> (sin confirmar) y otra vez cuando el cliente contesta *"sí, confirmo"*: dos tareas `cambio_datos` con el mismo mail para que las atienda una persona (en producción, 2 filas en `wa_alertas_humano`).
+> **Ahora**, antes de crear la tarea, `executeTool` mira si ese mail ya se pidió y, si sí, contesta *"Ya lo pedí: una persona revisa el cambio de tu mail a … y te confirmamos por acá."* sin crear otra:
+> (1) la charla: el bot ya dijo *"pedí que cambien tu mail a <ese mail>"* en las últimas 12 h (puro, sirve también en el Simulador, que no guarda alertas); (2) sólo en producción, una alerta del mismo teléfono con
+> `tipo = 'escalation'`, `estado` `pendiente` o `notificado` y el mismo `contexto->>'mail_nuevo'` de las últimas 12 h (cubre que el modelo parafrasee el aviso; usa el índice `(phone, created_at)`). Si esa consulta falla, sigue y crea
+> la tarea (loguea `[gate-mail]`). También cambian la descripción de la herramienta y la regla de prompt (*"con su sí, no antes … UNA sola vez"*) y la fila del Panel de la medida activa.
+> **Límite:** el "confirmá antes de llamar" sigue siendo una regla de prompt: el modelo puede llamarla en el mismo mensaje en que el cliente da el mail (la compuerta de arriba sólo exige que lo haya escrito él). Lo que se evita es la
+> tarea duplicada, no la llamada anticipada. **Estado:** probado sin red (44 casos, con 2 mutantes que las pruebas detectan); la verificación en el Simulador queda para después del deploy a `main`.
+>
 > **07/10 (Simulador, caso m79): `avisaErrorDeCarga` (m17) atrapaba "Perdón, me confundí: pensé que te había hecho un pedido pero no hay pedido hecho, te lo paso ahora".** Contestaba "Una persona de Ventas revisa cómo quedó cargado tu pedido" y dejaba una alerta `cambio_pedido`, al revés de lo que dijo el cliente (no hizo el pedido y lo va a pasar). Ahora una frase que dice que NO hay / no hizo el pedido, o "pensé que … pedido", no cuenta como error de carga (`RE_NO_HIZO_EL_PEDIDO`, `tests/faq-error-carga.test.ts`, 3 frases nuevas). Sin impacto en clientes: lo vio el Simulador y la lista blanca son 2 números.
 >
 > **06/10 (Pablo, corrección m41): cuando el cliente MANDA el cotizador, el bot compara sus precios con los de la web EN SILENCIO y sólo avisa si no coinciden; si el cliente tiene varias direcciones de entrega, le pregunta para cuál es el pedido (`_shared/cotizador-precios.ts`, `_shared/pedido-archivo.ts`, `tests/cotizador-precios.test.ts`, `tests/pedido-archivo-texto.test.ts`).**
