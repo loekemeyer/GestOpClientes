@@ -991,7 +991,19 @@ el killswitch, sin ningún consumidor de esa cola.
   Sacar/anular sigue derivando directo (`RE_EDITA_PEDIDO` sólo sacar/quitar). Desde el 30/09 se mira el **verbo**
   conjugado (`SACAR` en respuesta-aviso.ts), no la raíz: antes "Agregá 60 sacacorchos al pedido" (o sacapuntas,
   quitamanchas) se derivaba como si pidiera sacar y nunca llegaba a la IA.
-- **Reseteo de clave** (29/09): cliente identificado + `RE_CLAVE` (faq.ts) → "tu usuario es tu CUIT, una persona te genera
+- **Clave de la web por WhatsApp** (07/10, Pablo y Thomy: *"si está agendado con número de cliente dale la clave, si no está
+  agendado no"* y *"no le pongas una contraseña nueva: el dato es CUIT (usuario) + PIN (contraseña)"*). Reemplaza al reseteo
+  con aprobación de abajo: el bot ya no crea tareas `reseteo_clave`. `pideClave` (faq.ts, primera respuesta fija de `handleFaq`;
+  `RE_CLAVE` + las 8 frases que se escapaban + exclusiones: clave fiscal, CBU, home banking, "ya pude entrar", sucursal) →
+  teléfono identificado (`wa_identify_customer`) → usuario (el de Auth, `<cuit>@cuit.loekemeyer`) y clave = `customers.pin`.
+  **La clave de la web ES el PIN:** medido el 07/10, los 1.262 PIN cargados coinciden con la clave de Auth (1 cliente sin PIN;
+  el usuario de Auth coincide con el CUIT en 1.262 de 1.263). El PIN lo lee el webhook recién al mandar (`_shared/clave-web.ts`):
+  `handleFaq`, el Simulador y el chat de prueba sólo ven "Clave: ••••••••", y el historial guarda la versión tapada. Sin PIN →
+  "una persona revisa tu acceso" + tarea `acceso_web`. No agendado → "este número no está agendado, pasame tu CUIT" (sin clave;
+  el CUIT entra a la vinculación de siempre). Pruebas: `tests/faq-clave-web.test.ts`.
+  ⚠ El botón "Generar clave temporal" de abajo cambia la clave de Auth pero **no** `customers.pin`: si se usa, el PIN queda viejo
+  y el bot pasaría una clave que ya no anda.
+- **Reseteo de clave** (29/09, reemplazado el 07/10 por lo de arriba; el botón sigue para las tareas viejas): cliente identificado + `RE_CLAVE` (faq.ts) → "tu usuario es tu CUIT, una persona te genera
   una clave" + tarea `reseteo_clave`. En Tareas, "Generar clave temporal y mandarla" → `lk_alertas` `reset_clave`:
   `auth.admin.updateUserById` en PaginaLK (4 letras + 4 números) y aviso por `wa_outbox`. La clave NO queda en la alerta,
   y se tapa ("Clave: ••••••••") en la cola apenas el mensaje sale, falla o queda retenido (trigger de sql/103) y en el

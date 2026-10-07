@@ -125,7 +125,13 @@ export const MEDIDAS_SEGURIDAD: MedidaSeguridad[] = [
   { estado: "activa", medida: "Tope de gasto global diario",
     que_hace: "Si el gasto de IA de los CLIENTES en el día (bot_token_usage del webhook; el Simulador no cuenta) llega a US$ 1 se avisa a una persona. Al llegar a US$ 2 el agente y la lectura de archivos de pedido se cortan hasta las 00:00: cada cliente recibe un aviso fijo una sola vez y una persona le contesta. Los montos se cambian sin deploy (app_settings ia_tope_gasto_usd e ia_aviso_gasto_usd, 0 apaga). Si falla la lectura del gasto no bloquea.",
     donde: "_shared/tope-gasto.ts · lk_whatsapp-webhook (pasoElTopeDeGasto)" },
+  { estado: "activa", medida: "Clave de la web sólo al teléfono agendado",
+    que_hace: "Si el cliente pide su clave, el bot le pasa su usuario y su PIN (el que ya tiene, no genera uno nuevo) sólo si el teléfono identifica a un cliente; a un número no agendado no se la da. El PIN lo lee el webhook recién al mandar: la respuesta fija, el Simulador, el chat de prueba y el historial (Conversaciones y lo que lee el agente IA) sólo ven 'Clave: ••••••••'.",
+    donde: "_shared/clave-web.ts · faq.ts (pideClave) · lk_whatsapp-webhook" },
   // ── Pendientes, de mayor a menor gravedad ──
+  { estado: "pendiente", medida: "Clave a un teléfono del padrón sin verificar",
+    que_hace: "El teléfono también se reconoce por el padrón de Gestión (725 números cargados a mano, nadie verificó que sean del dueño) y no sólo por un vínculo aprobado: un número mal cargado recibe el usuario y la clave de ese cliente. Ya pasó un número de un cliente asociado a otro (agosto). Falta decidir si la clave se limita al vínculo aprobado o se le avisa a Ventas cada vez que sale.",
+    donde: "wa_identify_customer · _shared/clave-web.ts" },
   { estado: "pendiente", medida: "Cambio de mail con verificación",
     que_hace: "El número es la única credencial: quien lo controle (SIM swap, teléfono prestado) puede pedir cambiar el mail de la cuenta. Falta que quien aprueba verifique por otro canal y que se avise al mail viejo.",
     donde: "solicitar_cambio_mail · Tareas" },

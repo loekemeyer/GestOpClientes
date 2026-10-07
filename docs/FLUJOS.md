@@ -404,6 +404,13 @@ una por su cuenta (`REGLA_PEDIDOS_WA` paso 3). Con una sola dirección no pregun
 Se compara contra el precio base (lista), no contra el final con descuento por plazo y 2 % web. ⚠ Una cadena con lista propia de precios dispararía una falsa alarma: a vigilar.
 **Cliente que PIDE el cotizador (Pablo, 06/10, m41):** respuesta fija (`faq.ts` `pideElCotizador`, antes del agente): "Ahora los pedidos se toman por la web: entrá a loekemeyer.com › Pedidos Mayorista con tu usuario (tu CUIT) y tu clave. Ahí ves los precios al día y armás el pedido. Si no tenés clave, escribinos y una persona de Ventas te la genera." No genera alerta; "no tengo clave" lo toma el reseteo de clave de siempre. Quien MANDA el cotizador va por el lector de archivos (arriba).
 
+**Cliente que pide la clave de la web (Pablo y Thomy, 07/10):** "olvidé la clave", "me pasás la contraseña?", "no me deja entrar a la web" →
+respuesta fija (`faq.ts` `pideClave`, la primera de `handleFaq`). Teléfono agendado con un cliente → *"Tus datos para entrar a la web
+(loekemeyer.com → "Pedidos Mayorista"): Usuario: <CUIT> · Clave: <PIN> · No los compartas con nadie."* La clave es el PIN de
+`customers` (la misma de Auth: 1.262 de 1.262 el 07/10); **no se genera una nueva**. No agendado → *"Este número no está agendado como
+cliente… pasame tu CUIT"*, sin clave. Sin PIN cargado → una persona (tarea `acceso_web`). En el historial y en el Simulador la clave sale
+tapada ("Clave: ••••••••"): el PIN lo pone sólo el webhook al mandar (`_shared/clave-web.ts`).
+
 **Cliente que pregunta si puede pedir por la web (Pablo, 07/10, m77):** "¿Puedo hacer el pedido directo de la web? ¿Mismos precios, mismo todo?" → respuesta fija (`faq.ts` `pidePedidoPorWeb`, antes de las FAQ por puntaje y del agente): *"Sí, podés hacer el pedido directo en la web: entrá a loekemeyer.com › Pedidos Mayorista con tu CUIT y tu clave. Ahí ves los precios al día y, por hacerlo por la web, tenés un descuento extra que se aplica solo al armar el pedido."* No dice cuánto es (hoy el 2 % web, que por WhatsApp no aplica) ni promete "mismos precios": el precio del cliente es la lista menos su descuento por volumen. Hace falta "puedo / podemos / se puede…" + pedir o hacer el pedido + la web (o la página, el sitio, online); no cuenta quien no puede (clave, usuario, error: acceso a la web), quien lo manda por WhatsApp, mail o acá, ni quien nombra el cotizador (m41). Sin alerta; sólo clientes.
 
 ### (viejo)

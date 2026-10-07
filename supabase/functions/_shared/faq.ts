@@ -23,6 +23,7 @@ export { avisaFacturaPorMail };
 import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
+import { TEXTO_ACCESO_TAPADO, TEXTO_CLAVE_NO_AGENDADO } from "./clave-web.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -42,6 +43,9 @@ export interface FaqResult {
   alerta?: { motivo: string; urgente?: boolean; pedidos?: number[]; detalle?: string };
   /** Pablo, 30/09: PDFs a mandar después del texto (reenvío de factura). URL firmada, 1 h. */
   documentos?: Array<{ url: string; filename: string }>;
+  /** Pablo y Thomy, 07/10: `reply` va con la clave tapada; el webhook la completa con el PIN del cliente al mandarla y guarda
+   *  la versión tapada (_shared/clave-web.ts). El Simulador y el chat de prueba muestran `reply` tal cual. */
+  conClave?: boolean;
 }
 
 // Pablo, 28/09: al cliente NUNCA se le muestra el número de pedido (se nombra por la fecha) y cada pedido
@@ -118,6 +122,15 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     return { reply: "Te pedimos disculpas por la demora en responderte. Le paso tu consulta a Ventas para que te escriban por acá a la brevedad. 🙏",
       intent: "prospecto_sin_respuesta", automation_level: "needs_human", topic: "Prospecto que escribió por mail y no recibió respuesta",
       alerta: { motivo: "pedido_mail", urgente: false, detalle: `Prospecto sin respuesta: escribió por mail para comercializar sus productos y dice que no le respondieron: ${text.slice(0, 200)}` } };
+  }
+  // Pablo y Thomy, 07/10: pide la clave de la web (o no puede entrar). Teléfono agendado con un cliente → le pasamos su usuario
+  // (CUIT) y su clave (el PIN de customers), sin generar una nueva. No agendado → no se la damos. El texto sale TAPADO: el PIN
+  // lo pone el webhook al mandarlo (`conClave`), así el Simulador y el chat de prueba nunca lo ven. Va antes que el resto
+  // porque "no me deja entrar a la web para cargar el pedido" lo agarraba otra respuesta. Ver _shared/clave-web.ts.
+  if (pideClave(text)) {
+    return customer
+      ? { reply: TEXTO_ACCESO_TAPADO, intent: "clave_web", automation_level: "semi_auto", topic: "Clave de la web", conClave: true }
+      : { reply: TEXTO_CLAVE_NO_AGENDADO, intent: "clave_web_no_agendado", automation_level: "semi_auto", topic: "Clave de la web" };
   }
   // Pablo, 29/09: "¿cuál es mi dirección de entrega?" / "¿a dónde me lo mandan?" / "¿a qué sucursal va?" pide A DÓNDE va SU
   // pedido (sucursal de entrega y expreso), no la dirección de nuestro depósito (FAQ #4, que es lo que contestaba).
@@ -301,14 +314,6 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     }
     return { reply: "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido (mismo importe cargado dos veces).\n" +
       "Si ves uno de más en la web, decinos de qué fecha es y lo revisamos.", intent: "pedido_duplicado", automation_level: "semi_auto" };
-  }
-  // Pablo, 29/09: "me olvidé la clave" / "no puedo entrar a la web". Con el cliente identificado por su teléfono, una persona
-  // aprueba desde Tareas y el botón le genera una clave temporal que sale por WhatsApp (el login es <cuit>@cuit.loekemeyer,
-  // un mail que no existe: el "olvidé mi contraseña" por mail no le puede llegar).
-  if (customer && RE_CLAVE.test(text)) {
-    return { reply: "Tu usuario de la web es tu CUIT. Una persona del equipo te genera una clave nueva y te la mandamos por acá.",
-      intent: "reseteo_clave", automation_level: "needs_human", topic: "Reseteo de clave de la web",
-      alerta: { motivo: "reseteo_clave", detalle: "Pide clave nueva para la web" } };
   }
   // Pablo, 29/09: "no me deja elegir la sucursal" es un problema de acceso a la web: lo revisa una persona.
   if (RE_SUCURSAL_WEB.test(text)) {
@@ -554,6 +559,23 @@ const RE_POR_MAIL = /\b(e-?mails?|mails?|correos?|gmail|hotmail|outlook)(?![a-z�
 const RE_DUPLICADO = /((pedido|confirm|carg|compra)[^.?!]{0,40}(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez|tres veces)|(duplic|repetid|dos veces|\b2 veces|varias veces|m[aá]s de una vez)[^.?!]{0,40}(pedido|confirm|carg))/i;
 const RE_CLAVE = /((olvid|recuper|resete|blanque|cambi|perd|nueva|bloque|no\s+(me\s+)?(acuerdo|recuerdo))[^.?!]{0,40}(contrase|\bclave|password|usuario)|(contrase|\bclave|password|usuario)[^.?!]{0,40}(olvid|no\s+(me\s+)?(anda|funciona|toma|deja|acuerdo|recuerdo|entra)|incorrect|inv[aá]lid|bloque)|no\s+(puedo|logro|me\s+deja)\s+(entrar|ingresar|loguear)[^.?!]{0,30}(web|p[aá]gina|sistema|cuenta)?|(necesito|pasame|pas[aá]s|mandame|dame|no\s+tengo)\s+(mi\s+|el\s+|un\s+|la\s+)?(usuario|\bclave|contrase)|\b(saber|cu[aá]l\s+es|record[aá]me|decime)\s+(cu[aá]l\s+es\s+)?(mi\s+|la\s+)?(usuario|\bclave|contrase))/i;
 const RE_SUCURSAL_WEB = /(no\s+(me\s+)?(deja|puedo|aparece|figura|sale)[^.?!]{0,30}sucursal|sucursal[^.?!]{0,30}no\s+(me\s+)?(deja|aparece|figura|sale|puedo))/i;
+// Pablo, 07/10: frases de pedir la clave que RE_CLAVE no agarraba (8 de 18 probadas): "me podés pasar la contraseña?", "me das la
+// contraseña", "me mandás la clave?", "me reenviás la contraseña?", "me podrías enviar usuario y contraseña", "no me anda la contraseña",
+// "contraseña?", "la clave para entrar a la web porfa". Con un artículo antes de "clave" para no tomar "algo clave del pedido".
+const RE_CLAVE_PIDE = /\b(pas|mand|envi|enví|reenvi|reenví|necesit|quier|precis|ped|record|sab|d[aá]|gener|blanque|resete)\w*\b[^.?!]{0,40}\b(la|mi|una|tu|su|nueva|otra)\s+(nueva\s+|otra\s+)?(contrase|clave\b|password)|\busuario\s+y\s+(contrase|clave\b|password)|\bno\s+(me\s+|nos\s+)?(anda|funciona|toma|acepta|sirve|reconoce|entra)\w*[^.?!]{0,30}(contrase|\bclave\b|password)|\bno\s+(pude|pudimos|podemos|logr[eéo]|nos\s+deja)\s+(entrar|ingresar|loguear\w*|acceder)/i;
+// Mensaje que ES la pregunta por la clave ("contraseña?", "Hola, la clave para entrar porfa"): arranca con la palabra (tras un saludo).
+const RE_CLAVE_SOLA = /^[\s¡!¿?.,]*((hola|buen[oa]s?(\s+(d[ií]as?|tardes|noches))?)[\s,.!]+)?(y\s+)?((la|mi|el)\s+)?(contrase|clave\b|password)/i;
+// No es la clave de NUESTRA web: clave fiscal (ARCA), CBU (clave bancaria uniforme), home banking, wifi.
+const RE_CLAVE_OTRA = /clave\s+(fiscal|bancaria|uniforme|de\s+(afip|arca|home\s*banking|banco|la\s+tarjeta|wi-?fi))|\b(afip|arca|cbu|cvu|home\s*banking|wi-?fi)\b/i;
+// Ya la tiene o ya entró: "ya pude entrar", "ahora sí anda", "ya la cambié", "gracias por la clave". "No pude entrar" no cuenta.
+const RE_CLAVE_YA_ESTA = /\b(ya|ahora)\s+(s[ií]\s+)?(pude|pudimos|entr[eéoó]|ingres[eéoó]|anda|funciona|la\s+(cambi|tengo|encontr)|cambi[eé]|me\s+(anda|funciona|deja|acuerdo))|(^|[^o]\s)(pude|pudimos|logr[eé])\s+(entrar|ingresar)|\bgracias\s+(por\s+)?(la\s+)?(clave|contrase)/i;
+
+/** ¿Pide la clave de la web (o no puede entrar)? Pablo y Thomy, 07/10: si el teléfono está agendado se le pasa el PIN. */
+export function pideClave(text: string): boolean {
+  if (RE_CLAVE_OTRA.test(text) || RE_CLAVE_YA_ESTA.test(text) || RE_SUCURSAL_WEB.test(text)) return false;
+  if (RE_CLAVE.test(text) || RE_CLAVE_PIDE.test(text)) return true;
+  return RE_CLAVE_SOLA.test(text) && text.trim().split(/\s+/).length <= 10;
+}
 // Pablo, 30/09 (simulación con 57 mensajes reales): respuestas fijas que se disparaban por una palabra suelta. Todos estos
 // van a la IA, que tiene las herramientas para resolverlos o derivarlos.
 // "Quería agregar 60 unidades del 067 al pedido de ayer" → #21 (mínimo de compra) por "unidad". Agregar lo resuelve la IA

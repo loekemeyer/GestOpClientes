@@ -135,11 +135,11 @@
       "consultas": 37,
       "estado": "parcial",
       "previene": [],
-      "bot": "Contraseña: le dice que su usuario es el CUIT y deja la tarea; una persona toca 'Generar clave temporal' y la clave le llega por WhatsApp.",
-      "deriva": "Una persona le resuelve el acceso.",
-      "falta": "Nada pendiente del bot: la clave se resetea con aprobación y 'no me deja elegir sucursal' se deriva como problema de acceso a la web.",
+      "bot": "Contraseña (desde el 07/10): si el teléfono está agendado con un cliente, le pasa en el momento su usuario (el CUIT) y su clave (el PIN que ya tiene; no genera una nueva). Si el número no está agendado, no se la da y le pide el CUIT para agendarlo.",
+      "deriva": "Una persona, sólo si el cliente no tiene PIN cargado o si no puede elegir la sucursal en la web.",
+      "falta": "Decidir si la clave sale también a los teléfonos del padrón de Gestión que nadie verificó o sólo a los vínculos aprobados (hoy sale a los dos).",
       "ejemplo": "«No recuerdo la contraseña para cargar el pedido»",
-      "resumen": "Una persona aprueba y la clave nueva le llega por WhatsApp."
+      "resumen": "Si el número está agendado, el bot le pasa su usuario y su clave en el momento."
     },
     {
       "motivo": "Stock o consulta de artículo",

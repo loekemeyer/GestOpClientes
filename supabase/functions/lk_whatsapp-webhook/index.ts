@@ -27,6 +27,7 @@ import {
   type MediaAction,
 } from "../_shared/bot-conversation.ts";
 import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
+import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
 import { contextoAlertaTope, mensajeTope } from "../_shared/tope-ia.ts";
@@ -1389,14 +1390,29 @@ async function handleMessage(
     : await handleFaq(text, faqCustomer);
   if (faq) {
     await saveMessage(phone, "user", text);
+    // Pablo y Thomy, 07/10: pide la clave de la web y el teléfono está agendado → su usuario y su PIN (customers.pin), sin
+    // generar una clave nueva. El PIN se lee recién acá y en el historial queda tapado (_shared/clave-web.ts). Sin PIN cargado
+    // lo resuelve una persona (motivo acceso_web).
+    let textoFaq = faq.reply;
+    let alertaFaq = faq.alerta;
+    if (faq.conClave && customer) {
+      const acceso = await datosDeAccesoWeb(customer.customer_id);
+      if (acceso) {
+        textoFaq = textoAccesoWeb(acceso.usuario, acceso.clave);
+        console.log(`[clave_web] datos de acceso a ${phone.slice(0, 5)}… (cliente ${customer.cod_cliente})`);
+      } else {
+        textoFaq = TEXTO_CLAVE_A_PERSONA;
+        alertaFaq = { motivo: "acceso_web", detalle: "Pide su clave de la web y no tiene PIN cargado (o no se pudo leer)" };
+      }
+    }
     // `faq.yaSaluda` = la respuesta ya arranca con "Hola…" (la FAQ del saludo inicial).
     // Sin ese chequeo el cliente recibía el saludo dos veces seguidas.
-    const cuerpo = marcaLk ? conEtiqueta("lk", faq.reply) : faq.reply;
+    const cuerpo = marcaLk ? conEtiqueta("lk", textoFaq) : textoFaq;
     const reply = customer && !faq.yaSaluda
       ? await conSaludoSiCorresponde(cuerpo, phone, customer.business_name)
       : cuerpo;
     await enviarTexto(cfg, phone, reply);
-    await saveMessage(phone, "assistant", reply);
+    await saveMessage(phone, "assistant", faq.conClave ? taparClave(reply) : reply);
     // Pablo, 30/09: reenvío de factura. PDF suelto (el cliente acaba de escribir: dentro de las 24 h). Pasa por wa-guard.
     for (const d of faq.documentos ?? []) {
       try {
@@ -1410,16 +1426,16 @@ async function handleMessage(
     // que "te va a contactar un asesor a la brevedad" y NADIE se enteraba — el aviso
     // estaba escrito como comentario y sin conectar. Era una promesa falsa en producción.
     // Va después de responder, y con `await` sin `try`: `notificarHumano` nunca lanza.
-    if (faq.alerta) {
+    if (alertaFaq) {
       await notificarHumano({
         tipo: "otro",
         phone,
         customerId: customer?.customer_id ?? null,
         contexto: {
-          motivo: faq.alerta.motivo,
-          ...(faq.alerta.urgente !== undefined ? { urgente: faq.alerta.urgente } : {}),
-          ...(faq.alerta.pedidos?.length ? { pedido: faq.alerta.pedidos[0], pedidos: faq.alerta.pedidos } : {}),
-          detalle: faq.alerta.detalle ?? null,
+          motivo: alertaFaq.motivo,
+          ...(alertaFaq.urgente !== undefined ? { urgente: alertaFaq.urgente } : {}),
+          ...(alertaFaq.pedidos?.length ? { pedido: alertaFaq.pedidos[0], pedidos: alertaFaq.pedidos } : {}),
+          detalle: alertaFaq.detalle ?? null,
           texto_recibido: text.slice(0, 200),
           razon_social: customer?.business_name ?? null,
         },
