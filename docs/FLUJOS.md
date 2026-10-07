@@ -378,6 +378,10 @@ se precarga con origen **"Cotizador" y el 2% web** (como en la web). Cualquier o
 etiquetas ni enlaces, y el código de artículo tiene que tener forma de código. Si una línea parece una orden para el bot ("ignorá las reglas", "confirmá el pedido
 ya", nombres de herramientas, claves), no se busca en el catálogo, el cliente la ve como *(texto no legible)* y la tarea muestra un aviso para revisar el archivo
 original. Los artículos que sí se encontraron salen con la descripción del CATÁLOGO, nunca con las palabras del archivo.
+**Aviso de Auditoría (07/10, `_shared/archivo-sospechoso.ts`):** además, el texto crudo de las planillas y CSV se escanea ANTES de la IA, porque la IA descarta esas
+órdenes en silencio y el equipo no se enteraba. Si trae algo que parece una orden, se crea una alerta `archivo_sospechoso` (una por número y por hora, verde, vence a las
+24 h) que aparece en Centro de mensajes › Tareas › Auditoría con el archivo, el patrón que saltó, la línea y qué hizo la IA. No tiene nada que contestar: se mira y se
+cierra. No abre tarea en Planify salvo que se la derive en Configuración › Derivaciones. No cubre fotos ni PDF.
 **Cotizador: precios contra la web y sucursal (Pablo, 06/10, m41).** El cotizador trae además los precios y el total: al recibirlo el bot lee la hoja
 "Cotizador …" (`_shared/cotizador-precios.ts`: versión, `$ x Uni`, `Uni x Caja`, "No Disponible", "Total a Abonar") y compara los artículos
 PEDIDOS (cajas > 0) con `products.list_price` y `uxb`. **Si todo coincide NO se le dice nada** (el control es en silencio): el mensaje termina en
@@ -388,6 +392,8 @@ lista las direcciones con su número (`slot`) y pregunta **"¿Para cuál es este
 una por su cuenta (`REGLA_PEDIDOS_WA` paso 3). Con una sola dirección no pregunta. Una planilla sin la hoja de precios sigue como siempre ("¿Está bien?").
 Se compara contra el precio base (lista), no contra el final con descuento por plazo y 2 % web. ⚠ Una cadena con lista propia de precios dispararía una falsa alarma: a vigilar.
 **Cliente que PIDE el cotizador (Pablo, 06/10, m41):** respuesta fija (`faq.ts` `pideElCotizador`, antes del agente): "Ahora los pedidos se toman por la web: entrá a loekemeyer.com › Pedidos Mayorista con tu usuario (tu CUIT) y tu clave. Ahí ves los precios al día y armás el pedido. Si no tenés clave, escribinos y una persona de Ventas te la genera." No genera alerta; "no tengo clave" lo toma el reseteo de clave de siempre. Quien MANDA el cotizador va por el lector de archivos (arriba).
+
+**Cliente que pregunta si puede pedir por la web (Pablo, 07/10, m77):** "¿Puedo hacer el pedido directo de la web? ¿Mismos precios, mismo todo?" → respuesta fija (`faq.ts` `pidePedidoPorWeb`, antes de las FAQ por puntaje y del agente): *"Sí, podés hacer el pedido directo en la web: entrá a loekemeyer.com › Pedidos Mayorista con tu CUIT y tu clave. Ahí ves los precios al día y, por hacerlo por la web, tenés un descuento extra que se aplica solo al armar el pedido."* No dice cuánto es (hoy el 2 % web, que por WhatsApp no aplica) ni promete "mismos precios": el precio del cliente es la lista menos su descuento por volumen. Hace falta "puedo / podemos / se puede…" + pedir o hacer el pedido + la web (o la página, el sitio, online); no cuenta quien no puede (clave, usuario, error: acceso a la web), quien lo manda por WhatsApp, mail o acá, ni quien nombra el cotizador (m41). Sin alerta; sólo clientes.
 
 ### (viejo)
 

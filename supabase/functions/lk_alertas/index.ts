@@ -321,6 +321,8 @@ serve(async (req) => {
           sucursal: ctx.sucursal ?? null,
           mail_nuevo: ctx.mail_nuevo ?? null,
           articulos: Array.isArray(ctx.articulos) ? ctx.articulos : null, texto_sospechoso: ctx.texto_sospechoso === true,
+          // Auditoría (07/10): qué trajo la planilla y qué hizo la IA con eso (_shared/archivo-sospechoso.ts). El dashboard lo dibuja en Tareas › Auditoría.
+          auditoria: ctx.archivo_sospechoso && typeof ctx.archivo_sospechoso === "object" ? ctx.archivo_sospechoso : null,
           respuesta_cliente: ctx.respuesta_cliente ?? null, cambios: ctx.cambios ?? null, lectura_error: ctx.lectura_error ?? null,
           aplicable: ctx.aplicable === true,
           precarga: ctx.precarga ?? null,   // pedido por WhatsApp (sql/112)

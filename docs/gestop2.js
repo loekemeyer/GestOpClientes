@@ -723,6 +723,7 @@ const TIPO_TK = {
   cob: { nombre: "Cobranzas", clase: "tipo-cob" },
   der: { nombre: "Derivaciones", clase: "tipo-der" },
   alta: { nombre: "Alta de cliente", clase: "tipo-alta" },
+  aud: { nombre: "Auditoría", clase: "tipo-aud" },   // v0.27.23 (Pablo, 07/10): avisos para mirar, no para contestar (hoy: archivo con texto que parece una orden para el bot)
 };
 const ESTADO_COMP = { pending: "Sin leer todavía", parsed: "Leído", matched: "Cruzado con una factura", confirmed: "Confirmado",
   rejected: "Rechazado", no_comprobante: "No parece un comprobante", error: "No se pudo leer" };
@@ -730,6 +731,7 @@ const NIVEL_RANGO = { rojo: 0, amarillo: 1, verde: 2 };
 function tipoDeAlerta(a) {
   if (["comprobante_recibido", "comprobante_error", "pago", "reclamo"].includes(a.categoria)) return "cob";
   if (a.categoria === "alta_cliente") return "alta";
+  if (a.categoria === "archivo_sospechoso") return "aud";
   return "der";
 }
 async function tkInvoke(fn, body) {
@@ -866,6 +868,18 @@ function tkPintarDetalle() {
       ["Ya vende LK", l.ya_vende_lk === true ? "Sí" : l.ya_vende_lk === false ? "No" : null], ["Le compra a", gesc(l.a_quien_compra || "")]])}
       <div class="aviso">Cargalo en el ERP y aprobalo acá: se crea en la web y le llega el acceso por WhatsApp.</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkModalAlta('approve')">Aprobar alta…</button><button class="g-btn" onclick="tkModalAlta('reject')">Rechazar…</button></div>`;
+  } else if (t.tipo === "aud") {
+    // v0.27.23 (Pablo, 07/10): una planilla del cliente trae texto que parece una orden para el bot. El escaneo del texto crudo (antes de la IA) lo detecta aunque la IA
+    // lo descarte en silencio. Todo lo que viene del archivo ya salió saneado del backend (una línea, sin enlaces ni corchetes) y acá se escapa igual.
+    const au = a.auditoria || {};
+    const frase = au.ia === "copio" ? "La IA la copió en una línea del pedido: esa línea quedó marcada y no se le mostró al cliente con esas palabras."
+      : "La IA la dejó afuera de la lista del pedido: no figura en lo que se le mostró al cliente.";
+    cuerpo = `<h4>Auditoría · archivo con texto que parece una orden para el bot</h4>
+      ${kv([["Archivo", au.archivo ? gesc(au.archivo) : null], ["Qué detectó", (au.motivos || []).length ? gesc((au.motivos || []).join(" · ")) : null], ["Qué hizo la IA", gesc(frase)]])}
+      ${(au.fragmentos || []).length ? `<h4>Líneas del archivo</h4>${au.fragmentos.map((f) => `<div class="cita">${gesc(f)}</div>`).join("")}`
+        : au.cruzado ? `<div class="aviso">La orden está partida en varias filas o celdas: no hay una línea sola que la contenga. Abrí el archivo original.</div>` : ""}
+      <div class="aviso">Es un aviso para revisar, no hay nada que cargar ni contestar. Puede ser un falso positivo (una planilla con notas propias) o alguien probando al bot: mirá el archivo original y la conversación. Si no hace falta nada, marcala resuelta.</div>
+      ${a.comprobante?.id ? `<div class="cm-acciones"><button class="g-btn" onclick="tkAdjunto('${gesc(a.comprobante.id)}')">Ver archivo original</button></div>` : ""}`;
   } else if (a.articulos?.length) {
     // Pablo, 29/09: pedido que llegó como archivo; la IA armó la lista. Ventas lo carga en la web.
     const est = { ok: "", dudoso: '<span style="color:var(--warn);font-weight:700">❓ revisar</span>', no_encontrado: '<span style="color:var(--g-danger);font-weight:700">No encontrado</span>' };
