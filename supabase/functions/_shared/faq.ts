@@ -1324,26 +1324,22 @@ async function pagoDiscountBlock(): Promise<string> {
   } catch { return ""; }
 }
 
-// Artículo mencionado en una frase ("¿tienen stock del 506?", "me pasás el precio del 506?"):
-// primero un código dentro de la frase; si no, el nombre sin las palabras de la pregunta. Antes se
-// buscaba la frase entera y no encontraba nada (simulación 28/09).
+// Artículo mencionado en una frase ("¿tienen stock del 506?", "me pasás el precio del 506?"): sólo por el código que trae la frase.
+// Por NOMBRE no se busca acá (Pablo, 07/10, m72): la RPC wa_product_match fallaba en CADA llamada (bigint vs uuid) y, arreglada, con limit 1 y sin umbral
+// cotizaba el artículo equivocado (el "automate", inactivo, devolvía la bombilla 654 con score 0,16; "bombilla" y "cuchara" empatan 3 a 3). Si nombró algo
+// y no hay código, `null`: lo resuelve la IA (buscar_productos), que sabe decir "discontinuado" y repreguntar.
 async function articuloDeLaFrase(message: string): Promise<{ cod: string; description: string; list_price: number } | null> {
   for (const cod of message.match(/\b\d{3,5}[a-z]?\b/gi) ?? []) {
     const { data } = await supabase.from("products").select("cod, description, list_price").eq("cod", cod.toUpperCase()).limit(1);
     if (data?.[0]) return data[0];
   }
-  const nombre = message.toLowerCase()
-    .replace(/\b(tienen|tenes|tenés|hay|stock|disponib\w*|precio\w*|cu[aá]nto|sale|salen|cuesta|cuestan|vale|valen|me|pas[aá]s|pasame|decime|de|del|la|el|los|las|un|una|queda\w*|todav[ií]a)\b/g, " ")
-    .replace(/[¿?!.,]/g, " ").replace(/\s+/g, " ").trim();
-  if (nombre.length < 3) return null;
-  const { data: products } = await supabase.rpc("wa_product_match", { p_query: nombre, p_limit: 1 });
-  return products?.[0] ?? null;
+  return null;
 }
 
 async function lookupProductPrice(customer: NonNullable<Customer>, message: string): Promise<string | null> {
   const p = await articuloDeLaFrase(message);
   // Pablo, 06/10 (m72): "Me refiero al automate" → pedía "el código o el nombre" aunque ya lo había dicho. Si nombró un artículo y no se encontró por código
-  // (la búsqueda por nombre, wa_product_match, está rota y mira sólo activos), lo toma la IA; sólo se pregunta si no nombró nada.
+  // (acá no se busca por nombre), lo toma la IA; sólo se pregunta si no nombró nada.
   if (!p) return hayNombreDeArticulo(message) ? null : `¿De qué artículo? Pasame el código o el nombre y te digo el precio.`;
   const basePrice = Number(p.list_price);
   const iva = basePrice * 0.21;

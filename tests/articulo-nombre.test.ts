@@ -1,5 +1,6 @@
 // Pruebas de cuándo una pregunta de precio o de stock nombra un artículo (supabase/functions/_shared/articulo-nombre.ts, corrección m72). Sin red.
 // Correr: node --experimental-strip-types --no-warnings tests/articulo-nombre.test.ts   (sale con código 1 si algo falla)
+import { readFileSync } from "node:fs";
 import { hayNombreDeArticulo, palabraDeBusqueda, raizDeBusqueda } from "../supabase/functions/_shared/articulo-nombre.ts";
 
 let fallas = 0;
@@ -29,6 +30,11 @@ igual("palabra: sólo un código", palabraDeBusqueda("precio del 506"), null);
 
 // La raíz: el plural no impide hallar el artículo.
 for (const [pl, raiz] of [["tostadores", "tostador"], ["ollas", "olla"], ["cucharas", "cuchara"], ["sacacorchos", "sacacorcho"], ["automate", "automate"], ["coladores", "colador"], ["bombillas", "bombilla"], ["tazas", "taza"]]) igual(`raíz: ${pl}`, raizDeBusqueda(pl), raiz);
+
+// Guarda sobre el código: la respuesta fija NO busca por nombre con la RPC wa_product_match (Pablo, 07/10). Falla en cada llamada (bigint vs uuid) y, arreglada,
+// con limit 1 y sin umbral cotizaba el artículo equivocado ("automate" → bombilla 654). Si alguien la vuelve a conectar, que lo decida a propósito.
+const faqTs = readFileSync(new URL("../supabase/functions/_shared/faq.ts", import.meta.url), "utf8");
+igual("faq.ts no llama a la RPC wa_product_match", /\.rpc\(\s*["']wa_product_match/.test(faqTs), false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");
