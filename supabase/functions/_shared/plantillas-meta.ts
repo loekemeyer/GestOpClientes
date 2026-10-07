@@ -221,12 +221,15 @@ export const PLANTILLAS: PlantillaMeta[] = [
   // días y una aprobada se edita una vez cada 24 h. Sin botones a propósito: si alguien contesta, cae al webhook como número desconocido (la whitelist
   // lo descarta); el texto manda a gestionar en Planify. {{4}} es lo que escribió el cliente en una línea y sin enlaces (lineaSegura), o "ver en Planify".
   // Las manda lk_alerta-planify por la cola (wa_outbox), así que pasan por la llave wa_envio_automatico. Lógica en _shared/aviso-equipo.ts.
+  // v2 (07/10): la v1 («Hay un aviso nuevo en Planify… Abrí Planify para tomarlo») la aprobó Meta pero la reclasificó a MARKETING (US$ 0,0618 por mensaje
+  // en vez de 0,026). El texto v2 sigue el molde de las plantillas internas de Planify que Meta aprobó como UTILITY («Alerta operativa … Sistema Planify -
+  // notificación automática»): sin invitación a actuar. Mismas 4 variables en el mismo orden, así que no cambia nada del código que las arma.
   {
     name: "aviso_equipo",
     language: ES, category: UT,
     disparo: "Nace una alerta que necesita a una persona y su motivo avisa por WhatsApp (Configuración › Derivaciones › WhatsApp: «apenas nace» o «ambos»). Va a quien corresponda según el destino del motivo.",
     variables: ["para quién (persona o sector)", "motivo (ej. Consulta de entrega)", "cliente con su código", "detalle: lo que escribió el cliente en una línea, o \"ver en Planify\""],
-    body: "Hay un aviso nuevo en Planify para {{1}}.\nMotivo: {{2}}.\nCliente: {{3}}.\nDetalle: {{4}}.\nAbrí Planify para tomarlo.",
+    body: "Alerta operativa: consulta de cliente pendiente de atender.\n\nPara: {{1}}\nMotivo: {{2}}\nCliente: {{3}}\nDetalle: {{4}}\n\nSistema Planify - notificación automática.",
     ejemplos: ["Ventas", "Consulta de entrega", "Chef S.R.L. (411)", "Retira el lunes 12/10, franja sin confirmar"],
   },
   {
@@ -234,7 +237,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "Una alerta sigue abierta y nadie se encargó (\"Me encargo yo\") al vencer el tiempo del semáforo, o el que se fije en Configuración › Derivaciones › WhatsApp (los motivos «si nadie lo toma» o «ambos»). Una sola vez por alerta.",
     variables: ["hace cuánto nació (ej. 2 h)", "motivo", "cliente con su código", "detalle: lo que escribió el cliente en una línea, o \"ver en Planify\""],
-    body: "Hace {{1}} hay un aviso sin tomar en Planify.\nMotivo: {{2}}.\nCliente: {{3}}.\nDetalle: {{4}}.\nAbrí Planify para tomarlo.",
+    body: "Alerta operativa: consulta de cliente sin atender hace {{1}}.\n\nMotivo: {{2}}\nCliente: {{3}}\nDetalle: {{4}}\n\nSistema Planify - notificación automática.",
     ejemplos: ["2 h", "Consulta de entrega", "Autoservicio Capo SA (4210)", "Retira el lunes 12/10, franja sin confirmar"],
   },
 ];

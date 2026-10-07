@@ -379,14 +379,14 @@
       "orden": 1,
       "estado": "prueba",
       "para": "Personal de Ventas (o del sector que se elija en Configuración › Derivaciones) · no es para el cliente",
-      "sale": "Apenas nace una alerta que necesita a una persona y su motivo avisa por WhatsApp (por defecto, todo lo que va a Planify y los cambios de datos o clave). Una sola plantilla para todos los motivos: dice para quién, el motivo, el cliente y lo que escribió en una línea. Sale por la cola (wa_outbox) desde lk_alerta-planify. Con la llave en prueba sólo llega a los números de la lista de prueba. Creada en Meta el 07/10 como UTILITY, pendiente de aprobación (si no gusta el texto se crea una versión v2)."
+      "sale": "Apenas nace una alerta que necesita a una persona y su motivo avisa por WhatsApp (por defecto, todo lo que va a Planify y los cambios de datos o clave). Una sola plantilla para todos los motivos: dice para quién, el motivo, el cliente y lo que escribió en una línea. Sale por la cola (wa_outbox) desde lk_alerta-planify. Con la llave en prueba sólo llega a los números de la lista de prueba. Creada en Meta el 07/10 como UTILITY: Meta la aprobó pero la reclasificó a MARKETING (US$ 0,0618 por mensaje en vez de 0,026), así que se pidió una v2 con texto «Alerta operativa … Sistema Planify - notificación automática» para intentar UTILITY. Mientras la v2 no esté aprobada sigue saliendo el texto de la v1."
     },
     "aviso_equipo_sin_tomar": {
       "grupo": "equipo",
       "orden": 2,
       "estado": "prueba",
       "para": "Personal de Ventas (o del sector que se elija en Configuración › Derivaciones) · no es para el cliente",
-      "sale": "Una vez por alerta, si nadie tocó «Me encargo yo» al vencer el tiempo de su semáforo (🔴 20 min, 🟡 2 h, 🟢 4 h por defecto, contados en horario de atención; se puede fijar otro tiempo en el panel). Lo revisa el sync de cada 10 minutos. Creada en Meta el 07/10 como UTILITY, pendiente de aprobación (si no gusta el texto se crea una versión v2)."
+      "sale": "Una vez por alerta, si nadie tocó «Me encargo yo» al vencer el tiempo de su semáforo (🔴 20 min, 🟡 2 h, 🟢 4 h por defecto, contados en horario de atención; se puede fijar otro tiempo en el panel). Lo revisa el sync de cada 10 minutos. Creada en Meta el 07/10 como UTILITY: Meta la aprobó pero la reclasificó a MARKETING (US$ 0,0618 por mensaje en vez de 0,026), así que se pidió una v2 con texto «Alerta operativa … Sistema Planify - notificación automática» para intentar UTILITY. Mientras la v2 no esté aprobada sigue saliendo el texto de la v1."
     }
   }
 }

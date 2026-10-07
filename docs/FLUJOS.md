@@ -517,8 +517,8 @@ Cuando una consulta del cliente necesita a una persona, el bot deja la alerta (T
 puede avisar por WhatsApp al equipo (sobre todo Ventas). Es lo que ve la persona, no el cliente:
 
 ```
-(alerta nace) → WhatsApp «Hay un aviso nuevo en Planify para Ventas. Motivo: … Cliente: … Detalle: … Abrí Planify para tomarlo.»
-(nadie toca «Me encargo yo» a tiempo) → WhatsApp «Hace 2 h hay un aviso sin tomar en Planify. Motivo: … Cliente: … Detalle: …»
+(alerta nace) → WhatsApp «Alerta operativa: consulta de cliente pendiente de atender. Para: Ventas · Motivo: … · Cliente: … · Detalle: … · Sistema Planify - notificación automática.» (plantilla `aviso_equipo_v2`)
+(nadie toca «Me encargo yo» a tiempo) → WhatsApp «Alerta operativa: consulta de cliente sin atender hace 2 h. Motivo: … · Cliente: … · Detalle: …» (plantilla `aviso_equipo_sin_tomar_v2`)
 ```
 
 Cada motivo elige cuándo avisa (apenas nace, si nadie lo toma, las dos o ninguno) y a quién (los mismos destinos de la tarea; un sector puede ser cada
