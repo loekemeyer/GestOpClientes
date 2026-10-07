@@ -14,6 +14,8 @@ ok("da el precio del cliente por caja (con su descuento por volumen)", /precio_c
 ok("si no viene el del cliente, el de lista", /precio_lista_por_caja/.test(REGLA_PEDIDOS_WA));
 ok("el total lo da armar_pedido, no el modelo", /NO calcules el total/.test(REGLA_PEDIDOS_WA) && /armar_pedido/.test(REGLA_PEDIDOS_WA));
 ok("sigue preguntando siempre forma de pago y entrega", /Forma de pago: preguntala SIEMPRE/.test(REGLA_PEDIDOS_WA) && /Entrega: preguntala SIEMPRE/.test(REGLA_PEDIDOS_WA));
+ok("con varias direcciones pregunta SIEMPRE para cuál es el pedido y no elige sola", /M[AÁ]S DE UNA direcci[oó]n/.test(REGLA_PEDIDOS_WA) && /nunca elijas una por tu cuenta/.test(REGLA_PEDIDOS_WA));
+ok("si el cotizador ya se lo preguntó, usa la respuesta (slot) y no se la repite", /slot/.test(REGLA_PEDIDOS_WA) && /no se la repitas/.test(REGLA_PEDIDOS_WA));
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");

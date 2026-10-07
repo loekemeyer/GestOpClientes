@@ -2,7 +2,20 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-10-06.
+> Última actualización: 2026-10-07.
+>
+> **07/10 (Simulador, caso m79): `avisaErrorDeCarga` (m17) atrapaba "Perdón, me confundí: pensé que te había hecho un pedido pero no hay pedido hecho, te lo paso ahora".** Contestaba "Una persona de Ventas revisa cómo quedó cargado tu pedido" y dejaba una alerta `cambio_pedido`, al revés de lo que dijo el cliente (no hizo el pedido y lo va a pasar). Ahora una frase que dice que NO hay / no hizo el pedido, o "pensé que … pedido", no cuenta como error de carga (`RE_NO_HIZO_EL_PEDIDO`, `tests/faq-error-carga.test.ts`, 3 frases nuevas). Sin impacto en clientes: lo vio el Simulador y la lista blanca son 2 números.
+>
+> **06/10 (Pablo, corrección m41): cuando el cliente MANDA el cotizador, el bot compara sus precios con los de la web EN SILENCIO y sólo avisa si no coinciden; si el cliente tiene varias direcciones de entrega, le pregunta para cuál es el pedido (`_shared/cotizador-precios.ts`, `_shared/pedido-archivo.ts`, `tests/cotizador-precios.test.ts`, `tests/pedido-archivo-texto.test.ts`).**
+> Origen: el cotizador Excel trae también los precios y la forma de pago, y se usa desactualizado (el de prueba de Pablo dice "Septiembre 2025": el 512 a $22.200 la caja contra $46.080 en la web).
+> `leerPedidoArchivo` devuelve además `hoja` (la hoja "Cotizador …": versión, `$ x Uni`, `Uni x Caja`, "No Disponible", total); `compararCotizadorConWeb` la cruza con `products` (precio base `list_price` y `uxb`).
+> **Si todo coincide, el mensaje no dice nada de precios** ("no hace falta explicarle que coincide, solamente tenés que chequearlo vos"): queda "¿Confirmás los artículos y los valores?". Si algo no coincide agrega SÓLO lo que difiere
+> (+ el total del cotizador) y pregunta "¿Confirmás los artículos y los valores de la web?". **Varias direcciones** (216 de 1.247 cuentas, hasta 19; `customer_delivery_addresses`): el mensaje las lista con su `slot` y pregunta
+> "¿Para cuál es este pedido?"; pide el número en la respuesta y la regla del agente (`REGLA_PEDIDOS_WA` paso 3) ya no elige ninguna por su cuenta. Una sola dirección: no pregunta nada. La alerta `pedido_archivo` guarda `comparacion_precios` y `sucursales_ofrecidas`.
+> El Simulador (`leer_archivo`) acepta `cod_cliente` para probar la pregunta de direcciones. Sin la hoja de precios: el flujo de siempre.
+> **Cliente que PIDE el cotizador** (`faq.ts` `pideElCotizador`, `tests/faq-pide-cotizador.test.ts`): respuesta fija con el texto aprobado por Pablo: "Ahora los pedidos se toman por la web: entrá a loekemeyer.com › Pedidos Mayorista con tu usuario (tu CUIT) y tu clave. Ahí ves los precios al día y armás el pedido. Si no tenés clave, escribinos y una persona de Ventas te la genera." Sin alerta (si después dice que no tiene clave, lo toma el reseteo de siempre). Hace falta un verbo de pedir + "cotizador"; no cuentan "te paso el cotizador", "no me abre", "sin cotizador" ni los descuentos. Sólo para clientes; con un pedido en curso la capa fija no corre.
+> ⚠ Contradice a `m10` (estado `aplicada` en `wa_agente_evals`: "¿Me podés pegar el contenido del cotizador o mandarlo como archivo?"): ahora el pedido del cotizador lo contesta la capa fija antes de la IA, así que esa guía sólo se vería con un pedido en curso. Queda abierto: decidir si se retira.
+> Queda abierto también: qué pasa con una cadena con lista propia de precios (falsa alarma del control de precios).
 >
 > **06/10 (Pablo): filtro de salida del agente — medida 3 de seguridad, activa (`_shared/filtro-salida.ts`, `tests/filtro-salida.test.ts`, 74 casos; cableado en `bot-conversation.ts › filtrarSalida`).**
 > Pedido: *"sí, seguí con el filtro de salida"*. Es la única defensa que sigue en pie si el modelo se rinde ante un jailbreak: revisa en código (0 tokens) lo que el agente va a mandar y, si algo salta, sale un texto fijo

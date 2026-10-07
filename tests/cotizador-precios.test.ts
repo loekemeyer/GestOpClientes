@@ -70,18 +70,18 @@ igual("lo pidió pero el cotizador dice 'No Disponible' y la web lo tiene", comp
 
 // ── Texto para el cliente ──
 const dif = compararConWeb(cot, { ...WEB, "255": { pu: 9060, uxb: 4, activo: true } });
-igual("texto con una diferencia (el caso real de la prueba del 06/10)", textoComparacion(cot, dif.diferencias, dif.pedidos),
+igual("texto con una diferencia (el caso real de la prueba del 06/10)", textoComparacion(cot, dif.diferencias),
   "💰 Ojo, tu cotizador puede estar desactualizado: estos valores no coinciden con los de la web.\n" +
   "• Abrelatas Mariposa Capuchon Rojo (cód. 512): en tu cotizador $22.200 por caja; en la web $46.080 por caja.\n" +
-  "Los otros 2 artículos coinciden con la web.\n" +
   "Total que figura en tu cotizador: $172.695,60 (con sus precios).");
+igual("no aclara cuáles SÍ coinciden", /coinciden con la web\.$|coincide con la web/m.test(textoComparacion(cot, dif.diferencias).replace("no coinciden con los de la web", "")), false);
 const ok = compararConWeb(cot, { ...WEB, "512": { pu: 1850, uxb: 12, activo: true }, "255": { pu: 9060, uxb: 4, activo: true } });
-igual("texto sin diferencias", textoComparacion(cot, ok.diferencias, ok.pedidos),
-  "✅ Los precios de tu cotizador coinciden con los de la web.\nTotal que figura en tu cotizador: $172.695,60.");
+igual("si todo coincide NO se le dice nada al cliente (Pablo, 06/10)", textoComparacion(cot, ok.diferencias), "");
 const unico = leerHojaCotizador(hoja([[1, "Abrelatas Mariposa Capuchon Rojo", V, "512", 5, 12, 1850, 22200, 111000, 60], [2, "Abrelatas Doble Engranaje", V, "503E", 2, 12, 5165, 61980, 123960, 24]], null))!;
-const d2 = compararConWeb(unico, WEB);
-igual("sin total no inventa uno", /Total que figura/.test(textoComparacion(unico, d2.diferencias, d2.pedidos)), false);
-igual("con 'No disponible en la web' el texto lo dice", /hoy no está disponible en la web/.test(textoComparacion(cot, compararConWeb(cot, sinWeb).diferencias, cot.filas.filter((f) => f.cajas > 0))), true);
+const d2 = compararConWeb(unico, { ...WEB, "512": { pu: 3840, uxb: 12, activo: true } });
+igual("hay una diferencia (para que la prueba de abajo no sea vacía)", d2.diferencias.length, 1);
+igual("sin total no inventa uno", /Total que figura/.test(textoComparacion(unico, d2.diferencias)), false);
+igual("con 'No disponible en la web' el texto lo dice", /hoy no está disponible en la web/.test(textoComparacion(cot, compararConWeb(cot, sinWeb).diferencias)), true);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");

@@ -219,8 +219,32 @@ export async function compararCotizadorConWeb(hoja: CotizadorLeido | null | unde
   for (const r of (data ?? []) as Array<{ cod: string; list_price: number | string | null; uxb: number | null; active: boolean | null }>) {
     web[String(r.cod).toUpperCase()] = { pu: Number(r.list_price) || 0, uxb: Number(r.uxb) || 1, activo: r.active === true };
   }
-  const { pedidos, diferencias } = compararConWeb(hoja, web);
-  return { texto: textoComparacion(hoja, diferencias, pedidos), diferencias, total_cotizador: hoja.total, version: hoja.version };
+  const { diferencias } = compararConWeb(hoja, web);
+  return { texto: textoComparacion(hoja, diferencias), diferencias, total_cotizador: hoja.total, version: hoja.version };
+}
+
+/** Una dirección de entrega (sucursal) de la cuenta. `slot` es el número que usa el agente de pedidos (opciones_de_pedido). */
+export interface Sucursal { slot: number; direccion: string; tipo: string }
+
+/** Las direcciones de entrega de un cliente, para preguntarle a cuál va el pedido cuando tiene más de una. Falla en silencio (devuelve []): nunca frena la lectura del archivo. */
+export async function sucursalesDelCliente(customerId: string | null | undefined): Promise<Sucursal[]> {
+  if (!customerId) return [];
+  const { data } = await supabase.from("customer_delivery_addresses").select("slot, label, zona_expreso, nombre_expreso").eq("customer_id", customerId).order("slot");
+  return ((data ?? []) as Array<{ slot: number; label: string | null; zona_expreso: string | null; nombre_expreso: string | null }>)
+    .filter((d) => String(d.label ?? "").trim())
+    .map((d) => ({ slot: d.slot, direccion: String(d.label).trim(),
+      tipo: /^retira$/i.test(String(d.zona_expreso ?? "").trim()) ? "retiro en el depósito" : d.nombre_expreso ? `por expreso ${d.nombre_expreso}` : "reparto propio" }));
+}
+
+const MAX_SUCURSALES_EN_MENSAJE = 12;
+/** La pregunta de a cuál de sus direcciones va el pedido (Pablo, 06/10, m41: "si el cliente tiene varias sucursales tenés que preguntarle para qué sucursal es, eso es muy importante").
+ *  "" con una sola dirección (o ninguna): ahí no hay nada que elegir. */
+export function bloqueSucursales(sucursales: Sucursal[] | null | undefined): string {
+  const s = sucursales ?? [];
+  if (s.length < 2) return "";
+  const lineas = s.slice(0, MAX_SUCURSALES_EN_MENSAJE).map((x) => `${x.slot}) ${x.direccion} (${x.tipo})`);
+  if (s.length > MAX_SUCURSALES_EN_MENSAJE) lineas.push(`… y ${s.length - MAX_SUCURSALES_EN_MENSAJE} más: decinos la dirección.`);
+  return `📍 Tu cuenta tiene ${s.length} direcciones de entrega. *¿Para cuál es este pedido?*\n${lineas.join("\n")}`;
 }
 
 const cj = (n: number | null) => `${n} ${n === 1 ? "caja" : "cajas"}`;
@@ -229,7 +253,7 @@ const cj = (n: number | null) => `${n} ${n === 1 ? "caja" : "cajas"}`;
 /** `seguir` (pedidos por WhatsApp prendidos): con el "sí" el bot sigue con forma de pago y entrega en vez de derivar. */
 const FORMA_COT: Record<number, string> = { 8: "Contado (25%)", 9: "15 a 30 días (20%)", 10: "31 a 45 días (15%)",
   11: "46 a 60 días (10%)", 12: "E-cheq a 90 días (5%)", 13: "E-cheq a 120 días (sin descuento)", 18: "Prefiero no decidir ahora" };
-export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: boolean; seguir?: boolean; condicion_code?: number | null; comparacion?: { texto: string; hayDiferencias: boolean } | null } = {}): string {
+export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: boolean; seguir?: boolean; condicion_code?: number | null; comparacion?: { texto: string; hayDiferencias: boolean } | null; sucursales?: Sucursal[] | null } = {}): string {
   const ok = arts.filter((a) => a.estado !== "no_encontrado");
   const no = arts.filter((a) => a.estado === "no_encontrado");
   const lineas = ok.slice(0, 40).map((a) => a.opciones?.length
@@ -239,14 +263,23 @@ export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: bo
   if (ok.length > 40) t += `\n… y ${ok.length - 40} artículos más.`;
   if (no.length) t += `\n\nNo encontramos: ${no.slice(0, 10).map((a) => `"${a.original}"`).join(", ")}.`;
   if (opts.condicion_code && FORMA_COT[opts.condicion_code]) t += `\n\nForma de pago marcada en el cotizador: *${FORMA_COT[opts.condicion_code]}*.`;
-  if (opts.comparacion) t += `\n\n${opts.comparacion.texto}`;
+  // Pablo, 06/10 (m41): si todo coincide con la web no se dice nada (texto ""); sólo se avisa lo que no coincide.
+  if (opts.comparacion?.texto) t += `\n\n${opts.comparacion.texto}`;
+  // Con varias direcciones de entrega, lo primero es saber para cuál es el pedido.
+  const suc = bloqueSucursales(opts.sucursales);
+  if (suc) t += `\n\n${suc}`;
   if (arts.some((a) => a.opciones?.length)) {
     if (arts.some((a) => a.estado === "dudoso" && !a.opciones?.length)) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
-    return t + `\n\nDecinos cuál querés en las líneas con ❓ (con el código alcanza) y cualquier otro cambio.${opts.seguir ? "" : " Una persona lo carga."}`;
+    return t + `\n\nDecinos cuál querés en las líneas con ❓ (con el código alcanza)${suc ? ", el número de la dirección" : ""} y cualquier otro cambio.${opts.seguir ? "" : " Una persona lo carga."}`;
   }
   if (arts.some((a) => a.estado === "dudoso")) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
   // Pablo, 06/10 (m41): con la comparación de precios se le pide que confirme ARTÍCULO Y VALOR ("como si fuera un pedido por WhatsApp").
   const pregunta = opts.comparacion ? (opts.comparacion.hayDiferencias ? "¿Confirmás los artículos y los valores de la web?" : "¿Confirmás los artículos y los valores?") : "¿Está bien?";
+  if (suc) {
+    const confirma = opts.comparacion ? `los artículos y ${opts.comparacion.hayDiferencias ? "los valores de la web" : "los valores"}` : "los artículos";
+    return t + (opts.seguir ? `\n\nRespondé el número de la dirección y, si ${confirma} están bien, seguimos con la forma de pago. O decinos qué cambiar.`
+      : `\n\nRespondé el número de la dirección y *sí* si ${confirma} están bien, y una persona lo carga. O decinos qué cambiar.`);
+  }
   return t + (opts.seguir ? `\n\n${pregunta} Respondé *sí* y seguimos con la forma de pago y la entrega, o decinos qué cambiar.`
     : `\n\n${pregunta} Respondé *sí* y una persona lo carga, o decinos qué cambiar.`);
 }

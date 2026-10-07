@@ -97,24 +97,20 @@ export function compararConWeb(cot: CotizadorLeido, web: Record<string, PrecioWe
 const pesos = (n: number): string => "$" + Math.round(n).toLocaleString("es-AR");
 const pesos2 = (n: number): string => "$" + n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** El bloque que se le agrega al mensaje al cliente: qué coincide, qué no, el total del cotizador y el pedido de confirmación de artículo y valor. */
-export function textoComparacion(cot: CotizadorLeido, dif: Diferencia[], pedidos: FilaCotizador[]): string {
-  const lineas: string[] = [];
+/** El bloque que se le agrega al mensaje al cliente: SÓLO lo que NO coincide con la web (y el total del cotizador). Si todo coincide devuelve "": el control lo hace
+ *  el bot en silencio y no se le explica nada al cliente (Pablo, 06/10: "no hace falta explicarle que coincide, solamente tenés que chequearlo vos, si no coincide sí avisar").
+ *  Tampoco se aclara cuáles artículos SÍ coinciden. */
+export function textoComparacion(cot: CotizadorLeido, dif: Diferencia[]): string {
+  if (!dif.length) return "";
   const nombre = (d: Diferencia) => `${d.descripcion || "Artículo"} (cód. ${d.cod})`;
-  if (!dif.length) {
-    lineas.push(`✅ Los precios de tu cotizador coinciden con los de la web.`);
-  } else {
-    lineas.push(`💰 Ojo, tu cotizador puede estar desactualizado: estos valores no coinciden con los de la web.`);
-    for (const d of dif.slice(0, 15)) {
-      if (d.tipo === "precio") lineas.push(`• ${nombre(d)}: en tu cotizador ${pesos((d.cotizador ?? 0) * (d.uxb ?? 1))} por caja; en la web ${pesos((d.web ?? 0) * (d.uxb ?? 1))} por caja.`);
-      else if (d.tipo === "unidades_por_caja") lineas.push(`• ${nombre(d)}: tu cotizador dice ${d.cotizador} unidades por caja; en la web son ${d.web}.`);
-      else if (d.tipo === "no_esta_en_la_web") lineas.push(`• ${nombre(d)}: hoy no está disponible en la web.`);
-      else lineas.push(`• ${nombre(d)}: tu cotizador lo marca "No Disponible", pero en la web figura con precio (${pesos((d.web ?? 0) * (d.uxb ?? 1))} por caja).`);
-    }
-    if (dif.length > 15) lineas.push(`… y ${dif.length - 15} diferencias más.`);
-    const iguales = pedidos.length - new Set(dif.map((d) => d.cod)).size;
-    if (iguales > 0) lineas.push(`${iguales === 1 ? "El otro artículo coincide" : `Los otros ${iguales} artículos coinciden`} con la web.`);
+  const lineas: string[] = [`💰 Ojo, tu cotizador puede estar desactualizado: estos valores no coinciden con los de la web.`];
+  for (const d of dif.slice(0, 15)) {
+    if (d.tipo === "precio") lineas.push(`• ${nombre(d)}: en tu cotizador ${pesos((d.cotizador ?? 0) * (d.uxb ?? 1))} por caja; en la web ${pesos((d.web ?? 0) * (d.uxb ?? 1))} por caja.`);
+    else if (d.tipo === "unidades_por_caja") lineas.push(`• ${nombre(d)}: tu cotizador dice ${d.cotizador} unidades por caja; en la web son ${d.web}.`);
+    else if (d.tipo === "no_esta_en_la_web") lineas.push(`• ${nombre(d)}: hoy no está disponible en la web.`);
+    else lineas.push(`• ${nombre(d)}: tu cotizador lo marca "No Disponible", pero en la web figura con precio (${pesos((d.web ?? 0) * (d.uxb ?? 1))} por caja).`);
   }
-  if (cot.total !== null) lineas.push(`Total que figura en tu cotizador: ${pesos2(cot.total)}${dif.length ? " (con sus precios)" : ""}.`);
+  if (dif.length > 15) lineas.push(`… y ${dif.length - 15} diferencias más.`);
+  if (cot.total !== null) lineas.push(`Total que figura en tu cotizador: ${pesos2(cot.total)} (con sus precios).`);
   return lineas.join("\n");
 }

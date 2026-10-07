@@ -113,7 +113,7 @@
       "consultas": 67,
       "estado": "parcial",
       "previene": [],
-      "bot": "La lista vigente es la de la web; explica el cotizador.",
+      "bot": "La lista vigente es la de la web. Si el cliente PIDE el cotizador, le recuerda que los pedidos ahora se toman por la web (loekemeyer.com › Pedidos Mayorista, con su CUIT y su clave; sin clave, Ventas se la genera). Si el cliente MANDA el cotizador, el bot compara sus precios con los de la web en silencio: sólo avisa lo que no coincide y le pide que confirme artículo y valor. Con varias direcciones de entrega le pregunta para cuál es el pedido.",
       "deriva": "Pedido de Excel o de códigos de barras: se puede sumar como motivo nuevo en Configuración › Derivaciones.",
       "falta": "Definir qué archivo se manda (lista en Excel, códigos de barras) y quién lo manda.",
       "ejemplo": "«¿Sigue vigente la lista de septiembre 2025?»",
