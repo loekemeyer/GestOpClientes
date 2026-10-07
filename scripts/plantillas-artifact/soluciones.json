@@ -146,7 +146,7 @@
       "consultas": 27,
       "estado": "parcial",
       "previene": [],
-      "bot": "Busca el artículo y le da precio y stock. Desde el 01/10, a un cliente de Chef le busca en el catálogo de Chef (código, descripción, caja y stock de Chef) y no le da el precio (lo pasa una persona). Si pide la foto de un producto, le manda una por pedido.",
+      "bot": "Busca el artículo y le da precio y stock. Desde el 01/10, a un cliente de Chef le busca en el catálogo de Chef (código, descripción, caja y stock de Chef) y no le da el precio (lo pasa una persona). Si pide la foto de un producto, le manda una por pedido. Si contesta algo que no figura en la charla ('sí, sí, lo pueden reemplazar', la respuesta a un mensaje que le mandó una persona), no le pide contexto: lo deriva a Ventas con sus palabras y le dice 'Una persona de Ventas ve tu respuesta y te escribe por acá' (07/10).",
       "deriva": "Sin stock: alerta 'Consulta sin stock'.",
       "falta": "'¿Cuándo ingresan?': no hay dato de ingresos; definir quién contesta.",
       "ejemplo": "«¿Cuándo ingresan los artículos nuevos?»",
