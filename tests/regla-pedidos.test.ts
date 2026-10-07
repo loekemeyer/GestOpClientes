@@ -16,6 +16,18 @@ ok("el total lo da armar_pedido, no el modelo", /NO calcules el total/.test(REGL
 ok("sigue preguntando siempre forma de pago y entrega", /Forma de pago: preguntala SIEMPRE/.test(REGLA_PEDIDOS_WA) && /Entrega: preguntala SIEMPRE/.test(REGLA_PEDIDOS_WA));
 ok("con varias direcciones pregunta SIEMPRE para cuál es el pedido y no elige sola", /M[AÁ]S DE UNA direcci[oó]n/.test(REGLA_PEDIDOS_WA) && /nunca elijas una por tu cuenta/.test(REGLA_PEDIDOS_WA));
 ok("si el cotizador ya se lo preguntó, usa la respuesta (slot) y no se la repite", /slot/.test(REGLA_PEDIDOS_WA) && /no se la repitas/.test(REGLA_PEDIDOS_WA));
+// Pablo, 07/10 (m18 y m19): la web es la prioridad, pero si lo mandan por WhatsApp se toma.
+ok("la web es la vía preferida: invita primero a la web", /la web es la v[ií]a preferida/.test(REGLA_PEDIDOS_WA) && /invitalo primero a la web/.test(REGLA_PEDIDOS_WA));
+ok("dice que por la web hay un descuento extra, sin decir cuánto", /descuento extra \(sin decir cu[aá]nto\)/.test(REGLA_PEDIDOS_WA));
+ok("si prefiere pasarlo por acá, también se toma", /tambi[eé]n lo tom[aá]s/.test(REGLA_PEDIDOS_WA));
+ok("nunca dice que 'no hace falta' entrar a la web", /NUNCA le digas que "no hace falta" entrar a la web/.test(REGLA_PEDIDOS_WA));
+ok("el pedido por WhatsApp sigue con sus pasos", /Cuando el pedido se hace por ac[aá], pod[eé]s tomarlo, siguiendo estos pasos sin saltear ninguno/.test(REGLA_PEDIDOS_WA));
+ok("la regla sigue empezando con la marca que reemplaza a la línea de PEDIDOS", REGLA_PEDIDOS_WA.startsWith("- PEDIDOS POR WHATSAPP:"));
+ok("prohíbe decir el porcentaje del descuento web al invitar a la web", /NUNCA digas el porcentaje ni la cifra del descuento/.test(REGLA_PEDIDOS_WA));
+ok("primero la web, no las dos vías al mismo nivel", /Primero la web/.test(REGLA_PEDIDOS_WA) && /no pongas las dos v[ií]as al mismo nivel/.test(REGLA_PEDIDOS_WA));
+ok("trae el modelo aprobado de m19 (¿tengo que entrar a la web?)", REGLA_PEDIDOS_WA.includes("Lo mejor es que lo hagas en la web: entrá a loekemeyer.com › Pedidos Mayorista con tu CUIT y tu clave."));
+ok("trae el modelo aprobado de m18 (¿por acá o por otro medio?)", REGLA_PEDIDOS_WA.includes("La prioridad es la web (loekemeyer.com › Pedidos Mayorista, con tu CUIT y tu clave)"));
+ok("los modelos de respuesta no llevan el porcentaje", !/\b2\s?%/.test(REGLA_PEDIDOS_WA.slice(REGLA_PEDIDOS_WA.indexOf("PRIORIDAD"), REGLA_PEDIDOS_WA.indexOf("Cuando el pedido se hace por ac"))));
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");
