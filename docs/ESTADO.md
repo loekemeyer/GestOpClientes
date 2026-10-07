@@ -4,6 +4,12 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-07.
 >
+> **07/10 (Pablo): Sonnet 4.6 vuelve a ser el #1 de la cadena de producción y Gemini gratis pasa a #2 (respaldo).** `wa_agente_modelos`: id 1 (`claude-sonnet-4-6`) `prioridad` 2 → **1**, id 29 (`gemini-3.5-flash-lite`, plan gratis) 1 → **2**; Haiku 4.5 (id 45) sigue #3. UPDATE con el «sí» de Pablo sobre el SQL exacto, verificado con un SELECT:
+> `UPDATE public.wa_agente_modelos SET prioridad = CASE id WHEN 1 THEN 1 WHEN 29 THEN 2 END WHERE id IN (1, 29);`
+> Pedido: *«sí, proteger producción con Sonnet primero»*. Motivo: Gemini gratis falló con 503, timeouts y 429 en las pruebas de esta semana. **Lo que NO está probado:** en producción nunca se observó una falla de Gemini (los 664+ intentos fallidos de `bot_llm_intentos` son todos del Simulador, que no tiene cadena de respaldo); con Gemini primero una falla sólo costaba el timeout de 8 s antes de pasar a Sonnet.
+> **Efectos:** (1) cada turno de IA de charla cuesta de nuevo (referencia US$ 0,04 por llamada y unos US$ 0,10 por turno con herramientas, medido con `bot_token_usage`): hoy casi US$ 0 porque `wa_bot_solo_whitelist` limita las respuestas a Thomy y Damián; con clientes, **[Adivinando]** unos US$ 18 por mes sobre ~12 consultas por día con la mitad en IA; (2) si se agota el crédito de Anthropic (como el 01/10), la cadena cae a Gemini y el bot sigue contestando; (3) no cambia el Simulador ni el chat de prueba (leen `llm_modelo_pruebas`) ni los pedidos (`llm_modelo_pedidos`, ya era Sonnet fijo). Reemplaza a la «PRUEBA DE LÍMITES» del 05/10 (más abajo).
+> **Volver atrás:** `UPDATE public.wa_agente_modelos SET prioridad = CASE id WHEN 29 THEN 1 WHEN 1 THEN 2 END WHERE id IN (1, 29);` (o desde Configuración del agente › Modelos).
+>
 > **07/10 (Pablo): los avisos al equipo por WhatsApp esperan al lanzamiento general — decisión y lista de lo que hay que revisar al lanzar.**
 > Pregunta: ¿cargar a las 3 personas de Ventas en `wa_envio_contactos` para que reciban en `prueba`, o esperar? Respuesta: *"esperemos al lanzamiento general"*. **No se cargó ningún número de personal en la whitelist y la llave sigue en `prueba`.**
 > Mientras tanto: con la llave en `prueba` cada aviso es UN mensaje a la persona de prueba (Pablo, 64), cuyo número no está en la lista, así que queda `held_no_whitelist` en `wa_outbox` (no se reintenta, no se cobra). Al pasar a `1` esas filas retenidas NO se reenvían (el despacho sólo toma `pending`): no hay ráfaga de avisos viejos.
@@ -449,7 +455,7 @@
 > por datos (el cliente ya no es "Cliente de prueba", estados de pedido, facturas) y por código (retiro con fecha real, FAQ #21 con otro formato). La demanda real es
 > de ~4 turnos de IA por día [Probable, base de 712 consultas en 63 días], así que el techo sólo importaría en un pico de 7 o más clientes con IA en el mismo minuto.
 >
-> **05/10 (Pablo): Gemini gratis vuelve a ser el #1 de la cadena de producción — PRUEBA DE LÍMITES.** `wa_agente_modelos` id 29
+> **05/10 (Pablo): Gemini gratis vuelve a ser el #1 de la cadena de producción — PRUEBA DE LÍMITES. [Reemplazado el 07/10: Sonnet es el #1 y Gemini el #2, ver la nota de arriba de todo.]** `wa_agente_modelos` id 29
 > (`gemini-3.5-flash-lite`, plan gratis) pasó de `prioridad = NULL` a **1** (UPDATE con el sí de Pablo, 05/10 16:18 UTC). La cadena de charla
 > queda **Gemini #1 → Sonnet 4.6 #2 (id 1) → Haiku 4.5 #3 (id 45)** + el respaldo duro de env (Sonnet). OJO: `resolveChain` NO filtra por
 > `tarea`, así que el Haiku #3 (el de `parse_comprobante`) también entra a la charla; sólo `lk_parse-comprobante` filtra por tarea y no cambia.
