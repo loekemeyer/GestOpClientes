@@ -167,6 +167,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     const d = derivacionExcel(clase, text);
     return { reply: d.reply, intent: "pide_excel", automation_level: "needs_human", topic: "Pide pasar algo a Excel", alerta: { motivo: d.motivo, urgente: false, detalle: d.detalle } };
   }
+  // Pablo, 07/10 (m67): "Todavía no recibí las NC" → fijo + alerta para Ventas (motivo nota_cliente, sin tocar Derivaciones). Va ANTES de vaALaIA y de RE_FALTANTE (un faltante con la NC ya pedida no repregunta la factura).
+  if (customer && avisaNotaDeCreditoPendiente(text)) {
+    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa tus notas de crédito y te escribe por acá para confirmarte. 🙏",
+      intent: "nota_credito_pendiente", automation_level: "needs_human", topic: "Pregunta por notas de crédito que todavía no recibió",
+      alerta: { motivo: "nota_cliente", urgente: false, detalle: `Pregunta por notas de crédito que todavía no recibió: ${text.slice(0, 250)}` } };
+  }
   if (customer && vaALaIA(text)) return null;
   // Pablo, 06/10 (m59): "¿hay posibilidades de entrega rápida?" / "¿pueden adelantar la entrega?" → lo ve Ventas (motivo entrega): "todas las dudas pasan por Ventas primero".
   if (customer && pideEntregaRapida(text)) {
@@ -643,6 +649,12 @@ export const pidePedidoPorWeb = (text: string): boolean => RE_PIDE_POR_WEB.test(
 const RE_MANDA_OC = /\b(adjunt[a-záéíóúñ]*|env[ií][a-záéíóúñ]*|mand[a-záéíóúñ]*|pas[a-záéíóúñ]*|ah[ií]\s+va|ac[aá]\s+va)(?![a-záéíóúñ])[^.?!]{0,40}(?<![a-záéíóúñ])[oó]rden(es)?\s+de\s+compra\b|(?<![a-záéíóúñ])[oó]rden(es)?\s+de\s+compra\b[^.?!]{0,30}\b(adjunt[a-záéíóúñ]*|env[ií][a-záéíóúñ]*)(?![a-záéíóúñ])/i;
 const RE_OC_OTRA_COSA = /\bno\s+(me\s+|nos\s+)?(pued|pod|logr|deja|abre|anda|funciona|carga)|\bc[oó]mo\b|\bd[oó]nde\b|\bnecesit|\bhace\s+falta\b|\bpued[eo]\b|\bpodemos\b|\bpodr[ií]|\bdeb[eo]\b|\bdeben\b|\bsin\s+[oó]rden/i;
 export const avisaOrdenDeCompra = (text: string): boolean => RE_MANDA_OC.test(text) && !RE_OC_OTRA_COSA.test(text);
+// Pablo, 07/10 (m67): "Hola, ¿cómo están? Todavía no recibí las NC 🙁" (13 consultas) salía con la respuesta fija #10 (reenvío de facturas) y desde el 05/10 (128c1e6) cae a la IA, que repregunta de qué
+// fecha son. El cliente ya pidió la nota de crédito y pregunta por ella: el bot no puede saber en qué está, así que contesta fijo y deja una alerta para una persona. Hace falta "NC / nota de crédito" Y
+// que diga que no le llegó o que la está esperando; "pido la NC" (el pedido de la NC por un faltante, RE_FALTANTE) sigue en su respuesta, que pide la factura.
+const RE_NC = /(?<![a-záéíóúñ])(nc|ncs|notas?\s+de\s+cr[eé]dito)(?![a-záéíóúñ])/i;
+const RE_NC_ESPERA = /\bno\s+(me\s+|nos\s+|las?\s+|los\s+)?(lleg[oó]|llegaron|recib[ií]|recibimos|veo|vimos|tengo|tenemos|mandaron|enviaron|pasaron)(?![a-záéíóúñ])|\b(sigo|seguimos|estoy|estamos|quedo|quedamos)\s+(esperando|a\s+la\s+espera)(?![a-záéíóúñ])|\b(espero|esperamos)(?![a-záéíóúñ])|\bfaltan?(?![a-záéíóúñ])|\bpendientes?(?![a-záéíóúñ])|\bcu[aá]ndo\s+(me\s+|nos\s+)(las?\s+)?(mandan|env[ií]an|pasan|llegan?|llegar[aá]n?)(?![a-záéíóúñ])/i;
+export const avisaNotaDeCreditoPendiente = (text: string): boolean => RE_NC.test(text) && RE_NC_ESPERA.test(text);
 // Pablo, 07/10 (m71): un NÚMERO QUE NO ES CLIENTE que dice que escribió por mail porque quiere comercializar los productos y no le respondieron ("Hace un mes nos comunicamos por mail porque
 // estamos interesados en comercializar sus productos… no nos respondieron más, ¿qué pasó?") ya no recibe "Para consultar tu pedido necesito identificarte: pasame tu CUIT": se le piden
 // disculpas y se deriva a Ventas. Hace falta las dos cosas: el interés en comercializar o vender, y que no le respondieron.
