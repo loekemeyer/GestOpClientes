@@ -522,6 +522,14 @@ async function herramientasDelTurno(): Promise<ToolDef[]> {
   }
 }
 
+/** Cómo recibe el cliente un pedido, según la zona de entrega de v_pedidos_web (la usan consultar_mis_pedidos y consultar_mi_entrega). */
+// deno-lint-ignore no-explicit-any
+function modoDeEntrega(m: any): { entrega: string; expreso?: string } {
+  if (/^retira/i.test(String(m?.zona_expreso ?? ""))) return { entrega: "retira en el depósito" };
+  if (String(m?.nombre_expreso ?? "").trim()) return { entrega: "por expreso", expreso: String(m.nombre_expreso).trim() };
+  return { entrega: "reparto propio" };
+}
+
 async function executeTool(
   name: string,
   // deno-lint-ignore no-explicit-any
@@ -730,10 +738,7 @@ async function executeTool(
       // deno-lint-ignore no-explicit-any
       const porId = new Map((est ?? []).map((e: any) => [String(e.order_id), e]));
       // deno-lint-ignore no-explicit-any
-      const modoPor = new Map((modos ?? []).map((m: any) => [String(m.order_id),
-        /^retira/i.test(String(m.zona_expreso ?? "")) ? { entrega: "retira en el depósito" }
-          : String(m.nombre_expreso ?? "").trim() ? { entrega: "por expreso", expreso: String(m.nombre_expreso).trim() }
-          : { entrega: "reparto propio" }]));
+      const modoPor = new Map((modos ?? []).map((m: any) => [String(m.order_id), modoDeEntrega(m)]));
       return { data: filas.map((r, i) => {
         // deno-lint-ignore no-explicit-any
         const e: any = porId.get(String(r.order_id));
@@ -783,7 +788,20 @@ async function executeTool(
       if (error) return { data: { error: error.message } };
       const entregas = await sinAnulados((data ?? []) as Record<string, unknown>[], "np_number");
       if (!entregas.length) return { data: { mensaje: "No hay entregas recientes ni programadas." } };
-      return { data: entregas.map(({ np_number: _np, ...resto }) => resto) };
+      // Pablo, 07/10 (m23, visto en el Simulador): esta herramienta tampoco sabía si el pedido se retira: decía "programado para entregarse mañana". Mismo trato que
+      // consultar_mis_pedidos: el modo de entrega, y para un retiro el estado ya redactado y sin `fecha_entrega`.
+      const { data: modos } = await supabase.from("v_pedidos_web").select("order_id, zona_expreso, nombre_expreso")
+        .in("order_id", entregas.map((e) => Number(e.np_number)).filter((n) => Number.isFinite(n))).eq("linea_rn", 1);
+      // deno-lint-ignore no-explicit-any
+      const modoPor = new Map((modos ?? []).map((m: any) => [String(m.order_id), modoDeEntrega(m)]));
+      return { data: entregas.map(({ np_number, ...resto }) => {
+        const modo = modoPor.get(String(np_number)) ?? { entrega: "reparto propio" };
+        if (modo.entrega === "retira en el depósito") {
+          const { fecha_entrega, ...sinFecha } = resto as Record<string, unknown>;
+          return { ...sinFecha, estado_para_el_cliente: estadoRetiroParaIA(String(resto.status ?? ""), (fecha_entrega as string | null) ?? null), ...modo };
+        }
+        return { ...resto, ...modo };
+      }) };
     }
 
     case "consultar_mis_facturas": {
