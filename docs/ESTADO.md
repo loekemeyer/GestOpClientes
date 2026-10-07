@@ -4,6 +4,18 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-07.
 >
+> **07/10 (Pablo): tope de gasto global diario de IA — US$ 2 por día, aviso a US$ 1, sólo clientes** (`_shared/tope-gasto.ts`, `lk_whatsapp-webhook` `pasoElTopeDeGasto`, motivo de alerta `tope_gasto`;
+> medida «Tope de gasto global diario» pasa de pendiente a activa en `MEDIDAS_SEGURIDAD`). Pedido: Pablo preguntó cuál era un monto promedio y dejó *"US$ 2 con aviso a US$ 1"*. Se cuenta el gasto del día
+> de Argentina de `bot_token_usage` con `function_name = 'lk_whatsapp-webhook'` (agente + lectura de archivos de pedido); el Simulador, el chat de prueba y el puntaje NO cuentan, porque el 07/10 el Simulador gastó
+> US$ 1,76 y cortaría el bot en cada tanda de pruebas. **Aviso (US$ 1):** una alerta por día, el agente sigue. **Tope (US$ 2):** el agente no se llama y el archivo de pedido no se lee con IA hasta las 00:00; cada cliente
+> recibe un texto fijo una vez por día y una alerta para una persona (`tope_gasto`, amarillo, 60 min, Planify por defecto). Montos sin deploy en `app_settings.ia_tope_gasto_usd` (defecto 2, **0 apaga**) e
+> `ia_aviso_gasto_usd` (defecto 1); ninguna fila nueva ni migración. Ante un error de lectura NO bloquea. Lectura del gasto con caché de 30 s por instancia. Medido el 07/10 (10 días): promedio US$ 1,57 por día entre
+> pruebas y clientes, clientes reales US$ 0,03 por día, proyección con Sonnet para todo US$ 0,13 a 0,20: el tope es 10 veces la proyección alta. **Límites:** (1) el simulador reintenta Gemini y no pasa a Sonnet, así
+> que no puede ejercitar el corte: la lógica se probó con un Supabase falso (29 aserciones) y con `tests/tope-gasto.test.ts` y `tests/tope-gasto-alerta.test.ts`, **no con tráfico real**; (2) no hay panel para cambiar los
+> montos ni el texto al cliente (hoy es `app_settings` o código); (3) los únicos usos de IA del webhook son el agente (`runConversation`) y la lectura de archivos de pedido (`leerPedidoArchivo` y `resolverArticulos`), y el tope corta los dos
+> (verificado por imports: `llm.ts`, `claude.ts` y `bot-llm.ts` sólo los usa `bot-conversation.ts`; `pedido-archivo.ts` llama a Anthropic directo); si se agrega otro, hay que ponerle la misma compuerta. Sólo backend: la versión del
+> dashboard (v0.28.5) no cambia.
+>
 > **07/10 (Pablo): los avisos al equipo por WhatsApp esperan al lanzamiento general — decisión y lista de lo que hay que revisar al lanzar.**
 > Pregunta: ¿cargar a las 3 personas de Ventas en `wa_envio_contactos` para que reciban en `prueba`, o esperar? Respuesta: *"esperemos al lanzamiento general"*. **No se cargó ningún número de personal en la whitelist y la llave sigue en `prueba`.**
 > Mientras tanto: con la llave en `prueba` cada aviso es UN mensaje a la persona de prueba (Pablo, 64), cuyo número no está en la lista, así que queda `held_no_whitelist` en `wa_outbox` (no se reintenta, no se cobra). Al pasar a `1` esas filas retenidas NO se reenvían (el despacho sólo toma `pending`): no hay ráfaga de avisos viejos.

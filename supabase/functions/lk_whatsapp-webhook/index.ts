@@ -30,6 +30,9 @@ import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
 import { contextoAlertaTope, mensajeTope } from "../_shared/tope-ia.ts";
+import {
+  CACHE_GASTO_MS, contextoAlertaGasto, FUNCION_CLIENTES, inicioDiaArgentina, MSG_TOPE_GASTO, type NivelGasto, nivelDeGasto, sumarGasto, type Topes, topesDeSettings,
+} from "../_shared/tope-gasto.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
@@ -686,7 +689,8 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   let respuestaFinal = respuesta;
   let motivoFinal = motivo;
   let lectura: Record<string, unknown> = {};
-  if (clase === "otro" && customer && archivo && esArchivoDePedido(archivo.mime, msg.mediaFilename)) {
+  // Pablo, 07/10: con el tope de gasto diario alcanzado (_shared/tope-gasto.ts) el archivo NO se lee con IA: la alerta lleva `lectura_error` y lo revisa una persona.
+  if (clase === "otro" && customer && archivo && esArchivoDePedido(archivo.mime, msg.mediaFilename) && (await nivelGastoDiario()).nivel !== "tope") {
     try {
       const r = await leerPedidoArchivo(archivo.bytes, archivo.mime, cfg.anthropicKey, phone, msg.mediaFilename);
       // Pablo, 07/10: el texto crudo de la planilla se escaneó ANTES de la IA. Si trae algo que parece una orden para el bot, se avisa a Auditoría (dashboard) aunque la IA
@@ -714,6 +718,9 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
       lectura = { lectura_error: e instanceof Error ? e.message : String(e) };
       console.error("[adjunto] no se pudo leer el pedido:", lectura.lectura_error);
     }
+  } else if (clase === "otro" && customer && archivo && esArchivoDePedido(archivo.mime, msg.mediaFilename)) {
+    // Sólo se llega acá si el tope de gasto diario está alcanzado (lo único que falló en la condición de arriba): el archivo queda para una persona.
+    lectura = { lectura_error: "tope de gasto diario de IA alcanzado: el archivo no se leyó con IA, lo revisa una persona" };
   }
 
   if (leadEnCurso) {
@@ -932,6 +939,83 @@ async function pasoElTope(phone: string): Promise<{ avisar: boolean; limite: num
     .limit(1)
     .maybeSingle();
   return { avisar: Number(fila?.msg_count ?? 0) === limite + 1, limite };
+}
+
+/**
+ * Tope de GASTO GLOBAL DIARIO de IA (Pablo, 07/10: "dejalo en US$ 2 con aviso a US$ 1"). El tope por hora de arriba es por número y no hay techo total.
+ * Cuenta sólo lo que gastan los CLIENTES (bot_token_usage del webhook; el Simulador no), el día es el de Argentina y ante un error de lectura NO bloquea.
+ * Detalle, montos y por qué en _shared/tope-gasto.ts.
+ */
+let cacheGasto: { hasta: number; usd: number } | null = null;
+async function gastoClientesHoy(): Promise<number | null> {
+  if (cacheGasto && cacheGasto.hasta > Date.now()) return cacheGasto.usd;
+  const desde = new Date(inicioDiaArgentina(Date.now())).toISOString();
+  // Sólo las filas con costo: las del modelo gratis (US$ 0) son la mayoría y no suman. Diez mil filas pagas en un día serían miles de dólares: el tope saltó mucho antes.
+  const { data, error } = await supabase.from("bot_token_usage").select("estimated_cost_usd")
+    .eq("function_name", FUNCION_CLIENTES).gt("estimated_cost_usd", 0).gte("created_at", desde).limit(10000);
+  if (error) { console.error("[tope-gasto] no pude leer el gasto:", error.message); return null; }
+  const usd = sumarGasto(data ?? []);
+  cacheGasto = { hasta: Date.now() + CACHE_GASTO_MS, usd };
+  return usd;
+}
+
+async function nivelGastoDiario(): Promise<{ nivel: NivelGasto; gasto: number; topes: Topes }> {
+  const sinTope = { nivel: "ok" as NivelGasto, gasto: 0, topes: topesDeSettings(null, null) };
+  try {
+    const topes = topesDeSettings(await getSetting("ia_tope_gasto_usd"), await getSetting("ia_aviso_gasto_usd"));
+    if (!(topes.tope > 0)) return { nivel: "ok", gasto: 0, topes }; // apagado con 0: ni siquiera se lee el gasto
+    const gasto = await gastoClientesHoy();
+    if (gasto === null) return { nivel: "ok", gasto: 0, topes };
+    return { nivel: nivelDeGasto(gasto, topes), gasto, topes };
+  } catch (e) {
+    // Una excepción acá llegaría al handler y el webhook devolvería 500: Meta reintentaría el mensaje. Se atiende de más antes que dejar mudo a un cliente.
+    console.error("[tope-gasto] falló la lectura del gasto, se sigue sin tope:", e instanceof Error ? e.message : e);
+    return sinTope;
+  }
+}
+
+/** ¿Ya hay hoy una alerta `tope_gasto` de ese nivel (con `phone`, de ese número)? Ante un error dice que sí: ante la duda no se repite ni al equipo ni al cliente. */
+async function alertaGastoDeHoy(nivel: "aviso" | "tope", phone: string | null): Promise<boolean> {
+  try {
+    let q = supabase.from("wa_alertas_humano").select("id")
+      .eq("contexto->>motivo", "tope_gasto").eq("contexto->>nivel", nivel)
+      .gte("created_at", new Date(inicioDiaArgentina(Date.now())).toISOString());
+    if (phone) q = q.eq("phone", phone);
+    const { data, error } = await q.limit(1);
+    if (error) { console.error("[tope-gasto] no pude leer las alertas de hoy:", error.message); return true; }
+    return (data ?? []).length > 0;
+  } catch (e) {
+    console.error("[tope-gasto] falló la lectura de las alertas de hoy:", e instanceof Error ? e.message : e);
+    return true;
+  }
+}
+
+/**
+ * Se llama en el paso 6, justo antes de `runConversation`. Devuelve "tope" si el agente NO debe llamarse (el cliente ya quedó avisado y con una alerta para
+ * una persona) y "ok" si puede seguir. En "aviso" sigue, pero una vez por día le avisa a una persona. Nunca lanza hacia arriba por el envío (enviarTexto la ataja).
+ * La alerta se crea ANTES del aviso al cliente: si el envío falla, igual una persona ve el chat.
+ */
+async function pasoElTopeDeGasto(
+  cfg: Config, phone: string, customer: { customer_id?: string | null; business_name?: string | null } | null, text: string,
+): Promise<"ok" | "tope"> {
+  const e = await nivelGastoDiario();
+  if (e.nivel === "ok") return "ok";
+  const razon = customer?.business_name ?? null, cid = customer?.customer_id ?? null;
+  if (e.nivel === "aviso") {
+    // Una sola alerta por día, de cualquier número: el agente sigue contestando.
+    if (!(await alertaGastoDeHoy("aviso", null))) {
+      await notificarHumano({ tipo: "otro", phone, customerId: cid, contexto: contextoAlertaGasto("aviso", e.gasto, e.topes, text, razon) });
+    }
+    return "ok";
+  }
+  // Tope: el agente no se llama. A cada cliente se le avisa y se deja la alerta UNA vez por día (los mensajes que siguen no contestan nada, como el tope por hora):
+  // si cada mensaje de más disparara otro aviso, el tope generaría más tráfico del que corta.
+  if (!(await alertaGastoDeHoy("tope", phone))) {
+    await notificarHumano({ tipo: "otro", phone, customerId: cid, contexto: contextoAlertaGasto("tope", e.gasto, e.topes, text, razon) });
+    await enviarTexto(cfg, phone, MSG_TOPE_GASTO);
+    await saveMessage(phone, "assistant", MSG_TOPE_GASTO);
+  }
+  return "tope";
 }
 
 
@@ -1389,6 +1473,10 @@ async function handleMessage(
     }
     return;
   }
+
+  // 6a2. Tope de gasto global diario de IA (Pablo, 07/10: US$ 2, aviso a US$ 1; sólo cuenta a los clientes). Con el tope no se llama al agente: el cliente
+  //      recibe un aviso fijo una vez por día y una persona le contesta (alerta `tope_gasto`). Las FAQ y los flujos sin IA ya contestaron arriba.
+  if ((await pasoElTopeDeGasto(cfg, phone, customer, text)) === "tope") return;
 
   const result = await runConversation(
     text,

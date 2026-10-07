@@ -46,6 +46,9 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   nota_cliente:           { label: "Nota del cliente para el equipo (horario de recepción)", min: 240 },
   // Pablo, 06/10: un cliente pasó el máximo de consultas de IA por hora (_shared/tope-ia.ts). Puede ser un error suyo; una persona mira el chat.
   tope_ia:                { label: "Cliente pasó el tope de consultas por hora", min: 120 },
+  // Pablo, 07/10: el gasto de IA de los clientes llegó al aviso (US$ 1) o al tope (US$ 2) del día (_shared/tope-gasto.ts). Con el tope el agente se corta y los clientes
+  // quedan sin respuesta de IA hasta las 00:00: una persona les contesta, por eso el plazo es corto.
+  tope_gasto:             { label: "Gasto diario de IA: aviso o tope", min: 60 },
   // Pablo, 07/10: un archivo del cliente trae texto que parece una orden para el bot (_shared/archivo-sospechoso.ts). Es auditoría, no una consulta: verde y 24 h.
   archivo_sospechoso:     { label: "Auditoría: archivo con texto que parece una orden para el bot", min: 1440 },
   otro:                   { label: "Otros", min: 240 },

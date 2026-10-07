@@ -71,6 +71,7 @@ const MOTIVO: Record<string, string> = {
   pedido_mail: "Pedido por mail",
   nota_cliente: "Nota del cliente",
   tope_ia: "Pasó el tope de consultas",
+  tope_gasto: "Tope de gasto de IA",
   archivo_sospechoso: "Auditoría: archivo sospechoso",
 };
 // deno-lint-ignore no-explicit-any

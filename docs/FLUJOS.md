@@ -509,6 +509,18 @@ Al mensaje 21 el bot **no llama a la IA** y, una sola vez por hora y número:
    (mensajes repetidos, un loop del teléfono) o una consulta real que quedó sin contestar.
 El resto de esa hora el bot no contesta a ese número (sin más avisos, para no generar más tráfico del que corta).
 
+### Tope de gasto global diario de IA (Pablo, 07/10/2026, `_shared/tope-gasto.ts`)
+
+El tope de arriba es por número y no hay techo total (el 01/10 se agotó el crédito de Anthropic). Este cuenta **lo que gastan los clientes en el día de Argentina** (`bot_token_usage` con
+`function_name = 'lk_whatsapp-webhook'`: el agente y la lectura de archivos de pedido; el Simulador y el chat de prueba **no** cuentan). Se mira en el paso 6, justo antes de llamar al agente.
+- **Desde US$ 1 (aviso):** el agente sigue contestando y se deja **una alerta por día** para una persona (motivo `tope_gasto`, nivel `aviso`) con el gasto: hay que mirar qué lo está subiendo
+  (¿cayó el modelo gratis a uno pago?, ¿un bucle?).
+- **Desde US$ 2 (tope):** **no se llama al agente** ni se lee con IA un archivo de pedido (la alerta del archivo lleva `lectura_error` y lo revisa una persona). Una sola vez por número y día el cliente recibe
+  *"En este momento no podemos responder tu consulta de forma automática. Ya le avisamos a una persona del equipo para que te escriba en cuanto pueda."* y se deja una alerta (`tope_gasto`, nivel `tope`, semáforo
+  amarillo, 60 minutos, va a Planify según Configuración › Derivaciones) con su último mensaje. Los mensajes que siguen no se contestan. Las FAQ y los flujos sin IA siguen igual. A las 00:00 vuelve solo.
+- **Montos:** `app_settings.ia_tope_gasto_usd` (defecto 2, **0 apaga el tope**) e `ia_aviso_gasto_usd` (defecto 1, 0 apaga el aviso), sin deploy. Sin fila rigen los defectos.
+- **Si falla la lectura del gasto, no bloquea** (se atiende de más antes que dejar mudo a un cliente). El gasto se lee como mucho cada 30 segundos por instancia: un pasaje de tope se nota con ese retraso.
+
 ## Opt-out
 
 ```

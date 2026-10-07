@@ -51,7 +51,7 @@ export const nivelFijo = (cat: string): Nivel | null => fijos.get(cat) ?? null;
 
 const CATEGORIAS_URGENTES = new Set(["cliente_molesto", "respuesta_aviso_cambio", "comprobante_error", "cambio_pedido"]);
 const CATEGORIAS_AMARILLAS = new Set(["escalation", "consulta_stock", "faq_no_match", "llm_timeout", "llm_error",
-  "reclamo", "devolucion", "pedido_mail", "tope_ia", "pago", "pedido_no_encontrado", "entrega", "adjunto_recibido", "acceso_web", "reseteo_clave", "pedido_archivo", "pedido_whatsapp"]);
+  "reclamo", "devolucion", "pedido_mail", "tope_ia", "tope_gasto", "pago", "pedido_no_encontrado", "entrega", "adjunto_recibido", "acceso_web", "reseteo_clave", "pedido_archivo", "pedido_whatsapp"]);
 
 type Ctx = Record<string, unknown>;
 

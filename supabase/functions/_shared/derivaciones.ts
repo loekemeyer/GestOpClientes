@@ -53,6 +53,7 @@ export const ORIGEN: Record<string, string> = {
   pedido_mail: "El cliente dice que mandó un pedido por mail y no se cargó o lo rechazaron",
   nota_cliente: "El cliente avisa algo para el equipo (por ejemplo, hasta qué hora recibe la mercadería)",
   tope_ia: "Un cliente pasó el máximo de consultas de IA por hora (puede haber sido un error suyo)",
+  tope_gasto: "El gasto de IA de los clientes llegó al aviso o al tope del día (hoy US$ 1 y US$ 2): con el tope el agente deja de contestar hasta las 00:00",
   archivo_sospechoso: "Una planilla del cliente trae texto que parece una orden para el bot (auditoría, aparece en Tareas › Auditoría)",
   otro: "Cualquier otra alerta",
   ...Object.fromEntries(MOTIVOS_IA.map((k) => [k, "La IA deriva: " + CUANDO_IA[k]])),
@@ -90,7 +91,7 @@ function leerTambien(v: unknown): Blanco[] {
 }
 // Van a Planify si nadie lo cambió en Configuración › Derivaciones. cliente_chef (sql/115): el bot no le contesta nada
 // más que saldo y datos de pago, así que si queda sólo en Tareas nadie lo ve a tiempo.
-const SIEMPRE_DEF = new Set([...MOTIVOS_IA, "cliente_chef", "devolucion", "pedido_mail", "nota_cliente", "tope_ia"]);
+const SIEMPRE_DEF = new Set([...MOTIVOS_IA, "cliente_chef", "devolucion", "pedido_mail", "nota_cliente", "tope_ia", "tope_gasto"]);
 
 let cache: { hasta: number; d: Derivaciones } | null = null;
 

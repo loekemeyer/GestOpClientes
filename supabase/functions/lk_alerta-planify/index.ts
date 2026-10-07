@@ -75,6 +75,7 @@ const CORTO: Record<string, string> = {
   pedido_mail: "Pedido enviado por mail",
   nota_cliente: "Nota del cliente",
   tope_ia: "Cliente pasó el tope de consultas",
+  tope_gasto: "Gasto diario de IA: aviso o tope",
   archivo_sospechoso: "Auditoría: archivo con texto sospechoso",
 };
 
