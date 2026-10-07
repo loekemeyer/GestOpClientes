@@ -266,6 +266,19 @@ update planify.tasks set done = true, updated_at = now() where id = <id>;
 Avisar en el chat el `id` al crearla y al cerrarla. No crear tareas para preguntas o consultas
 que se responden en el momento; sólo para pedidos que implican hacer algo.
 
+⚠ **Sin punto y coma (`;`) dentro del texto de la nota** (ni de ningún texto libre que se escriba con
+`execute_sql`) — Pablo O., 07/10/2026. Medido el 06 y 07/10: las 6 llamadas con un `;` adentro del
+texto de una nota (*"…consultas corridas; las 3 de alta no se simulan"*) colgaron el MCP de Supabase hasta el
+timeout de 60 s, sin ningún error de la base (con `statement_timeout` de 20 s igual esperó los 60 s). Una
+llamada con varias sentencias (`begin; set local …; update …; commit;`) se colgó igual (1 sola muestra). La
+**misma nota con un punto en lugar del `;` pasó al instante**, y las que llevaban comas, dos puntos,
+comillas dobles o `$` también. Se escribe con punto, coma o guion. Causa probable: el MCP recorta la
+sentencia en el `;` aunque esté dentro de un literal (no se miró su código). Si una llamada da timeout,
+**antes de reintentar mirá si el texto lleva `;`** y verificá con un `SELECT` si la sentencia llegó a
+aplicarse (en las que lo verifiqué con un `SELECT` no se había aplicado nada). Sirve para `planify.tasks.note` y para cualquier otro `insert` / `update` con
+texto libre. Esta regla también hay que copiarla a la fuente canónica de este bloque
+(`loekemeyer/pagina-LK-copia`), que no se toca desde este repo.
+
 4. **Cierre por criterio propio, no sólo por "listo".** Claude evalúa si el objetivo del
    pedido se cumplió (lo entregado funciona, está commiteado/aplicado, y no quedó ninguna
    parte del pedido sin hacer). Cuando lo considere cumplido, pregunta **"¿Falta algo más
