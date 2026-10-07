@@ -97,3 +97,10 @@ Cambios de esta tanda:
 6. **Ruteo por `automation_level` (`handleFaq`):** `full_auto`/`semi_auto` → respuesta de la FAQ (estática o con lookup); `needs_human` → escalación; **`inteligencia` → `handleFaq` devuelve null** para NO servir texto enlatado → lo maneja el agente IA (cliente) o el registro (no-cliente). Antes, una FAQ `inteligencia` (ej. `nuevo_pedido`) servía su `institutional_response` por error.
 
 > Requiere deploy de `lk_whatsapp-webhook` (bundlea `_shared/faq.ts`) para que tomen efecto los puntos 2-4. CI deploya al mergear a `main`. Post-deploy: activar `datos_transferencia` (`is_active=true`).
+
+## Filtro de salida (06/10/2026)
+
+Antes de que una respuesta del agente llegue al cliente, el código la revisa (`_shared/filtro-salida.ts`): claves y tokens, nombres de
+herramientas, tablas o modelos, SQL, un volcado literal del bloque de Seguridad, y números de 10 dígitos o más o mails que no figuran en la
+charla ni en los datos del cliente. Si algo salta, el cliente recibe un texto fijo y una persona recibe la alerta. No cambia lo que el agente
+puede hacer ni cómo conversa: sólo corta lo que nunca debería salir. Detalle, calibración y modos en `docs/ESTADO.md`.
