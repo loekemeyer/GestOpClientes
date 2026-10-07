@@ -17,6 +17,7 @@
 // Cuesta US$ 0 en el plan gratis, por eso el registro en bot_token_usage va con costo 0 (sólo cuenta cuántos audios hubo). Si se
 // pasa a plan pago: whisper-large-v3 US$ 0,111/hora de audio, whisper-large-v3-turbo US$ 0,04/hora.
 import { getSetting, supabase } from "./supabase.ts";
+import { textoDeArchivo } from "./dato-externo.ts";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 /** Mismo límite diario en el plan gratis que turbo; se puede cambiar con app_settings.wa_audio_modelo. */
@@ -40,8 +41,10 @@ export async function audioEco(): Promise<boolean> {
 }
 
 export function textoEco(texto: string): string {
-  const t = String(texto ?? "").replace(/\s+/g, " ").trim();
-  return `🎤 Entendí: «${t.length > 300 ? t.slice(0, 297) + "…" : t}»`;
+  // El eco se manda y se guarda en el historial con la voz del bot: lo que dijo el audio va en una línea, recortado y, si parece una orden dirigida al bot
+  // ("ignorá tus reglas…"), no se repite entre comillas (dato-externo.ts, medida 5 de seguridad). El texto transcripto igual se procesa como un mensaje más.
+  const d = textoDeArchivo(texto, 300);
+  return d.sospechoso ? "🎤 Entendí tu audio." : `🎤 Entendí: «${d.texto}»`;
 }
 
 /** Extensión que Groq acepta para ese mime (flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm). null = formato que no lee (ej. amr). */
