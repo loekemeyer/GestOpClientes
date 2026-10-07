@@ -4,6 +4,10 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-07.
 >
+> **07/10 (Pablo, ronda 2 del artifact; m21): un pedido de RETIRO ya facturado dice "listo para retirar" y el título de la lista dice "que falta retirar" (`_shared/fecha-retiro.ts`, `textoEstadoRetiro` y `tituloPorRetiro`; `faq.ts` `lookupOrderStatus` y `pedidos-marca.ts`, `tests/fecha-retiro.test.ts`).**
+> Pablo: *"se tendría que tener en cuenta si el pedido es para retirar o para entregar, eso cambia el tipo de respuesta"* → "sí, ese texto". Retiro: recibido (igual que antes), programado "para el lunes 05/10", en preparación "va a estar listo para retirar desde el lunes 05/10", facturado "listo para retirar desde el martes 06/10"
+> (en Gestión, para el depósito, 'facturado' = armado y con factura, el momento del aviso `pedido_listo_retirar`). Con retiro mezclado con reparto o expreso el título es "pedidos pendientes". Reparto y expreso no cambian. Es la lista que comparten m21, m24, m25, m2 y m68; cada uno tiene además su propio ajuste (ver las entradas siguientes).
+>
 > **07/10 (Simulador, caso m79): `avisaErrorDeCarga` (m17) atrapaba "Perdón, me confundí: pensé que te había hecho un pedido pero no hay pedido hecho, te lo paso ahora".** Contestaba "Una persona de Ventas revisa cómo quedó cargado tu pedido" y dejaba una alerta `cambio_pedido`, al revés de lo que dijo el cliente (no hizo el pedido y lo va a pasar). Ahora una frase que dice que NO hay / no hizo el pedido, o "pensé que … pedido", no cuenta como error de carga (`RE_NO_HIZO_EL_PEDIDO`, `tests/faq-error-carga.test.ts`, 3 frases nuevas). Sin impacto en clientes: lo vio el Simulador y la lista blanca son 2 números.
 >
 > **06/10 (Pablo, corrección m41): cuando el cliente MANDA el cotizador, el bot compara sus precios con los de la web EN SILENCIO y sólo avisa si no coinciden; si el cliente tiene varias direcciones de entrega, le pregunta para cuál es el pedido (`_shared/cotizador-precios.ts`, `_shared/pedido-archivo.ts`, `tests/cotizador-precios.test.ts`, `tests/pedido-archivo-texto.test.ts`).**
