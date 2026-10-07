@@ -540,7 +540,7 @@ si el modelo de pruebas gratis (`gemini-*` en `app_settings.llm_modelo_pruebas`)
 SET value='claude-haiku-4-5-20251001' WHERE key='llm_modelo_pruebas'`; (3) correr los casos en el Simulador (medido el 07/10: unos US$ 0,015 por llamada y US$ 0,03 a 0,04 por caso);
 (4) volver `llm_modelo_pruebas` al valor que tenía y verificarlo con un `SELECT`; (5) informar el gasto real (después − antes) y que el modelo quedó restaurado. Cubre **ese** `UPDATE`
 y su restitución, ninguna otra escritura en la base. **No cubre Sonnet:** su tope es el de US$ 1 en total dicho el 05/10 (*"Podes usar si queres Sonnet siempre y cuando sea medido el gasto,
-tope un dolar en total"*), casi gastado: US$ 0,88 al 07/10. Pablo no fijó un tope para Haiku: si una tanda va a pasar de unos US$ 0,50, se avisa antes (criterio mío, no de Pablo).
+tope un dolar en total"*), **gastado y pasado**: US$ 0,88 antes y US$ 1,10 al 07/10 (US$ 0,218913 de m1 y m8 con Sonnet 4.6, con el «sí» de Pablo a ese estimativo, que pasaba el tope). Sonnet de nuevo sólo con estimativo y «sí» (regla de arriba). Pablo no fijó un tope para Haiku: si una tanda va a pasar de unos US$ 0,50, se avisa antes (criterio mío, no de Pablo).
 
 ## Testing
 
