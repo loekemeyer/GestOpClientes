@@ -581,14 +581,14 @@
 >
 > **01/10 (Pablo): IA — gastos y uso** (v0.26.7): rangos en hora AR, semana entre meses, "Mes anterior" y gráfico de
 > gasto acumulado contra el mes anterior (`lk_chat-test` stats, paginado: antes cortaba en 1.000 filas).
-> **07/10 (Pablo): IA — gastos y uso, gráfico «Gasto por día» con % de llamadas gratis** (v0.28.3): dos paneles con el mismo eje de días.
-> Arriba, barras apiladas por modelo en US$ o en tokens (selector, por defecto US$). Abajo, el % de llamadas a modelos gratis de cada día
-> (llamadas gratis / llamadas totales, las mismas que cuenta la tarjeta «Gratis (calls)»: oct. 76,7 % = 593 de 773). Respeta Rango, Proveedor y
-> Tier; leyenda con total por modelo, tooltip por día (gasto, tokens y llamadas gratis) y «Ver como tabla». `lk_chat-test` stats devuelve
-> `tokens_diario` (un bloque por rango: `desde`, `hasta`, `por_dia[día][modelo] = [entrada, salida, llamadas, US$]`, día en hora AR); el
-> US$ de los modelos gratis se pone en 0 en el front, igual que la tabla. Los 6 primeros modelos por tokens de los dos meses tienen color
-> propio y el resto va a «Otros»: el color sigue al modelo y no se repinta con los filtros. Una edge vieja sin `tokens_diario` no rompe el
-> panel (el gráfico no se dibuja) y una sin llamadas deja el panel de abajo vacío. Sin línea de presupuesto diario: falta el número. Sólo lee.
+> **07/10 (Pablo): IA — gastos y uso, barras «gratis contra paga» por día** (v0.28.3): por cada día, dos barras lado a lado, una con lo que
+> hicieron los modelos gratis y otra con lo de los pagos, en llamadas (por defecto: cada mensaje que sale es una llamada) o en tokens (selector).
+> Encabezado con el gasto en US$ del rango, leyenda con el total y el % de cada lado (oct.: 593 gratis = 76,7 % y 180 pagas), tooltip por día
+> (gratis, paga, % de llamadas gratis y gasto) y «Ver como tabla» con las dos medidas. Respeta Rango, Proveedor y Tier. `lk_chat-test` stats
+> devuelve `tokens_diario` (un bloque por rango: `desde`, `hasta`, `por_dia[día][modelo] = [entrada, salida, llamadas, US$]`, día en hora AR);
+> gratis o paga sale de `is_free_tier` y el US$ de un modelo gratis cuenta 0, igual que la tabla. Reemplaza dos diseños que Pablo descartó el
+> mismo día: barras apiladas por modelo (los modelos chicos quedaban invisibles) y un panel con el % gratis. Una edge vieja sin `tokens_diario`
+> no rompe el panel (el gráfico no se dibuja). Sin línea de presupuesto diario: falta el número. Sólo lee.
 >
 > **01/10 (Pablo): revisión de respuestas del bot en el dashboard** (Configuración del agente › 🧪 Evaluación, v0.26.6).
 > Los ejemplos del estudio de consultas por WhatsApp (por causa y tipo, con cuántas consultas representa cada uno, y un
