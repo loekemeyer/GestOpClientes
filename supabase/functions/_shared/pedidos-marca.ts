@@ -21,7 +21,7 @@ import { getGestionClient, supabase } from "./supabase.ts";
 import { pedidosAnulados } from "./pedidos-anulados.ts";
 import { cuitNorm } from "./empresas.ts";
 import { RE_ESTADO_PEDIDO, RE_INGRESO, RE_NO_LLEGO, RE_PLAZO_ENTREGA } from "./faq.ts";
-import { textoFechaRetiro } from "./fecha-retiro.ts";
+import { textoEstadoRetiro, tituloPorRetiro } from "./fecha-retiro.ts";
 
 export type Marca = "lk" | "chef" | "ambas";
 
@@ -133,12 +133,18 @@ export function textoPedidosChef(
       // Con artículos que todavía no ingresaron la fecha de la vista puede no ser la de salida: la confirma una persona.
       return l + `📝 recibido: tiene artículos que ingresan desde el ${ddmm(p.reingreso!)}; una persona del equipo te confirma la fecha de salida`;
     }
-    l += ESTADO_TXT[estado] ?? estado;
+    const texto = ESTADO_TXT[estado] ?? estado;
     if (estado === "entregado") {
+      l += texto;
       const cuando = p.entregado_at ?? p.fecha_entrega;
       if (cuando) l += ` el ${conDia(String(cuando))}`;
-    } else if (CON_FECHA.has(estado) && p.fecha_entrega && p.fecha_entrega >= hoy) {
-      l += p.retiro ? textoFechaRetiro(estado, conDia(p.retiro)) : `: sale el ${conDia(p.fecha_entrega)}`; // m21, m25 (06/10): sin "retirar"
+    } else if (p.retiro && CON_FECHA.has(estado)) {
+      // Pablo, 06 y 07/10 (m21, m24, m25): un pedido de retiro dice "programado para el lunes 05/10" o "facturado, listo para retirar desde el martes 06/10".
+      const dia = p.fecha_entrega && p.fecha_entrega >= hoy ? conDia(p.retiro) : null;
+      l += textoEstadoRetiro(estado === "facturado" ? "facturado" : estado === "programado" ? "programado" : "en preparacion", texto, dia);
+    } else {
+      l += texto;
+      if (CON_FECHA.has(estado) && p.fecha_entrega && p.fecha_entrega >= hoy) l += `: sale el ${conDia(p.fecha_entrega)}`;
     }
     return l;
   });
@@ -146,7 +152,8 @@ export function textoPedidosChef(
   const unoSolo = visibles.length === 1;
   const titulo = hayEntregado
     ? (unoSolo ? "este es tu pedido de Chef en curso" : "estos son tus pedidos de Chef en curso")
-    : (unoSolo ? "este es tu pedido de Chef que falta entregar" : "estos son tus pedidos de Chef que faltan entregar");
+    : (tituloPorRetiro(visibles.map((p) => !!p.retiro), unoSolo, "de Chef")
+      ?? (unoSolo ? "este es tu pedido de Chef que falta entregar" : "estos son tus pedidos de Chef que faltan entregar"));
   const resto = nuevos.length > visibles.length ? "Los demás pedidos ya están entregados. " : "";
   const cabecera = opts.sinNombre ? titulo.charAt(0).toUpperCase() + titulo.slice(1) : `${saludo}${titulo}`;   // sin nombre, arranca una oración
   return `${cabecera}:\n\n${lineas.join("\n")}\n\n${resto}${cierre ? CIERRE_PEDIDOS : ""}`.trimEnd();

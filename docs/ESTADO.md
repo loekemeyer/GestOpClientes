@@ -4,6 +4,15 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-07.
 >
+> **07/10 (Pablo, ronda 2 del artifact; m21): un pedido de RETIRO ya facturado dice "listo para retirar" y el título de la lista dice "que falta retirar" (`_shared/fecha-retiro.ts`, `textoEstadoRetiro` y `tituloPorRetiro`; `faq.ts` `lookupOrderStatus` y `pedidos-marca.ts`, `tests/fecha-retiro.test.ts`).**
+> Pablo: *"se tendría que tener en cuenta si el pedido es para retirar o para entregar, eso cambia el tipo de respuesta"* → "sí, ese texto". Retiro: recibido (igual que antes), programado "para el lunes 05/10", en preparación "va a estar listo para retirar desde el lunes 05/10", facturado "listo para retirar desde el martes 06/10"
+> (en Gestión, para el depósito, 'facturado' = armado y con factura, el momento del aviso `pedido_listo_retirar`). Con retiro mezclado con reparto o expreso el título es "pedidos pendientes". Reparto y expreso no cambian. Es la lista que comparten m21, m24, m25, m2 y m68; cada uno tiene además su propio ajuste (ver las entradas siguientes).
+>
+> **07/10 (m1 y m23): el agente de IA no dice que un pedido de RETIRO "salió" ni que lo "entregamos"** (`_shared/bot-conversation.ts` `consultar_mis_pedidos` **y `consultar_mi_entrega`** —esta segunda la usó el modelo en la primera prueba del Simulador y decía "programado para entregarse mañana"; ahora trae el mismo `entrega` y `estado_para_el_cliente`, helper `modoDeEntrega`—, `_shared/agente-fijos.ts` `REGLAS_OPERATIVAS`, `_shared/fecha-retiro.ts` `estadoRetiroParaIA`).
+> Para los pedidos con entrega "retira en el depósito" la herramienta ya no devuelve `fecha_salida`: devuelve `estado_para_el_cliente` ("facturado y listo para retirar desde el martes 06/10", "programado para el …", "en preparación en el depósito; va a estar listo para retirar desde el …", "recibido, todavía sin fecha") y la regla le manda usarlo tal cual. Si el cliente pregunta cuándo o dónde, suma el depósito (Virgilio 2788, Villa Devoto, L a V de 9 a 12 y de 13 a 16:30). Texto aprobado por Pablo. La IA no repite el texto palabra por palabra: se verifica en el Simulador (gasto US$ 0).
+>
+> **07/10 (m2): si el cliente pregunta si el pedido está *confirmado*, la lista abre con "tu pedido está confirmado:" ("tus pedidos están confirmados:" con varios)** en vez de "este es tu pedido que falta…" (`tituloConfirmado` y `pideConfirmacionPedido` en `fecha-retiro.ts`, `lookupOrderStatus(…, { confirma })`). Texto aprobado por Pablo (con el corchete de "[Razón social]" arreglado).
+>
 > **07/10 (Pablo): `solicitar_cambio_mail` ya no crea 2 tareas iguales (`_shared/mail-gate.ts`, `tests/mail-gate.test.ts`, ahora 44 casos).**
 > Origen: el control positivo del 06/10 en el Simulador (Gemini, US$ 0): el cliente escribe *"Quiero cambiar el mail de mi cuenta a prueba.cambio@example.com"*, el modelo llama a la herramienta en ESE mensaje
 > (sin confirmar) y otra vez cuando el cliente contesta *"sí, confirmo"*: dos tareas `cambio_datos` con el mismo mail para que las atienda una persona (en producción, 2 filas en `wa_alertas_humano`).

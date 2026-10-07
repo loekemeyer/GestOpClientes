@@ -15,7 +15,7 @@ import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
-import { textoFechaRetiro } from "./fecha-retiro.ts";
+import { pideConfirmacionPedido, textoEstadoRetiro, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
 import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
@@ -219,7 +219,8 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   // una fecha equivocada ("el del 20/09 (14 de septiembre)"). Sin fecha explícita, va a la respuesta fija con los
   // pedidos que faltan entregar; con fecha ("el pedido del 17/9") sigue la IA, que lo busca.
   if (customer && RE_ESTADO_PEDIDO.test(text) && !RE_FECHA_EXPLICITA.test(text)) {
-    return { reply: (await lookupOrderStatus(customer)) ?? "", intent: "faq", automation_level: "semi_auto", faq_id: 1 };
+    // Pablo, 07/10 (m2): si pregunta si está confirmado, la lista abre con "tu pedido está confirmado:".
+    return { reply: (await lookupOrderStatus(customer, { confirma: pideConfirmacionPedido(text) })) ?? "", intent: "faq", automation_level: "semi_auto", faq_id: 1 };
   }
   // Pablo, 30/09 (1.8): "¿qué plazo de entrega están manejando?" → sus pedidos por entregar con estado y entrega estimada.
   // Sin pedidos por entregar sigue el flujo normal (plazo general). "No me llegó" es reclamo: lo ve la IA.
@@ -694,7 +695,7 @@ async function pedidoExpresoAbierto(customer: NonNullable<Customer>): Promise<{ 
 // estimada que calculó la confirmación del pedido (wa_fecha_estimada, sql/082) y, si no hay pedidos por entregar, devuelve
 // null para que conteste el plazo general (IA). No se le pregunta si recibió la confirmación: con la llave en "prueba"
 // hoy no le llega a ningún cliente.
-export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: { plazo?: boolean } = {}): Promise<string | null> {
+export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: { plazo?: boolean; confirma?: boolean } = {}): Promise<string | null> {
   const { data: crudos } = await supabase
     .from("orders")
     .select("id, created_at, total, status")
@@ -780,10 +781,11 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     if (m.modo === "expreso") hayExpreso = true;
     let line = `${i + 1}️⃣ Pedido del ${ddmm(o.created_at)} — ${statusText}`;
     const conFecha = t?.fecha_entrega && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado");
-    if (conFecha) {
+    // Pablo, 06 y 07/10 (m21, m25, m24, m2, m68): un pedido de RETIRO se dice distinto: "programado para el lunes 05/10", "facturado, listo para retirar desde el martes 06/10".
+    if (m.modo === "retira" && (rawStatus === "programado" || rawStatus === "en preparacion" || rawStatus === "facturado")) {
+      line = `${i + 1}️⃣ Pedido del ${ddmm(o.created_at)} — ${textoEstadoRetiro(rawStatus, statusText, t?.fecha_entrega ? conDia(t.fecha_entrega) : null)}`;
+    } else if (conFecha) {
       if (m.modo === "expreso") { line += `: el ${conDia(t.fecha_entrega)} lo entregamos en el expreso *${m.expreso}*`; hayExpreso = true; }
-      // Pablo, 06/10 (m21, m25): "sacar el retirar" cuando pregunta cuándo se entrega → "programado para el lunes 05/10".
-      else if (m.modo === "retira") line += textoFechaRetiro(rawStatus, conDia(t.fecha_entrega));
       else line += `: sale el ${conDia(t.fecha_entrega)}`;
     } else if (!t?.fecha_entrega && m.modo === "expreso" && rawStatus !== "entregado") {
       line += ` (va por el expreso *${m.expreso}*)`;
@@ -798,9 +800,12 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
   const notaExpreso = hayExpreso ? notaExpresoTxt : "";
   const unoSolo = visibles.length === 1;
   const enExpreso = visibles.some((o) => estadoDe(o).rawStatus === "entregado");   // entregado al expreso hace ≤ 7 días
-  const titulo = enExpreso
+  const titulo = opts.confirma
+    ? tituloConfirmado(unoSolo)
+    : enExpreso
     ? (unoSolo ? "este es tu pedido en curso" : "estos son tus pedidos en curso")
-    : (unoSolo ? "este es tu pedido que falta entregar" : "estos son tus pedidos que faltan entregar");
+    : (tituloPorRetiro(visibles.map((o) => modoOf(o).modo === "retira"), unoSolo)
+      ?? (unoSolo ? "este es tu pedido que falta entregar" : "estos son tus pedidos que faltan entregar"));
   const resto = hayOcultos ? "Los demás pedidos ya están entregados. " : "";
   return `${customer.business_name}, ${titulo}:\n\n${lines.join("\n")}${notaExpreso}\n\n${resto}${cierre}`;
 }
