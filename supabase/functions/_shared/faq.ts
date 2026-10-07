@@ -143,6 +143,12 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       intent: "pedido_para_fecha", automation_level: "needs_human", topic: "Pasa un pedido y pide recibirlo para una fecha",
       alerta: { motivo: "entrega", urgente: false, detalle: `Pasa un pedido y pide recibirlo para una fecha: ${text.slice(0, 200)}` } };
   }
+  // Pablo, 07/10 (m11): "Adjunto orden de compra…" → fija + alerta `pedido_archivo` (no urgente) para Ventas. Va ANTES de vaALaIA: "adjunto … orden de compra" cuenta como pedido en curso y mandaba el mensaje a la IA. Texto aprobado por Pablo. El destino a Ventas se carga en Derivaciones con su "sí" (hoy ese motivo no tiene destino).
+  if (customer && avisaOrdenDeCompra(text)) {
+    return { reply: "Recibimos tu orden de compra. Una persona de Ventas la revisa y te escribe por acá a la brevedad para confirmártela. 🙏",
+      intent: "orden_de_compra", automation_level: "needs_human", topic: "Orden de compra",
+      alerta: { motivo: "pedido_archivo", urgente: false, detalle: `Dice que adjunta una orden de compra: ${text.slice(0, 200)}` } };
+  }
   if (customer && vaALaIA(text)) return null;
   // Pablo, 06/10 (m59): "¿hay posibilidades de entrega rápida?" / "¿pueden adelantar la entrega?" → lo ve Ventas (motivo entrega): "todas las dudas pasan por Ventas primero".
   if (customer && pideEntregaRapida(text)) {
@@ -208,12 +214,6 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
     return { reply: "Gracias por avisarnos. Una persona de Ventas revisa tu devolución y te escribe por acá para coordinarla. 🙏",
       intent: "devolucion", automation_level: "needs_human", topic: "Devolución de mercadería",
       alerta: { motivo: "devolucion", detalle: `Devolución de mercadería: ${text.slice(0, 200)}` } };
-  }
-  // Pablo, 07/10 (m11): "Adjunto orden de compra…" → fija + alerta `pedido_archivo` (no urgente) para Ventas. Texto aprobado por Pablo. El destino a Ventas se carga en Derivaciones con su "sí" (hoy ese motivo no tiene destino).
-  if (customer && avisaOrdenDeCompra(text)) {
-    return { reply: "Recibimos tu orden de compra. Una persona de Ventas la revisa y te escribe por acá a la brevedad para confirmártela. 🙏",
-      intent: "orden_de_compra", automation_level: "needs_human", topic: "Orden de compra",
-      alerta: { motivo: "pedido_archivo", urgente: false, detalle: `Dice que adjunta una orden de compra: ${text.slice(0, 200)}` } };
   }
   // Pablo, 06/10 (m41): "Me pasás el cotizador actualizado" → los pedidos ahora se toman por la web: se le recuerda y se le da el acceso. Sin alerta: si no tiene clave y
   // lo dice, lo toma el reseteo de clave de siempre (una persona de Ventas la genera). Texto aprobado por Pablo el 06/10.
