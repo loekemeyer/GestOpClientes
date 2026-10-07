@@ -28,9 +28,9 @@ for (const t of ["¿Cuándo llega mi pedido?", "gracias", "Ok", "Hola", "", "x".
 
 igual("la pregunta aprobada", PREGUNTA_EXCEL, "¿Qué querés pasar a Excel: la lista de precios, tus pedidos, tus facturas u otra cosa?");
 const L = derivacionExcel("lista", "la lista de precios"), P = derivacionExcel("pedidos", "mis pedidos"), F = derivacionExcel("facturas", "las facturas"), O = derivacionExcel("otra", "un informe");
-igual("lista → Ventas, nota_cliente", [L.reply, L.motivo], ["Le paso tu pedido de la lista de precios en Excel a Ventas para que te escriban por acá a la brevedad. 🙏", "nota_cliente"]);
-igual("pedidos → Ventas, nota_cliente", [P.reply, P.motivo], ["Le paso tu pedido de tus pedidos en Excel a Ventas para que te escriban por acá a la brevedad. 🙏", "nota_cliente"]);
-igual("facturas → Cobranzas, pago", [F.reply, F.motivo], ["Le paso tu pedido de tus facturas en Excel a Cobranzas para que te escriban por acá a la brevedad. 🙏", "pago"]);
+igual("lista → Ventas, nota_cliente", [L.reply, L.motivo], ["Le paso a Ventas tu consulta por la lista de precios en Excel para que te escriban por acá a la brevedad. 🙏", "nota_cliente"]);
+igual("pedidos → Ventas, nota_cliente", [P.reply, P.motivo], ["Le paso a Ventas tu consulta por tus pedidos en Excel para que te escriban por acá a la brevedad. 🙏", "nota_cliente"]);
+igual("facturas → Cobranzas, pago", [F.reply, F.motivo], ["Le paso a Cobranzas tu consulta por tus facturas en Excel para que te escriban por acá a la brevedad. 🙏", "pago"]);
 igual("otra cosa → Ventas, nota_cliente", [O.reply, O.motivo], ["Le paso tu consulta a Ventas para que te escriban por acá a la brevedad. 🙏", "nota_cliente"]);
 igual("la alerta lleva lo que escribió el cliente", F.detalle, "Pidió sus facturas en Excel: las facturas");
 

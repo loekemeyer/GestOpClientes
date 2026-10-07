@@ -37,8 +37,8 @@ export type DerivacionExcel = { reply: string; motivo: "nota_cliente" | "pago"; 
 /** A dónde va cada respuesta, con el texto que aprobó Pablo (07/10): lista de precios y pedidos → Ventas (`nota_cliente`), facturas → Cobranzas (`pago`), otra cosa → Ventas. */
 export function derivacionExcel(clase: ClaseExcel, texto: string): DerivacionExcel {
   const t = String(texto ?? "").slice(0, 200);
-  if (clase === "lista") return { reply: "Le paso tu pedido de la lista de precios en Excel a Ventas para que te escriban por acá a la brevedad. 🙏", motivo: "nota_cliente", detalle: `Pidió la lista de precios en Excel: ${t}` };
-  if (clase === "pedidos") return { reply: "Le paso tu pedido de tus pedidos en Excel a Ventas para que te escriban por acá a la brevedad. 🙏", motivo: "nota_cliente", detalle: `Pidió sus pedidos en Excel: ${t}` };
-  if (clase === "facturas") return { reply: "Le paso tu pedido de tus facturas en Excel a Cobranzas para que te escriban por acá a la brevedad. 🙏", motivo: "pago", detalle: `Pidió sus facturas en Excel: ${t}` };
+  if (clase === "lista") return { reply: "Le paso a Ventas tu consulta por la lista de precios en Excel para que te escriban por acá a la brevedad. 🙏", motivo: "nota_cliente", detalle: `Pidió la lista de precios en Excel: ${t}` };
+  if (clase === "pedidos") return { reply: "Le paso a Ventas tu consulta por tus pedidos en Excel para que te escriban por acá a la brevedad. 🙏", motivo: "nota_cliente", detalle: `Pidió sus pedidos en Excel: ${t}` };
+  if (clase === "facturas") return { reply: "Le paso a Cobranzas tu consulta por tus facturas en Excel para que te escriban por acá a la brevedad. 🙏", motivo: "pago", detalle: `Pidió sus facturas en Excel: ${t}` };
   return { reply: "Le paso tu consulta a Ventas para que te escriban por acá a la brevedad. 🙏", motivo: "nota_cliente", detalle: `Pidió pasar algo a Excel (otra cosa): ${t}` };
 }
