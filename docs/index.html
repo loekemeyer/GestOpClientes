@@ -96,6 +96,7 @@
     .ia-comp-graf { position: relative; }
     .ia-comp-graf svg { display: block; width: 100%; height: 190px; overflow: visible; }
     /* v0.28.4 (Pablo, 07/10): aviso por WhatsApp al equipo: el defecto para un sector es «la línea del sector» (un número compartido por WhatsApp Web), no cada persona. */
+    /* v0.28.6 (Pablo, 07/10): Tareas ya no tiene el botón «Generar clave temporal»: la clave de la web no se cambia, el bot le pasa al cliente su PIN. */
     /* v0.28.5 (Pablo, 07/10): barras gratis contra paga por día. Par de colores validado con validate_palette.js (claro y oscuro: CVD ΔE ≥ 24, visión normal ≥ 31). */
     .ia-tok { --ia-gratis:#2a78d6; --ia-paga:#eb6834; }
     html.dark .ia-tok { --ia-gratis:#3987e5; --ia-paga:#d95926; }
@@ -5400,7 +5401,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.5</div>
-<script src="gestop2.js?v=0.27.24"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.6</div>
+<script src="gestop2.js?v=0.28.6"></script>
 </body>
 </html>

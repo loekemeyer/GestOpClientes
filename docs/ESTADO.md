@@ -1010,9 +1010,12 @@ el killswitch, sin ningún consumidor de esa cola.
   (725 números que nadie verificó), no sólo a los vínculos aprobados. Riesgo aceptado: figura en Medidas de seguridad.
   De paso se registró en la auditoría (problema abierto, repo `pagina-lk-copia`) que un cliente logueado puede hacer UPDATE
   de toda su fila de `customers` (`dto_vol`, `cuit`, `cod_cliente`), no sólo del PIN: policy `customers_update_own_pin`.
-  ⚠ El botón "Generar clave temporal" de abajo cambia la clave de Auth pero **no** `customers.pin`: si se usa, el PIN queda viejo
-  y el bot pasaría una clave que ya no anda.
-- **Reseteo de clave** (29/09, reemplazado el 07/10 por lo de arriba; el botón sigue para las tareas viejas): cliente identificado + `RE_CLAVE` (faq.ts) → "tu usuario es tu CUIT, una persona te genera
+  **Nadie cambia la clave de la web desde el bot ni desde Tareas (Pablo, 07/10: *"vos no tenés que cambiar la clave, tenés que
+  dar la que ya está"* y *"sí, sacala"*, dashboard v0.28.6).** Se sacó el botón "Generar clave temporal" de Tareas
+  (`gestop2.js`) y la acción `reset_clave` de `lk_alertas` ahora sólo contesta un error: cambiaba la clave de Auth sin tocar
+  `customers.pin`, y el bot habría pasado un PIN que ya no anda. Las tareas viejas `reseteo_clave` se ven sin botón. El alta
+  de clientes nuevos (`crear_cliente_web`) sí sigue creando la clave y la guarda como PIN, así que queda alineada.
+- **Reseteo de clave** (29/09, reemplazado el 07/10 por lo de arriba; botón y acción sacados el 07/10): cliente identificado + `RE_CLAVE` (faq.ts) → "tu usuario es tu CUIT, una persona te genera
   una clave" + tarea `reseteo_clave`. En Tareas, "Generar clave temporal y mandarla" → `lk_alertas` `reset_clave`:
   `auth.admin.updateUserById` en PaginaLK (4 letras + 4 números) y aviso por `wa_outbox`. La clave NO queda en la alerta,
   y se tapa ("Clave: ••••••••") en la cola apenas el mensaje sale, falla o queda retenido (trigger de sql/103) y en el

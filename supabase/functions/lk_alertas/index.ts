@@ -110,7 +110,7 @@ serve(async (req) => {
     // Pablo, 29/09: las pruebas del Simulador las puede correr Claude con la llamada interna (x-lk-secret), pero SÓLO sobre
     // tareas 🧪 (contexto.simulador) y sólo las acciones de los botones; bloqueoPrueba además exige el cliente 99862.
     const interna = await esInterna(req);
-    const ACCIONES_PRUEBA = ["aplicar_agregado", "reset_clave", "sucursal_agregar", "mail_cambiar", "alta_crear", "list"];
+    const ACCIONES_PRUEBA = ["aplicar_agregado", "sucursal_agregar", "mail_cambiar", "alta_crear", "list"];
     let gate: { ok: true; email: string } | { ok: false; error: string; status: number };
     if (interna && ACCIONES_PRUEBA.includes(String(body.action))) {
       gate = { ok: true, email: "prueba interna (simulador)" };
@@ -686,38 +686,11 @@ serve(async (req) => {
       return json({ ok: true });
     }
 
-    // Pablo, 29/09: reseteo de clave con aprobación. Genera una clave temporal, la guarda en la cuenta de la web del
-    // cliente (auth de PaginaLK) y se la manda por la cola (sale según la llave). La clave no queda en la alerta.
+    // Pablo, 07/10: "vos no tenés que cambiar la clave, tenés que dar la que ya está". Ya no se generan claves: la de la web es el
+    // PIN de customers y el bot se la pasa al teléfono agendado (_shared/clave-web.ts). Cambiarla acá dejaba el PIN viejo y el bot
+    // pasaba una clave que no andaba. Se contesta con un error claro por si una pantalla vieja todavía llama.
     if (body.action === "reset_clave") {
-      const id = Number(body.id);
-      if (!id) return json({ ok: false, error: "falta id" }, 400);
-      const { data: a } = await supabase.from("wa_alertas_humano").select("id, phone, customer_id, contexto, estado").eq("id", id).maybeSingle();
-      if (!a || a.contexto?.motivo !== "reseteo_clave") return json({ ok: false, error: "La tarea no es un pedido de clave." }, 200);
-      if (!["pendiente", "notificado"].includes(a.estado)) return json({ ok: false, error: "La tarea ya estaba resuelta." }, 200);
-      if (!a.customer_id || !a.phone) return json({ ok: false, error: "La tarea no tiene cliente identificado." }, 200);
-      const bloqC = await bloqueoPrueba(a);
-      if (bloqC) return json({ ok: false, error: bloqC }, 200);
-      const { data: c } = await supabase.from("customers").select("auth_user_id, cuit, business_name").eq("id", a.customer_id).maybeSingle();
-      if (!c?.auth_user_id) return json({ ok: false, error: "El cliente no tiene usuario en la web: hay que darle acceso primero." }, 200);
-      const { data: u, error: eU } = await supabase.auth.admin.getUserById(c.auth_user_id);
-      if (eU || !u?.user?.email) return json({ ok: false, error: "No encontré el usuario de la web." }, 200);
-      const usuario = String(u.user.email).split("@")[0];
-      // 4 letras + 4 números, sin letras que se confunden (l, o, i).
-      const rnd = crypto.getRandomValues(new Uint32Array(8));
-      const LET = "abcdefghjkmnpqrstuvwxyz";
-      const clave = Array.from(rnd.slice(0, 4), (n) => LET[n % LET.length]).join("") + Array.from(rnd.slice(4), (n) => String(n % 10)).join("");
-      const { error: eP } = await supabase.auth.admin.updateUserById(c.auth_user_id, { password: clave });
-      if (eP) return json({ ok: false, error: "No se pudo cambiar la clave: " + eP.message }, 200);
-      const texto = `Te generamos una clave nueva para la web (loekemeyer.com → "Pedidos Mayorista"):\n` +
-        `Usuario: ${usuario}\nClave: ${clave}\nNo la compartas con nadie.`;
-      const { error: eO } = await encolar(a, { phone: a.phone, body: texto, context: "clave_temporal", ref_id: String(id) });
-      await supabase.from("wa_alertas_humano").update({
-        estado: "atendido", atendido_por: gate.email, atendido_at: new Date().toISOString(),
-        contexto: { ...a.contexto, clave_reseteada_at: new Date().toISOString() },
-      }).eq("id", id);
-      await llamarPlanify({ action: "cerrar", alerta_id: id });
-      console.log(`lk_alertas: clave reseteada para ${c.business_name} por ${gate.email}`);
-      return json({ ok: true, usuario, aviso_encolado: !eO, error_aviso: eO?.message ?? null });
+      return json({ ok: false, error: "Ya no se generan claves nuevas: el bot le pasa al cliente su usuario y su PIN." }, 200);
     }
 
     if (body.action === "adjunto") {

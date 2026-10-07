@@ -903,9 +903,10 @@ function tkPintarDetalle() {
       <div class="aviso">Se agrega como sucursal nueva (no reemplaza ninguna) y queda para cargar en ISIS. El cliente la elige en su próximo pedido.</div>
       <div class="cm-acciones"><button class="g-btn prim" onclick="tkAgregarSucursal()">Agregar dirección</button></div>`;
   } else if (a.motivo === "reseteo_clave") {
-    cuerpo = `<h4>Pide clave nueva para la web</h4>${a.texto ? `<div class="cita">${gesc(a.texto)}</div>` : ""}
-      <div class="aviso">La clave vieja deja de andar y la nueva le llega por WhatsApp.</div>
-      <div class="cm-acciones"><button class="g-btn prim" onclick="tkResetClave()">Generar clave temporal y mandarla</button></div>`;
+    // Pablo, 07/10: "vos no tenés que cambiar la clave, tenés que dar la que ya está". Se sacó el botón "Generar clave temporal":
+    // cambiaba la clave de la web sin tocar el PIN y el bot habría pasado una clave vieja. Sólo quedan tareas viejas con este motivo.
+    cuerpo = `<h4>Pidió su clave de la web</h4>${a.texto ? `<div class="cita">${gesc(a.texto)}</div>` : ""}
+      <div class="aviso">Ya no se generan claves nuevas. Si el teléfono está agendado, el bot le pasa su usuario (el CUIT) y su clave (su PIN). Si igual no puede entrar, revisá su acceso a la web.</div>`;
   } else if (a.precarga?.id) {
     // Pablo, 30/09: pedido tomado por el bot (sql/112). "Confirmar" lo carga con su ficha: Gestión lo ve y al cliente le
     // llega "pedido recibido". Hasta entonces no existe para Gestión.
@@ -974,17 +975,6 @@ async function tkAgregarSucursal() {
   try {
     const r = await tkInvoke("lk_alertas", { action: "sucursal_agregar", id: t.a.id });
     toast(`Dirección agregada: ${r.label}.` + (r.aviso_encolado ? " El aviso quedó en la cola." : " No se pudo encolar el aviso."));
-    G.tareaSel = null; tkVolver();
-    await tkCargar();
-    if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
-  } catch (e) { toast("No se pudo: " + e.message); }
-}
-async function tkResetClave() {
-  const t = tkActual(); if (!t || !t.a) return;
-  if (!confirm("¿Generar una clave nueva para este cliente y mandársela por WhatsApp? La clave vieja deja de andar.")) return;
-  try {
-    const r = await tkInvoke("lk_alertas", { action: "reset_clave", id: t.a.id });
-    toast(`Clave nueva generada (usuario ${r.usuario}).` + (r.aviso_encolado ? " El aviso quedó en la cola." : " No se pudo encolar el aviso."));
     G.tareaSel = null; tkVolver();
     await tkCargar();
     if (typeof loadAlertas === "function") loadAlertas().catch(() => {});
