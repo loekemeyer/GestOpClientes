@@ -4,6 +4,16 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-07.
 >
+> **07/10 (Pablo): pantalla de login nueva según el mockup que mandó (dashboard v0.27.23, `docs/index.html` + `docs/gestop2.css`; sólo front, no toca el bot).**
+> Pedido: *"Pantalla de login, armame algo así"* + imagen. Reemplaza la escena bordó y crema de la v0.27.18. Ahora: fondo de vidrio roto (SVG inline, 78 trazos) y rejilla, el grupo de productos
+> (espátula + abrelata sobre su base) con haces de luz que llegan al borde del marco, y un marco de metal con vidrio y neón (cian a la izquierda, magenta a la derecha) con logo de plata (`assets/logo.png` como máscara),
+> "GestOp" en neón (SVG), "Bot WhatsApp", "Bienvenido" y el botón de Google. Todo el marco escala con `--w` (letra = `--w / 24`), así que guarda las proporciones del mockup en cualquier pantalla.
+> ⚠ **La foto `assets/login-productos.webp` (70 KB) está recortada del mockup, no es una foto original**: 530 × 507 px de origen, duplicada a 2× (se nota algo blanda por encima de 1.600 px de ancho). El fondo oscuro se saca con un piso de negro y `mix-blend-mode: screen`,
+> que va en `.lg-escena` y NO en los hijos (`translate` crea un contexto de apilado y aísla el blend: con el blend en la foto se veía una caja negra). Si hay un render original con fondo transparente, se reemplaza ese único archivo.
+> **Sin "¿Prefieres usar un correo institucional? [Ingresar]":** el mockup lo trae pero la app sólo tiene Google (`signInWithOAuth`), no hay otro ingreso. En su lugar, el pie del marco dice "Sólo para cuentas autorizadas de Loekemeyer" (es lo que hace `showApp` con el mail no autorizado).
+> Arregla de paso: `doLogout` volvía a mostrar el login con `display = "flex"` y pisaba el `grid` de la hoja de estilos; ahora usa `"grid"`. Se borraron los 3 `login-abrelata-*.webp` (ya sin uso). Hasta 900 px: una columna con los productos arriba; en celular también (sin haces); con menos de 600 px de alto en horizontal, sólo el marco.
+> `gestop2.css` pasa a `?v=0.27.23`: venía en `?v=0.27.14` aunque se tocó en la 0.27.18 (los navegadores podían seguir con la hoja vieja).
+>
 > **07/10 (Pablo, ronda 2 del artifact; m21): un pedido de RETIRO ya facturado dice "listo para retirar" y el título de la lista dice "que falta retirar" (`_shared/fecha-retiro.ts`, `textoEstadoRetiro` y `tituloPorRetiro`; `faq.ts` `lookupOrderStatus` y `pedidos-marca.ts`, `tests/fecha-retiro.test.ts`).**
 > Pablo: *"se tendría que tener en cuenta si el pedido es para retirar o para entregar, eso cambia el tipo de respuesta"* → "sí, ese texto". Retiro: recibido (igual que antes), programado "para el lunes 05/10", en preparación "va a estar listo para retirar desde el lunes 05/10", facturado "listo para retirar desde el martes 06/10"
 > (en Gestión, para el depósito, 'facturado' = armado y con factura, el momento del aviso `pedido_listo_retirar`). Con retiro mezclado con reparto o expreso el título es "pedidos pendientes". Reparto y expreso no cambian. Es la lista que comparten m21, m24, m25, m2 y m68; cada uno tiene además su propio ajuste (ver las entradas siguientes).
