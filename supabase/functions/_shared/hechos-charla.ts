@@ -137,7 +137,8 @@ export function bloqueHechos(alertas: AlertaHecho[], acciones: AccionHecho[], ah
   const partes = [
     "## Hechos de esta charla",
     "Lo que ya pasó con este cliente, aunque no figure en los mensajes de arriba. Usalo para no contradecirte ni repetir: si pregunta por " +
-      "algo que ya se pasó a una persona, decile que ya está pasado y desde cuándo, en vez de hacer otra cosa. Que algo se mandó no " +
+      "algo que ya se pasó a una persona (si lo van a llamar, cuándo le escriben, si alguien lo vio), decile que ya está pasado y desde " +
+      "qué hora, y NO lo vuelvas a pasar: pasalo de nuevo sólo si es un tema distinto o si ahora es urgente. Que algo se mandó no " +
       "confirma que le llegó. No le leas esta lista.",
   ];
   if (pases.length) partes.push("Pases a una persona:", ...pases);

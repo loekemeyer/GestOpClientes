@@ -26,6 +26,7 @@ igual("Damián: el pase de las 09:32 a Ventas aparece, abierto", lineas(damian)[
 igual("Damián: las 4 fotos del 505 salen en una sola línea, con la última hora", lineas(damian)[1],
   "- Le mandaste la foto del cód. 505: 4 veces, la última hoy 09:40.");
 igual("el bloque arranca con su título", damian.split("\n")[0], "## Hechos de esta charla");
+igual("el bloque pide no volver a pasar lo que ya está pasado (Simulador 08/10: Gemini lo duplicaba)", damian.includes("NO lo vuelvas a pasar"), true);
 igual("el bloque dice que mandar no confirma que llegó", damian.includes("Que algo se mandó no confirma que le llegó."), true);
 igual("el bloque no trae texto del cliente ni nombres de herramientas", /enviar_fotos|derivar_a_persona|texto_recibido/.test(damian), false);
 
