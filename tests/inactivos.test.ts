@@ -1,7 +1,7 @@
-// Pruebas de qué se le dice al cliente de un artículo inactivo (supabase/functions/_shared/inactivos.ts, tarea 5283, 08/10): «SIN STOCK» ya no se dice "discontinuado". Sin red.
+// Pruebas de qué se le dice al cliente de un artículo inactivo (supabase/functions/_shared/inactivos.ts, tarea 5283, 08/10): «SIN STOCK», «NUEVO» y «LIQUIDACIÓN» ya no se dicen "discontinuado". Sin red.
 // Correr: node --experimental-strip-types --no-warnings tests/inactivos.test.ts   (sale con código 1 si algo falla)
 import { readFileSync } from "node:fs";
-import { estadoDeInactivo, REGLA_DISCONTINUADO, REGLA_SIN_STOCK, reglaDeInactivos } from "../supabase/functions/_shared/inactivos.ts";
+import { estadoDeInactivo, REGLA_DISCONTINUADO, REGLA_NO_DISPONIBLE, REGLA_SIN_STOCK, reglaDeInactivos } from "../supabase/functions/_shared/inactivos.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -17,9 +17,12 @@ igual("sin tildes ni mayúsculas importan igual", estadoDeInactivo("Sin Stock"),
 igual("sin etiqueta sigue siendo discontinuado", estadoDeInactivo(null), "discontinuado");
 igual("etiqueta vacía", estadoDeInactivo(""), "discontinuado");
 igual("indefinida", estadoDeInactivo(undefined), "discontinuado");
-// Decisión de alcance (08/10): LIQUIDACIÓN y NUEVO inactivos NO cambian hasta que Pablo diga qué significan. Si esto se cambia, que sea a propósito.
-igual("«LIQUIDACIÓN» inactivo sigue como antes (discontinuado)", estadoDeInactivo("LIQUIDACIÓN"), "discontinuado");
-igual("«NUEVO» inactivo sigue como antes (discontinuado): el Automate 597", estadoDeInactivo("NUEVO"), "discontinuado");
+// Decisión de Pablo (08/10): «no están en la página, puede ser que no haya stock, o que estén discontinuados en este momento» → no se afirma ninguna de las dos.
+igual("«LIQUIDACIÓN» inactivo: no disponible por el momento", estadoDeInactivo("LIQUIDACIÓN"), "no_disponible");
+igual("«LIQUIDACION» sin tilde", estadoDeInactivo("liquidacion"), "no_disponible");
+igual("«NUEVO» inactivo: no disponible por el momento (el Automate 597)", estadoDeInactivo("NUEVO"), "no_disponible");
+igual("«NUEVO» con espacios y minúscula", estadoDeInactivo("  nuevo "), "no_disponible");
+// Sin etiqueta (o una desconocida) sigue siendo discontinuado: queda abierto si los que se pidieron hace poco (565, 561…) deben decirse igual.
 igual("una etiqueta que sólo contiene 'stock' no cuenta", estadoDeInactivo("STOCK LIMITADO"), "discontinuado");
 
 // ── La regla que acompaña a la respuesta ──
@@ -27,9 +30,14 @@ const disc = { discontinuado: true }, sin = { sin_stock: true };
 igual("sólo discontinuados: la regla de siempre, sin tocar", reglaDeInactivos([disc, disc]), REGLA_DISCONTINUADO);
 igual("sólo sin stock: la regla nueva", reglaDeInactivos([sin]), REGLA_SIN_STOCK);
 igual("de los dos tipos: las dos reglas, la de siempre primero", reglaDeInactivos([disc, sin]), `${REGLA_DISCONTINUADO} ${REGLA_SIN_STOCK}`);
+igual("sólo no disponibles: la regla neutral", reglaDeInactivos([{ no_disponible: true }]), REGLA_NO_DISPONIBLE);
+igual("de los tres tipos: las tres reglas en orden fijo", reglaDeInactivos([{ no_disponible: true }, sin, disc]), `${REGLA_DISCONTINUADO} ${REGLA_SIN_STOCK} ${REGLA_NO_DISPONIBLE}`);
+igual("sin stock y no disponible juntos, sin la de discontinuado", reglaDeInactivos([sin, { no_disponible: true }]), `${REGLA_SIN_STOCK} ${REGLA_NO_DISPONIBLE}`);
 igual("lista vacía: ninguna regla", reglaDeInactivos([]), "");
 igual("un item sin marca (como los de antes) se trata como discontinuado", reglaDeInactivos([{}]), REGLA_DISCONTINUADO);
 igual("la regla de sin stock NO le pide decir 'está discontinuado'", /Decile que ese código está discontinuado/.test(REGLA_SIN_STOCK), false);
+igual("la regla de no disponible NO le pide decir 'está discontinuado' ni 'no hay stock'", [/Decile que ese código está discontinuado/.test(REGLA_NO_DISPONIBLE), /No digas que está discontinuado ni que no hay stock/.test(REGLA_NO_DISPONIBLE)], [false, true]);
+igual("las tres reglas prohíben decir 'no lo encontré'", [REGLA_DISCONTINUADO, REGLA_SIN_STOCK, REGLA_NO_DISPONIBLE].map((r) => /no lo encontraste/.test(r)), [true, true, true]);
 igual("la regla de sin stock lo aclara y manda a consultar_stock", [/NO está discontinuado/.test(REGLA_SIN_STOCK), /consultar_stock/.test(REGLA_SIN_STOCK)], [true, true]);
 igual("la regla de siempre no cambió (texto de Pablo, 30/09)", REGLA_DISCONTINUADO.startsWith("Decile que ese código está discontinuado (nombrándolo con su descripción)"), true);
 
@@ -39,6 +47,7 @@ igual("buscar_productos nunca devuelve la regla fija de discontinuado", /regla:\
 igual("los tres puntos usan reglaDeInactivos", (bot.match(/regla:\s*reglaDeInactivos\(discontinuados\)/g) ?? []).length, 3);
 igual("las dos consultas de inactivos traen badge_status", (bot.match(/select\("cod, description, category, badge_status"\)/g) ?? []).length, 2);
 igual("conParecidos marca el estado con estadoDeInactivo", /estadoDeInactivo\(p\.badge_status\)/.test(bot), true);
+igual("conParecidos distingue los tres estados", [/sin_stock: true/.test(bot), /no_disponible: true/.test(bot), /discontinuado: true/.test(bot)], [true, true, true]);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");

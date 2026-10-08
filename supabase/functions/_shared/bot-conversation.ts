@@ -131,8 +131,10 @@ async function conParecidos(inact: Array<{ cod: string; description: string; cat
       .filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3);
     const parecidos_activos = await Promise.all(top.map(async ({ m }) => ({ cod: m.cod, descripcion: m.description,
       unidades_por_caja: m.uxb, ...(await fotoProducto(m.cod).then((f) => f ? { foto: f } : {})) })));
-    // «SIN STOCK» no es discontinuado (tarea 5283, 08/10): se marca aparte para que la regla no le diga al cliente que el artículo no vuelve.
-    const marca = estadoDeInactivo(p.badge_status) === "sin_stock" ? { sin_stock: true } : { discontinuado: true };
+    // Tarea 5283 (08/10): «SIN STOCK» no es discontinuado, y «NUEVO» / «LIQUIDACIÓN» inactivos tampoco se afirman discontinuados ni sin stock (no se sabe): se marcan aparte
+    // para que la regla no le diga al cliente que el artículo no vuelve. Sin etiqueta sigue siendo discontinuado.
+    const est = estadoDeInactivo(p.badge_status);
+    const marca = est === "sin_stock" ? { sin_stock: true } : est === "no_disponible" ? { no_disponible: true } : { discontinuado: true };
     out.push({ cod: p.cod, descripcion: p.description, ...marca, parecidos_activos });
   }
   return out;
