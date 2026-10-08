@@ -125,9 +125,11 @@ async function facturaReal(cod: number, tocado: string): Promise<{ nombre: strin
 // deno-lint-ignore no-explicit-any
 function historialDe(body: any): Array<{ rol: "user" | "assistant"; contenido: string; creado_en: string }> {
   if (!Array.isArray(body.historial)) return [];
-  return (body.historial as Array<{ rol?: string; contenido?: string }>).slice(-40)
+  // Pablo, 08/10: `creado_en` opcional (ISO) para probar la memoria de la charla anterior (ventana-historial.ts): sin él, todo es de ahora.
+  return (body.historial as Array<{ rol?: string; contenido?: string; creado_en?: string }>).slice(-40)
     .filter((h) => (h.rol === "user" || h.rol === "assistant") && typeof h.contenido === "string")
-    .map((h) => ({ rol: h.rol as "user" | "assistant", contenido: String(h.contenido).slice(0, 4000), creado_en: new Date().toISOString() }));
+    .map((h) => ({ rol: h.rol as "user" | "assistant", contenido: String(h.contenido).slice(0, 4000),
+      creado_en: typeof h.creado_en === "string" && !isNaN(Date.parse(h.creado_en)) ? new Date(h.creado_en).toISOString() : new Date().toISOString() }));
 }
 
 // lk_bot-simular — simulador del bot: corre una charla completa con la MISMA lógica que el webhook

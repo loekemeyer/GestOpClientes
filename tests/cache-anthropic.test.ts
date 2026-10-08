@@ -10,7 +10,7 @@ Deno.env.set("SUPABASE_URL", "http://localhost:54321");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "clave-falsa");
 const { cuerpoAnthropic, contextoEnElTurno, desarmarEtiqueta, costoEstimado, systemTexto, CACHE_ESCRITURA, CACHE_LECTURA, CONTEXTO_ABRE, CONTEXTO_CIERRA } =
   await import("../supabase/functions/_shared/bot-llm.ts");
-const { largoVentana, filasDeLaVentana, VENTANA_MIN } = await import("../supabase/functions/_shared/ventana-historial.ts");
+const { largoVentana, historialParaElModelo, VENTANA_MIN } = await import("../supabase/functions/_shared/ventana-historial.ts");
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -93,12 +93,14 @@ igual("mensajes de texto del cliente siempre en bloques", bh.messages[0].content
 igual("largoVentana", [0, 5, 16, 17, 23, 24, 25, 31, 32, 100].map(largoVentana), [0, 5, 16, 17, 23, 16, 17, 23, 16, 20]);
 igual("el inicio de la ventana (total - largo) es múltiplo de 8 y no se corre dentro de cada tanda",
   [17, 19, 21, 23, 24, 25, 31, 33].map((n) => n - largoVentana(n)), [0, 0, 0, 0, 8, 8, 8, 16]);
-igual("sin conteo: los 16 de siempre", filasDeLaVentana([...Array(23).keys()], null).length, VENTANA_MIN);
-
 // ── Charla simulada turno por turno: el historial anterior de un turno sigue igual en el siguiente ──────────────────────────────
-// Filas guardadas: cliente y bot alternados; en cada turno entran 2 (respuesta del bot + mensaje nuevo del cliente).
-type Fila = { rol: string; contenido: string };
-const guardadas = (n: number): Fila[] => Array.from({ length: n }, (_, i) => ({ rol: i % 2 ? "assistant" : "user", contenido: `mensaje ${i}` }));
+// Filas guardadas: cliente y bot alternados, un minuto entre cada una (una sola charla); en cada turno entran 2 (respuesta del bot + mensaje nuevo).
+type Fila = { rol: string; contenido: string; creado_en: string };
+const guardadas = (n: number): Fila[] => Array.from({ length: n }, (_, i) =>
+  ({ rol: i % 2 ? "assistant" : "user", contenido: `mensaje ${i}`, creado_en: new Date(Date.UTC(2026, 9, 8, 12, i)).toISOString() }));
+/** La ventana de producción (historialParaElModelo), devuelta del más nuevo al más viejo como la espera historialDelTurno de abajo. */
+const filasDeLaVentana = (f: Fila[], total: number | null) => historialParaElModelo(f, total).filas.reverse();
+igual("sin conteo: los 16 de siempre", filasDeLaVentana([...guardadas(24)].reverse(), null).length, VENTANA_MIN);
 function historialDelTurno(n: number, ventana: (nuevasPrimero: Fila[], n: number) => Fila[]) {
   const v = ventana([...guardadas(n)].reverse(), n);   // del más nuevo al más viejo, como bot_leer_historial
   // deno-lint-ignore no-explicit-any

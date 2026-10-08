@@ -170,3 +170,21 @@ mandado no confirma que le llegó. Va en la parte del prompt que cambia con cada
 al principio del último mensaje del cliente (ver "Caché de prompt": no rompe el caché de la base ni del historial) y nunca demora el turno más de 1,5 s:
 si la base no contesta, el turno sigue sin el bloque. En el Simulador sale de lo que pasó en la simulación entera. **No cubre** lo que contesta
 la capa fija sin dejar alerta (una respuesta fija, un PDF de factura): eso sigue sólo en las 16 filas. Pruebas: `tests/hechos-charla.test.ts`.
+
+## Memoria: la charla anterior completa (08/10/2026)
+
+Pedido de gerencia, aprobado por Pablo: que el agente recuerde la última charla. Además de la ventana anclada (16 a 23 mensajes), el modelo ve
+la **charla anterior entera** (una charla termina cuando pasan más de 12 horas sin mensajes, el mismo corte de la nota de tiempo), con tope de
+**8.750 caracteres (~2.500 tokens) y 60 mensajes** contados desde su final (`_shared/ventana-historial.ts`, `historialParaElModelo`). Si la
+ventana ya la traía, no cambia nada. Si la charla de hoy es larga y la ventana no llega a la anterior, el modelo ve la anterior, un salto y
+la ventana. Se lee en una sola consulta a `bot_historial_chat` (filas y total; hasta 200 filas: la RPC `bot_leer_historial` corta en 50).
+
+**Marca de fecha:** cuando el historial junta más de una charla (o tiene un salto), cada tramo arranca con `[Mensajes del 07/10 desde las 09:30]`
+(hora de Argentina). La regla fija **CHARLAS ANTERIORES** le dice qué es: lo de otro día se usa si el cliente lo trae, pero no se retoma por su
+cuenta ni se da por pendiente sin revisarlo con las herramientas (el 30/09 seguía un tema de un mes atrás). Si el modelo copia la marca en su
+respuesta, el código la borra antes de enviar (`sinMarcaDeTramo`). Con una sola charla no hay marcas: igual que antes.
+
+**Costo:** la parte de la charla anterior no cambia mientras dura la de hoy, así que va antes de la marca de caché del historial y los turnos
+siguientes la leen del caché (0,1×). Prueba local: la charla anterior queda igual en los 20 turnos de una charla de hoy y el historial se reusa
+en 17 de 20 (`tests/memoria-charla.test.ts`). Las compuertas de pedido y de mail y la nota de tiempo siguen con los últimos 16. El Simulador acepta
+`creado_en` en cada mensaje de `historial` para probarlo (sin él, todo es de ahora).
