@@ -122,16 +122,23 @@ y se avisa a una persona. El prompt del agente lo dice también. Detalle y lími
 
 La capa fija (`faq.ts`) contesta con la primera regla que coincide y tira el resto del mensaje. Desde el 08/10 (Pablo, caso Chef 411) NO contesta
 un mensaje que pide dos cosas o más ("cuándo sale mi pedido y si podés tener 200 docenas del 505") ni repite un texto fijo que el bot mandó hace menos
-de 30 minutos: los dos van al agente, que lee el historial. Al agente le llega al final del prompt un bloque **PISTAS DE LAS RESPUESTAS FIJAS** con lo
+de 30 minutos: los dos van al agente, que lee el historial. Al agente le llega, en el bloque de contexto del sistema (ver "Caché de prompt"), un bloque **PISTAS DE LAS RESPUESTAS FIJAS** con lo
 que la capa fija contestaría a cada parte (texto aprobado y a quién deriva) y la indicación de contestar todo en un solo mensaje natural, sin cambiar
 datos ni destinos de las pistas que correspondan e ignorando las que no. La derivación la decide el agente con `derivar_a_persona`; los PDF de factura
 de una pista salen solos después de su respuesta. La clave de la web nunca va por acá: el PIN sólo lo da la capa fija. Detección y límites en
 `_shared/mensaje-compuesto.ts`, `docs/FLUJOS.md` (Flujo 1e) y `docs/ESTADO.md`.
 
-**Caché de prompt (Anthropic):** el prompt va en dos partes (base estable + lo que cambia con cada mensaje) y se marcan para caché las herramientas, la
-base y el último mensaje (`bot-llm.ts`, `cuerpoAnthropic`). Desde la segunda llamada de un turno con herramientas, todo lo anterior se lee del caché
-a 0,1 del precio. El costo que se guarda en `bot_token_usage` ya cuenta la escritura (1,25×) y la lectura (0,1×), así el tope de gasto diario sigue
-midiendo bien. Gemini y los demás proveedores reciben el prompt junto, como antes.
+**Caché de prompt (Anthropic):** el prompt va en dos partes. La base estable (reglas y datos del cliente) va en el system. Lo que cambia con cada
+mensaje (nota de tiempo con la hora, ejemplos aprobados, pistas) va **al principio del último mensaje del cliente**, entre `<contexto_del_sistema>` y
+`</contexto_del_sistema>` (08/10, 2ª parte: `bot-llm.ts`, `contextoEnElTurno`): si fuera en el system quedaría antes del historial y lo haría escribir
+de nuevo en caché en cada turno. Se marcan para caché las herramientas, la base, el fin del historial anterior y el último mensaje (`cuerpoAnthropic`).
+El historial que ve el modelo tiene **inicio fijo** (`_shared/ventana-historial.ts`: de 16 a 23 mensajes, el inicio se corre de a 8), así el turno
+siguiente del mismo cliente, si llega dentro de los 5 minutos, lee el historial anterior del caché; antes, con los últimos 16, el inicio se corría en
+cada turno y nunca se reusaba. Desde la segunda llamada de un turno con herramientas, todo lo anterior se lee del caché a 0,1 del precio. El costo
+que se guarda en `bot_token_usage` ya cuenta la escritura (1,25×) y la lectura (0,1×), así el tope de gasto diario sigue midiendo bien. Gemini y los
+demás proveedores reciben el mismo armado, así el Simulador prueba lo mismo que contesta Sonnet. El bloque de Seguridad dice que sólo ese bloque
+viene del sistema y el código desarma la etiqueta si la escribe un cliente (`desarmarEtiqueta`; medida "Bloque de contexto del sistema no falsificable").
+Las compuertas de pedido y de mail y la nota de tiempo siguen viendo los últimos 16 mensajes.
 
 
 ## Hechos de esta charla: memoria más allá de las 16 filas (08/10/2026)
@@ -149,6 +156,7 @@ IA, un bloque **Hechos de esta charla** con:
    que quedaron cargados. Lo que deja una alerta (derivar, solicitar cambios) sale por el punto 1.
 
 El bloque le pide no contradecirse ni repetir, contestar con lo que ya se pasó a una persona cuando pregunta por eso, y recuerda que algo
-mandado no confirma que le llegó. Va en la parte del prompt que cambia con cada mensaje (no rompe el caché) y nunca demora el turno más de 1,5 s:
+mandado no confirma que le llegó. Va en la parte del prompt que cambia con cada mensaje, que desde el 08/10 llega en el bloque `<contexto_del_sistema>`
+al principio del último mensaje del cliente (ver "Caché de prompt": no rompe el caché de la base ni del historial) y nunca demora el turno más de 1,5 s:
 si la base no contesta, el turno sigue sin el bloque. En el Simulador sale de lo que pasó en la simulación entera. **No cubre** lo que contesta
 la capa fija sin dejar alerta (una respuesta fija, un PDF de factura): eso sigue sólo en las 16 filas. Pruebas: `tests/hechos-charla.test.ts`.
