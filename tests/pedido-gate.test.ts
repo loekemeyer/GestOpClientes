@@ -26,13 +26,18 @@ const NO_SI = [
 for (const t of NO_SI) igual(`NO es sí: ${JSON.stringify(t)}`, esSiAsecas(t), false);
 
 // ── Resumen de pedido ──
-const RESUMEN = "Tu pedido a nombre de *Chef S.R.L.* (CUIT 30-71234567-9):\n• 3 cajas Pelapapas (505) — $120.000\n• 2 cajas Abrelatas (LOKE-501) — $45.500\nSubtotal: $165.500\nForma de pago: Pago Contado: 25% Dto\n*Total: $124.125 + IVA*\nEntrega: Virgilio 2788\n¿Confirmás con un sí?";
+// BLOQUE = resumen_para_el_cliente tal como lo arma bot-conversation.ts (lo que el servidor va a cargar). RESUMEN = lo que vio el
+// cliente: el bloque más la pregunta del modelo.
+const BLOQUE = "Tu pedido a nombre de *Chef S.R.L.* (CUIT 30-71234567-9):\n• 3 cajas Pelapapas (505) — $120.000\n• 2 cajas Abrelatas (LOKE-501) — $45.500\nSubtotal: $165.500\nForma de pago: Pago Contado: 25% Dto\n*Total: $124.125 + IVA*\nEntrega: Virgilio 2788";
+const RESUMEN = `${BLOQUE}\n¿Confirmás con un sí?`;
 igual("resumen: formato de armar_pedido", esResumenDePedido(RESUMEN), true);
 igual("resumen: texto cualquiera no lo es", esResumenDePedido("Hola, ¿en qué te puedo ayudar?"), false);
 
 const fila = (rol: string, contenido: string, min: number) => ({ rol, contenido, creado_en: hace(min) });
 // historial del más nuevo al más viejo, como loadHistory
-const OK = { cods: ["505", "LOKE-501"], totalTexto: "$124.125", ahora: AHORA };
+const OK = { resumen: BLOQUE, ahora: AHORA };
+/** El bloque a cargar con un renglón cambiado. */
+const cambiado = (de: string, a: string) => { if (!BLOQUE.includes(de)) throw new Error(`no está: ${de}`); return BLOQUE.replace(de, a); };
 
 // ── Camino feliz: resumen → "sí" ──
 igual("ok: resumen y sí", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1), fila("user", "contado", 2)], ...OK }), { ok: true });
@@ -55,12 +60,41 @@ igual("bloquea: entre el resumen y el sí hubo otra respuesta del bot",
   { ok: false, motivo: "sin_resumen" });
 igual("bloquea: resumen de hace 61 minutos", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 61)], ...OK }), { ok: false, motivo: "resumen_viejo" });
 igual("ok: resumen de hace 59 minutos", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 59)], ...OK }), { ok: true });
-igual("bloquea: el modelo carga otro total", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, totalTexto: "$99.999" }), { ok: false, motivo: "resumen_distinto" });
-igual("bloquea: el modelo carga un artículo que el cliente no vio", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, cods: ["505", "LOKE-501", "777"] }), { ok: false, motivo: "resumen_distinto" });
-igual("bloquea: total que sólo es prefijo del importe mostrado ($124.12 vs $124.125)", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, totalTexto: "$124.12" }), { ok: false, motivo: "resumen_distinto" });
-igual("bloquea: código que sólo es parte de otro ('50' dentro de '505')", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, cods: ["50"] }), { ok: false, motivo: "resumen_distinto" });
-igual("bloquea: pedido sin artículos", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, cods: [] }), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: el modelo carga otro total", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, resumen: cambiado("$124.125", "$99.999") }), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: el modelo carga un artículo que el cliente no vio", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, resumen: cambiado("Subtotal", "• 1 caja Destapador (777) — $5.000\nSubtotal") }), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: total que sólo es prefijo del importe mostrado ($124.12 vs $124.125)", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, resumen: cambiado("$124.125", "$124.12") }), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: código que sólo es parte de otro ('50' dentro de '505')", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, resumen: cambiado("(505)", "(50)") }), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: pedido sin artículos", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", RESUMEN, 1)], ...OK, resumen: BLOQUE.replace(/\n• [^\n]*/g, "") }), { ok: false, motivo: "resumen_distinto" });
 igual("bloquea: fecha ilegible en el historial (falla cerrado)", evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), { rol: "assistant", contenido: RESUMEN, creado_en: "basura" }], ...OK }), { ok: false, motivo: "resumen_viejo" });
+
+// ── Revisión de GPT Astra (08/10, auditoría 740): lo que el sí anterior NO cubre ──
+const conSi = (resumen: string, visto = RESUMEN, min = 1) =>
+  evaluarConfirmacion({ textoCliente: "sí", historial: [fila("user", "sí", 0), fila("assistant", visto, min)], ahora: AHORA, resumen });
+igual("bloquea: otras cajas con los mismos códigos y el mismo total",
+  conSi(cambiado("• 3 cajas Pelapapas (505) — $120.000\n• 2 cajas Abrelatas (LOKE-501) — $45.500", "• 2 cajas Pelapapas (505) — $80.000\n• 3 cajas Abrelatas (LOKE-501) — $85.500")),
+  { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: otra entrega (otra sucursal de la misma cuenta)", conSi(cambiado("Entrega: Virgilio 2788", "Entrega: Sucursal Rosario (por expreso Vía Cargo)")), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: un artículo menos con el mismo total",
+  conSi(cambiado("• 3 cajas Pelapapas (505) — $120.000\n• 2 cajas Abrelatas (LOKE-501) — $45.500", "• 5 cajas Abrelatas (LOKE-501) — $165.500")),
+  { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: se carga un artículo menos y el cliente vio uno más (todos los renglones a cargar están en lo visto)",
+  conSi(cambiado("\n• 2 cajas Abrelatas (LOKE-501) — $45.500", "")), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: forma de pago sin descuento cuyo total es el subtotal que vio",
+  conSi(cambiado("Forma de pago: Pago Contado: 25% Dto\n*Total: $124.125 + IVA*", "Forma de pago: 120 días\n*Total: $165.500 + IVA*")),
+  { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: otra razón social", conSi(cambiado("*Chef S.R.L.* (CUIT 30-71234567-9)", "*Otra S.A.* (CUIT 30-11111111-1)")), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: el cliente vio un resumen incompleto (sólo códigos, total y entrega)",
+  conSi(BLOQUE, "Tu pedido: 505 y LOKE-501. Total $124.125 + IVA. Entrega: Virgilio 2788. ¿Confirmás?"), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: el resumen a cargar no es un resumen", conSi("Hecho."), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: el resumen a cargar viene vacío", conSi(""), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: resumen fechado 10 minutos en el futuro", conSi(BLOQUE, RESUMEN, -10), { ok: false, motivo: "resumen_viejo" });
+igual("ok: resumen fechado 1 minuto en el futuro (diferencia de relojes)", conSi(BLOQUE, RESUMEN, -1), { ok: true });
+
+// ── Lo que el modelo o WhatsApp cambian de forma y NO tiene que bloquear ──
+igual("ok: sin negritas, con '-' en vez de '•' y de '—'", conSi(BLOQUE, RESUMEN.replace(/\*/g, "").replace(/•/g, "-").replace(/—/g, "-")), { ok: true });
+igual("ok: con la etiqueta de marca arriba y texto del modelo antes y después",
+  conSi(BLOQUE, `*Loekemeyer*\nPerfecto, te paso el resumen:\n\n${BLOQUE}\n\n¿Confirmás con un sí? 🙌`), { ok: true });
+igual("ok: espacios de más", conSi(BLOQUE, RESUMEN.replace(/ /g, "  ")), { ok: true });
 
 // ── Historial ──
 igual("sin contestar: toma los mensajes hasta la última respuesta del bot", textosSinContestar([fila("user", "b", 0), fila("user", "a", 1), fila("assistant", "x", 2), fila("user", "viejo", 3)], "b"), ["b", "a"]);

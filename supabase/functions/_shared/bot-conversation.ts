@@ -1163,15 +1163,13 @@ async function executeTool(
         return { data: { ok: r?.ok === true, errores, avisos: r?.avisos ?? [], resumen_para_el_cliente: resumen,
           ...(parecidos.length ? { parecidos: parecidos.map((p) => `pedido ${p.tipo === "web" ? "por la web" : "por WhatsApp"} del ${p.fecha} con ${p.comunes} de ${p.de} artículos iguales`),
             regla_parecidos: "Antes del resumen preguntale si es un pedido nuevo o el mismo que ese. Si es el mismo, no sigas." } : {}),
-          regla: r?.ok ? "Mostrale el resumen tal cual (incluida la razón social a nombre de la que va) y pedile que confirme con un sí." : "Resolvé los errores con el cliente y volvé a armar." } };
+          regla: r?.ok ? "Mostrale resumen_para_el_cliente tal cual, renglón por renglón y sin cambiarle nada (incluida la razón social a nombre de la que va), y pedile que confirme con un sí. El sistema compara cada renglón antes de cargar." : "Resolvé los errores con el cliente y volvé a armar." } };
       }
       if (!r?.ok) return { data: { ok: false, errores, regla: "No se cargó: resolvé los errores y volvé a armar el pedido." } };
       // Compuerta de servidor (medida 1 de seguridad, Pablo 06/10): el modelo ya no decide solo que el cliente confirmó. Hace falta un
-      // sí a secas del cliente sobre el resumen exacto que vio (mismos artículos y total, de hace menos de 1 hora). Ver pedido-gate.ts.
-      const veredicto = evaluarConfirmacion({
-        textoCliente: ctx.userText, historial: ctx.historial,
-        cods: ((r.items ?? []) as Array<{ cod_art: string }>).map((x) => x.cod_art), totalTexto: pesos(r.total),
-      });
+      // sí a secas del cliente sobre el resumen exacto que vio (cada renglón: artículos con sus cajas, pago, entrega y total, de hace
+      // menos de 1 hora). Ver pedido-gate.ts.
+      const veredicto = evaluarConfirmacion({ textoCliente: ctx.userText, historial: ctx.historial, resumen: resumen ?? "" });
       if (!veredicto.ok) {
         console.warn(`[gate-pedido] confirmar_pedido bloqueado (${veredicto.motivo}) …${phone.slice(-4)}`);
         return { data: { ok: false, no_cargado: true, regla: REGLA_BLOQUEO[veredicto.motivo] } };
@@ -1183,6 +1181,14 @@ async function executeTool(
       const g = await armar(true);
       if (g.error || !g.data?.ok || Math.round(Number(g.data.total)) !== Math.round(Number(r.total))) {
         if (g.error) console.error("bot_pedido_armar (guardar):", g.error.message);
+        // bot_pedido_armar ya guardó la precarga antes de que se compare el total (sql/128). Sin descartarla quedaba "precargado",
+        // sin tarea para nadie, y wa_pedido_parecidos la contaba como pedido abierto: al reintentar, el bot preguntaba si era el
+        // mismo y con un "sí" el pedido no se cargaba nunca (auditoría 741).
+        if (g.data?.precarga_id) {
+          const { error: eD } = await supabase.rpc("bot_pedido_descartar", { p_precarga_id: g.data.precarga_id, p_por: "bot (el total cambió al guardar)",
+            p_nota: `Total mostrado ${pesos(r.total)}, al guardar ${pesos(g.data.total)}` });
+          if (eD) console.error(`[gate-pedido] no se pudo descartar la precarga ${g.data.precarga_id}:`, eD.message);
+        }
         return { data: { ok: false, no_cargado: true, regla: REGLA_BLOQUEO.resumen_distinto } };
       }
       r = g.data;

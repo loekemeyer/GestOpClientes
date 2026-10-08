@@ -6,8 +6,12 @@
 //   1. El mensaje del cliente (lo que escribió desde la última respuesta del bot) es un sí a secas: sólo vocabulario de confirmación.
 //      "sí pero cambiá…", "sí, y agregame…", "no", "¿cuánto sale?" no pasan: cualquier palabra fuera del vocabulario bloquea.
 //   2. Lo último que dijo el bot es el resumen de un pedido (formato fijo de `armar_pedido`: "Tu pedido…", "Total…", "Entrega…").
-//   3. Ese resumen es el MISMO que se va a cargar: incluye el total y cada código de artículo que el servidor acaba de calcular
-//      (el modelo no puede cargar otros artículos, cantidades ni forma de pago que los que el cliente vio) y tiene menos de 1 hora.
+//   3. Ese resumen es el MISMO que se va a cargar y tiene menos de 1 hora: cada renglón del resumen que el servidor acaba de rearmar
+//      con los datos a cargar (razón social, cada artículo con sus cajas e importe, subtotal, forma de pago, total y entrega) está
+//      igual en lo que vio el cliente, y vio la misma cantidad de artículos.
+//
+// Hasta el 08/10 el punto 3 miraba sólo los códigos y el total, y dejaba pasar otras cajas con el mismo total, otra entrega, un
+// artículo menos o una forma de pago cuyo total coincidía con el subtotal mostrado (revisión de GPT Astra sobre 3d47af8, auditoría 740).
 //
 // Es la misma ventana que usa `ultimoDelBotEsDePedido` (pedido-turno.ts). Módulo PURO (sin red ni base): se prueba en
 // tests/pedido-gate.test.ts. Falla cerrado: ante la duda NO se carga, el modelo vuelve a mostrar el resumen y el cliente confirma de nuevo.
@@ -67,30 +71,30 @@ export function textosSinContestar(historial: FilaHistorial[], textoActual: stri
 
 /** ¿El texto del bot es un resumen de pedido en el formato de `armar_pedido`? */
 export function esResumenDePedido(texto: string): boolean {
-  return /tu pedido/i.test(texto) && /total/i.test(texto) && /entrega/i.test(texto);
+  return /tu\s+pedido/i.test(texto) && /total/i.test(texto) && /entrega/i.test(texto);
 }
 
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Un historial con fecha más adelante que el reloj del servidor no es confiable (falla cerrado). Margen por diferencia de relojes. */
+const TOLERANCIA_RELOJ_MS = 2 * 60_000;
 
-/** El código aparece como palabra suelta (no "505" dentro de "5050" ni de "LOKE-505"). */
-function contieneCodigo(texto: string, cod: string): boolean {
-  return new RegExp(`(?<![A-Za-z0-9-])${esc(cod)}(?![A-Za-z0-9-])`, "i").test(texto);
+/** Renglón comparable: sin negritas ni viñeta inicial, guiones largos como "-", espacios simples y minúsculas. Sólo tolera lo que
+ *  WhatsApp o el modelo cambian de forma; cajas, códigos, importes, forma de pago y entrega tienen que estar iguales. */
+function renglon(s: string): string {
+  return s.replace(/[*_~]/g, "").replace(/[–—]/g, "-").replace(/^\s*[•·-]\s*/, "").replace(/\s+/g, " ").trim().toLowerCase();
 }
+const renglones = (texto: string) => String(texto ?? "").split(/\r?\n/).map(renglon).filter(Boolean);
 
-/** El importe aparece completo (no "$1.000" dentro de "$1.000.000"). */
-function contieneImporte(texto: string, importe: string): boolean {
-  return new RegExp(`${esc(importe)}(?![.,]?\\d)`).test(texto);
-}
+/** Renglón de artículo del resumen: "3 cajas Pelapapas (505) - $120.000". */
+const RE_RENGLON_ARTICULO = /^\d+ cajas? .*\([^()]*\) - \$\d[\d.]*$/;
+const cuantosArticulos = (rs: string[]) => rs.filter((r) => RE_RENGLON_ARTICULO.test(r)).length;
 
 export interface EntradaConfirmacion {
   /** Mensaje del cliente en este turno. */
   textoCliente: string;
   /** Historial del más nuevo al más viejo. */
   historial: FilaHistorial[];
-  /** Códigos de artículo del pedido tal como los calculó el servidor (`cod_art` de `bot_pedido_armar`). */
-  cods: string[];
-  /** Total tal como el servidor lo muestra en el resumen (mismo formateo que `resumen_para_el_cliente`). */
-  totalTexto: string;
+  /** Resumen que el servidor acaba de rearmar con los datos que se van a cargar (`resumen_para_el_cliente` de armar_pedido). */
+  resumen: string;
   ahora?: number;
 }
 
@@ -100,14 +104,20 @@ export function evaluarConfirmacion(e: EntradaConfirmacion): VeredictoConfirmaci
   if (!sinPalabrasRaras || !textos.some(esSiAsecas)) return { ok: false, motivo: "sin_si" };
 
   const ult = e.historial.find((h) => h.rol === "assistant");
-  const resumen = String(ult?.contenido ?? "");
-  if (!ult || !esResumenDePedido(resumen)) return { ok: false, motivo: "sin_resumen" };
+  const visto = String(ult?.contenido ?? "");
+  if (!ult || !esResumenDePedido(visto)) return { ok: false, motivo: "sin_resumen" };
 
   const t = new Date(ult.creado_en).getTime();
   const ahora = e.ahora ?? Date.now();
-  if (!Number.isFinite(t) || ahora - t > VIGENCIA_RESUMEN_MS) return { ok: false, motivo: "resumen_viejo" };
+  if (!Number.isFinite(t) || ahora - t > VIGENCIA_RESUMEN_MS || t - ahora > TOLERANCIA_RELOJ_MS) return { ok: false, motivo: "resumen_viejo" };
 
-  if (!e.cods.length || !contieneImporte(resumen, e.totalTexto) || !e.cods.every((c) => contieneCodigo(resumen, c))) {
+  // Cada renglón del resumen a cargar tiene que estar en lo que vio el cliente, y con la misma cantidad de artículos: así un
+  // artículo de más en lo visto (o de menos en lo que se carga) tampoco pasa.
+  const aCargar = renglones(e.resumen);
+  const vistos = renglones(visto);
+  const set = new Set(vistos);
+  const articulos = cuantosArticulos(aCargar);
+  if (!articulos || !esResumenDePedido(e.resumen) || !aCargar.every((r) => set.has(r)) || cuantosArticulos(vistos) !== articulos) {
     return { ok: false, motivo: "resumen_distinto" };
   }
   return { ok: true };
@@ -118,5 +128,5 @@ export const REGLA_BLOQUEO: Record<MotivoBloqueo, string> = {
   sin_si: "No se cargó: el cliente todavía no confirmó con un sí. Mostrale el resumen de armar_pedido tal cual y pedile que confirme con un sí. No vuelvas a llamar confirmar_pedido hasta que lo diga.",
   sin_resumen: "No se cargó: el cliente todavía no vio el resumen. Llamá armar_pedido, mostrale el resumen tal cual y pedile que confirme con un sí.",
   resumen_viejo: "No se cargó: el resumen que vio el cliente es de hace más de una hora. Llamá armar_pedido, mostrale el resumen actualizado tal cual y pedile que confirme de nuevo con un sí.",
-  resumen_distinto: "No se cargó: lo que querés cargar no coincide con el resumen que vio el cliente (artículos, cajas o total). Llamá armar_pedido con lo que el cliente confirmó, mostrale el resumen tal cual y pedile que confirme con un sí.",
+  resumen_distinto: "No se cargó: lo que querés cargar no coincide con el resumen que vio el cliente (artículos, cajas, forma de pago, entrega o total). Llamá armar_pedido con lo que el cliente confirmó, mostrale resumen_para_el_cliente tal cual, renglón por renglón y sin cambiarle nada, y pedile que confirme con un sí.",
 };

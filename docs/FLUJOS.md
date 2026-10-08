@@ -429,8 +429,12 @@ iguales → pregunta si es otro o el mismo) → muestra el resumen → con el "s
 "sí" (compuerta, `_shared/pedido-gate.ts`, Pablo 06/10):** sólo carga si lo que el cliente escribió desde la última
 respuesta del bot es un sí a secas (vocabulario de confirmación: "sí", "dale", "ok", "confirmo", 👍…; cualquier otra palabra,
 un número o un "pero" lo bloquea), si lo último que dijo el bot es el resumen (formato de `armar_pedido`), si ese resumen
-tiene menos de 1 hora y si incluye el total y cada código de artículo que el servidor acaba de calcular. Si no, la
-herramienta devuelve `no_cargado` y el agente vuelve a mostrar el resumen y pide el sí. Eso deja una
+tiene menos de 1 hora y si **cada renglón** del resumen que el servidor rearma con lo que va a cargar (razón social, cada artículo con
+sus cajas e importe, subtotal, forma de pago, total y entrega) está igual en lo que vio el cliente, con la misma cantidad de artículos
+(08/10: antes miraba sólo los códigos y el total, y pasaban otras cajas, otra entrega o un artículo menos con el mismo total, auditoría 740).
+Negritas, viñetas, guiones largos y espacios no cuentan. Si no, la herramienta devuelve `no_cargado` y el agente vuelve a mostrar el resumen
+y pide el sí. Si al guardar el total cambió (precio que se actualizó entre el resumen y el guardado), la precarga recién guardada se descarta
+(`bot_pedido_descartar`) y el bot vuelve a mostrar el resumen (auditoría 741). Eso deja una
 **precarga** (`wa_pedido_precarga`, Gestión no la ve) y una tarea "Pedido por WhatsApp" con **Confirmar y enviar a
 Gestión** / **Descartar** (lk_alertas `pedido_confirmar`/`pedido_descartar`). Confirmar crea el pedido con su ficha
 (origen "WhatsApp"): retry-sheets lo manda al Sheet y al cliente le llega "pedido recibido". Modo "directo" confirma
