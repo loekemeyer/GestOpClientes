@@ -4,7 +4,7 @@
 //
 // Causa: la búsqueda por NOMBRE de la respuesta fija (RPC wa_product_match) falla con "UNION types bigint and uuid cannot be matched" en CADA llamada
 // (product_aliases.product_id es bigint y products.id es uuid), y además esa RPC sólo mira artículos activos: "Automate" (cód. 597) está inactivo. Si el cliente
-// nombró algo y no se lo encontró por código, la respuesta fija no pregunta de nuevo: lo toma la IA (buscar_productos), que sabe decir "discontinuado".
+// nombró algo y no se lo encontró por código, la respuesta fija no pregunta de nuevo: lo toma la IA (buscar_productos), que sabe decir que no está disponible.
 // 07/10 (Pablo): la llamada a wa_product_match se SACÓ de faq.ts en vez de arreglar la RPC. Arreglada y con limit 1, el "automate" devolvía la bombilla 654
 // (score 0,16) y "bombilla" / "cuchara" empatan 3 a 3: cotizaría un artículo equivocado. Por nombre resuelve la IA. Lo guarda tests/articulo-nombre.test.ts.
 

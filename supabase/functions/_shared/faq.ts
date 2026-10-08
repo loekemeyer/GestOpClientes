@@ -1402,7 +1402,7 @@ async function pagoDiscountBlock(): Promise<string> {
 // Artículo mencionado en una frase ("¿tienen stock del 506?", "me pasás el precio del 506?"): sólo por el código que trae la frase.
 // Por NOMBRE no se busca acá (Pablo, 07/10, m72): la RPC wa_product_match fallaba en CADA llamada (bigint vs uuid) y, arreglada, con limit 1 y sin umbral
 // cotizaba el artículo equivocado (el "automate", inactivo, devolvía la bombilla 654 con score 0,16; "bombilla" y "cuchara" empatan 3 a 3). Si nombró algo
-// y no hay código, `null`: lo resuelve la IA (buscar_productos), que sabe decir "discontinuado" y repreguntar.
+// y no hay código, `null`: lo resuelve la IA (buscar_productos), que sabe decir que un artículo no está disponible y repreguntar.
 async function articuloDeLaFrase(message: string): Promise<{ cod: string; description: string; list_price: number } | null> {
   for (const cod of message.match(/\b\d{3,5}[a-z]?\b/gi) ?? []) {
     const { data } = await supabase.from("products").select("cod, description, list_price").eq("cod", cod.toUpperCase()).limit(1);

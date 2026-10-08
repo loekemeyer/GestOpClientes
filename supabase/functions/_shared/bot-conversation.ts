@@ -94,9 +94,9 @@ export async function pedidosWaHabilitados(): Promise<boolean> {
   } catch { return false; }
 }
 
-// ── Productos discontinuados y foto (Pablo, 30/09, fila 2.5) ──
-// Las reglas que acompañan la respuesta (REGLA_DISCONTINUADO y REGLA_SIN_STOCK) viven en _shared/inactivos.ts: desde el 08/10 un inactivo con la etiqueta «SIN STOCK» ya
-// no se dice discontinuado (tarea 5283).
+// ── Artículos inactivos (no figuran en la web) y foto (Pablo, 30/09, fila 2.5) ──
+// Las reglas que acompañan la respuesta (REGLA_SIN_STOCK y REGLA_NO_DISPONIBLE) viven en _shared/inactivos.ts: desde el 08/10 ningún inactivo se dice "discontinuado" (tareas 5283 y 5448):
+// «SIN STOCK» se dice sin stock y todo el resto "no disponible por el momento".
 const sinTildes = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 async function fotoProducto(cod: string): Promise<string | null> {
   const url = `${Deno.env.get("SUPABASE_URL") ?? ""}/storage/v1/object/public/products-images/${encodeURIComponent(cod)}.webp`;
@@ -105,17 +105,17 @@ async function fotoProducto(cod: string): Promise<string | null> {
     return r.ok ? url : null;
   } catch { return null; }
 }
-async function codigosDiscontinuados(query: string) {
+async function codigosInactivos(query: string) {
   const codigos = [...new Set((query.match(/\b\d{2,4}[a-z]?\b/gi) ?? []).map((c) => c.toUpperCase()))];
   if (!codigos.length) return [];
   const { data: inact } = await supabase.from("products").select("cod, description, category, badge_status").in("cod", codigos).eq("active", false);
   return await conParecidos((inact ?? []) as Array<{ cod: string; description: string; category: string; badge_status?: string | null }>);
 }
 // Pablo, 06/10 (m72): "el precio de lista del automate" → "Automate" (cód. 597) está inactivo y la búsqueda de activos devolvía otra cosa
-// ("Bombilla Autolimpiante"). Si el cliente NOMBRÓ un artículo inactivo y ningún activo lleva esa palabra, es un discontinuado (como con el código).
-async function discontinuadosPorNombre(query: string, activos: Array<{ description?: string }>) {
+// ("Bombilla Autolimpiante"). Si el cliente NOMBRÓ un artículo inactivo y ningún activo lleva esa palabra, es un inactivo (como con el código).
+async function inactivosPorNombre(query: string, activos: Array<{ description?: string }>) {
   const palabra = (() => { const w = palabraDeBusqueda(query); return w ? raizDeBusqueda(w) : null; })();
-  if (!palabra || /\b\d{2,4}[a-z]?\b/i.test(query)) return []; // con un código ya lo resolvió codigosDiscontinuados
+  if (!palabra || /\b\d{2,4}[a-z]?\b/i.test(query)) return []; // con un código ya lo resolvió codigosInactivos
   if (activos.some((a) => sinTildes(String(a.description ?? "")).includes(sinTildes(palabra)))) return [];
   const { data: inact } = await supabase.from("products").select("cod, description, category, badge_status").eq("active", false).ilike("description", `%${palabra}%`).limit(3);
   return await conParecidos((inact ?? []) as Array<{ cod: string; description: string; category: string; badge_status?: string | null }>);
@@ -131,10 +131,10 @@ async function conParecidos(inact: Array<{ cod: string; description: string; cat
       .filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3);
     const parecidos_activos = await Promise.all(top.map(async ({ m }) => ({ cod: m.cod, descripcion: m.description,
       unidades_por_caja: m.uxb, ...(await fotoProducto(m.cod).then((f) => f ? { foto: f } : {})) })));
-    // Tarea 5283 (08/10): «SIN STOCK» no es discontinuado, y «NUEVO» / «LIQUIDACIÓN» inactivos tampoco se afirman discontinuados ni sin stock (no se sabe): se marcan aparte
-    // para que la regla no le diga al cliente que el artículo no vuelve. Sin etiqueta sigue siendo discontinuado.
+    // Tareas 5283 y 5448 (08/10): «SIN STOCK» se marca aparte (el stock lo dice consultar_stock) y todo el resto es "no disponible por el momento": no se sabe si es por stock
+    // o si ya no se hace, así que la regla no le dice al cliente que el artículo no vuelve ni que no hay stock.
     const est = estadoDeInactivo(p.badge_status);
-    const marca = est === "sin_stock" ? { sin_stock: true } : est === "no_disponible" ? { no_disponible: true } : { discontinuado: true };
+    const marca = est === "sin_stock" ? { sin_stock: true } : { no_disponible: true };
     out.push({ cod: p.cod, descripcion: p.description, ...marca, parecidos_activos });
   }
   return out;
@@ -926,16 +926,16 @@ async function executeTool(
         p_limit: input.limite ?? 10,
       });
       if (error) return { data: { error: error.message } };
-      // Pablo, 30/09 (2.5): un código que existe pero está inactivo es "discontinuado", no "no encontré". Se le ofrecen los
+      // Pablo, 30/09 (2.5): un código que existe pero está inactivo es "no disponible por el momento" (desde el 08/10; antes "discontinuado"), no "no encontré". Se le ofrecen los
       // activos más parecidos de su categoría, con el link de la foto para que el cliente confirme.
-      let discontinuados = await codigosDiscontinuados(String(input.query ?? ""));
-      if (!discontinuados.length) {
-        // Por NOMBRE (m72): si el cliente nombró un artículo inactivo y ningún activo lo lleva, se contesta sólo el discontinuado (no lo parecido por trigramas).
-        discontinuados = await discontinuadosPorNombre(String(input.query ?? ""), (data ?? []) as Array<{ description?: string }>);
-        if (discontinuados.length) return { data: { discontinuados, regla: reglaDeInactivos(discontinuados) } };
+      let inactivos = await codigosInactivos(String(input.query ?? ""));
+      if (!inactivos.length) {
+        // Por NOMBRE (m72): si el cliente nombró un artículo inactivo y ningún activo lo lleva, se contesta sólo el inactivo (no lo parecido por trigramas).
+        inactivos = await inactivosPorNombre(String(input.query ?? ""), (data ?? []) as Array<{ description?: string }>);
+        if (inactivos.length) return { data: { no_disponibles: inactivos, regla: reglaDeInactivos(inactivos) } };
       }
       if (!data?.length) {
-        if (discontinuados.length) return { data: { discontinuados, regla: reglaDeInactivos(discontinuados) } };
+        if (inactivos.length) return { data: { no_disponibles: inactivos, regla: reglaDeInactivos(inactivos) } };
         return { data: { mensaje: `No encontré productos para "${input.query}".` } };
       }
       // Link de la foto (bucket público products-images/<cod>.webp) cuando son pocos resultados: para que el cliente
@@ -953,7 +953,7 @@ async function executeTool(
         precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
         ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
           descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) }));
-      return { data: discontinuados.length ? { productos: res, discontinuados, regla: reglaDeInactivos(discontinuados) } : res };
+      return { data: inactivos.length ? { productos: res, no_disponibles: inactivos, regla: reglaDeInactivos(inactivos) } : res };
     }
 
     case "consultar_stock": {
