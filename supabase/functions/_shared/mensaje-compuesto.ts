@@ -113,7 +113,9 @@ export function bloquePistas(pistas: string[]): string {
   return "PISTAS DE LAS RESPUESTAS FIJAS PARA ESTE MENSAJE (salen de palabras clave, por eso este mensaje no se contestó con una respuesta fija):\n" +
     pistas.join("\n") + "\n" +
     "Cómo usarlas: contestá TODO lo que el cliente pide en este mensaje, en UN solo mensaje natural y en el orden en que lo pidió, " +
-    "teniendo en cuenta lo que ya se habló. Si una pista contesta una parte, usá su contenido sin cambiar datos, montos, fechas ni a quién se deriva; " +
+    "teniendo en cuenta lo que ya se habló. Cada parte lleva su respuesta, aunque sea que no hay dato: si pregunta por su pedido y no le figura " +
+    "ninguno pendiente, decíselo con esas palabras (y seguí la regla del pedido que no figura); nunca saltees una parte ni la cambies por otra cosa. " +
+    "Si una pista contesta una parte, usá su contenido sin cambiar datos, montos, fechas ni a quién se deriva; " +
     "podés unirla con el resto en vez de copiarla entera. Si una pista no corresponde a lo que el cliente quiso decir, ignorala. " +
     "Si una pista deriva y corresponde, llamá a derivar_a_persona con ese motivo. Lo que ninguna pista cubre, resolvelo con tus herramientas. " +
     "No repitas un texto que ya le mandaste en esta charla: si ya se lo dijiste, referite a eso en pocas palabras.";

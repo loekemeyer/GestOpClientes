@@ -84,6 +84,8 @@ for (const t of ["el 505", "entrega inmediata", "el viernes 10"]) igual(`no es c
 igual("sin pistas, bloque vacío", mc.bloquePistas([]), "");
 const b = mc.bloquePistas([mc.pistaDeParte("pasame precio", LISTA, null), mc.pistaRepetida(LISTA)]);
 igual("el bloque dice que conteste todo en un mensaje", b.includes("contestá TODO lo que el cliente pide en este mensaje, en UN solo mensaje"), true);
+igual("el bloque pide no saltear partes (Chef 411 con Haiku: 'cuándo sale mi pedido' quedó sin contestar)",
+  b.includes("Cada parte lleva su respuesta, aunque sea que no hay dato") && b.includes("nunca saltees una parte"), true);
 igual("el bloque trae la respuesta fija", b.includes("«pasame precio», la respuesta fija aprobada es: «La lista de precios vigente"), true);
 igual("la pista repetida pide no repetir", mc.pistaRepetida(LISTA).includes("No se la repitas igual"), true);
 igual("la pista avisa la derivación", mc.pistaDeParte("x", "y", "entrega").endsWith("(además deriva a una persona: motivo entrega)."), true);
