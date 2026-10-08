@@ -14,6 +14,10 @@ igual("Sonnet y Haiku (anthropic): 30 s", timeoutDeModelo("anthropic"), 30_000);
 igual("un proveedor compatible con OpenAI (groq, openai…): 30 s", [timeoutDeModelo("openai"), timeoutDeModelo("groq")], [30_000, 30_000]);
 igual("proveedor vacío o desconocido: 30 s (no se acorta lo que no se midió)", [timeoutDeModelo(""), timeoutDeModelo("otro")], [30_000, 30_000]);
 igual("el tope de Gemini es menor que el del resto", TIMEOUT_GEMINI_MS < TIMEOUT_MODELO_MS, true);
+igual("Gemini con su nombre: sigue en 8 s", [timeoutDeModelo("google", "gemini-3.5-flash-lite"), timeoutDeModelo("google", "gemini-3.1-flash-lite")], [8_000, 8_000]);
+igual("Gemma 4 por la API de Google: 30 s (piensa antes de contestar, no es Gemini)",
+  [timeoutDeModelo("google", "gemma-4-31b-it"), timeoutDeModelo("google", "gemma-4-26b-a4b-it")], [30_000, 30_000]);
+igual("'gemma' en otro proveedor no cambia nada: 30 s", timeoutDeModelo("groq", "gemma2-9b-it"), 30_000);
 // Margen sobre lo medido en bot_llm_intentos (48 h, 06/10): p99 2.709 ms, máximo normal 4.498 ms.
 igual("el tope de Gemini deja margen sobre el máximo normal medido (4.498 ms)", TIMEOUT_GEMINI_MS > 4_498 * 1.5, true);
 
