@@ -30,7 +30,7 @@ import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { palabraDeBusqueda, raizDeBusqueda } from "./articulo-nombre.ts";
-import { estadoDeInactivo, reglaDeInactivos } from "./inactivos.ts";
+import { REGLA_NO_DISPONIBLE } from "./inactivos.ts";
 import {
   callModel,
   esCulpaDelRequest,
@@ -95,8 +95,8 @@ export async function pedidosWaHabilitados(): Promise<boolean> {
 }
 
 // ── Artículos inactivos (no figuran en la web) y foto (Pablo, 30/09, fila 2.5) ──
-// Las reglas que acompañan la respuesta (REGLA_SIN_STOCK y REGLA_NO_DISPONIBLE) viven en _shared/inactivos.ts: desde el 08/10 ningún inactivo se dice "discontinuado" (tareas 5283 y 5448):
-// «SIN STOCK» se dice sin stock y todo el resto "no disponible por el momento".
+// La regla que acompaña la respuesta (REGLA_NO_DISPONIBLE) vive en _shared/inactivos.ts: desde el 08/10 ningún inactivo se dice "discontinuado" ni "sin stock" (tareas 5283, 5448 y 5456):
+// todos, con o sin etiqueta, son "no disponible por el momento".
 const sinTildes = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 async function fotoProducto(cod: string): Promise<string | null> {
   const url = `${Deno.env.get("SUPABASE_URL") ?? ""}/storage/v1/object/public/products-images/${encodeURIComponent(cod)}.webp`;
@@ -108,8 +108,8 @@ async function fotoProducto(cod: string): Promise<string | null> {
 async function codigosInactivos(query: string) {
   const codigos = [...new Set((query.match(/\b\d{2,4}[a-z]?\b/gi) ?? []).map((c) => c.toUpperCase()))];
   if (!codigos.length) return [];
-  const { data: inact } = await supabase.from("products").select("cod, description, category, badge_status").in("cod", codigos).eq("active", false);
-  return await conParecidos((inact ?? []) as Array<{ cod: string; description: string; category: string; badge_status?: string | null }>);
+  const { data: inact } = await supabase.from("products").select("cod, description, category").in("cod", codigos).eq("active", false);
+  return await conParecidos((inact ?? []) as Array<{ cod: string; description: string; category: string }>);
 }
 // Pablo, 06/10 (m72): "el precio de lista del automate" → "Automate" (cód. 597) está inactivo y la búsqueda de activos devolvía otra cosa
 // ("Bombilla Autolimpiante"). Si el cliente NOMBRÓ un artículo inactivo y ningún activo lleva esa palabra, es un inactivo (como con el código).
@@ -117,10 +117,10 @@ async function inactivosPorNombre(query: string, activos: Array<{ description?: 
   const palabra = (() => { const w = palabraDeBusqueda(query); return w ? raizDeBusqueda(w) : null; })();
   if (!palabra || /\b\d{2,4}[a-z]?\b/i.test(query)) return []; // con un código ya lo resolvió codigosInactivos
   if (activos.some((a) => sinTildes(String(a.description ?? "")).includes(sinTildes(palabra)))) return [];
-  const { data: inact } = await supabase.from("products").select("cod, description, category, badge_status").eq("active", false).ilike("description", `%${palabra}%`).limit(3);
-  return await conParecidos((inact ?? []) as Array<{ cod: string; description: string; category: string; badge_status?: string | null }>);
+  const { data: inact } = await supabase.from("products").select("cod, description, category").eq("active", false).ilike("description", `%${palabra}%`).limit(3);
+  return await conParecidos((inact ?? []) as Array<{ cod: string; description: string; category: string }>);
 }
-async function conParecidos(inact: Array<{ cod: string; description: string; category: string; badge_status?: string | null }>) {
+async function conParecidos(inact: Array<{ cod: string; description: string; category: string }>) {
   const out = [];
   for (const p of inact) {
     const raiz = (w: string) => w.replace(/s$/, "");
@@ -131,11 +131,9 @@ async function conParecidos(inact: Array<{ cod: string; description: string; cat
       .filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3);
     const parecidos_activos = await Promise.all(top.map(async ({ m }) => ({ cod: m.cod, descripcion: m.description,
       unidades_por_caja: m.uxb, ...(await fotoProducto(m.cod).then((f) => f ? { foto: f } : {})) })));
-    // Tareas 5283 y 5448 (08/10): «SIN STOCK» se marca aparte (el stock lo dice consultar_stock) y todo el resto es "no disponible por el momento": no se sabe si es por stock
-    // o si ya no se hace, así que la regla no le dice al cliente que el artículo no vuelve ni que no hay stock.
-    const est = estadoDeInactivo(p.badge_status);
-    const marca = est === "sin_stock" ? { sin_stock: true } : { no_disponible: true };
-    out.push({ cod: p.cod, descripcion: p.description, ...marca, parecidos_activos });
+    // Tareas 5283, 5448 y 5456 (08/10): todo inactivo es "no disponible por el momento", tenga la etiqueta que tenga: no se sabe si es por stock o si ya no se hace,
+    // así que la regla no le dice al cliente que el artículo no vuelve ni que no hay stock.
+    out.push({ cod: p.cod, descripcion: p.description, no_disponible: true, parecidos_activos });
   }
   return out;
 }
@@ -932,10 +930,10 @@ async function executeTool(
       if (!inactivos.length) {
         // Por NOMBRE (m72): si el cliente nombró un artículo inactivo y ningún activo lo lleva, se contesta sólo el inactivo (no lo parecido por trigramas).
         inactivos = await inactivosPorNombre(String(input.query ?? ""), (data ?? []) as Array<{ description?: string }>);
-        if (inactivos.length) return { data: { no_disponibles: inactivos, regla: reglaDeInactivos(inactivos) } };
+        if (inactivos.length) return { data: { no_disponibles: inactivos, regla: REGLA_NO_DISPONIBLE } };
       }
       if (!data?.length) {
-        if (inactivos.length) return { data: { no_disponibles: inactivos, regla: reglaDeInactivos(inactivos) } };
+        if (inactivos.length) return { data: { no_disponibles: inactivos, regla: REGLA_NO_DISPONIBLE } };
         return { data: { mensaje: `No encontré productos para "${input.query}".` } };
       }
       // Link de la foto (bucket público products-images/<cod>.webp) cuando son pocos resultados: para que el cliente
@@ -953,7 +951,7 @@ async function executeTool(
         precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
         ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
           descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) }));
-      return { data: inactivos.length ? { productos: res, no_disponibles: inactivos, regla: reglaDeInactivos(inactivos) } : res };
+      return { data: inactivos.length ? { productos: res, no_disponibles: inactivos, regla: REGLA_NO_DISPONIBLE } : res };
     }
 
     case "consultar_stock": {
