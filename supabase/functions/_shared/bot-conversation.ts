@@ -12,7 +12,7 @@ import { sinCierreGenerico } from "./cierre.ts";
 import { cierreSinTerminar, textoDeRespaldo } from "./respaldo-texto.ts";
 import { estadoRetiroParaIA } from "./fecha-retiro.ts";
 import { timeoutDeModelo } from "./timeouts.ts";
-import { idModeloPrueba, listaModelosPrueba, soloModelosGratis } from "./modelos-prueba.ts";
+import { esperaPorCuotaDePrueba, idModeloPrueba, listaModelosPrueba, soloModelosGratis } from "./modelos-prueba.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
@@ -1639,6 +1639,7 @@ export async function runConversation(
   const usos: Array<{ res: Parameters<typeof logUsage>[0]; free: boolean }> = [];
   const registrarUsos = () => { const m = motivoDelTurno(usadas); for (const u of usos) logUsage(u.res, u.free, phone, fuente, m); };
   const downThisTurn = new Set<number>(); // modelos que ya fallaron en este turno
+  const tTurno = performance.now();
 
   for (let iter = 0; iter < 5; iter++) {
     let res = null as Awaited<ReturnType<typeof callModel>> | null;
@@ -1647,7 +1648,8 @@ export async function runConversation(
     let lastStatus: number | undefined;
 
     // Failover: probamos la cadena en orden hasta que un modelo responda.
-    for (const cand of candidates) {
+    for (let ci = 0; ci < candidates.length; ci++) {
+      const cand = candidates[ci];
       if (downThisTurn.has(cand.id)) continue;
       if (cand.id === -2) await new Promise((r) => setTimeout(r, 1500));   // reintento del modelo fijo de pedidos (candidatosDePedido)
       const t0 = performance.now();
@@ -1671,6 +1673,15 @@ export async function runConversation(
           funcion: fuente, modeloId: cand.id, proveedor: cand.provider, modelo: cand.model, tarea: "conversacion",
           iteracion: iter + 1, ok: false, httpStatus: lastStatus, error: emsg, duracionMs: performance.now() - t0,
         });
+
+        // Pablo, 08/10: en el Simulador, un 429 por cuota por minuto (plan gratis) se espera y se reintenta el mismo modelo, si entra en
+        // el presupuesto del turno (modelos-prueba.ts). Con Gemma 4 gratis la 2ª llamada de un turno con herramientas daba siempre 429.
+        const espera = soloPruebas && fuente === "lk_bot-simular" ? esperaPorCuotaDePrueba(lastStatus, emsg, performance.now() - tTurno) : 0;
+        if (espera) {
+          await new Promise((r) => setTimeout(r, espera));
+          ci--;
+          continue;
+        }
 
         // Con cadena multi-proveedor, SIEMPRE probamos el próximo candidato: un 400 puede
         // ser un schema que ESE proveedor no acepta (y otro sí), no un error universal.
