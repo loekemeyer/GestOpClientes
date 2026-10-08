@@ -21,6 +21,7 @@ import { decidirSalida, type Hallazgo, modoDelFiltro, redactarSecretos, revisarS
 import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
+import { hechosDeLaCharla } from "./hechos-charla.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
 import { filasDeLaVentana, VENTANA_MIN, VENTANA_PASO } from "./ventana-historial.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
@@ -1508,12 +1509,13 @@ export async function runConversation(
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
   const canario = await canarioDelServidor();
-  const [filasVentana, promptBase, herramientas, chain, ejemplos] = await Promise.all([
+  const [filasVentana, promptBase, herramientas, chain, ejemplos, hechos] = await Promise.all([
     loadHistoryAnclada(phone),
     buildSystemPrompt(customerName, codCliente, dtoVol, canario),
     herramientasDelTurno(),
     resolveChain(),
     ejemplosAprobados(),
+    hechosDeLaCharla(phone),   // Pablo, 08/10: pases a una persona y acciones del bot que ya no entran en las 16 filas (hechos-charla.ts)
   ]);
   // Pablo, 08/10: el modelo ve la ventana anclada (16 a 23 mensajes, para que el caché reuse el historial entre turnos); la nota de tiempo
   // y las compuertas de pedido y de mail siguen viendo los últimos 16, como antes.
@@ -1521,9 +1523,10 @@ export async function runConversation(
   const bloqueAprobados = bloqueEjemplos(elegirEjemplos(userText, ejemplos));
   const pistas = bloquePistas(opciones.pistas ?? []);
   // Pablo, 08/10: el prompt va en dos partes para el caché de Anthropic (bot-llm.ts): la base (reglas y datos del cliente) es igual en todas las
-  // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, ejemplos, pistas) va
+  // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, hechos, ejemplos, pistas) va
   // dentro del último mensaje del cliente, después del historial (contextoEnElTurno), para no cambiarle el prefijo al historial.
-  const promptVariable = notaDeTiempo(rawHistory, userText) + (bloqueAprobados ? "\n\n" + bloqueAprobados : "") + (pistas ? "\n\n" + pistas : "");
+  const promptVariable = notaDeTiempo(rawHistory, userText) + (hechos ? "\n\n" + hechos : "") +
+    (bloqueAprobados ? "\n\n" + bloqueAprobados : "") + (pistas ? "\n\n" + pistas : "");
   const systemPrompt = promptBase + "\n\n" + promptVariable;
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
   // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor
