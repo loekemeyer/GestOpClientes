@@ -25,3 +25,8 @@ export function listaModelosPrueba(valor: string | null | undefined): string[] {
 export function idModeloPrueba(i: number): number {
   return i === 0 ? -1 : -10 - i;
 }
+
+/** Pablo, 08/10: sólo los modelos gratis (is_free_tier). La usa la corrida automática de evaluación (opciones.soloGratis de runConversation). */
+export function soloModelosGratis<T extends { isFreeTier: boolean }>(candidatos: readonly T[]): T[] {
+  return candidatos.filter((c) => c.isFreeTier === true);
+}

@@ -481,7 +481,7 @@ serve(async (req) => {
       // 6. agente IA
       SIM.historial.push({ rol: "user", contenido: text, creado_en: ahora() });
       if (!reply) {
-        const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular", { pistas });
+        const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular", { pistas, soloGratis: body.solo_gratis === true });
         via = r.timeout ? "agente (timeout: en producción no se contesta nada)" : r.llmError ? "agente (error: en producción no se contesta nada)"
           : pistas.length ? `agente IA con ${pistas.length} pista${pistas.length > 1 ? "s" : ""} de la capa fija` : "agente IA";
         reply = marcaLk && r.reply ? conEtiqueta("lk", r.reply) : r.reply;

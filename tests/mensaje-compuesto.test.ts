@@ -109,7 +109,7 @@ const hook = await Deno.readTextFile(new URL("../supabase/functions/lk_whatsapp-
 igual("el webhook decide con decidirCapaFija", hook.includes("await decidirCapaFija(text, faqCustomer, faq,"), true);
 igual("el webhook le pasa las pistas al agente", hook.includes('"lk_whatsapp-webhook",\n    { pistas },'), true);
 const sim = await Deno.readTextFile(new URL("../supabase/functions/lk_bot-simular/index.ts", import.meta.url));
-igual("el Simulador hace lo mismo", sim.includes("await decidirCapaFija(text, cli, faq,") && sim.includes('"lk_bot-simular", { pistas }'), true);
+igual("el Simulador hace lo mismo", sim.includes("await decidirCapaFija(text, cli, faq,") && sim.includes('"lk_bot-simular", { pistas'), true);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");

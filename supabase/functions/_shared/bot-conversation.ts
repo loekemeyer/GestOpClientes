@@ -12,7 +12,7 @@ import { sinCierreGenerico } from "./cierre.ts";
 import { cierreSinTerminar, textoDeRespaldo } from "./respaldo-texto.ts";
 import { estadoRetiroParaIA } from "./fecha-retiro.ts";
 import { timeoutDeModelo } from "./timeouts.ts";
-import { idModeloPrueba, listaModelosPrueba } from "./modelos-prueba.ts";
+import { idModeloPrueba, listaModelosPrueba, soloModelosGratis } from "./modelos-prueba.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
@@ -1535,7 +1535,9 @@ export async function runConversation(
   apiKey: string,
   fuente = "lk_whatsapp-webhook",
   // Pablo, 08/10: lo que la capa fija contestaría a un mensaje compuesto o repetido (faq.ts decidirCapaFija). Va al final del prompt.
-  opciones: { pistas?: string[] } = {},
+  // Pablo, 08/10: soloGratis (la corrida automática de evaluación, sql/133) descarta todo modelo que no sea is_free_tier, aunque alguien haya
+  // dejado uno pago en llm_modelo_pruebas mientras el caso estaba en el Simulador.
+  opciones: { pistas?: string[]; soloGratis?: boolean } = {},
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
@@ -1611,6 +1613,14 @@ export async function runConversation(
   if (turnoPedido && apiKey && !soloPruebas) {
     const fijo = modeloFijoDePedidos(await getSetting("llm_modelo_pedidos"));
     if (fijo) { candidates.length = 0; candidates.push(...candidatosDePedido(fijo, apiKey)); }
+  }
+  if (opciones.soloGratis) {
+    const gratis = soloModelosGratis(candidates);
+    if (!gratis.length) {
+      return { reply: "⚠️ [LLM_ERROR] Sin modelo gratis: la corrida de evaluación no gasta. No se llamó a ningún modelo.", media: [], llmError: true };
+    }
+    candidates.length = 0;
+    candidates.push(...gratis);
   }
   if (!candidates.length) {
     await notificarHumano({ tipo: "llm_error", phone, contexto: { userText, error: "Sin modelos en la cadena ni ANTHROPIC_API_KEY" } });
