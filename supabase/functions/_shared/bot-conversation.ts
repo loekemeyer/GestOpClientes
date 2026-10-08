@@ -22,6 +22,7 @@ import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
+import { filasDeLaVentana, VENTANA_MIN, VENTANA_PASO } from "./ventana-historial.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -1293,6 +1294,21 @@ export async function loadHistory(
   return data;
 }
 
+/** Cuántos mensajes guardados tiene el teléfono (los mismos que lee bot_leer_historial). null si no se pudo contar. */
+async function contarHistorial(phone: string): Promise<number | null> {
+  if (SIM.activo) return SIM.historial.length;
+  const { count, error } = await supabase.from("bot_historial_chat").select("telefono", { count: "exact", head: true })
+    .eq("telefono", phone).in("rol", ["user", "assistant"]);
+  return error || count == null ? null : count;
+}
+
+/** Historial para el modelo con la ventana de inicio fijo (ventana-historial.ts), del más nuevo al más viejo. Lectura y conteo van juntos;
+ *  si el conteo falla, quedan los últimos 16 como antes. */
+async function loadHistoryAnclada(phone: string): Promise<Array<{ rol: string; contenido: string; creado_en: string }>> {
+  const [filas, total] = await Promise.all([loadHistory(phone, VENTANA_MIN + VENTANA_PASO - 1), contarHistorial(phone)]);
+  return filasDeLaVentana(filas, total);
+}
+
 export async function saveMessage(
   phone: string,
   rol: "user" | "assistant",
@@ -1492,32 +1508,36 @@ export async function runConversation(
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
   const canario = await canarioDelServidor();
-  const [rawHistory, promptBase, herramientas, chain, ejemplos] = await Promise.all([
-    loadHistory(phone, 16),
+  const [filasVentana, promptBase, herramientas, chain, ejemplos] = await Promise.all([
+    loadHistoryAnclada(phone),
     buildSystemPrompt(customerName, codCliente, dtoVol, canario),
     herramientasDelTurno(),
     resolveChain(),
     ejemplosAprobados(),
   ]);
+  // Pablo, 08/10: el modelo ve la ventana anclada (16 a 23 mensajes, para que el caché reuse el historial entre turnos); la nota de tiempo
+  // y las compuertas de pedido y de mail siguen viendo los últimos 16, como antes.
+  const rawHistory = filasVentana.slice(0, VENTANA_MIN);
   const bloqueAprobados = bloqueEjemplos(elegirEjemplos(userText, ejemplos));
   const pistas = bloquePistas(opciones.pistas ?? []);
   // Pablo, 08/10: el prompt va en dos partes para el caché de Anthropic (bot-llm.ts): la base (reglas y datos del cliente) es igual en todas las
-  // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, ejemplos, pistas) va después.
+  // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, ejemplos, pistas) va
+  // dentro del último mensaje del cliente, después del historial (contextoEnElTurno), para no cambiarle el prefijo al historial.
   const promptVariable = notaDeTiempo(rawHistory, userText) + (bloqueAprobados ? "\n\n" + bloqueAprobados : "") + (pistas ? "\n\n" + pistas : "");
   const systemPrompt = promptBase + "\n\n" + promptVariable;
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
   // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor
   // en cualquier iteración sin romper el formato.
   const history: NormMsg[] = [];
-  for (let i = rawHistory.length - 1; i >= 0; i--) {
-    const h = rawHistory[i];
+  for (let i = filasVentana.length - 1; i >= 0; i--) {
+    const h = filasVentana[i];
     if (h.rol === "user") history.push({ role: "user", text: h.contenido });
     else history.push({ role: "assistant", text: h.contenido, toolCalls: [] });
   }
 
   // El primer mensaje tiene que ser `user` (lo exigen Anthropic y Gemini). La
-  // ventana de 16 filas puede arrancar con `assistant` → se recorta hasta el
-  // primer `user`.
+  // ventana puede arrancar con `assistant` → se recorta hasta el primer `user`
+  // (siempre el mismo mientras la ventana no se corra: no rompe el caché).
   while (history.length && history[0].role !== "user") history.shift();
 
   // El turno actual puede estar YA en el historial: el webhook hace

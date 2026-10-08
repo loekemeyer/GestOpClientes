@@ -272,7 +272,8 @@ function httpError(provider: string, status: number, body: string): Error {
 }
 
 // ── Prompt del sistema ─────────────────────────────────────────────────────────
-/** El prompt puede venir en dos partes (08/10): `estable` se cachea en Anthropic; `variable` (lo que cambia con cada mensaje) va después. */
+/** El prompt puede venir en dos partes (08/10): `estable` va en el system y se cachea; `variable` (lo que cambia con cada mensaje) va
+ *  dentro del último mensaje del cliente, después del historial (contextoEnElTurno). `systemTexto` las junta como antes (filtro de salida). */
 export type SystemPrompt = string | { estable: string; variable: string };
 export function systemTexto(s: SystemPrompt): string {
   return typeof s === "string" ? s : [s.estable, s.variable].filter((x) => x && x.trim()).join("\n\n");
@@ -280,29 +281,62 @@ export function systemTexto(s: SystemPrompt): string {
 
 const CACHE = { type: "ephemeral" } as const;
 
-/** Cuerpo de la llamada a Anthropic con caché de prompt (Pablo, 08/10). Tres marcas (el máximo es 4):
+// ── Contexto del turno (Pablo Olejavetzky, 08/10/2026: 2ª parte del caché) ──────────────────────────────────────────────────────
+// La parte variable del prompt (nota de tiempo con la hora al minuto, ejemplos aprobados, pistas) cambia en CADA mensaje. Si va en el
+// system queda ANTES del historial, le cambia el prefijo, y Anthropic vuelve a escribir el historial entero en caché (1,25×) en cada
+// turno. Por eso va dentro del último mensaje del cliente, en un bloque marcado: el historial anterior queda igual de un turno al otro
+// (con la ventana anclada de ventana-historial.ts) y el turno siguiente lo lee del caché a 0,1×. Va igual para todos los proveedores,
+// así el Simulador con Gemini prueba el mismo armado que contesta Sonnet. El prompt (bloque de Seguridad) dice que sólo ese bloque
+// viene del sistema; la etiqueta escrita por un cliente se desarma (desarmarEtiqueta).
+export const CONTEXTO_ABRE = "<contexto_del_sistema>";
+export const CONTEXTO_CIERRA = "</contexto_del_sistema>";
+
+/** Un cliente no puede abrir ni cerrar un bloque de contexto falso: "<contexto_del_sistema" (o "</…", "＜…", con espacios o guiones)
+ *  escrito por él pasa a "‹contexto_del_sistema", que el modelo no confunde con la etiqueta. */
+export function desarmarEtiqueta(texto: string): string {
+  return texto.replace(/[<＜](\s*\/?\s*contexto[\s_-]*del[\s_-]*sistema)/gi, "‹$1");
+}
+
+/** Arma lo que va al modelo: el system queda sólo con la parte estable y la variable pasa al último mensaje del cliente.
+ *  `ultimoCliente` es la posición de ese mensaje en `history` (-1 si no hay): lo que está antes es el historial anterior.
+ *  No modifica `history` (el loop de runConversation y el filtro de salida siguen usando el original). */
+export function contextoEnElTurno(system: SystemPrompt, history: NormMsg[]): { system: string; history: NormMsg[]; ultimoCliente: number } {
+  const h: NormMsg[] = history.map((m) => (m.role === "user" ? { role: "user", text: desarmarEtiqueta(m.text) } : m));
+  let i = -1;
+  for (let k = h.length - 1; k >= 0; k--) if (h[k].role === "user") { i = k; break; }
+  if (typeof system === "string") return { system, history: h, ultimoCliente: i };
+  const variable = system.variable.trim();
+  if (!variable) return { system: system.estable, history: h, ultimoCliente: i };
+  if (i < 0) return { system: systemTexto(system), history: h, ultimoCliente: i };   // sin mensaje del cliente (no pasa en el bot): como antes
+  const actual = h[i] as { role: "user"; text: string };
+  h[i] = { role: "user", text: `${CONTEXTO_ABRE}\n${variable}\n${CONTEXTO_CIERRA}\n\n${actual.text}` };
+  return { system: system.estable, history: h, ultimoCliente: i };
+}
+
+// deno-lint-ignore no-explicit-any
+function marcarCache(msgs: any[], i: number) {
+  const m = msgs[i];
+  if (!m || !Array.isArray(m.content) || !m.content.length) return;
+  const c = [...m.content];
+  c[c.length - 1] = { ...c[c.length - 1], cache_control: CACHE };
+  msgs[i] = { ...m, content: c };
+}
+
+/** Cuerpo de la llamada a Anthropic con caché de prompt (Pablo, 08/10). Hasta cuatro marcas (el máximo de Anthropic):
  *  1) la última herramienta: las herramientas son iguales para todos los clientes;
- *  2) la parte estable del prompt: igual en todas las llamadas del turno y en los mensajes seguidos del mismo cliente;
- *  3) el último mensaje: en el loop de herramientas, la llamada siguiente lee todo lo anterior del caché.
+ *  2) el prompt (sólo la parte estable): igual en todas las llamadas del turno y en los mensajes seguidos del mismo cliente;
+ *  3) el fin del historial anterior (el mensaje justo antes del último del cliente): no cambia de un turno al otro, así que el turno
+ *     siguiente lo lee del caché en vez de volver a escribirlo;
+ *  4) el último mensaje: en el loop de herramientas, la llamada siguiente lee todo lo anterior del caché.
  *  Un prefijo más corto que el mínimo del modelo (1024 tokens en Sonnet 4.6, 4096 en Haiku 4.5) simplemente no se cachea: no da error. */
 // deno-lint-ignore no-explicit-any
 export function cuerpoAnthropic(model: string, system: SystemPrompt, tools: ToolDef[], history: NormMsg[]): Record<string, any> {
-  // deno-lint-ignore no-explicit-any
-  const sys: any[] = typeof system === "string"
-    ? [{ type: "text", text: system, cache_control: CACHE }]
-    : [{ type: "text", text: system.estable, cache_control: CACHE }, ...(system.variable.trim() ? [{ type: "text", text: system.variable }] : [])];
+  const c = contextoEnElTurno(system, history);
+  const sys = [{ type: "text", text: c.system, cache_control: CACHE }];
   const tl = tools.map((t, i) => (i === tools.length - 1 ? { ...t, cache_control: CACHE } : t));
-  const msgs = toAnthropicMessages(history);
-  const ult = msgs[msgs.length - 1];
-  if (ult) {
-    if (typeof ult.content === "string") {
-      if (ult.content) msgs[msgs.length - 1] = { ...ult, content: [{ type: "text", text: ult.content, cache_control: CACHE }] };
-    } else if (Array.isArray(ult.content) && ult.content.length) {
-      const c = [...ult.content];
-      c[c.length - 1] = { ...c[c.length - 1], cache_control: CACHE };
-      msgs[msgs.length - 1] = { ...ult, content: c };
-    }
-  }
+  const msgs = toAnthropicMessages(c.history);
+  if (c.ultimoCliente > 0) marcarCache(msgs, c.ultimoCliente - 1);
+  marcarCache(msgs, msgs.length - 1);
   return { model, max_tokens: 1024, system: sys, tools: tl, messages: msgs };
 }
 
@@ -313,7 +347,8 @@ function toAnthropicMessages(history: NormMsg[]): any[] {
   const msgs: any[] = [];
   for (const m of history) {
     if (m.role === "user") {
-      msgs.push({ role: "user", content: m.text });
+      // Siempre en bloques (como el asistente y los resultados de herramientas): así un mensaje se manda igual lleve o no la marca de caché.
+      msgs.push({ role: "user", content: m.text ? [{ type: "text", text: m.text }] : m.text });
     } else if (m.role === "assistant") {
       // deno-lint-ignore no-explicit-any
       const content: any[] = [];
@@ -501,8 +536,10 @@ export async function callModel(
   m: ResolvedModel, system: SystemPrompt, tools: ToolDef[], history: NormMsg[], timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<ModelResult> {
   if (m.provider === "anthropic") return callAnthropic(m.key, m.model, system, tools, history, timeoutMs);
-  if (m.provider === "google") return callGoogle(m.key, m.model, systemTexto(system), tools, history, timeoutMs);
-  if (OPENAI_COMPAT[m.provider]) return callOpenAI(m.provider, m.key, m.model, systemTexto(system), tools, history, timeoutMs);
+  // Mismo armado que Anthropic (contexto del turno en el último mensaje del cliente), así el Simulador con Gemini prueba lo mismo.
+  const c = contextoEnElTurno(system, history);
+  if (m.provider === "google") return callGoogle(m.key, m.model, c.system, tools, c.history, timeoutMs);
+  if (OPENAI_COMPAT[m.provider]) return callOpenAI(m.provider, m.key, m.model, c.system, tools, c.history, timeoutMs);
   throw new Error(`Proveedor no soportado: ${m.provider}`);
 }
 
