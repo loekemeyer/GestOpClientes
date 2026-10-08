@@ -11,6 +11,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderPlantilla } from "../_shared/plantillas-meta.ts";
 import { leerVersiones, nombreActivo } from "../_shared/plantillas-version.ts";
+import { cuerpoImagen, historialImagen } from "../_shared/outbox-imagen.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -47,6 +48,13 @@ Deno.serve(async () => {
 
   // Versión de cada plantilla que se manda hoy (pedido_recibido → pedido_recibido_v2 cuando Meta aprobó la nueva).
   const versiones = await leerVersiones(sb);
+  // Imágenes (sql/131, 08/10): bot_flush_outbox no devuelve media_url, así que se lee acá, una vez por tanda.
+  const ids = (batch || []).map((m: { id: number }) => m.id);
+  const fotos = new Map<number, string>();
+  if (ids.length) {
+    const { data: conFoto } = await sb.from("wa_outbox").select("id, media_url").in("id", ids).not("media_url", "is", null);
+    for (const f of conFoto ?? []) fotos.set(f.id, String(f.media_url));
+  }
   let sent = 0, failed = 0;
   // deno-lint-ignore no-explicit-any
   const errors: any[] = [];
@@ -54,7 +62,15 @@ Deno.serve(async () => {
     // deno-lint-ignore no-explicit-any
     let payload: Record<string, any>;
     let historyText = "";
-    if (m.template_name) {
+    if (fotos.has(m.id)) {
+      const img = cuerpoImagen(m.phone, fotos.get(m.id)!, m.body);
+      if (!img) {
+        await sb.rpc("bot_outbox_mark", { p_id: m.id, p_status: "failed", p_error: "media_url no es un link https" });
+        failed++; continue;
+      }
+      payload = img;
+      historyText = historialImagen(fotos.get(m.id)!, m.body);
+    } else if (m.template_name) {
       const lang = m.template_name === "hello_world" ? "en_US" : "es_AR";
       const params = m.template_params ? Object.values(m.template_params).map((v) => String(v)) : [];
       payload = {
