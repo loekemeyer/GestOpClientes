@@ -24,6 +24,7 @@ import { hayNombreDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
 import { TEXTO_ACCESO_TAPADO, TEXTO_CLAVE_NO_AGENDADO } from "./clave-web.ts";
+import { mensajeCompuesto, pedidosDelMensaje, pistaDeParte, pistaRepetida, RE_CANTIDAD_CON_UNIDAD, yaLoDijo } from "./mensaje-compuesto.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -115,7 +116,7 @@ function yaSaluda(reply: string): boolean {
  *     flujo de identificación / al agente
  *   - la respuesta compuesta queda vacía
  */
-export async function handleFaq(text: string, customer: Customer): Promise<FaqResult | null> {
+export async function handleFaq(text: string, customer: Customer, opts: { parte?: boolean } = {}): Promise<FaqResult | null> {
   // Pablo, 07/10 (m71): prospecto (no cliente) que dice que escribió por mail para comercializar y no le respondieron → disculpas + Ventas. El motivo `pedido_mail` ya va a Ventas (sector 8)
   // y se parece (el prospecto "mandó un pedido estimativo por mail"); su etiqueta del panel no es exacta. Texto aprobado por Pablo el 07/10. Sólo si el número NO es cliente.
   if (!customer && avisaProspectoSinRespuesta(text)) {
@@ -132,6 +133,11 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       ? { reply: TEXTO_ACCESO_TAPADO, intent: "clave_web", automation_level: "semi_auto", topic: "Clave de la web", conClave: true }
       : { reply: TEXTO_CLAVE_NO_AGENDADO, intent: "clave_web_no_agendado", automation_level: "semi_auto", topic: "Clave de la web" };
   }
+  // Pablo, 08/10 (Chef 411): un mensaje que pide dos cosas o más no se contesta con una respuesta fija, que se queda con la primera regla que
+  // coincide y tira el resto ("cuándo sale mi pedido y si podés tener 200 docenas del 505" salía con "Ventas revisa si se puede acelerar la
+  // entrega"). Va al agente, que lee el historial, con lo que contestaría cada parte como pista (pistasDeLaCapaFija). La clave de la web sigue
+  // arriba: el PIN sólo lo da esta capa. `parte` = se está armando la pista de una parte (no se vuelve a partir).
+  if (customer && !opts.parte && mensajeCompuesto(text)) return null;
   // Pablo, 29/09: "¿cuál es mi dirección de entrega?" / "¿a dónde me lo mandan?" / "¿a qué sucursal va?" pide A DÓNDE va SU
   // pedido (sucursal de entrega y expreso), no la dirección de nuestro depósito (FAQ #4, que es lo que contestaba).
   // Pablo, 29/09: "cambié de dirección" / "me mudé" / "quiero agregar una sucursal" lo resuelve la IA (solicitar_nueva_sucursal);
@@ -187,6 +193,9 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       alerta: { motivo: "nota_cliente", urgente: false, detalle: `Pregunta por notas de crédito que todavía no recibió: ${text.slice(0, 250)}` } };
   }
   if (customer && vaALaIA(text)) return null;
+  // Pablo, 08/10 (Chef 411): "¿podés tener 200 docenas del 505 de entrega inmediata?" pide stock para ya de una cantidad, no adelantar un pedido.
+  // Lo ve la IA, que mira el stock con la cantidad (consultar_stock); la respuesta de abajo lo leía como "acelerar la entrega".
+  if (customer && pideEntregaRapida(text) && RE_CANTIDAD_CON_UNIDAD.test(text)) return null;
   // Pablo, 06/10 (m59): "¿hay posibilidades de entrega rápida?" / "¿pueden adelantar la entrega?" → lo ve Ventas (motivo entrega): "todas las dudas pasan por Ventas primero".
   if (customer && pideEntregaRapida(text)) {
     return { reply: "Una persona de Ventas revisa si se puede acelerar la entrega y te escribe por acá en un momento.",
@@ -419,7 +428,7 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
       const r = await lookupFacturaReenvio(await ctxPagosDeCliente(customer), text);
       if (r) return { ...r, faq_id: top.faq_id, yaSaluda: yaSaluda(r.reply) };
     } else if (customer) {
-      const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top);
+      const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top, !!opts.parte);
       if (lookupReply) {
         return {
           reply: lookupReply,
@@ -473,6 +482,40 @@ export async function handleFaq(text: string, customer: Customer): Promise<FaqRe
   };
 }
 
+type Documento = { url: string; filename: string };
+
+/** Pablo, 08/10: lo que la capa fija contestaría a cada parte de un mensaje compuesto, como pista para el agente. Sin alertas ni tareas (la
+ *  derivación la decide el agente con derivar_a_persona). Los PDF de factura que la capa fija mandaría se devuelven aparte: el agente no puede
+ *  mandarlos y el call-site los manda después de su respuesta. Hasta 4 partes. La clave de la web nunca entra en una pista. */
+export async function pistasDeLaCapaFija(text: string, customer: NonNullable<Customer>): Promise<{ pistas: string[]; documentos: Documento[] }> {
+  const pistas: string[] = [];
+  const documentos: Documento[] = [];
+  for (const parte of pedidosDelMensaje(text).slice(0, 4)) {
+    let r: FaqResult | null = null;
+    try {
+      r = await handleFaq(parte, customer, { parte: true });
+    } catch (e) {
+      console.error("pistasDeLaCapaFija:", e instanceof Error ? e.message : e);
+    }
+    if (!r || r.conClave || !r.reply.trim()) continue;
+    for (const d of r.documentos ?? []) if (!documentos.some((x) => x.filename === d.filename)) documentos.push(d);
+    const deriva = r.alerta?.motivo ?? (r.automation_level === "needs_human" ? (r.topic ?? "consulta") : null);
+    pistas.push(pistaDeParte(parte, r.reply, deriva) + (r.documentos?.length ? " El PDF de la factura sale solo, aparte, después de tu mensaje." : ""));
+  }
+  return { pistas, documentos };
+}
+
+/** Pablo, 08/10: la respuesta fija sale sólo si no repite un texto que el bot ya mandó hace menos de MINUTOS_SIN_REPETIR (la FAQ #11 salió dos
+ *  veces en 24 s a Chef 411) y si el mensaje pide una sola cosa (handleFaq ya devuelve null con varias). Si no, va al agente con `pistas`.
+ *  `recientes` = mensajes del bot de los últimos minutos (los lee el call-site: webhook y Simulador). La clave de la web no se toca. */
+export async function decidirCapaFija(text: string, customer: Customer, faq: FaqResult | null, recientes: string[]):
+  Promise<{ faq: FaqResult | null; pistas: string[]; documentos: Documento[] }> {
+  if (!customer) return { faq, pistas: [], documentos: [] };
+  if (faq && !faq.conClave && yaLoDijo(faq.reply, recientes)) return { faq: null, pistas: [pistaRepetida(faq.reply)], documentos: [] };
+  if (!faq && mensajeCompuesto(text)) return { faq: null, ...(await pistasDeLaCapaFija(text, customer)) };
+  return { faq, pistas: [], documentos: [] };
+}
+
 // ── SEMIAUTO handlers (0 tokens, con datos reales de Supabase) ──────────
 async function handleFaqLookup(
   lookupType: string,
@@ -480,12 +523,13 @@ async function handleFaqLookup(
   message: string,
   // deno-lint-ignore no-explicit-any
   faq?: any,
+  sinEfectos = false,
 ): Promise<string | null> {
   switch (lookupType) {
     case "order_status":       return lookupOrderStatus(customer);
     case "customer_discount":  return lookupCustomerDiscount(customer, faq, message);
     case "product_price":      return lookupProductPrice(customer, message);
-    case "product_stock":      return lookupProductStock(customer, message);
+    case "product_stock":      return lookupProductStock(customer, message, sinEfectos);
     case "order_modify":       return lookupOrderModify(customer);
     default:                   return null;
   }
@@ -1372,7 +1416,8 @@ async function lookupProductPrice(customer: NonNullable<Customer>, message: stri
   return `${customer.business_name}, el artículo *${p.description}* (${p.cod}), precio por unidad:\n💰 Precio sin IVA: $${$(basePrice)}\n📊 IVA 21%: $${$(iva)}\n✅ Total con IVA: $${$(withIva)}\n\n🏷️ Tu precio con descuento web (2%): $${$(finalPrice)}\n\n*(Los descuentos por pago se aplican en el carrito)*`;
 }
 
-async function lookupProductStock(customer: NonNullable<Customer>, message: string): Promise<string | null> {
+// `sinEfectos` (08/10): se está armando una pista para el agente (pistasDeLaCapaFija): no se avisa a nadie, la derivación la decide el agente.
+async function lookupProductStock(customer: NonNullable<Customer>, message: string, sinEfectos = false): Promise<string | null> {
   // Stock real (Gestión − pedidos web abiertos), sin números para el cliente. Antes leía p.stock, que
   // wa_product_match no devuelve: contestaba "sin stock" a todo.
   const p = await articuloDeLaFrase(message);
@@ -1382,7 +1427,7 @@ async function lookupProductStock(customer: NonNullable<Customer>, message: stri
   try {
     const st = await stockArticulo(p.cod);
     if (!st) return null;
-    if (stockNecesitaHumano(st)) {
+    if (stockNecesitaHumano(st) && !sinEfectos) {
       await notificarHumano({
         tipo: "escalation", customerId: customer.id,
         contexto: { motivo: "consulta_stock", texto: `Consulta de stock: ${p.description} (${p.cod})`,

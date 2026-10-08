@@ -56,8 +56,12 @@ export type NormMsg =
 export interface ModelResult {
   text: string;
   toolCalls: NormToolCall[];
+  /** Tokens de entrada TOTALES (incluye los escritos y los leídos del caché de Anthropic). */
   inputTokens: number;
   outputTokens: number;
+  /** Anthropic (08/10): de inputTokens, cuántos se escribieron en el caché (cuestan 1,25×) y cuántos se leyeron de él (0,1×). */
+  cacheWriteTokens?: number;
+  cacheReadTokens?: number;
   provider: string;
   model: string;
 }
@@ -178,9 +182,20 @@ export async function markModelDown(id: number, msg: string, cooldownMs = COOLDO
   }
 }
 
+// Caché de Anthropic (08/10): escribir cuesta 1,25 veces la entrada y leer, 0,1 veces (TTL de 5 minutos). input_tokens se sigue guardando con el
+// total, así el panel y los topes de tokens cuentan lo mismo que antes; el costo es el que cambia.
+export const CACHE_ESCRITURA = 1.25;
+export const CACHE_LECTURA = 0.1;
+export function costoEstimado(res: Pick<ModelResult, "inputTokens" | "outputTokens" | "cacheWriteTokens" | "cacheReadTokens">,
+  rates: { input: number; output: number }): number {
+  const escritos = res.cacheWriteTokens ?? 0, leidos = res.cacheReadTokens ?? 0;
+  const normales = Math.max(0, res.inputTokens - escritos - leidos);
+  return ((normales + escritos * CACHE_ESCRITURA + leidos * CACHE_LECTURA) * rates.input + res.outputTokens * rates.output) / 1_000_000;
+}
+
 export function logUsage(res: ModelResult, isFreeTier: boolean, phone: string | null, fnName: string, motivo: string | null = null) {
   const rates = isFreeTier ? { input: 0, output: 0 } : (COST_PER_MTOK[res.model] ?? { input: 3, output: 15 });
-  const cost = (res.inputTokens * rates.input + res.outputTokens * rates.output) / 1_000_000;
+  const cost = costoEstimado(res, rates);
   supabase.from("bot_token_usage").insert({
     model: res.model,
     input_tokens: res.inputTokens,
@@ -255,6 +270,41 @@ function httpError(provider: string, status: number, body: string): Error {
   return Object.assign(new Error(`${provider} ${status}: ${body.slice(0, ERROR_MAX)}`), { status });
 }
 
+// ── Prompt del sistema ─────────────────────────────────────────────────────────
+/** El prompt puede venir en dos partes (08/10): `estable` se cachea en Anthropic; `variable` (lo que cambia con cada mensaje) va después. */
+export type SystemPrompt = string | { estable: string; variable: string };
+export function systemTexto(s: SystemPrompt): string {
+  return typeof s === "string" ? s : [s.estable, s.variable].filter((x) => x && x.trim()).join("\n\n");
+}
+
+const CACHE = { type: "ephemeral" } as const;
+
+/** Cuerpo de la llamada a Anthropic con caché de prompt (Pablo, 08/10). Tres marcas (el máximo es 4):
+ *  1) la última herramienta: las herramientas son iguales para todos los clientes;
+ *  2) la parte estable del prompt: igual en todas las llamadas del turno y en los mensajes seguidos del mismo cliente;
+ *  3) el último mensaje: en el loop de herramientas, la llamada siguiente lee todo lo anterior del caché.
+ *  Un prefijo más corto que el mínimo del modelo (1024 tokens en Sonnet 4.6, 4096 en Haiku 4.5) simplemente no se cachea: no da error. */
+// deno-lint-ignore no-explicit-any
+export function cuerpoAnthropic(model: string, system: SystemPrompt, tools: ToolDef[], history: NormMsg[]): Record<string, any> {
+  // deno-lint-ignore no-explicit-any
+  const sys: any[] = typeof system === "string"
+    ? [{ type: "text", text: system, cache_control: CACHE }]
+    : [{ type: "text", text: system.estable, cache_control: CACHE }, ...(system.variable.trim() ? [{ type: "text", text: system.variable }] : [])];
+  const tl = tools.map((t, i) => (i === tools.length - 1 ? { ...t, cache_control: CACHE } : t));
+  const msgs = toAnthropicMessages(history);
+  const ult = msgs[msgs.length - 1];
+  if (ult) {
+    if (typeof ult.content === "string") {
+      if (ult.content) msgs[msgs.length - 1] = { ...ult, content: [{ type: "text", text: ult.content, cache_control: CACHE }] };
+    } else if (Array.isArray(ult.content) && ult.content.length) {
+      const c = [...ult.content];
+      c[c.length - 1] = { ...c[c.length - 1], cache_control: CACHE };
+      msgs[msgs.length - 1] = { ...ult, content: c };
+    }
+  }
+  return { model, max_tokens: 1024, system: sys, tools: tl, messages: msgs };
+}
+
 // ── Anthropic ────────────────────────────────────────────────────────────────
 // deno-lint-ignore no-explicit-any
 function toAnthropicMessages(history: NormMsg[]): any[] {
@@ -280,12 +330,12 @@ function toAnthropicMessages(history: NormMsg[]): any[] {
 }
 
 async function callAnthropic(
-  key: string, model: string, system: string, tools: ToolDef[], history: NormMsg[], timeoutMs: number,
+  key: string, model: string, system: SystemPrompt, tools: ToolDef[], history: NormMsg[], timeoutMs: number,
 ): Promise<ModelResult> {
   const r = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model, max_tokens: 1024, system, tools, messages: toAnthropicMessages(history) }),
+    body: JSON.stringify(cuerpoAnthropic(model, system, tools, history)),
   }, timeoutMs);
   if (!r.ok) throw httpError("Anthropic", r.status, await r.text());
   const d = await r.json();
@@ -297,8 +347,11 @@ async function callAnthropic(
     .map((b) => ({ id: b.id, name: b.name, input: b.input ?? {} }));
   return {
     text, toolCalls,
-    inputTokens: d.usage?.input_tokens ?? 0,
+    // Con caché, input_tokens trae sólo lo que no se escribió ni se leyó del caché: se guarda el total y el desglose (costoEstimado).
+    inputTokens: (d.usage?.input_tokens ?? 0) + (d.usage?.cache_creation_input_tokens ?? 0) + (d.usage?.cache_read_input_tokens ?? 0),
     outputTokens: d.usage?.output_tokens ?? 0,
+    cacheWriteTokens: d.usage?.cache_creation_input_tokens ?? 0,
+    cacheReadTokens: d.usage?.cache_read_input_tokens ?? 0,
     provider: "anthropic", model,
   };
 }
@@ -474,11 +527,11 @@ async function callOpenAI(
 
 // ── Despacho ─────────────────────────────────────────────────────────────────
 export async function callModel(
-  m: ResolvedModel, system: string, tools: ToolDef[], history: NormMsg[], timeoutMs = DEFAULT_TIMEOUT_MS,
+  m: ResolvedModel, system: SystemPrompt, tools: ToolDef[], history: NormMsg[], timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<ModelResult> {
   if (m.provider === "anthropic") return callAnthropic(m.key, m.model, system, tools, history, timeoutMs);
-  if (m.provider === "google") return callGoogle(m.key, m.model, system, tools, history, timeoutMs);
-  if (OPENAI_COMPAT[m.provider]) return callOpenAI(m.provider, m.key, m.model, system, tools, history, timeoutMs);
+  if (m.provider === "google") return callGoogle(m.key, m.model, systemTexto(system), tools, history, timeoutMs);
+  if (OPENAI_COMPAT[m.provider]) return callOpenAI(m.provider, m.key, m.model, systemTexto(system), tools, history, timeoutMs);
   throw new Error(`Proveedor no soportado: ${m.provider}`);
 }
 

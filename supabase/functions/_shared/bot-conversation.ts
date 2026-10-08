@@ -20,6 +20,7 @@ import { decidirSalida, type Hallazgo, modoDelFiltro, redactarSecretos, revisarS
 import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
+import { bloquePistas } from "./mensaje-compuesto.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -1484,6 +1485,8 @@ export async function runConversation(
   dtoVol: number,
   apiKey: string,
   fuente = "lk_whatsapp-webhook",
+  // Pablo, 08/10: lo que la capa fija contestaría a un mensaje compuesto o repetido (faq.ts decidirCapaFija). Va al final del prompt.
+  opciones: { pistas?: string[] } = {},
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
@@ -1496,7 +1499,11 @@ export async function runConversation(
     ejemplosAprobados(),
   ]);
   const bloqueAprobados = bloqueEjemplos(elegirEjemplos(userText, ejemplos));
-  const systemPrompt = promptBase + "\n\n" + notaDeTiempo(rawHistory, userText) + (bloqueAprobados ? "\n\n" + bloqueAprobados : "");
+  const pistas = bloquePistas(opciones.pistas ?? []);
+  // Pablo, 08/10: el prompt va en dos partes para el caché de Anthropic (bot-llm.ts): la base (reglas y datos del cliente) es igual en todas las
+  // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, ejemplos, pistas) va después.
+  const promptVariable = notaDeTiempo(rawHistory, userText) + (bloqueAprobados ? "\n\n" + bloqueAprobados : "") + (pistas ? "\n\n" + pistas : "");
+  const systemPrompt = promptBase + "\n\n" + promptVariable;
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
   // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor
   // en cualquier iteración sin romper el formato.
@@ -1576,7 +1583,7 @@ export async function runConversation(
       const t0 = performance.now();
       try {
         // Pablo, 06/10: Gemini con tope corto (8 s) para que un cuelgue de Google no le cueste 30 s al cliente: ver _shared/timeouts.ts.
-        res = await callModel(cand, systemPrompt, herramientas, history, timeoutDeModelo(cand.provider));
+        res = await callModel(cand, { estable: promptBase, variable: promptVariable }, herramientas, history, timeoutDeModelo(cand.provider));
         used = cand;
         logIntento({
           funcion: fuente, modeloId: cand.id, proveedor: cand.provider, modelo: cand.model, tarea: "conversacion",

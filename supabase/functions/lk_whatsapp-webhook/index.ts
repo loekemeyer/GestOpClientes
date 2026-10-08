@@ -20,13 +20,15 @@ import {
   WaApiError,
 } from "../_shared/wa-api.ts";
 import {
+  loadHistory,
   pedidoEnCurso,
   pedidosWaHabilitados,
   runConversation,
   saveMessage,
   type MediaAction,
 } from "../_shared/bot-conversation.ts";
-import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
+import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
+import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
 import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
@@ -1386,9 +1388,20 @@ async function handleMessage(
   // Pablo, 05/10: además de pedirlo con palabras propias, un "sí" / "dale" a la oferta de registro del saludo arranca el alta
   // (antes caía en "pasame tu CUIT"). Se lee lo último que dijo el bot ANTES de guardar este mensaje.
   const quiereAlta = !customer && iniciaAlta(text, esAfirmacion(text) ? await ultimoMensajeDelBot(phone) : "");
-  const faq = quiereAlta ? null
+  let faq = quiereAlta ? null
     : enCurso ? null
     : await handleFaq(text, faqCustomer);
+  // Pablo, 08/10 (Chef 411): la respuesta fija no sale si repite un texto que el bot mandó hace menos de 30 min, y un mensaje con varios pedidos
+  // no tiene respuesta fija. En los dos casos contesta el agente (lee el historial) con lo que la capa fija habría dicho como pista; los PDF de
+  // factura de esas pistas salen después de su respuesta. Ver _shared/mensaje-compuesto.ts.
+  let pistas: string[] = [];
+  let documentosPistas: Array<{ url: string; filename: string }> = [];
+  if (faqCustomer && !quiereAlta && !enCurso) {
+    const d = await decidirCapaFija(text, faqCustomer, faq, faq ? respuestasRecientes(await loadHistory(phone, 10)) : []);
+    faq = d.faq;
+    pistas = d.pistas;
+    documentosPistas = d.documentos;
+  }
   if (faq) {
     await saveMessage(phone, "user", text);
     // Pablo y Thomy, 07/10: pide la clave de la web y el teléfono está agendado → su usuario y su PIN (customers.pin), sin
@@ -1502,6 +1515,8 @@ async function handleMessage(
     customer.cod_cliente,
     customer.dto_vol,
     cfg.anthropicKey,
+    "lk_whatsapp-webhook",
+    { pistas },
   );
 
   // 6b. Si el LLM se cayó (timeout / error irrecuperable), NO enviamos
@@ -1536,6 +1551,16 @@ async function handleMessage(
       (e) => console.error("[puntaje] no se pudo encolar:", e),
     ),
   ]);
+  // 11. PDF de factura que la capa fija habría mandado en una parte de un mensaje compuesto (Pablo, 08/10): el agente no puede mandarlos.
+  //     Van después del texto, como en la respuesta fija.
+  for (const d of documentosPistas) {
+    try {
+      await sendDocument(cfg.waPhoneId, cfg.waToken, phone, d.url, d.filename);
+      await saveMessage(phone, "assistant", `[Documento] ${d.filename}`);
+    } catch (e) {
+      console.error(`[pistas documento] Meta rechazó ${d.filename} a ${phone}:`, e instanceof Error ? e.message : e);
+    }
+  }
 }
 
 // Fuera del horario de atención, si el turno dejó una alerta que espera a una persona, se le avisa al cliente cuándo se le responde

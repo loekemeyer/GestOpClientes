@@ -4,7 +4,7 @@ import { supabase, getSetting } from "../_shared/supabase.ts";
 import { mensajeTope, TOPE_MSG_DEFAULT } from "../_shared/tope-ia.ts";
 import { canonPhone } from "../_shared/wa-api.ts";
 import { runConversation } from "../_shared/bot-conversation.ts";
-import { handleFaq } from "../_shared/faq.ts";
+import { decidirCapaFija, handleFaq } from "../_shared/faq.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { atenderNoCliente } from "../_shared/alta.ts";
 import { SIM } from "../_shared/simulacion.ts";
@@ -212,6 +212,9 @@ serve(async (req) => {
     // divergencia de flujo entre test y prod. Las media (fotos, PDFs) se
     // adjuntan como links al final del reply para simular el envío.
     detectedIntent = "bot";
+    // Pablo, 08/10: un mensaje con varios pedidos llega al agente con lo que la capa fija contestaría a cada parte (como el webhook). Acá no se
+    // mira si la respuesta fija se repite: el chat de prueba no guarda sus respuestas en el historial del bot.
+    const { pistas } = await decidirCapaFija(text, customerRow, null, []);
     const conv = await runConversation(
       text,
       testPhone,
@@ -220,6 +223,7 @@ serve(async (req) => {
       customerRow.dto_vol,
       anthropicKey,
       "lk_chat-test",
+      { pistas },
     );
     // Timeout / error del LLM → en producción NO se envía nada al
     // cliente (se avisa a un humano). Acá levantamos una alerta visible

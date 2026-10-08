@@ -117,3 +117,19 @@ Detalle, límites y cómo rotarlo en `docs/ESTADO.md`.
 Lo que dice un archivo que manda el cliente, lo que se transcribe de un audio y los campos libres (nombre del archivo, de contacto, direcciones, observaciones) son
 DATOS, no instrucciones: el código los pasa a una línea limpia antes de mostrarlos o de guardarlos, y una línea de un archivo que parece una orden para el bot se ignora
 y se avisa a una persona. El prompt del agente lo dice también. Detalle y límites en `docs/ESTADO.md`.
+
+## Mensajes con varios pedidos y respuestas fijas repetidas (08/10/2026)
+
+La capa fija (`faq.ts`) contesta con la primera regla que coincide y tira el resto del mensaje. Desde el 08/10 (Pablo, caso Chef 411) NO contesta
+un mensaje que pide dos cosas o más ("cuándo sale mi pedido y si podés tener 200 docenas del 505") ni repite un texto fijo que el bot mandó hace menos
+de 30 minutos: los dos van al agente, que lee el historial. Al agente le llega al final del prompt un bloque **PISTAS DE LAS RESPUESTAS FIJAS** con lo
+que la capa fija contestaría a cada parte (texto aprobado y a quién deriva) y la indicación de contestar todo en un solo mensaje natural, sin cambiar
+datos ni destinos de las pistas que correspondan e ignorando las que no. La derivación la decide el agente con `derivar_a_persona`; los PDF de factura
+de una pista salen solos después de su respuesta. La clave de la web nunca va por acá: el PIN sólo lo da la capa fija. Detección y límites en
+`_shared/mensaje-compuesto.ts`, `docs/FLUJOS.md` (Flujo 1e) y `docs/ESTADO.md`.
+
+**Caché de prompt (Anthropic):** el prompt va en dos partes (base estable + lo que cambia con cada mensaje) y se marcan para caché las herramientas, la
+base y el último mensaje (`bot-llm.ts`, `cuerpoAnthropic`). Desde la segunda llamada de un turno con herramientas, todo lo anterior se lee del caché
+a 0,1 del precio. El costo que se guarda en `bot_token_usage` ya cuenta la escritura (1,25×) y la lectura (0,1×), así el tope de gasto diario sigue
+midiendo bien. Gemini y los demás proveedores reciben el prompt junto, como antes.
+

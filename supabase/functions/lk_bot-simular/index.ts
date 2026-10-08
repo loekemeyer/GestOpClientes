@@ -5,7 +5,8 @@ import { requireAdmin } from "../_shared/admin-gate.ts";
 import { SIM } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
-import { esSoloSaludo, handleFaq } from "../_shared/faq.ts";
+import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
+import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
 import { compararCotizadorConWeb, leerPedidoArchivo, resolverArticulos, sucursalesDelCliente, textoConfirmacion } from "../_shared/pedido-archivo.ts";
 import { atenderNoCliente } from "../_shared/alta.ts";
 import { pedidoEnCurso, runConversation } from "../_shared/bot-conversation.ts";
@@ -446,9 +447,20 @@ serve(async (req) => {
         } else if (g?.tipo === "seguir") { text = g.texto; marcaLk = true; via = g.via; }
       }
       // 4. preguntas frecuentes
+      // Pablo, 08/10: igual que el webhook, la respuesta fija no sale si repite un texto del bot de los últimos 30 min, y un mensaje con varios
+      // pedidos va al agente; en los dos casos el agente recibe lo que la capa fija habría dicho como pista (decidirCapaFija).
+      let pistas: string[] = [];
+      let documentosPistas: Array<{ url: string; filename: string }> = [];
       if (!reply) {
-        const faq = await pedidoEnCurso(telSim) ? null
-          : await handleFaq(text, { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol });
+        const enCursoSim = await pedidoEnCurso(telSim);
+        const cli = { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol };
+        let faq = enCursoSim ? null : await handleFaq(text, cli);
+        if (!enCursoSim) {
+          const d = await decidirCapaFija(text, cli, faq, faq ? respuestasRecientes(SIM.historial) : []);
+          faq = d.faq;
+          pistas = d.pistas;
+          documentosPistas = d.documentos;
+        }
         if (faq) {
           reply = marcaLk ? conEtiqueta("lk", faq.reply) : faq.reply; via = `faq (${faq.automation_level}${faq.faq_id ? ` #${faq.faq_id}` : ""})`;
           // Reenvío de factura: en el simulador no se manda nada; se muestra qué PDF iría adjunto.
@@ -464,9 +476,12 @@ serve(async (req) => {
       // 6. agente IA
       SIM.historial.push({ rol: "user", contenido: text, creado_en: ahora() });
       if (!reply) {
-        const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular");
-        via = r.timeout ? "agente (timeout: en producción no se contesta nada)" : r.llmError ? "agente (error: en producción no se contesta nada)" : "agente IA";
+        const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular", { pistas });
+        via = r.timeout ? "agente (timeout: en producción no se contesta nada)" : r.llmError ? "agente (error: en producción no se contesta nada)"
+          : pistas.length ? `agente IA con ${pistas.length} pista${pistas.length > 1 ? "s" : ""} de la capa fija` : "agente IA";
         reply = marcaLk && r.reply ? conEtiqueta("lk", r.reply) : r.reply;
+        // PDF de factura de las pistas: en producción salen después del texto; acá se muestra cuál iría.
+        if (reply && documentosPistas.length && !r.timeout && !r.llmError) reply += "\n\n" + documentosPistas.map((d) => `📎 ${d.filename}`).join("\n");
         // Con "Crear tareas de prueba", la respuesta de la IA también queda para puntuar (🧪, fuera de los promedios).
         if (body.crear_tareas === true && !r.timeout && !r.llmError) {
           const { error: eP } = await supabase.from("wa_ia_puntajes").insert({
