@@ -256,6 +256,11 @@ Pablo: *"Tiene que tener una respuesta más natural, tenés que entender mejor t
 las respuestas a avisos y los cambios o anulaciones de pedido (`responderAviso` / `pedidoDeCambio`, que corren antes) y un pedido por WhatsApp en curso.
 El Simulador hace lo mismo que el webhook; el chat de prueba manda las pistas de un compuesto pero no mira repetidas (no guarda en el historial del bot).
 
+**Redacción (08/10, Pablo):** el agente nombra cada artículo una sola vez por mensaje (regla `NO REPITAS EL ARTÍCULO`, `agente-fijos.ts`). Con Sonnet 4.6 decía
+*"Sobre el Pelador Mgo Plástico (cód. 505): Pelador Mgo Plástico (cód. 505) tiene stock disponible"* porque la regla STOCK pedía pasar el texto de `consultar_stock`
+"tal cual" y ese texto ya trae el nombre. Texto aprobado por Pablo: *"No tenés pedidos registrados en este momento. El Pelador Mgo Plástico (cód. 505) tiene stock
+disponible. ✅ Ahora bien, viene en cajas de 12 unidades. 200 docenas son 2.400 unidades, lo que equivale a 200 cajas exactas. ¿Querés que te tomemos el pedido?"*
+
 **Costo:** cada mensaje compuesto o repetido es un turno de IA. Para compensarlo, el agente usa el caché de prompt de Anthropic (`bot-llm.ts`):
 herramientas, base del prompt y último mensaje marcados; desde la segunda llamada del turno se leen a 0,1×.
 
