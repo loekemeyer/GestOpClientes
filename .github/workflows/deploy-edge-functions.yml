@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'supabase/functions/**'
+      - 'tests/**'
       - '.github/workflows/deploy-edge-functions.yml'
   workflow_dispatch:  # permite disparo manual desde la UI de Actions
     inputs:
@@ -18,7 +19,28 @@ concurrency:
   cancel-in-progress: false  # cola: no cancelar deploys en curso
 
 jobs:
+  # Pablo, 08/10/2026: las pruebas de tests/ corren ANTES de deployar y, si falla una, no se deploya
+  # nada. Hasta acá el CI deployaba sin correrlas (69 archivos, 2.184 chequeos al 08/10): una regla del
+  # bot rota llegaba al webhook y se veía recién en el Simulador o en una charla real.
+  # Job aparte y sin secretos: las pruebas no necesitan el token de Supabase y no lo ven.
+  pruebas:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # Algunas pruebas se escribieron para node (`--experimental-strip-types`, desde node 22.6).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Correr las pruebas (sin red, sin IA, US$ 0)
+        run: ./tests/correr-todas.sh
+
   deploy:
+    needs: pruebas
     runs-on: ubuntu-latest
     permissions:
       contents: read      # sólo para que setup-cli consulte releases autenticado

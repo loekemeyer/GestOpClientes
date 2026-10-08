@@ -4,6 +4,8 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-08.
 >
+> **08/10 (Pablo): el CI corre las pruebas de `tests/` ANTES de deployar y, si falla una, no deploya nada** (`.github/workflows/deploy-edge-functions.yml`, job `pruebas` nuevo; `tests/correr-todas.sh` nuevo). Paso 1 de "qué le falta al bot para ser un agente": medirse solo. Hasta acá el CI deployaba sin correrlas: **69 archivos, 2.184 chequeos**, todos pasando en `main` al 08/10 (Deno 2.9.6 y Node 22). El script corre cada archivo con lo que dice su línea "Correr:" (node para los 9 escritos para node, deno para el resto) y le da a deno red **sólo a `localhost:54321`** (la URL falsa que usan las pruebas): verificado que una prueba que intenta llegar a la base real falla con `NotCapable`, y que una que falla hace salir al script con 1. El job no ve el token de Supabase. Un push que sólo toca `tests/` ahora también dispara el workflow (corre las pruebas y no deploya nada). `faq-tests.sh` no entra: necesita `supabase functions serve`. **Límite:** el gate es sobre `main`, después del push; no hay corrida en branches ni en PRs. Backend/CI: la versión visible no cambia (v0.28.7).
+>
 > **08/10 (Pablo): el modelo de pruebas acepta una LISTA y Mistral entra como proveedor** (`_shared/modelos-prueba.ts` y `_shared/openai-compat.ts` nuevos, `bot-conversation.ts`, `bot-llm.ts`, `lk_agente-modelos`, dashboard v0.28.7). Pablo: *«No me importa que use los datos para pruebas, me importa que funcione»*.
 > `app_settings.llm_modelo_pruebas` acepta varios `model_id` separados por coma, en orden (hasta 5): si el primero falla (timeout, 503, 429), el turno sigue con el siguiente. Sólo los de la lista, nunca la cadena de producción (regla del 01/10). Un solo valor funciona como antes. El webhook no lo lee.
 > **Por qué un proveedor fuera de Google** (`bot_llm_intentos`, Simulador): el 07/10 fallaron 3.5 Flash-Lite (36,9 % de 222 llamadas) y 3.1 Flash-Lite (69,5 % de 82) el mismo día, y el 08/10 3.1 falló 4 de 4. Con 05/10 y 06/10 en 10,3 % y 8,2 % (casi todo 429 por ráfagas y timeouts del tope de 8 s), las caídas grandes de Google pegan a los dos Flash-Lite juntos: otro Gemini de respaldo ayuda con el 429 (cada modelo tiene su cuota de 15 por minuto) pero no con la caída.
@@ -1389,6 +1391,10 @@ el killswitch, sin ningún consumidor de esa cola.
 functions cuyos archivos cambiaron en el commit (si cambió `_shared/`, redeploya las que lo
 importan: `lk_whatsapp-webhook` y `lk_chat-test`). Antes fallaba por el secret vacío; el secret
 `SUPABASE_ACCESS_TOKEN` **ya está cargado** (vence 2027-05-04, ver arriba).
+
+**Desde el 08/10 primero corren las pruebas** (job `pruebas`, `tests/correr-todas.sh`): si falla una,
+el job `deploy` no arranca y no se deploya ninguna función. Para correrlas a mano:
+`./tests/correr-todas.sh` (deno 2.x y node 22+).
 
 **Cómo forzar un deploy:** pushear a `main` un commit que toque `supabase/functions/**`
 (el detector usa `git diff HEAD^ HEAD`), o **Actions → Deploy Edge Functions → Run workflow**.

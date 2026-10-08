@@ -544,6 +544,9 @@ tope un dolar en total"*), **gastado y pasado**: US$ 0,88 antes y US$ 1,10 al 07
 
 ## Testing
 
+- `./tests/correr-todas.sh` — todas las pruebas locales (sin red, sin IA, US$ 0). **El CI las corre antes de deployar y, si falla
+  una, no deploya** (Pablo, 08/10/2026). Una prueba nueva va como `tests/<nombre>.test.ts` y sale con código 1 si falla: así
+  entra sola al gate.
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
 - Usar ngrok para exponer localhost a Meta webhook
 - Meta test numbers para desarrollo
