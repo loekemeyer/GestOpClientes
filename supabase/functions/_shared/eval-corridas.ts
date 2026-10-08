@@ -46,7 +46,8 @@ export function resumenCorrida(c: Corrida): string {
   const partes = [`${c.casos} casos`, `${c.hechos} contestados`];
   if (c.errores) partes.push(`${c.errores} con error`);
   partes.push(c.anterior_id ? (c.cambios ? `${c.cambios} cambiaron` : "ninguno cambió") : "primera corrida: queda como base");
-  if (c.estado === "cortada") partes.push("se cortó a las 6 horas");
+  // "cortada": a las 6 horas (wa_eval_tick) o a mano (el 08/10 una sesión cortó la corrida 1 a la media hora porque Gemini estaba caído).
+  if (c.estado === "cortada") partes.push("se cortó antes de terminar");
   return partes.join(" · ");
 }
 

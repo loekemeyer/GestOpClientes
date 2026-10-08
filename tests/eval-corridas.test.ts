@@ -19,7 +19,7 @@ const R = (x: Partial<Resultado>): Resultado => ({ eval_id: 10, estado: "listo",
 igual("terminada sin cambios", resumenCorrida(C({})), "84 casos · 84 contestados · ninguno cambió");
 igual("con cambios y errores", resumenCorrida(C({ hechos: 81, errores: 3, cambios: 2 })), "84 casos · 81 contestados · 3 con error · 2 cambiaron");
 igual("primera corrida", resumenCorrida(C({ anterior_id: null })), "84 casos · 84 contestados · primera corrida: queda como base");
-igual("cortada", resumenCorrida(C({ estado: "cortada", hechos: 40, errores: 44 })).endsWith("se cortó a las 6 horas"), true);
+igual("cortada (a las 6 horas o a mano): no dice cuándo", resumenCorrida(C({ estado: "cortada", hechos: 40, errores: 44 })).endsWith("se cortó antes de terminar"), true);
 igual("sin modelo gratis: dice cuál y que no gasta", resumenCorrida(C({ estado: "sin_modelo_gratis", modelos: "claude-haiku-4-5-20251001" })),
   "No corrió: el modelo de pruebas (claude-haiku-4-5-20251001) no es gratis, y la corrida nunca gasta.");
 igual("corriendo", resumenCorrida(C({ estado: "corriendo" })), "Corriendo: 84 casos, de a uno por minuto.");
