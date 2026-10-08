@@ -9,7 +9,7 @@ import { HERRAMIENTAS_CON_EFECTO, SIM } from "./simulacion.ts";
 import { getAgenteConfig } from "./agente.ts";
 import { bloqueSeguridad, reglasOperativas } from "./agente-fijos.ts";
 import { sinCierreGenerico } from "./cierre.ts";
-import { textoDeRespaldo } from "./respaldo-texto.ts";
+import { cierreSinTerminar, textoDeRespaldo } from "./respaldo-texto.ts";
 import { estadoRetiroParaIA } from "./fecha-retiro.ts";
 import { timeoutDeModelo } from "./timeouts.ts";
 import { idModeloPrueba, listaModelosPrueba } from "./modelos-prueba.ts";
@@ -1709,9 +1709,16 @@ export async function runConversation(
     history.push({ role: "tool", results });
   }
 
+  // Pablo, 08/10: 5 vueltas sin llegar a contestar. Antes: «¿Podés reformular tu pregunta?» y nadie se enteraba. Ahora pasa a una persona
+  // (salvo que ya se haya derivado en este turno) y el cliente sabe que le escriben (respaldo-texto.ts, cierreSinTerminar).
   registrarUsos();
+  const cierre = cierreSinTerminar(usadas);
+  if (cierre.derivar) {
+    await notificarHumano({ tipo: "escalation", phone, contexto: { motivo: "escalation", origen: "agente_ia",
+      texto: `El agente no terminó de contestar en 5 pasos (${usadas.map((u) => u.nombre).join(", ")})`, texto_recibido: userText.slice(0, 300) } });
+  }
   return {
-    reply: "Disculpá, no pude completar tu consulta. ¿Podés reformular tu pregunta?",
+    reply: cierre.texto,
     media: allMedia,
     herramientas: usadas,
   };

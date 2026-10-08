@@ -1,6 +1,6 @@
 // Pruebas de supabase/functions/_shared/respaldo-texto.ts (Pablo Olejavetzky, 07/10/2026): cuando el modelo termina el turno sin texto, el respaldo depende de si se derivó.
 // Sin red. Correr: deno run --allow-env tests/respaldo-texto.test.ts   (sale con código 1 si algo falla)
-import { RESPALDO_DERIVADO, RESPALDO_SIN_TEXTO, textoDeRespaldo } from "../supabase/functions/_shared/respaldo-texto.ts";
+import { cierreSinTerminar, RESPALDO_DERIVADO, RESPALDO_SIN_TERMINAR, RESPALDO_SIN_TEXTO, textoDeRespaldo } from "../supabase/functions/_shared/respaldo-texto.ts";
 import { sinCierreGenerico } from "../supabase/functions/_shared/cierre.ts";
 
 let fallas = 0;
@@ -23,6 +23,13 @@ igual("sólo consultó los pedidos: el de siempre", textoDeRespaldo([{ nombre: "
 igual("otra herramienta con ok:true no cuenta", textoDeRespaldo([{ nombre: "solicitar_nueva_sucursal", resultado: ok }]), RESPALDO_SIN_TEXTO);
 igual("el filtro de cierres no toca el texto de derivación", sinCierreGenerico(RESPALDO_DERIVADO), RESPALDO_DERIVADO);
 igual("ni en un turno de pedido", sinCierreGenerico(RESPALDO_DERIVADO, true), RESPALDO_DERIVADO);
+
+// Pablo, 08/10: 5 vueltas sin contestar → pasa a una persona (salvo que ya se haya derivado en el turno), sin pedirle que reformule.
+igual("5 vueltas buscando: deriva y avisa que le escriben", cierreSinTerminar([{ nombre: "buscar_productos", resultado: "{}" }]), { texto: RESPALDO_SIN_TERMINAR, derivar: true });
+igual("5 vueltas pero ya derivó bien: no deriva de nuevo", cierreSinTerminar([{ nombre: "derivar_a_persona", resultado: ok }]).derivar, false);
+igual("5 vueltas y la derivación dio error: deriva", cierreSinTerminar([{ nombre: "derivar_a_persona", resultado: error }]).derivar, true);
+igual("el texto no le pide al cliente que reformule", /reformul/i.test(RESPALDO_SIN_TERMINAR), false);
+igual("el filtro de cierres no toca ese texto", sinCierreGenerico(RESPALDO_SIN_TERMINAR), RESPALDO_SIN_TERMINAR);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");

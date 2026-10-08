@@ -15,3 +15,16 @@ export function textoDeRespaldo(usadas: ReadonlyArray<{ nombre: string; resultad
   const derivo = usadas.some((u) => u.nombre === "derivar_a_persona" && /"ok"\s*:\s*true/.test(u.resultado));
   return derivo ? RESPALDO_DERIVADO : RESPALDO_SIN_TEXTO;
 }
+
+// Pablo, 08/10 ("qué le falta para ser un agente", punto 7): cuando el agente gasta las 5 vueltas de un turno pidiendo herramientas y no
+// llega a contestar, el cliente recibía «Disculpá, no pude completar tu consulta. ¿Podés reformular tu pregunta?»: le pasaba el problema a él
+// y nadie se enteraba. Pasa poco (Simulador, 05/10 a 08/10: 2 de 349 turnos llegaron a la 5ª vuelta, 0,6 %; webhook: 0 de 12), pero cuando
+// pasa ahora se deriva a una persona, salvo que en ese mismo turno ya se haya derivado. Texto mío, sobre el patrón de los aprobados
+// ("Una persona de Ventas revisa … y te escribe por acá"): pendiente de que Pablo lo apruebe o lo cambie.
+export const RESPALDO_SIN_TERMINAR = "Una persona del equipo revisa tu consulta y te escribe por acá. 🙏";
+
+/** Qué hacer cuando se terminan las vueltas: el texto y si hay que dejar una alerta (no, si en el turno ya se derivó bien). */
+export function cierreSinTerminar(usadas: ReadonlyArray<{ nombre: string; resultado: string }>): { texto: string; derivar: boolean } {
+  const derivo = usadas.some((u) => u.nombre === "derivar_a_persona" && /"ok"\s*:\s*true/.test(u.resultado));
+  return { texto: RESPALDO_SIN_TERMINAR, derivar: !derivo };
+}
