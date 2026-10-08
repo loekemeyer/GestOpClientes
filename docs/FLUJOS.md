@@ -270,6 +270,18 @@ BOT (agente, con consultar_mis_pedidos y consultar_stock): ¡Buen día! Tu pedid
      son 200 cajas de 12 …
 ```
 
+## Flujo 1f: "¿Sos un bot, un agente o una persona?" (08/10/2026, `_shared/presentacion.ts`)
+
+**Caso (Chef 411, 09:42):** «Vos sos un bote, un agente o una persona» lo tomó la FAQ #33 (`contacto_vendedor`) por la palabra clave «una persona»: *"Le paso tu
+mensaje a un asesor…"* + alerta (859) que nadie pidió. Después la IA contestó a su manera: *"Soy un asistente automático (bot)…"*, *"Sí, soy un bot 😄"*. Damián: presentarse
+como un agente especializado en la relación comercial. Pablo aprobó el texto.
+
+**Ahora (cliente identificado):** respuesta fija, sin IA y sin alerta: *"Soy el agente de Loekemeyer, especializado en tu cuenta: te ayudo con tus pedidos, tus compras,
+tus facturas, el stock y los productos que te pueden servir. Si algo necesita a una persona del equipo, le aviso y te escribe por acá."* Hace falta «sos / eres / estoy
+hablando con» + bot, agente, robot, IA, máquina o persona, y que sea pregunta (signo, «o» entre opciones o «te preguntaba»). «Quiero hablar con una persona» sigue en la
+#33. A un no cliente la #33 ya no le contesta esta pregunta (sigue el flujo de identificación). El agente tiene la misma regla (`PRESENTACIÓN`, `agente-fijos.ts`) para
+cuando lo preguntan de otra forma: nunca dice «bot» ni que es una persona, y no deriva por esa pregunta.
+
 ## Flujo 2: Consulta de pedido
 
 > **28/09 (Pablo):** la respuesta de estado nombra cada pedido por su fecha (nunca el número), saca los

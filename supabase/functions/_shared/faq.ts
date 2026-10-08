@@ -25,6 +25,7 @@ import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
 import { TEXTO_ACCESO_TAPADO, TEXTO_CLAVE_NO_AGENDADO } from "./clave-web.ts";
 import { mensajeCompuesto, pedidosDelMensaje, pistaDeParte, pistaRepetida, RE_CANTIDAD_CON_UNIDAD, yaLoDijo } from "./mensaje-compuesto.ts";
+import { preguntaQueEs, TEXTO_PRESENTACION } from "./presentacion.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Customer = { id: string; cod_cliente: number; business_name: string; dto_vol?: number } | null | undefined;
@@ -138,6 +139,11 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   // entrega"). Va al agente, que lee el historial, con lo que contestaría cada parte como pista (pistasDeLaCapaFija). La clave de la web sigue
   // arriba: el PIN sólo lo da esta capa. `parte` = se está armando la pista de una parte (no se vuelve a partir).
   if (customer && !opts.parte && mensajeCompuesto(text)) return null;
+  // Pablo y Damián, 08/10: "¿sos un bot, un agente o una persona?" → el texto de presentación aprobado (_shared/presentacion.ts). Antes la FAQ #33 lo tomaba
+  // como "quiero hablar con una persona" por la palabra clave, contestaba "Le paso tu mensaje a un asesor" y creaba una alerta. Sin alerta: no pidió a nadie.
+  if (customer && preguntaQueEs(text)) {
+    return { reply: TEXTO_PRESENTACION, intent: "presentacion", automation_level: "full_auto", topic: "Pregunta qué es el bot" };
+  }
   // Pablo, 29/09: "¿cuál es mi dirección de entrega?" / "¿a dónde me lo mandan?" / "¿a qué sucursal va?" pide A DÓNDE va SU
   // pedido (sucursal de entrega y expreso), no la dirección de nuestro depósito (FAQ #4, que es lo que contestaba).
   // Pablo, 29/09: "cambié de dirección" / "me mudé" / "quiero agregar una sucursal" lo resuelve la IA (solicitar_nueva_sucursal);
@@ -334,6 +340,9 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   if (error || !matches?.length) return null;
 
   const top = matches[0];
+  // Pablo, 08/10: preguntar qué es el bot ("¿sos una persona?") no es pedir hablar con una persona (#33, contacto_vendedor). Al cliente lo contesta la regla
+  // de presentación de arriba; a un no cliente, sin esto, le salía "Le paso tu mensaje a un asesor" y una alerta.
+  if (top.category === "contacto_vendedor" && preguntaQueEs(text)) return null;
   // match_score (RPC wa_faq_match, sql/054): peso de keywords que matchean por
   // inicio-de-palabra sobre texto normalizado (sin acentos), + rescate difuso
   // (pg_trgm) para typos. Un match real vale >= 1; sin match queda ~0 (sólo el
