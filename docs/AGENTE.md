@@ -133,3 +133,22 @@ base y el último mensaje (`bot-llm.ts`, `cuerpoAnthropic`). Desde la segunda ll
 a 0,1 del precio. El costo que se guarda en `bot_token_usage` ya cuenta la escritura (1,25×) y la lectura (0,1×), así el tope de gasto diario sigue
 midiendo bien. Gemini y los demás proveedores reciben el prompt junto, como antes.
 
+
+## Hechos de esta charla: memoria más allá de las 16 filas (08/10/2026)
+
+El agente lee las últimas 16 filas de la charla. Lo que quedó más atrás lo perdía: el 08/10 a las 09:42 Damián (Chef 411) preguntó "¿me van a
+llamar hoy, mañana o en cuántos minutos?" y el pase a Ventas de las 09:32 ya no estaba en esas 16 filas, así que el agente (Sonnet 4.6) le mandó
+la foto del 505 por quinta vez. Desde el 08/10 (Pablo, paso 2 de "qué le falta para ser un agente", opción A) el código arma en cada mensaje, sin
+IA, un bloque **Hechos de esta charla** con:
+
+1. **Pases a una persona** de este número (`wa_alertas_humano`): los abiertos de los últimos 7 días y los atendidos de las últimas 24 h, con
+   motivo, hora y estado. Sólo una lista cerrada de motivos (`MOTIVOS` en `_shared/hechos-charla.ts`): las alertas internas (errores de la IA,
+   tope de gasto, filtro de salida, whitelist, una prueba del Simulador) nunca llegan al prompt, y un motivo nuevo no se muestra hasta que se
+   lo agrega a la lista. No lleva texto del cliente.
+2. **Lo que hizo el bot** en las últimas 24 h (`bot_auditoria`): fotos y catálogo mandados (agrupados: "la foto del 505: 5 veces") y pedidos
+   que quedaron cargados. Lo que deja una alerta (derivar, solicitar cambios) sale por el punto 1.
+
+El bloque le pide no contradecirse ni repetir, contestar con lo que ya se pasó a una persona cuando pregunta por eso, y recuerda que algo
+mandado no confirma que le llegó. Va en la parte del prompt que cambia con cada mensaje (no rompe el caché) y nunca demora el turno más de 1,5 s:
+si la base no contesta, el turno sigue sin el bloque. En el Simulador sale de lo que pasó en la simulación entera. **No cubre** lo que contesta
+la capa fija sin dejar alerta (una respuesta fija, un PDF de factura): eso sigue sólo en las 16 filas. Pruebas: `tests/hechos-charla.test.ts`.

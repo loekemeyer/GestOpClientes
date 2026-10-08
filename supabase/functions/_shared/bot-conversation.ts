@@ -21,6 +21,7 @@ import { decidirSalida, type Hallazgo, modoDelFiltro, redactarSecretos, revisarS
 import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
+import { hechosDeLaCharla } from "./hechos-charla.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
@@ -1492,18 +1493,20 @@ export async function runConversation(
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
   const canario = await canarioDelServidor();
-  const [rawHistory, promptBase, herramientas, chain, ejemplos] = await Promise.all([
+  const [rawHistory, promptBase, herramientas, chain, ejemplos, hechos] = await Promise.all([
     loadHistory(phone, 16),
     buildSystemPrompt(customerName, codCliente, dtoVol, canario),
     herramientasDelTurno(),
     resolveChain(),
     ejemplosAprobados(),
+    hechosDeLaCharla(phone),   // Pablo, 08/10: pases a una persona y acciones del bot que ya no entran en las 16 filas (hechos-charla.ts)
   ]);
   const bloqueAprobados = bloqueEjemplos(elegirEjemplos(userText, ejemplos));
   const pistas = bloquePistas(opciones.pistas ?? []);
   // Pablo, 08/10: el prompt va en dos partes para el caché de Anthropic (bot-llm.ts): la base (reglas y datos del cliente) es igual en todas las
-  // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, ejemplos, pistas) va después.
-  const promptVariable = notaDeTiempo(rawHistory, userText) + (bloqueAprobados ? "\n\n" + bloqueAprobados : "") + (pistas ? "\n\n" + pistas : "");
+  // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, hechos, ejemplos, pistas) va después.
+  const promptVariable = notaDeTiempo(rawHistory, userText) + (hechos ? "\n\n" + hechos : "") +
+    (bloqueAprobados ? "\n\n" + bloqueAprobados : "") + (pistas ? "\n\n" + pistas : "");
   const systemPrompt = promptBase + "\n\n" + promptVariable;
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
   // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor

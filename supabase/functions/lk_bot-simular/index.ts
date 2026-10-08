@@ -2,7 +2,7 @@ import "../_shared/wa-guard.ts"; // D007: por las dudas — igual no manda nada 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, getIsisClient, getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
-import { SIM } from "../_shared/simulacion.ts";
+import { SIM, empezarCharlaSim, guardarPasoSim } from "../_shared/simulacion.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
@@ -168,6 +168,7 @@ const TEL_NUEVO = "5490000000099";   // número falso del modo "número nuevo"
 async function simularNumeroNuevo(body: any): Promise<Response> {
   SIM.activo = true;
   SIM.historial = [];
+  empezarCharlaSim();
   try {
     if (!Array.isArray(body.historial) || !body.historial.length) {
       await supabase.from("wa_prospect_leads").update({ status: "cancelled", updated_at: new Date().toISOString() })
@@ -227,6 +228,7 @@ async function simularClienteChef(body: any): Promise<Response> {
   // Pablo, 01/10: antes arrancaba siempre con la charla vacía; así "elegir foto → el código", la puerta de marca y la respuesta a
   // un aviso tienen la memoria de lo anterior, igual que el webhook.
   SIM.historial = historialDe(body);
+  empezarCharlaSim();
   try {
     const salida: Array<Record<string, unknown>> = [];
     for (const paso of (body.pasos ?? []) as Array<Record<string, unknown>>) {
@@ -355,6 +357,7 @@ serve(async (req) => {
     }
     SIM.activo = true;
     SIM.historial = historialDe(body);
+    empezarCharlaSim();   // Pablo, 08/10: "Hechos de esta charla" (hechos-charla.ts) ve lo que pasó en toda la simulación
     const salida: Array<Record<string, unknown>> = [];
     const ahora = () => new Date().toISOString();
 
@@ -508,6 +511,7 @@ serve(async (req) => {
         }
       }
       salida.push({ cliente: text, bot: reply, via, alertas: [...SIM.alertas], herramientas: [...SIM.herramientas], tareas, puntuar, ...(imagenes.length ? { imagenes } : {}) });
+      guardarPasoSim();
     }
     SIM.activo = false;
     return json({ ok: true, cliente: `${c.business_name} (${c.cod_cliente})`, charla: salida });
