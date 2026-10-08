@@ -170,3 +170,13 @@ mandado no confirma que le llegó. Va en la parte del prompt que cambia con cada
 al principio del último mensaje del cliente (ver "Caché de prompt": no rompe el caché de la base ni del historial) y nunca demora el turno más de 1,5 s:
 si la base no contesta, el turno sigue sin el bloque. En el Simulador sale de lo que pasó en la simulación entera. **No cubre** lo que contesta
 la capa fija sin dejar alerta (una respuesta fija, un PDF de factura): eso sigue sólo en las 16 filas. Pruebas: `tests/hechos-charla.test.ts`.
+
+## Corrida automática de los casos de evaluación (08/10/2026)
+
+Los casos de Configuración del agente › Evaluación (`wa_agente_evals`, 84 que se pueden simular al 08/10) se simulan solos cada noche
+a las 03:15 (cron `lk_eval-corrida`), de a uno por minuto (cron `lk_eval-tick`), con el modelo de pruebas gratis. Al terminar, cada caso
+se compara con la corrida anterior: si cambió el camino (respuesta fija o IA), a quién deriva, el texto de una respuesta fija sin datos
+o si dejó de contestar. Lo que escribe la IA no se compara letra por letra. Los cambios llegan en el mail de fallas (sección 4) y se
+ven arriba de la pestaña Evaluación, con un botón **Correr ahora**. La corrida no toca las respuestas revisadas de cada caso y nunca
+gasta: si `llm_modelo_pruebas` tiene un modelo que no está marcado gratis, no manda nada. Base y funciones en `sql/133`, textos en
+`_shared/eval-corridas.ts`, pruebas en `tests/eval-corridas.test.ts`.

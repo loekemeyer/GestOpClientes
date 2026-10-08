@@ -547,6 +547,9 @@ tope un dolar en total"*), **gastado y pasado**: US$ 0,88 antes y US$ 1,10 al 07
 - `./tests/correr-todas.sh` — todas las pruebas locales (sin red, sin IA, US$ 0). **El CI las corre antes de deployar y, si falla
   una, no deploya** (Pablo, 08/10/2026). Una prueba nueva va como `tests/<nombre>.test.ts` y sale con código 1 si falla: así
   entra sola al gate.
+- **Casos del agente (`wa_agente_evals`): corren solos cada noche** a las 03:15 en el Simulador con Gemini (US$ 0), de a uno por
+  minuto, y se comparan con la corrida anterior (sql/133, Pablo 08/10/2026). Los cambios y errores llegan en el mail de fallas y se
+  ven en Configuración del agente › Evaluación ("Correr ahora" la dispara a mano). Si el modelo de pruebas no es gratis, no corre.
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
 - Usar ngrok para exponer localhost a Meta webhook
 - Meta test numbers para desarrollo

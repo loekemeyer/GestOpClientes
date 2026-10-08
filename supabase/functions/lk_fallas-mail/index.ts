@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { supabase } from "../_shared/supabase.ts";
 import { CATEGORIAS, categoria, vencimientos } from "../_shared/alertas-vencimiento.ts";
 import { ERRORES_META } from "../_shared/errores-meta.ts";
+import { type CasoEval, type Corrida, filasDeCorrida, hayQueAvisar, type Resultado, resumenCorrida } from "../_shared/eval-corridas.ts";
 
 // lk_fallas-mail — mail de fallas del bot a loekemeyer.n8n@gmail.com. Pedido de Pablo Olejavetzky (28/09).
 //
@@ -10,6 +11,7 @@ import { ERRORES_META } from "../_shared/errores-meta.ts";
 //   1. Envíos que Meta rechazó        → wa_message_status.status = 'failed' (llegan por el webhook).
 //   2. Envíos que la cola dio por muertos → wa_outbox.status = 'failed' (agotó los reintentos).
 //   3. Alertas para humanos vencidas sin atender (mismo vencimiento que 🔔 Alertas; sin whitelist_gate).
+//   4. Corrida automática de los casos del agente (sql/133) que terminó con cambios, errores o sin poder correr (Pablo, 08/10).
 // Es un mail interno: NO pasa por la llave de WhatsApp ni le escribe a ningún cliente.
 //
 // Estado en app_settings.wa_fallas_mail_ultimo = {"hasta": iso, "outbox_ids": [...]}. Sin fila → mira
@@ -140,6 +142,27 @@ serve(async (req) => {
       const cat = categoria(a);
       return { a, cat, vence: new Date(new Date(a.created_at).getTime() + v[cat] * 60_000) };
     }).filter((x) => x.vence > desde && x.vence <= ahora);
+    // 4) Corridas de evaluación del agente que terminaron en (desde, ahora] y tienen algo para contar (sql/133).
+    const { data: corr } = await supabase.from("wa_agente_eval_corridas").select("*")
+      .gt("terminada_at", desde.toISOString()).lte("terminada_at", ahora.toISOString()).order("id");
+    const corridas = ((corr ?? []) as Corrida[]).filter(hayQueAvisar);
+    const filasEval: string[][] = [];
+    for (const c of corridas) {
+      const { data: rs } = await supabase.from("wa_agente_eval_resultados")
+        .select("eval_id, estado, camino, deriva, respuesta, error, cambios, antes").eq("corrida_id", c.id)
+        .or("estado.eq.error,cambios.not.is.null");
+      const res = (rs ?? []) as Resultado[];
+      const evIds = [...new Set(res.map((r) => r.eval_id))];
+      const casos = new Map<number, CasoEval>();
+      if (evIds.length) {
+        const { data: es } = await supabase.from("wa_agente_evals").select("id, clave, pregunta, causa").in("id", evIds);
+        for (const e of (es ?? []) as CasoEval[]) casos.set(e.id, e);
+      }
+      const filas = filasDeCorrida(res, casos);
+      if (!filas.length) filasEval.push([hora(c.terminada_at ?? c.creada_at), resumenCorrida(c), "", ""]);
+      for (const f of filas) filasEval.push([hora(c.terminada_at ?? c.creada_at), f.caso, f.pregunta, f.que]);
+    }
+
     const ids = [...new Set(vencidas.map((x) => x.a.customer_id).filter(Boolean))];
     const nombres: Record<string, string> = {};
     if (ids.length) {
@@ -181,7 +204,7 @@ serve(async (req) => {
         String(ctx.texto_recibido ?? ctx.texto ?? "").slice(0, 200), pedido(ctx.pedido)];
     });
 
-    const total = filasMeta.length + filasCola.length + filasAlertas.length;
+    const total = filasMeta.length + filasCola.length + filasAlertas.length + filasEval.length;
     const guardarEstado = async () => {
       const recientes = new Set((muertas ?? []).map((m) => Number(m.id)));
       const outbox_ids = [...new Set([...outboxYa, ...nuevasCola.map((m) => Number(m.id))])].filter((id) => recientes.has(id));
@@ -198,6 +221,7 @@ serve(async (req) => {
       filasMeta.length ? `${filasMeta.length} WhatsApp no entregado${filasMeta.length > 1 ? "s" : ""}` : "",
       filasCola.length ? `${filasCola.length} sin enviar` : "",
       filasAlertas.length ? `${filasAlertas.length} alerta${filasAlertas.length > 1 ? "s" : ""} vencida${filasAlertas.length > 1 ? "s" : ""}` : "",
+      corridas.length ? `evaluación del agente: ${corridas.map(resumenCorrida).join(" / ")}` : "",
     ].filter(Boolean);
     const subject = `${prueba ? "[PRUEBA] " : ""}Bot LK: ${partes.join(" · ")}`;
     const html = `<div style="font-family:Arial,sans-serif;font-size:14px">` +
@@ -211,6 +235,9 @@ serve(async (req) => {
         "El bot lo intentó varias veces y se rindió: ese cliente no recibió el aviso.") +
       tabla("3. Alertas vencidas sin atender", ["Venció", "Motivo", "Cliente", "Qué escribió", "Pedido"], filasAlertas,
         "Un cliente necesita a una persona y nadie la marcó como atendida a tiempo.") +
+      tabla("4. Casos del agente que cambiaron o fallaron en la corrida automática", ["Terminó", "Caso", "Pregunta", "Qué pasó"], filasEval,
+        "Cada noche se simulan solos los casos de Configuración del agente › Evaluación (Gemini, US$ 0) y se comparan con la " +
+        "corrida anterior. Un cambio no es siempre un error: puede ser el efecto buscado de un cambio en el bot. Revisalo en el Panel.") +
       `<p style="color:#666;margin-top:16px">Para atender o descartar alertas: ` +
       `<a href="https://loekemeyer.github.io/GestOpClientes/">dashboard del bot</a> → 🔔 Alertas.</p></div>`;
 
@@ -229,7 +256,7 @@ serve(async (req) => {
     }
     if (!prueba) await guardarEstado();
     console.log(`lk_fallas-mail: enviado (${subject})`);
-    return json({ ok: true, enviado: true, subject, meta: filasMeta.length, cola: filasCola.length, alertas: filasAlertas.length });
+    return json({ ok: true, enviado: true, subject, meta: filasMeta.length, cola: filasCola.length, alertas: filasAlertas.length, evaluacion: filasEval.length });
   } catch (err) {
     console.error("lk_fallas-mail error:", err);
     return json({ error: err instanceof Error ? err.message : String(err) }, 500);

@@ -343,6 +343,9 @@
     .md-preview li { margin-bottom: 0.2rem; }
     .md-preview p { margin: 0.4rem 0; }
     .md-preview code { background: var(--border); padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.82rem; }
+    /* v0.28.8 (Pablo, 08/10): corrida automática de los casos en Evaluación. */
+    .ev-corr { border-collapse: collapse; font-size: 0.78rem; margin-top: 0.5rem; }
+    .ev-corr th, .ev-corr td { text-align: left; padding: 0.25rem 0.6rem 0.25rem 0; border-bottom: 1px solid var(--border); vertical-align: top; }
     .cat-pill { display: inline-block; font-size: 0.68rem; font-weight: 600; padding: 0.12rem 0.5rem; border-radius: 20px; }
     .cat-pill.objetivo { background: var(--bot-bg); color: var(--bot-fg); }
     .cat-pill.limite { background: var(--bad-bg); color: var(--g-danger); }
@@ -1422,6 +1425,21 @@
               reales representa cada uno. <b>🔁 Simular de nuevo</b> le pregunta al bot de hoy (no manda WhatsApp ni crea
               tareas) y en <b>Respuesta corregida</b> va lo que debería contestar.
             </p>
+            <!-- v0.28.8 (Pablo, 08/10): corrida automática de los casos (sql/133). Cada noche a las 03:15, o con «Correr ahora». -->
+            <div class="consulta-card" id="evCorrida" style="max-width:860px">
+              <div class="consulta-q">🤖 Corrida automática <span class="hint" id="evCorridaFecha"></span></div>
+              <div class="consulta-meta" id="evCorridaResumen">Cargando...</div>
+              <div id="evCorridaFilas"></div>
+              <div class="row" style="margin-top:0.5rem">
+                <button class="config-btn small" onclick="evCorrer()">▶ Correr ahora</button>
+                <span class="config-status" id="evCorridaSt"></span>
+              </div>
+              <p class="hint" style="font-size:0.75rem;color:var(--muted);margin:0.4rem 0 0">
+                Simula solos todos los casos (Gemini gratis, US$ 0: si el modelo de pruebas no es gratis, no corre), de a uno por minuto,
+                y los compara con la corrida anterior: si cambia el camino (respuesta fija o IA), a quién deriva o el texto de una
+                respuesta fija, o si deja de contestar. Lo que escribe la IA no se compara letra por letra. No toca las respuestas de abajo.
+              </p>
+            </div>
             <div class="ev-toolbar">
               <div class="ev-seg" id="evFiltros"></div>
               <input id="evBuscar" type="search" placeholder="Buscar en preguntas, respuestas y correcciones" oninput="evBuscar(this.value)">
@@ -3424,6 +3442,7 @@ async function loadEvals() {
   document.getElementById("evFiltros").innerHTML = EV_FILTROS.map(([k, t]) =>
     '<button type="button" data-f="' + k + '" class="' + (k === _evFiltro ? "on" : "") + '" onclick="evFiltrar(\'' + k + '\')">' + t + "</button>").join("");
   try {
+    evCorridaCargar();
     const r = await amInvoke({ action: "eval_list" });
     _evals = r.evals || [];
     if (!_evals.length) { cont.innerHTML = '<div class="bl-empty">Sin preguntas de evaluación</div>'; return; }
@@ -3628,6 +3647,40 @@ let _modRows = [];
 const escM = s => (s || "").replace(/</g, "&lt;");
 
 // Invoca la edge function y extrae el mensaje de error real del server.
+// v0.28.8 (Pablo, 08/10): corrida automática de los casos (sql/133, lk_agente-modelos eval_corridas / eval_correr).
+let _evCorridaTimer = null;
+async function evCorridaCargar() {
+  const res = document.getElementById("evCorridaResumen"), filasEl = document.getElementById("evCorridaFilas"), fecha = document.getElementById("evCorridaFecha");
+  if (!res) return;
+  try {
+    const r = await amInvoke({ action: "eval_corridas" });
+    const c = (r.corridas || [])[0];
+    if (!c) { res.textContent = "Todavía no corrió ninguna. La primera queda como base para comparar."; filasEl.innerHTML = ""; fecha.textContent = ""; return; }
+    fecha.textContent = "· " + evFecha(c.terminada_at || c.creada_at) + (c.origen ? " · " + c.origen : "");
+    let txt = c.resumen || "";
+    if (c.estado === "corriendo") {
+      const a = r.avance || {}, hechos = (a.listo || 0) + (a.error || 0);
+      txt = "Corriendo: " + hechos + " de " + c.casos + " casos (de a uno por minuto)" + (a.error ? " · " + a.error + " con error" : "");
+    }
+    res.textContent = txt;
+    const filas = r.filas || [];
+    filasEl.innerHTML = filas.length ? '<table class="ev-corr"><tr><th>Caso</th><th>Pregunta</th><th>Qué pasó</th></tr>' +
+      filas.map((f) => "<tr><td>" + evEsc(f.caso) + "</td><td>" + evEsc(f.pregunta) + "</td><td>" + evEsc(f.que) + "</td></tr>").join("") + "</table>" : "";
+    clearTimeout(_evCorridaTimer);
+    if (c.estado === "corriendo") _evCorridaTimer = setTimeout(evCorridaCargar, 60000);
+  } catch (e) {
+    res.textContent = "No pude leer la corrida: " + e.message;
+  }
+}
+async function evCorrer() {
+  const st = document.getElementById("evCorridaSt");
+  st.textContent = "Arrancando…"; st.className = "config-status";
+  try {
+    const r = await amInvoke({ action: "eval_correr" });
+    st.textContent = "✓ Corrida " + r.corrida; st.className = "config-status ok";
+    evCorridaCargar();
+  } catch (e) { st.textContent = "✗ " + e.message; st.className = "config-status err"; }
+}
 async function amInvoke(payload) {
   const { data, error } = await authedInvoke("lk_agente-modelos", payload);
   if (error) {
@@ -5404,7 +5457,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.7</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.8</div>
 <script src="gestop2.js?v=0.28.6"></script>
 </body>
 </html>
