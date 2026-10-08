@@ -188,3 +188,13 @@ respuesta, el código la borra antes de enviar (`sinMarcaDeTramo`). Con una sola
 siguientes la leen del caché (0,1×). Prueba local: la charla anterior queda igual en los 20 turnos de una charla de hoy y el historial se reusa
 en 17 de 20 (`tests/memoria-charla.test.ts`). Las compuertas de pedido y de mail y la nota de tiempo siguen con los últimos 16. El Simulador acepta
 `creado_en` en cada mensaje de `historial` para probarlo (sin él, todo es de ahora).
+
+## Corrida automática de los casos de evaluación (08/10/2026)
+
+Los casos de Configuración del agente › Evaluación (`wa_agente_evals`, 84 que se pueden simular al 08/10) se simulan solos cada noche
+a las 03:15 (cron `lk_eval-corrida`), de a uno por minuto (cron `lk_eval-tick`), con el modelo de pruebas gratis. Al terminar, cada caso
+se compara con la corrida anterior: si cambió el camino (respuesta fija o IA), a quién deriva, el texto de una respuesta fija sin datos
+o si dejó de contestar. Lo que escribe la IA no se compara letra por letra. Los cambios llegan en el mail de fallas (sección 4) y se
+ven arriba de la pestaña Evaluación, con un botón **Correr ahora**. La corrida no toca las respuestas revisadas de cada caso y nunca
+gasta: si `llm_modelo_pruebas` tiene un modelo que no está marcado gratis, no manda nada. Base y funciones en `sql/133`, textos en
+`_shared/eval-corridas.ts`, pruebas en `tests/eval-corridas.test.ts`.

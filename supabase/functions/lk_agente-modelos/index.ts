@@ -13,6 +13,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { fijosParaPanel } from "../_shared/agente-fijos.ts";
+import { type CasoEval, type Corrida, filasDeCorrida, type Resultado, resumenCorrida } from "../_shared/eval-corridas.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -350,6 +351,37 @@ serve(async (req) => {
         .order("orden", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true });
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true, evals: data ?? [] });
+    }
+
+    // Pablo, 08/10 (sql/133): la corrida automática de los casos (cada noche, o "Correr ahora"). Devuelve la última corrida con los
+    // casos que cambiaron o fallaron, ya contados en castellano (_shared/eval-corridas.ts, lo mismo que dice el mail de fallas).
+    if (action === "eval_corridas") {
+      const { data: cs, error } = await sb.from("wa_agente_eval_corridas").select("*").order("id", { ascending: false }).limit(5);
+      if (error) return json({ error: error.message }, 500);
+      const corridas = (cs ?? []) as Corrida[];
+      const ult = corridas[0] ?? null;
+      let filas: Array<{ caso: string; pregunta: string; que: string }> = [];
+      let avance: Record<string, number> = {};
+      if (ult) {
+        const { data: rs } = await sb.from("wa_agente_eval_resultados")
+          .select("eval_id, estado, camino, deriva, respuesta, error, cambios, antes").eq("corrida_id", ult.id);
+        const res = (rs ?? []) as Resultado[];
+        for (const r of res) avance[r.estado] = (avance[r.estado] ?? 0) + 1;
+        const ids = [...new Set(res.map((r) => r.eval_id))];
+        const casos = new Map<number, CasoEval>();
+        if (ids.length) {
+          const { data: es } = await sb.from("wa_agente_evals").select("id, clave, pregunta, causa").in("id", ids);
+          for (const e of (es ?? []) as CasoEval[]) casos.set(e.id, e);
+        }
+        if (ult.estado !== "corriendo") filas = filasDeCorrida(res, casos, 100);
+      } else avance = {};
+      return json({ ok: true, corridas: corridas.map((c) => ({ ...c, resumen: resumenCorrida(c) })), filas, avance });
+    }
+
+    if (action === "eval_correr") {
+      const { data, error } = await sb.rpc("wa_eval_corrida_nueva", { p_origen: `panel (${gate.email})` });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, corrida: data });
     }
 
     // La última respuesta del bot, simulada desde el panel (lk_bot-simular).
