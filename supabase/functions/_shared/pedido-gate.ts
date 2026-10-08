@@ -123,6 +123,17 @@ export function evaluarConfirmacion(e: EntradaConfirmacion): VeredictoConfirmaci
   return { ok: true };
 }
 
+/** ¿El cliente ya dijo "sí" a ESTE resumen? Lo usa `armar_pedido` cuando el agente lo vuelve a llamar en el turno del "sí" (el paso 6
+ *  se lo permite para tener los datos): sin esto, la `regla` de siempre ("mostrale el resumen y pedile que confirme") lo hacía repetir
+ *  el resumen y el cliente tenía que decir "sí" dos veces (Sonnet 4.6 en el Simulador, 08/10, auditoría 742). Es la misma compuerta
+ *  de `confirmar_pedido`, así que sólo da true si `confirmar_pedido` con estos datos va a pasar. */
+export function yaConfirmoEsteResumen(e: EntradaConfirmacion): boolean {
+  return evaluarConfirmacion(e).ok;
+}
+
+/** La `regla` de `armar_pedido` cuando el cliente ya confirmó ese mismo resumen. */
+export const REGLA_YA_CONFIRMO = "El cliente ya confirmó este mismo resumen con un sí: llamá confirmar_pedido AHORA con exactamente estos datos (mismos artículos y cajas, condicion_code, slot y retiro) y pasale su texto_para_el_cliente. No le vuelvas a mostrar el resumen ni le pidas otra confirmación.";
+
 /** Lo que se le dice al MODELO cuando la compuerta no deja cargar (nunca al cliente tal cual: no revela el mecanismo). */
 export const REGLA_BLOQUEO: Record<MotivoBloqueo, string> = {
   sin_si: "No se cargó: el cliente todavía no confirmó con un sí. Mostrale el resumen de armar_pedido tal cual y pedile que confirme con un sí. No vuelvas a llamar confirmar_pedido hasta que lo diga.",

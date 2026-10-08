@@ -434,7 +434,11 @@ sus cajas e importe, subtotal, forma de pago, total y entrega) está igual en lo
 (08/10: antes miraba sólo los códigos y el total, y pasaban otras cajas, otra entrega o un artículo menos con el mismo total, auditoría 740).
 Negritas, viñetas, guiones largos y espacios no cuentan. Si no, la herramienta devuelve `no_cargado` y el agente vuelve a mostrar el resumen
 y pide el sí. Si al guardar el total cambió (precio que se actualizó entre el resumen y el guardado), la precarga recién guardada se descarta
-(`bot_pedido_descartar`) y el bot vuelve a mostrar el resumen (auditoría 741). Eso deja una
+(`bot_pedido_descartar`) y el bot vuelve a mostrar el resumen (auditoría 741).
+**Un solo «sí» (08/10, auditoría 742):** si en el turno del «sí» el agente vuelve a llamar `armar_pedido` (el paso 6 se lo permite) y el
+resumen rearmado es el mismo que el cliente acaba de aprobar, la herramienta devuelve `ya_confirmado` y le dice que llame `confirmar_pedido`
+ya, sin el resumen para mostrar. Antes devolvía «mostrale el resumen y pedile que confirme» y, con Sonnet 4.6, el cliente tenía que decir «sí» dos veces.
+Usa la misma compuerta (`yaConfirmoEsteResumen`): si los datos cambiaron, no pasa y el resumen nuevo se muestra. Eso deja una
 **precarga** (`wa_pedido_precarga`, Gestión no la ve) y una tarea "Pedido por WhatsApp" con **Confirmar y enviar a
 Gestión** / **Descartar** (lk_alertas `pedido_confirmar`/`pedido_descartar`). Confirmar crea el pedido con su ficha
 (origen "WhatsApp"): retry-sheets lo manda al Sheet y al cliente le llega "pedido recibido". Modo "directo" confirma

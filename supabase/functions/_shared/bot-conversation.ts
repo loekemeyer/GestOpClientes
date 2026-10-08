@@ -15,7 +15,7 @@ import { timeoutDeModelo } from "./timeouts.ts";
 import { esperaPorCuotaDePrueba, idModeloPrueba, listaModelosPrueba, soloModelosGratis } from "./modelos-prueba.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
-import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
+import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO, REGLA_YA_CONFIRMO, yaConfirmoEsteResumen } from "./pedido-gate.ts";
 import { mailEscritoPorElCliente, mailYaPedidoEnLaCharla, REGLA_MAIL_NO_ESCRITO, textoPedidoMail, textoYaPedidoMail, VIGENCIA_MAIL_MS } from "./mail-gate.ts";
 import { decidirSalida, type Hallazgo, modoDelFiltro, redactarSecretos, revisarSalida, TEXTO_SALIDA_BLOQUEADA } from "./filtro-salida.ts";
 import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
@@ -1160,6 +1160,11 @@ async function executeTool(
       const parecidos = (r?.parecidos ?? []) as Array<{ tipo: string; fecha: string; comunes: number; de: number }>;
 
       if (!confirmar) {
+        // Turno del "sí": si el cliente ya confirmó este mismo resumen, se le dice al agente que confirme ya, sin mostrarlo de nuevo
+        // (antes repetía el resumen y el cliente tenía que decir "sí" dos veces, auditoría 742). Si los datos cambiaron, no pasa.
+        if (r?.ok && resumen && yaConfirmoEsteResumen({ textoCliente: ctx.userText, historial: ctx.historial, resumen })) {
+          return { data: { ok: true, ya_confirmado: true, regla: REGLA_YA_CONFIRMO } };
+        }
         return { data: { ok: r?.ok === true, errores, avisos: r?.avisos ?? [], resumen_para_el_cliente: resumen,
           ...(parecidos.length ? { parecidos: parecidos.map((p) => `pedido ${p.tipo === "web" ? "por la web" : "por WhatsApp"} del ${p.fecha} con ${p.comunes} de ${p.de} artículos iguales`),
             regla_parecidos: "Antes del resumen preguntale si es un pedido nuevo o el mismo que ese. Si es el mismo, no sigas." } : {}),

@@ -1,6 +1,6 @@
 // Pruebas de la compuerta de confirmar_pedido (supabase/functions/_shared/pedido-gate.ts). Sin red, sin IA.
-// Correr: deno run tests/pedido-gate.test.ts   (sale con código 1 si algo falla)
-import { evaluarConfirmacion, esResumenDePedido, esSiAsecas, textosSinContestar } from "../supabase/functions/_shared/pedido-gate.ts";
+// Correr: deno run --allow-read tests/pedido-gate.test.ts   (sale con código 1 si algo falla)
+import { evaluarConfirmacion, esResumenDePedido, esSiAsecas, REGLA_YA_CONFIRMO, textosSinContestar, yaConfirmoEsteResumen } from "../supabase/functions/_shared/pedido-gate.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -95,6 +95,24 @@ igual("ok: sin negritas, con '-' en vez de '•' y de '—'", conSi(BLOQUE, RESU
 igual("ok: con la etiqueta de marca arriba y texto del modelo antes y después",
   conSi(BLOQUE, `*Loekemeyer*\nPerfecto, te paso el resumen:\n\n${BLOQUE}\n\n¿Confirmás con un sí? 🙌`), { ok: true });
 igual("ok: espacios de más", conSi(BLOQUE, RESUMEN.replace(/ /g, "  ")), { ok: true });
+
+// ── Un solo "sí" alcanza (08/10, auditoría 742): armar_pedido en el turno del "sí" ──
+// Con Sonnet 4.6 el agente volvía a llamar armar_pedido ante el "sí", la regla le decía "mostrale el resumen y pedile que confirme" y
+// el cliente tenía que decir "sí" dos veces. Ahora armar_pedido le dice que confirme ya, pero sólo si confirmar_pedido va a pasar.
+const yaConfirmo = (texto: string, resumen = BLOQUE, visto = RESUMEN) =>
+  yaConfirmoEsteResumen({ textoCliente: texto, historial: [fila("user", texto, 0), fila("assistant", visto, 1)], ahora: AHORA, resumen });
+igual("ya confirmó: 'sí' al mismo resumen", yaConfirmo("sí"), true);
+igual("ya confirmó: 'sí, confirmo' al mismo resumen", yaConfirmo("sí, confirmo"), true);
+igual("NO ya confirmó: armó con otra entrega que la que vio", yaConfirmo("sí", cambiado("Entrega: Virgilio 2788", "Entrega: Sucursal Rosario")), false);
+igual("NO ya confirmó: armó con otras cajas", yaConfirmo("sí", cambiado("3 cajas Pelapapas (505) — $120.000", "4 cajas Pelapapas (505) — $160.000")), false);
+igual("NO ya confirmó: 'sí pero con 4 cajas'", yaConfirmo("sí pero con 4 cajas"), false);
+igual("NO ya confirmó: lo último del bot no es el resumen", yaConfirmo("sí", BLOQUE, "¿Querés que te arme el pedido?"), false);
+igual("regla: manda a confirmar_pedido sin repetir el resumen", /confirmar_pedido AHORA/.test(REGLA_YA_CONFIRMO) && /No le vuelvas a mostrar el resumen/.test(REGLA_YA_CONFIRMO), true);
+// Guarda sobre el código: armar_pedido (rama sin confirmar) consulta yaConfirmoEsteResumen ANTES de devolver el resumen para mostrar.
+const fuente = await Deno.readTextFile(new URL("../supabase/functions/_shared/bot-conversation.ts", import.meta.url));
+const rama = fuente.slice(fuente.indexOf("if (!confirmar) {"), fuente.indexOf("if (!r?.ok) return { data: { ok: false, errores, regla: \"No se cargó"));
+igual("código: armar_pedido pregunta si ya confirmó antes de devolver resumen_para_el_cliente",
+  rama.includes("yaConfirmoEsteResumen(") && rama.indexOf("yaConfirmoEsteResumen(") < rama.indexOf("resumen_para_el_cliente: resumen") && rama.includes("REGLA_YA_CONFIRMO"), true);
 
 // ── Historial ──
 igual("sin contestar: toma los mensajes hasta la última respuesta del bot", textosSinContestar([fila("user", "b", 0), fila("user", "a", 1), fila("assistant", "x", 2), fila("user", "viejo", 3)], "b"), ["b", "a"]);
