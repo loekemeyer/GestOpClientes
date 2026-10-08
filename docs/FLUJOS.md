@@ -397,7 +397,7 @@ BOT: (agente, derivar_a_persona motivo excepcion_minimo) Lo consulto con tu vend
 ```
 
 IA (`agente-fijos.ts`): tono cordial sin muletillas (2.4); nunca asumir que el cliente se equivocó (1.9); código
-inactivo = "discontinuado" + parecidos con link de foto (2.5, `buscar_productos`); anular con el estado y motivo
+inactivo = "discontinuado" + parecidos con link de foto (2.5, `buscar_productos`), **salvo la etiqueta «SIN STOCK»** (08/10, tarea 5283, `_shared/inactivos.ts`): ese inactivo NO se dice discontinuado, la regla manda a `consultar_stock` y ofrece el parecido (hoy 333, 334, 336 y 337; «LIQUIDACIÓN» y «NUEVO» inactivos siguen como discontinuado hasta que Pablo diga qué significan); anular con el estado y motivo
 `anulacion_pedido`. El resumen del pedido por WhatsApp dice a nombre de qué razón social y CUIT va (2.12).
 **Sin cierre de cortesía (Pablo, 05/10):** la IA contesta y termina; no cierra con "¿Necesitás algo más?" ni "cualquier consulta
 avisame" (si tiene otra consulta la hace; si no, la charla termina). Dos capas: la regla CIERRE de `agente-fijos.ts` y el filtro
