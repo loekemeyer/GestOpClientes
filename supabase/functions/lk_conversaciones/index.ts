@@ -20,6 +20,8 @@ import { renderPlantilla } from "../_shared/plantillas-meta.ts";
 // Centro de mensajes (rediseño, dashboard v0.19): tomar / devolver / resolver / ficha / llave_get / llave_set.
 //   Estado de cada conversación (bandeja): esperando (hay una alerta abierta y nadie la tomó) · humano
 //   (modo humano) · resuelta (wa_human_control.estado='resuelto' y sin alerta abierta) · bot (el resto).
+//   Una resuelta se reabre sola ('abierto') cuando el cliente vuelve a escribir: trigger trg_wa_reabrir_resuelta
+//   sobre bot_historial_chat (sql/129). Acá no se calcula: el momento de resolver no está guardado (mark_read pisa updated_at).
 // Envío: respeta la ventana 24h de Meta y la llave de envío (wa_puede_enviar, la misma que el bot):
 // con la llave en 'prueba' sólo sale a la lista de prueba; en '1', a cualquiera.
 // Responder = pasar el chat a modo humano (bot_conv_set_modo) → el bot deja de contestar.
