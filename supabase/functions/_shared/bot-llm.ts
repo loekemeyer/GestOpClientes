@@ -2,7 +2,7 @@
 //
 // Lo usa `bot-conversation.ts` (runConversation). A diferencia de `llm.ts` (que sólo hace
 // texto), acá soportamos el loop agéntico con herramientas para anthropic / google (Gemini) /
-// openai, resolviendo la cadena de `wa_agente_modelos` (prioridad ASC).
+// openai y compatibles (groq, mistral), resolviendo la cadena de `wa_agente_modelos` (prioridad ASC).
 //
 // Clave del diseño: el HISTORIAL se mantiene NORMALIZADO (agnóstico de proveedor) y cada
 // adaptador lo traduce entero en cada llamada. Por eso el failover puede pasar de un proveedor
@@ -15,6 +15,7 @@
 // request (payload) y NO penaliza al modelo.
 
 import { supabase } from "./supabase.ts";
+import { OPENAI_COMPAT, toOpenAIMessages } from "./openai-compat.ts";
 
 const COOLDOWN_MS = 5 * 60_000; // 5 min
 const COOLDOWN_429_MIN_MS = 60_000; // piso del cooldown de un 429 por cuota por minuto (ver cooldownParaError)
@@ -460,44 +461,14 @@ async function callGoogle(
   };
 }
 
-// ── OpenAI ─────────────────────────────────────────────────────────────────────
-// deno-lint-ignore no-explicit-any
-function toOpenAIMessages(system: string, history: NormMsg[]): any[] {
-  // deno-lint-ignore no-explicit-any
-  const msgs: any[] = [{ role: "system", content: system }];
-  for (const m of history) {
-    if (m.role === "user") {
-      msgs.push({ role: "user", content: m.text });
-    } else if (m.role === "assistant") {
-      // deno-lint-ignore no-explicit-any
-      const msg: any = { role: "assistant", content: m.text || null };
-      if (m.toolCalls.length) {
-        msg.tool_calls = m.toolCalls.map((tc) => ({
-          id: tc.id, type: "function",
-          function: { name: tc.name, arguments: JSON.stringify(tc.input) },
-        }));
-      }
-      msgs.push(msg);
-    } else {
-      for (const r of m.results) msgs.push({ role: "tool", tool_call_id: r.id, content: r.content });
-    }
-  }
-  return msgs;
-}
-
-// Proveedores con API compatible con OpenAI (mismo formato de mensajes y tools): sólo cambia la URL.
-const OPENAI_COMPAT: Record<string, { label: string; url: string }> = {
-  openai: { label: "OpenAI", url: "https://api.openai.com/v1/chat/completions" },
-  groq: { label: "Groq", url: "https://api.groq.com/openai/v1/chat/completions" },
-};
-
+// ── OpenAI y compatibles (Groq, Mistral): formato y URLs en openai-compat.ts ──────────────────
 async function callOpenAI(
   provider: string, key: string, model: string, system: string, tools: ToolDef[], history: NormMsg[], timeoutMs: number,
 ): Promise<ModelResult> {
   const ep = OPENAI_COMPAT[provider];
   const body: Record<string, unknown> = {
     model, max_tokens: 1024, temperature: 0,
-    messages: toOpenAIMessages(system, history),
+    messages: toOpenAIMessages(system, history, provider),
     tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
   };
   // gpt-oss razona y esos tokens salen del max_tokens: en "low" no se come el presupuesto de la respuesta.

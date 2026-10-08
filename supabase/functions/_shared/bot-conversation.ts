@@ -12,6 +12,7 @@ import { sinCierreGenerico } from "./cierre.ts";
 import { textoDeRespaldo } from "./respaldo-texto.ts";
 import { estadoRetiroParaIA } from "./fecha-retiro.ts";
 import { timeoutDeModelo } from "./timeouts.ts";
+import { idModeloPrueba, listaModelosPrueba } from "./modelos-prueba.ts";
 import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteEntregado, textoTareaEnArmado, yaHayAlertaIgual } from "./agregado-armado.ts";
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO } from "./pedido-gate.ts";
@@ -1531,17 +1532,19 @@ export async function runConversation(
   // Sonnet, para que el bot siga contestando aunque la cadena esté vacía o toda caída.
   const candidates: ResolvedModel[] = chain;
   // Pruebas (simulador y chat de test): un modelo propio, más barato, para no gastar el de producción. Sin la clave
-  // app_settings.llm_modelo_pruebas todo sigue igual. Con la clave, la prueba usa SÓLO ese modelo: si falla, la prueba
-  // falla (llmError) y NO cae a la cadena, para que una caída no se pague en otro modelo sin que nadie se entere (Pablo, 01/10).
+  // app_settings.llm_modelo_pruebas todo sigue igual. Con la clave, la prueba usa SÓLO los modelos de esa lista (uno o varios, separados
+  // por coma, en orden: Pablo, 08/10, ver modelos-prueba.ts): si fallan todos, la prueba falla (llmError) y NO cae a la cadena, para que
+  // una caída no se pague en otro modelo sin que nadie se entere (Pablo, 01/10).
   let soloPruebas = false;
   if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
-    const modeloPruebas = (await getSetting("llm_modelo_pruebas"))?.trim();
-    // Si el model_id es de otro proveedor con key cargada en el panel (ej. gemini-3.5-flash-lite) se usa ése; si no, es de Anthropic.
-    if (modeloPruebas) {
+    const modelosPrueba = listaModelosPrueba(await getSetting("llm_modelo_pruebas"));
+    if (modelosPrueba.length) {
       candidates.length = 0;
-      candidates.push(
-        (await resolveModelById(modeloPruebas)) ?? { id: -1, provider: "anthropic", model: modeloPruebas, key: apiKey, isFreeTier: false },
-      );
+      for (const [i, modelo] of modelosPrueba.entries()) {
+        // Si el model_id es de otro proveedor con key cargada en el panel (ej. gemini-3.5-flash-lite) se usa ése; si no, es de Anthropic.
+        const m = (await resolveModelById(modelo)) ?? { id: -1, provider: "anthropic", model: modelo, key: apiKey, isFreeTier: false };
+        candidates.push({ ...m, id: idModeloPrueba(i) });
+      }
       soloPruebas = true;
     }
   }

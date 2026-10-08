@@ -31,6 +31,8 @@ function detectProvider(key: string): string | null {
   if (key.startsWith("AIza")) return "google";
   if (key.startsWith("sk-")) return "openai";
   if (key.startsWith("gsk_")) return "groq";
+  // Mistral no usa prefijo: sus keys son 32 caracteres alfanuméricos. Si no lo es, listModels da 401 y se elige el proveedor a mano.
+  if (/^[A-Za-z0-9]{32}$/.test(key)) return "mistral";
   return null;
 }
 
@@ -99,7 +101,22 @@ async function listModels(
         .map((m: any) => String(m.name).replace(/^models\//, ""));
       return { ok: true, models };
     }
-    return { ok: false, error: "Proveedor no soportado (anthropic / openai / google / groq)" };
+    if (provider === "mistral") {
+      // Pablo, 08/10: plan gratis Experiment como respaldo de las pruebas fuera de Google (_shared/openai-compat.ts).
+      const r = await fetch("https://api.mistral.ai/v1/models", {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!r.ok) return { ok: false, error: `Mistral HTTP ${r.status}: ${await bodyErr(r)}` };
+      const d = await r.json();
+      const models = (d.data ?? [])
+        // Sólo chat con herramientas (fuera OCR, embeddings, moderación y audio) y sin los ya retirados.
+        // deno-lint-ignore no-explicit-any
+        .filter((m: any) => m?.capabilities?.completion_chat && m?.capabilities?.function_calling && !m?.deprecation)
+        // deno-lint-ignore no-explicit-any
+        .map((m: any) => String(m.id));
+      return { ok: true, models: [...new Set<string>(models)].sort() };
+    }
+    return { ok: false, error: "Proveedor no soportado (anthropic / openai / google / groq / mistral)" };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
