@@ -20,7 +20,7 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
 igual("el texto que aprobó Pablo", TEXTO_PRESENTACION,
   "Soy el agente de Loekemeyer, especializado en tu cuenta: te ayudo con tus pedidos, tus compras, tus facturas, el stock y los productos que te pueden servir. " +
   "Si algo necesita a una persona del equipo, le aviso y te escribe por acá.");
-igual("el texto no dice que es una persona ni que es un bot", /\b(soy una persona|soy humano|bot)\b/i.test(TEXTO_PRESENTACION), false);
+igual("el texto no dice que es una persona, ni que no lo es, ni que es un bot", /\b(soy una persona|soy humano|no soy|bot)\b/i.test(TEXTO_PRESENTACION), false);
 
 // Pregunta qué es: los de Damián y otras formas.
 for (const t of [
@@ -45,9 +45,12 @@ igual("la clave de la web sigue antes («¿sos un bot? pasame la clave»)", pide
 // La regla del agente (para cuando lo pregunta de otra forma o dentro de otra charla).
 for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)], ["sin pedidos por WhatsApp", reglasOperativas(false)]] as const) {
   igual(`${modo}: la regla está, una sola línea`, txt.split("\n").filter((l) => l.startsWith("- PRESENTACIÓN (Pablo y Damián, 08/10)")).length, 1);
-  igual(`${modo}: con el texto aprobado`, txt.includes(`respondé: «${TEXTO_PRESENTACION}»`), true);
+  igual(`${modo}: con el texto aprobado`, txt.includes(`respondé sólo que sos el agente especializado: «${TEXTO_PRESENTACION}»`), true);
+  igual(`${modo}: no dice «no soy una persona» ni «bot» (Pablo, 08/10)`, txt.includes("No digas «bot», «asistente automático» ni «no soy una persona»"), true);
+  igual(`${modo}: si ya se presentó, una línea`, txt.includes("decilo en una línea: «Soy el agente de Loekemeyer, especializado en tu cuenta.»"), true);
+  igual(`${modo}: si insiste, «agente virtual», sin negarlo ni afirmarlo con rodeos`, txt.includes("decile que sos el agente virtual de Loekemeyer"), true);
   igual(`${modo}: nunca dice que es una persona y no deriva por la pregunta`,
-    txt.includes("Nunca digas ni insinúes que sos una persona") && txt.includes("no derives por ella"), true);
+    txt.includes("nunca digas ni insinúes que sos una persona") && txt.includes("no derives por ella"), true);
   igual(`${modo}: sin backticks`, txt.includes("`"), false);
 }
 

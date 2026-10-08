@@ -280,7 +280,9 @@ como un agente especializado en la relación comercial. Pablo aprobó el texto.
 tus facturas, el stock y los productos que te pueden servir. Si algo necesita a una persona del equipo, le aviso y te escribe por acá."* Hace falta «sos / eres / estoy
 hablando con» + bot, agente, robot, IA, máquina o persona, y que sea pregunta (signo, «o» entre opciones o «te preguntaba»). «Quiero hablar con una persona» sigue en la
 #33. A un no cliente la #33 ya no le contesta esta pregunta (sigue el flujo de identificación). El agente tiene la misma regla (`PRESENTACIÓN`, `agente-fijos.ts`) para
-cuando lo preguntan de otra forma: nunca dice «bot» ni que es una persona, y no deriva por esa pregunta.
+cuando lo preguntan de otra forma: contesta sólo que es el agente especializado (si ya se presentó, en una línea), sin decir «bot» ni «no soy una persona»
+(Pablo, 08/10: «limitate a responder que sos un agente especializado»); si el cliente insiste en saber si habla con una persona, dice que es el agente virtual de
+Loekemeyer y nunca dice ni insinúa que es una persona. No deriva por esa pregunta.
 
 ## Flujo 2: Consulta de pedido
 
