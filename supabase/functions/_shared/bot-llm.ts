@@ -460,6 +460,23 @@ function toGeminiContents(history: NormMsg[]): any[] {
   return contents;
 }
 
+/** Texto y pedidos de herramienta de la respuesta de Google. Los parts con `thought: true` son el razonamiento del modelo y NO van al
+ *  cliente: Gemma 4 los devuelve siempre (en inglés: "*   User asks: …", medido el 08/10), y antes se pegaban adelante de la respuesta. */
+// deno-lint-ignore no-explicit-any
+export function partesGoogle(parts: any[]): { text: string; toolCalls: NormToolCall[] } {
+  const text = parts.filter((p) => typeof p?.text === "string" && p?.thought !== true).map((p) => p.text).join("");
+  const toolCalls: NormToolCall[] = parts
+    .filter((p) => p?.functionCall)
+    .map((p) => ({
+      id: crypto.randomUUID(),
+      name: p.functionCall.name,
+      input: p.functionCall.args ?? {},
+      // La firma viene como hermana del functionCall dentro del mismo part.
+      thoughtSignature: p.thoughtSignature,
+    }));
+  return { text, toolCalls };
+}
+
 async function callGoogle(
   key: string, model: string, system: string, tools: ToolDef[], history: NormMsg[], timeoutMs: number,
 ): Promise<ModelResult> {
@@ -476,18 +493,7 @@ async function callGoogle(
   );
   if (!r.ok) throw httpError("Google", r.status, await r.text());
   const d = await r.json();
-  // deno-lint-ignore no-explicit-any
-  const parts: any[] = d.candidates?.[0]?.content?.parts ?? [];
-  const text = parts.filter((p) => typeof p?.text === "string").map((p) => p.text).join("");
-  const toolCalls: NormToolCall[] = parts
-    .filter((p) => p?.functionCall)
-    .map((p) => ({
-      id: crypto.randomUUID(),
-      name: p.functionCall.name,
-      input: p.functionCall.args ?? {},
-      // La firma viene como hermana del functionCall dentro del mismo part.
-      thoughtSignature: p.thoughtSignature,
-    }));
+  const { text, toolCalls } = partesGoogle(d.candidates?.[0]?.content?.parts ?? []);
   return {
     text, toolCalls,
     inputTokens: d.usageMetadata?.promptTokenCount ?? 0,

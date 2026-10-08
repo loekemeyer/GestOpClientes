@@ -1647,7 +1647,7 @@ export async function runConversation(
       const t0 = performance.now();
       try {
         // Pablo, 06/10: Gemini con tope corto (8 s) para que un cuelgue de Google no le cueste 30 s al cliente: ver _shared/timeouts.ts.
-        res = await callModel(cand, { estable: promptBase, variable: promptVariable }, herramientas, history, timeoutDeModelo(cand.provider));
+        res = await callModel(cand, { estable: promptBase, variable: promptVariable }, herramientas, history, timeoutDeModelo(cand.provider, cand.model));
         used = cand;
         logIntento({
           funcion: fuente, modeloId: cand.id, proveedor: cand.provider, modelo: cand.model, tarea: "conversacion",
