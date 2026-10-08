@@ -2,7 +2,9 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-10-07.
+> Última actualización: 2026-10-08.
+>
+> **08/10 (Pablo): el audio ya no le devuelve al cliente lo que se entendió; sólo se le escribe si no se pudo entender** (flag, sin cambios de código). Pablo: *«Podemos no escribirle al cliente con lo que entendió, solamente mandarle un mensaje si el agente no puede descifrar el mensaje?»*. `INSERT INTO app_settings (key, value) VALUES ('wa_audio_eco', '0')` (no había fila, o sea que estaba prendido por defecto); verificado con un SELECT: `wa_audio_activo` = 1, `wa_audio_eco` = 0. Rige desde el mensaje siguiente (`primeSettings` lee las claves una vez por mensaje). **Qué queda:** el audio se transcribe y el texto se contesta como si lo hubiera escrito, sin el «🎤 Entendí: «…»». Si Groq no lo entiende (silencio, muy largo, `.amr`, límite o caída), sigue saliendo «No pudimos entender tu audio. Escribinos…» + alerta `adjunto_recibido`. **Efectos que hay que saber [Seguro]:** (1) un audio mal transcripto ya no lo ve nadie: el agente contesta sobre el texto equivocado y el cliente no ve qué se entendió. «No se pudo descifrar» sólo cubre las fallas de Groq, no las de interpretación. (2) En el historial (`bot_historial_chat`, pestaña Conversaciones) el audio queda como un mensaje escrito: el eco era la única marca de que había sido un audio. Lo único que queda es el renglón `audio_transcripcion` de `bot_token_usage` (teléfono y hora). Uso real al 08/10: 1 audio transcripto en total (02/10). **Sigue sin confirmar ZDR en Groq**, con Damián (cliente real) en la whitelist. Backend y base: la versión visible del dashboard no cambia.
 >
 > **07/10 (Pablo, m1): el texto aprobado se dice EXACTO y la derivación es urgente** (`_shared/agente-fijos.ts`, regla `NO INVENTES TIEMPOS`; `tests/regla-no-inventa-tiempos.test.ts`, 10 verificaciones por modo; FLUJOS 1.9; soluciones.json). Pablo dijo *«Si hacelo»* a cambiar «casi literal» por «literal». Motivo: con Sonnet 4.6 (el #1 de producción) m1 derivó pero le dijo al cliente sólo «Una persona del equipo lo revisa y te escribe por acá.» y marcó la alerta no urgente. La regla ahora manda «EXACTAMENTE este texto, sin cambiar palabras y sin agregar nada antes ni después, salvo la fecha y el estado reales», prohíbe reemplazarlo por «Una persona del equipo lo revisa…» y pide `urgente`.
 > **Verificado sólo con Gemini 3.1 (US$ 0, cliente 4089):** el texto exacto y `pedido_no_encontrado` urgente (igual que antes del cambio: no prueba que la regla nueva ayude a Sonnet). **Sin probar con Sonnet 4.6** (el tope de US$ 1 está gastado: haría falta estimativo y «sí»; unos US$ 0,05 por caso con una llamada de consulta y una de derivación, [Adivinando] porque sale de los 5 llamados de m1 y m8 de hoy). No confirmé el estado del run de deploy de este commit. **m8 sigue con la frase repetida con Sonnet** (tarea de Planify abierta): esta regla no la toca.
@@ -803,8 +805,8 @@ retiraron (2026-09-09, sin uso: 0 dep DB, 0 cron, 0 REST).** Backup restore-read
 | `wa_factura_envio_modo` | `modulo` (chat de prueba) / `whatsapp` (real) | `modulo` |
 | `wa_bot_solo_whitelist` | killswitch del bot de chat: `1` = solo responde a `wa_envio_contactos` | `1` |
 | `wa_comprobantes_activo` | flujo de comprobantes entrantes: `0` apagado / `1` on | `0` |
-| `wa_audio_activo` | transcribir audios de clientes con Groq Whisper y tratarlos como texto: `0` apagado / `1` on (sin fila = `0`) | `0` |
-| `wa_audio_eco` | antes de contestar un audio, el bot muestra "🎤 Entendí: «…»": `1` prendido / `0` apagado (sin fila = `1`) | — |
+| `wa_audio_activo` | transcribir audios de clientes con Groq Whisper y tratarlos como texto: `0` apagado / `1` on (sin fila = `0`) | `1` (desde el 02/10) |
+| `wa_audio_eco` | antes de contestar un audio, el bot muestra "🎤 Entendí: «…»": `1` prendido / `0` apagado (sin fila = `1`) | `0` (desde el 08/10, Pablo) |
 | `wa_audio_modelo` | modelo de Whisper de Groq (sin fila = `whisper-large-v3`; `whisper-large-v3-turbo` es 3x más barato en plan pago) | — |
 
 **Secrets de edge function (no van en `app_settings`):** `META_APP_SECRET` (firma de Meta) y

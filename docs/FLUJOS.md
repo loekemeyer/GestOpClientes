@@ -165,7 +165,7 @@ procesa el texto como un mensaje escrito (FAQ, agente, "ya pagué", pedidos). Ap
 
 | El cliente manda | Pasa |
 |---|---|
-| un audio, llave prendida, número autorizado | se transcribe, el bot muestra "🎤 Entendí: «…»" (`wa_audio_eco`) y contesta como si lo hubiera escrito |
+| un audio, llave prendida, número autorizado | se transcribe y contesta como si lo hubiera escrito. Sin eco desde el 08/10 (Pablo: `wa_audio_eco` = 0): con el eco prendido el bot mostraba antes "🎤 Entendí: «…»" |
 | un audio, llave apagada | "Por ahora no podemos escuchar audios…" + alerta `adjunto_recibido` (como antes) |
 | un audio que no se pudo entender (muy largo, silencio, `.amr`, límite o caída de Groq) | "No pudimos entender tu audio. Escribinos…" + alerta `adjunto_recibido` |
 | un audio desde un número fuera de la whitelist o en la blacklist | no se transcribe (no sale a Groq): sigue el camino de siempre |
