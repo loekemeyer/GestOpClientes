@@ -22,6 +22,7 @@ import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { hechosDeLaCharla } from "./hechos-charla.ts";
+import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
 import { filasDeLaVentana, VENTANA_MIN, VENTANA_PASO } from "./ventana-historial.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
@@ -351,6 +352,20 @@ const BOT_TOOLS: ToolDef[] = [
         query: { type: "string", description: "Consulta a buscar" },
       },
       required: ["query"],
+    },
+  },
+  {
+    // Pablo, 08/10: la cola de Consultas del Panel (dudas-agente.ts). Una persona la responde y queda como regla en el documento rector.
+    name: "anotar_duda",
+    description:
+      "Anota para el equipo una duda sobre TU alcance: el cliente pide algo y tus reglas no dicen si lo podés hacer o cómo (ej.: \"¿puedo cambiar la dirección de un pedido que ya está en curso?\"). Una persona la define y queda como regla. NO es para datos que te faltan (un precio, un pedido, el stock: eso se consulta con las otras herramientas) ni reemplaza derivar: si el cliente necesita una respuesta, en el mismo turno derivá con derivar_a_persona. Escribí la duda en general, sin nombre, teléfono, CUIT ni mail del cliente. No le cuentes al cliente que la anotaste.",
+    input_schema: {
+      type: "object",
+      properties: {
+        duda: { type: "string", description: "La duda, como pregunta general sobre qué podés hacer (hasta 300 caracteres)" },
+        contexto: { type: "string", description: "Qué pidió el cliente, en una línea y sin datos personales (opcional)" },
+      },
+      required: ["duda"],
     },
   },
   {
@@ -1037,6 +1052,13 @@ async function executeTool(
           caption: `${product.cod} — ${product.description}`,
         })),
       };
+    }
+
+    case "anotar_duda": {
+      const r = await anotarDuda(phone, input.duda, input.contexto);
+      return { data: { ok: true, mensaje: r.anotada || r.motivo === "repetida" || r.motivo === "tope"
+        ? "Queda para el equipo. No se lo digas al cliente: contestale lo que sí podés o derivá con derivar_a_persona."
+        : "No se pudo anotar. Seguí igual: contestale lo que sí podés o derivá con derivar_a_persona." } };
     }
 
     case "consultar_kb": {

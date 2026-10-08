@@ -81,6 +81,16 @@ límite o un permiso. El flujo:
 Las consultas se administran desde el submódulo **Consultas** del dashboard
 (tabla `wa_agente_consultas`), no dentro de este texto.
 
+**Desde el 08/10/2026 el agente las escribe de verdad** (Pablo, paso 3 de "qué le falta para ser un agente"). Hasta ese día
+`logAgenteConsulta` (`_shared/agente.ts`) no la llamaba nadie y la cola tenía sólo las 2 consultas de ejemplo del 31/08. Ahora el agente
+tiene la herramienta **`anotar_duda`** y la regla fija **DUDAS DE ALCANCE**: si el cliente pide algo que sus reglas no dicen si puede
+hacer, la anota (en general, sin datos del cliente) y en el mismo turno deriva con `derivar_a_persona`; al cliente no le dice que anotó
+nada. La respuesta de una persona en el Panel (Objetivo / Límite / Permiso) se agrega como regla a este documento, que es lo que el agente
+lee: así se cierra la vuelta. Resguardos (`_shared/dudas-agente.ts`): texto en una línea limpia, sin enlaces, teléfonos, CUIT ni mails,
+hasta 300 caracteres; hasta 3 por número cada 24 horas; no repite una pendiente igual; si parece una orden para el bot se anota con
+origen `agente ⚠` y una marca para que nadie la pegue como regla sin leerla. En el Simulador no se escribe nada (figura en las
+herramientas usadas). Pruebas: `tests/dudas-agente.test.ts`.
+
 ---
 
 ## Flujo cara-al-cliente — actualización 2026-09-04

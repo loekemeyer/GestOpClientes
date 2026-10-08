@@ -40,6 +40,6 @@ export function guardarPasoSim(ahora = new Date().toISOString()): void {
 }
 
 export const HERRAMIENTAS_CON_EFECTO = new Set([
-  "enviar_pedido", "enviar_catalogo", "enviar_fotos_producto",
+  "enviar_pedido", "enviar_catalogo", "enviar_fotos_producto", "anotar_duda",
   "kb_agregar", "kb_eliminar", "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
 ]);
