@@ -24,7 +24,7 @@ import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } f
 import { hechosDeLaCharla } from "./hechos-charla.ts";
 import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
-import { filasDeLaVentana, VENTANA_MIN, VENTANA_PASO } from "./ventana-historial.ts";
+import { type Fila, historialParaElModelo, LECTURA_MAX, marcaDeTramo, sinMarcaDeTramo, VENTANA_MIN } from "./ventana-historial.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -1317,19 +1317,28 @@ export async function loadHistory(
   return data;
 }
 
-/** Cuántos mensajes guardados tiene el teléfono (los mismos que lee bot_leer_historial). null si no se pudo contar. */
-async function contarHistorial(phone: string): Promise<number | null> {
-  if (SIM.activo) return SIM.historial.length;
-  const { count, error } = await supabase.from("bot_historial_chat").select("telefono", { count: "exact", head: true })
-    .eq("telefono", phone).in("rol", ["user", "assistant"]);
-  return error || count == null ? null : count;
-}
-
-/** Historial para el modelo con la ventana de inicio fijo (ventana-historial.ts), del más nuevo al más viejo. Lectura y conteo van juntos;
- *  si el conteo falla, quedan los últimos 16 como antes. */
-async function loadHistoryAnclada(phone: string): Promise<Array<{ rol: string; contenido: string; creado_en: string }>> {
-  const [filas, total] = await Promise.all([loadHistory(phone, VENTANA_MIN + VENTANA_PASO - 1), contarHistorial(phone)]);
-  return filasDeLaVentana(filas, total);
+/** Historial del turno en UNA lectura (filas y total juntos, ventana-historial.ts): `recientes` son los últimos 16, del más nuevo al más
+ *  viejo (nota de tiempo y compuertas, como antes); `modelo` es lo que ve el agente (ventana anclada + charla anterior, con marcas).
+ *  Mismas filas que bot_leer_historial (rol user/assistant); se lee la tabla porque esa RPC corta en 50. Si falla, los últimos 16. */
+async function historialDelTurno(phone: string): Promise<{ recientes: Fila[]; modelo: ReturnType<typeof historialParaElModelo> }> {
+  let filas: Fila[];
+  let total: number | null = null;
+  if (SIM.activo) {
+    filas = [...SIM.historial].reverse().slice(0, LECTURA_MAX);
+    total = SIM.historial.length;
+  } else {
+    const { data, count, error } = await supabase.from("bot_historial_chat").select("rol, contenido, creado_en", { count: "exact" })
+      .eq("telefono", phone).in("rol", ["user", "assistant"])
+      .order("creado_en", { ascending: false }).order("id", { ascending: false }).limit(LECTURA_MAX);
+    if (error || !data) {
+      console.error("[historialDelTurno] sin lectura nueva, quedan los últimos 16:", error?.message);
+      filas = await loadHistory(phone, VENTANA_MIN);
+    } else {
+      filas = data as Fila[];
+      total = count ?? null;
+    }
+  }
+  return { recientes: filas.slice(0, VENTANA_MIN), modelo: historialParaElModelo(filas, total) };
 }
 
 export async function saveMessage(
@@ -1531,17 +1540,17 @@ export async function runConversation(
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
   const canario = await canarioDelServidor();
-  const [filasVentana, promptBase, herramientas, chain, ejemplos, hechos] = await Promise.all([
-    loadHistoryAnclada(phone),
+  const [historial, promptBase, herramientas, chain, ejemplos, hechos] = await Promise.all([
+    historialDelTurno(phone),
     buildSystemPrompt(customerName, codCliente, dtoVol, canario),
     herramientasDelTurno(),
     resolveChain(),
     ejemplosAprobados(),
     hechosDeLaCharla(phone),   // Pablo, 08/10: pases a una persona y acciones del bot que ya no entran en las 16 filas (hechos-charla.ts)
   ]);
-  // Pablo, 08/10: el modelo ve la ventana anclada (16 a 23 mensajes, para que el caché reuse el historial entre turnos); la nota de tiempo
-  // y las compuertas de pedido y de mail siguen viendo los últimos 16, como antes.
-  const rawHistory = filasVentana.slice(0, VENTANA_MIN);
+  // Pablo, 08/10: el modelo ve la ventana anclada (16 a 23 mensajes, para que el caché reuse el historial entre turnos) más la charla
+  // anterior completa (con tope: ventana-historial.ts); la nota de tiempo y las compuertas de pedido y de mail siguen viendo los últimos 16.
+  const rawHistory = historial.recientes;
   const bloqueAprobados = bloqueEjemplos(elegirEjemplos(userText, ejemplos));
   const pistas = bloquePistas(opciones.pistas ?? []);
   // Pablo, 08/10: el prompt va en dos partes para el caché de Anthropic (bot-llm.ts): la base (reglas y datos del cliente) es igual en todas las
@@ -1553,23 +1562,20 @@ export async function runConversation(
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`
   // lo traduce entero en cada llamada, así el failover puede cambiar de proveedor
   // en cualquier iteración sin romper el formato.
-  const history: NormMsg[] = [];
-  for (let i = filasVentana.length - 1; i >= 0; i--) {
-    const h = filasVentana[i];
-    if (h.rol === "user") history.push({ role: "user", text: h.contenido });
-    else history.push({ role: "assistant", text: h.contenido, toolCalls: [] });
-  }
-
-  // El primer mensaje tiene que ser `user` (lo exigen Anthropic y Gemini). La
-  // ventana puede arrancar con `assistant` → se recorta hasta el primer `user`
-  // (siempre el mismo mientras la ventana no se corra: no rompe el caché).
-  while (history.length && history[0].role !== "user") history.shift();
+  // Ya viene del más viejo al más nuevo y arrancando por un mensaje del cliente (lo exigen Anthropic y Gemini). Un tramo de otra charla
+  // lleva adelante su marca de fecha y hora ("[Mensajes del 07/10 desde las 09:30]"): siempre la misma para la misma fila (no rompe el caché).
+  const { filas: filasModelo, marcas } = historial.modelo;
+  const conMarca = new Set(marcas);
+  const history: NormMsg[] = filasModelo.map((h, j) => {
+    const text = conMarca.has(j) ? `${marcaDeTramo(h.creado_en)}\n${h.contenido}` : h.contenido;
+    return h.rol === "user" ? { role: "user" as const, text } : { role: "assistant" as const, text, toolCalls: [] };
+  });
 
   // El turno actual puede estar YA en el historial: el webhook hace
   // `saveMessage(phone, "user", text)` antes de llamar acá, así que pushearlo de
-  // nuevo lo duplica. `lk_chat-test` NO guarda antes — por eso se chequea.
-  const last = history[history.length - 1];
-  if (!(last && last.role === "user" && last.text === userText)) {
+  // nuevo lo duplica. `lk_chat-test` NO guarda antes — por eso se chequea (contra la fila, no contra el texto con marca).
+  const ultimaFila = filasModelo[filasModelo.length - 1];
+  if (!(ultimaFila && ultimaFila.rol === "user" && ultimaFila.contenido === userText)) {
     history.push({ role: "user", text: userText });
   }
 
@@ -1689,7 +1695,8 @@ export async function runConversation(
       // En un turno de pedido "¿Algo más?" puede ser una pregunta de verdad (¿más artículos?): ahí sólo se sacan los cierres de ayuda.
       const enPedido = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
       // Pablo, 07/10: si el modelo no escribió nada pero en el turno se derivó (derivar_a_persona), el respaldo lo dice en vez de pedir que cuente más (respaldo-texto.ts).
-      const textoFinal = sinCierreGenerico(res.text || textoDeRespaldo(usadas), enPedido);
+      // Pablo, 08/10: si copió la marca de fecha del historial ("[Mensajes del …]"), se borra (ventana-historial.ts).
+      const textoFinal = sinCierreGenerico(sinMarcaDeTramo(res.text ?? "") || textoDeRespaldo(usadas), enPedido);
       const salida = await filtrarSalida(textoFinal, { phone, userText, customerName, codCliente, systemPrompt, history, herramientas, canario });
       return { reply: salida.reply, media: salida.reply === textoFinal ? allMedia : [],   // respuesta reemplazada: tampoco salen las fotos del turno
         herramientas: usadas, modelo: used.model, ...(salida.bloqueada ? { bloqueada: salida.bloqueada } : {}) };
