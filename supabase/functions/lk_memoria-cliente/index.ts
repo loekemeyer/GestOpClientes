@@ -16,6 +16,7 @@
 
 import { getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
+import { extrasAnthropic, textoAnthropic } from "../_shared/anthropic-extras.ts";
 import { fichaFinal, type MensajeHist, sistemaActualizacion, sistemaFicha, textoHistorial } from "../_shared/memoria-cliente.ts";
 
 const CORS = {
@@ -26,7 +27,8 @@ const CORS = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const MODELO = "claude-haiku-4-5-20251001";
+// Pablo, 09/10: Haiku 5.5 en lugar de Haiku 4.5 (un décimo del precio). Sin temperature (da 400): _shared/anthropic-extras.ts.
+const MODELO = "claude-haiku-5-5";
 const TARIFA = { input: 1.0, output: 5.0 }; // US$ por millón de tokens
 const MAX_POR_LLAMADA = 10;
 const EMPRESA: Record<string, string> = { LK: "Loekemeyer", CH: "Chef" };
@@ -48,7 +50,7 @@ async function pedirFicha(apiKey: string, system: string, usuario: string, motiv
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODELO, max_tokens: 600, temperature: 0, system, messages: [{ role: "user", content: usuario }] }),
+    body: JSON.stringify({ model: MODELO, max_tokens: 600, system, messages: [{ role: "user", content: usuario }], ...extrasAnthropic(MODELO) }),
     signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) return { ok: false, error: `Anthropic ${res.status}: ${(await res.text()).slice(0, 200)}` };
@@ -58,7 +60,7 @@ async function pedirFicha(apiKey: string, system: string, usuario: string, motiv
   await supabase.from("bot_token_usage").insert({
     model: MODELO, input_tokens: it, output_tokens: ot, function_name: "lk_memoria-cliente", phone, estimated_cost_usd: costo, motivo,
   });
-  return { ok: true, texto: String(r?.content?.[0]?.text ?? ""), it, ot, costo };
+  return { ok: true, texto: textoAnthropic(r?.content), it, ot, costo };
 }
 
 // deno-lint-ignore no-explicit-any

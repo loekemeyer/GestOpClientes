@@ -389,7 +389,7 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 
 | Uso | Modelo | Razón |
 |-----|--------|-------|
-| Intent detection / parsing | `claude-haiku-4-5-20251001` | Rápido, barato, suficiente para clasificar |
+| Intent detection / parsing, comprobantes, puntaje, fichas de memoria | `claude-haiku-5-5` | Rápido y barato (US$ 0,10 / 0,50 por millón, un décimo de Haiku 4.5). Reemplazó a `claude-haiku-4-5` el 09/10/2026 (Pablo O.). Va con el pensamiento apagado, esfuerzo bajo y sin `temperature` (da 400): `_shared/anthropic-extras.ts` |
 | Conversacional / respuestas complejas | `claude-sonnet-4-6` | Balance costo/calidad |
 | Scoring / análisis | `claude-sonnet-4-6` | Necesita razonamiento |
 
@@ -524,7 +524,7 @@ de Anthropic o a otro servicio pago. Hasta que Pablo diga otra cosa, **ninguna s
 4. Para verificar lógica se prefieren pruebas locales sin red (funciones puras con `deno run`). Un mensaje de prueba que no matchea una respuesta
    fija llega al agente y gasta: por eso la regla no distingue "pruebas baratas".
 
-`app_settings.llm_modelo_pruebas` hace que el simulador y el chat de prueba usen un modelo más barato (Haiku 4.5, un tercio del precio de Sonnet 4.6);
+`app_settings.llm_modelo_pruebas` hace que el simulador y el chat de prueba usen un modelo más barato (Haiku 5.5, un trigésimo del precio de Sonnet 4.6; antes del 09/10, Haiku 4.5);
 el webhook nunca lo lee. Abarata, pero no reemplaza el estimativo ni el "sí".
 
 **Excepción — gasto US$ 0 (Pablo Olejavetzky, 05/10/2026: *"Todo lo que tenga gasto cero podés hacerlo sin consultarme, siempre va a ser sí"*):**
@@ -536,8 +536,8 @@ modelo pago, o una prueba cae a otro modelo, vuelve la regla de arriba (estimati
 
 **Excepción — pruebas con Haiku cuando Gemini falla (Pablo Olejavetzky, 07/10/2026: *"proba siempre con Haiku cuando tengamos tantos problemas con gemini. no puedo estar esperando a que se arregle"* y *"no preguntes"*):**
 si el modelo de pruebas gratis (`gemini-*` en `app_settings.llm_modelo_pruebas`) da 503, timeout o 429 en los intentos de una prueba, se prueba con
-`claude-haiku-4-5-20251001` **sin pedir el "sí" ni el estimativo**: (1) leer `bot_token_usage` (cantidad de filas y suma de `estimated_cost_usd`); (2) `UPDATE public.app_settings
-SET value='claude-haiku-4-5-20251001' WHERE key='llm_modelo_pruebas'`; (3) correr los casos en el Simulador (medido el 07/10: unos US$ 0,015 por llamada y US$ 0,03 a 0,04 por caso);
+`claude-haiku-5-5` **sin pedir el "sí" ni el estimativo** (Haiku 4.5 hasta el 09/10, Pablo O.: "reemplazá el uso de Haiku 4.5 por 5.5"): (1) leer `bot_token_usage` (cantidad de filas y suma de `estimated_cost_usd`); (2) `UPDATE public.app_settings
+SET value='claude-haiku-5-5' WHERE key='llm_modelo_pruebas'`; (3) correr los casos en el Simulador (medido el 09/10 con Haiku 5.5: US$ 0,0013 por llamada y unos US$ 0,003 por caso; con Haiku 4.5 eran US$ 0,015 y 0,03 a 0,04);
 (4) volver `llm_modelo_pruebas` al valor que tenía y verificarlo con un `SELECT`; (5) informar el gasto real (después − antes) y que el modelo quedó restaurado. Cubre **ese** `UPDATE`
 y su restitución, ninguna otra escritura en la base. **No cubre Sonnet:** su tope es el de US$ 1 en total dicho el 05/10 (*"Podes usar si queres Sonnet siempre y cuando sea medido el gasto,
 tope un dolar en total"*), **gastado y pasado**: US$ 0,88 antes y US$ 1,10 al 07/10 (US$ 0,218913 de m1 y m8 con Sonnet 4.6, con el «sí» de Pablo a ese estimativo, que pasaba el tope). Sonnet de nuevo sólo con estimativo y «sí» (regla de arriba). Pablo no fijó un tope para Haiku: si una tanda va a pasar de unos US$ 0,50, se avisa antes (criterio mío, no de Pablo).

@@ -14,6 +14,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { REGLAS_OPERATIVAS } from "../_shared/agente-fijos.ts";
+import { extrasAnthropic, textoAnthropic } from "../_shared/anthropic-extras.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,8 +24,10 @@ const CORS = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const MODELO = "claude-haiku-4-5-20251001";
-const TARIFA = { input: 1.0, output: 5.0 }; // US$ por millón de tokens (mismo valor que _shared/llm.ts)
+// Pablo, 09/10: Haiku 5.5 en lugar de Haiku 4.5 (US$ 0,10 / 0,50 por millón, un décimo). Sin temperature (da 400) y con el pensamiento
+// apagado: _shared/anthropic-extras.ts.
+const MODELO = "claude-haiku-5-5";
+const TARIFA = { input: 0.10, output: 0.50 }; // US$ por millón de tokens (mismo valor que _shared/bot-llm.ts)
 const POR_CORRIDA = 15;
 const CRITERIOS = ["correcta", "resolvio", "derivo", "reglas", "tono"] as const;
 
@@ -68,7 +71,7 @@ async function evaluarUna(fila: any, apiKey: string): Promise<{ ok: boolean; err
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODELO, max_tokens: 300, temperature: 0, system: SISTEMA, messages: [{ role: "user", content: usuario }] }),
+    body: JSON.stringify({ model: MODELO, max_tokens: 300, system: SISTEMA, messages: [{ role: "user", content: usuario }], ...extrasAnthropic(MODELO) }),
     signal: AbortSignal.timeout(25_000),
   });
   if (!res.ok) return { ok: false, error: `Anthropic ${res.status}: ${(await res.text()).slice(0, 200)}` };
@@ -78,7 +81,7 @@ async function evaluarUna(fila: any, apiKey: string): Promise<{ ok: boolean; err
     model: MODELO, input_tokens: it, output_tokens: ot, function_name: "lk_ia-puntaje", phone: fila.phone ?? null,
     estimated_cost_usd: (it * TARIFA.input + ot * TARIFA.output) / 1_000_000,
   }).then(() => {}, (e: unknown) => console.error("[puntaje] log de uso:", e));
-  const texto = String(r?.content?.[0]?.text ?? "");
+  const texto = textoAnthropic(r?.content);
   const m = texto.match(/\{[\s\S]*\}/);
   if (!m) return { ok: false, error: "respuesta sin JSON" };
   let p: Record<string, unknown>;

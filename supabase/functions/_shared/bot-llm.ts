@@ -14,6 +14,7 @@
 // (401/403/404/429/5xx/timeout) se marca `caido` con cooldown (5 min; un 429 por cuota por minuto, lo que pide Google: ver `cooldownParaError`); un 400/413/422 es culpa del
 // request (payload) y NO penaliza al modelo.
 
+import { extrasAnthropic } from "./anthropic-extras.ts";
 import { supabase } from "./supabase.ts";
 import { OPENAI_COMPAT, toOpenAIMessages } from "./openai-compat.ts";
 
@@ -332,15 +333,8 @@ function marcarCache(msgs: any[], i: number) {
  *  4) el último mensaje: en el loop de herramientas, la llamada siguiente lee todo lo anterior del caché.
  *  Un prefijo más corto que el mínimo del modelo (1024 tokens en Sonnet 4.6, 4096 en Haiku 4.5) simplemente no se cachea: no da error. */
 // deno-lint-ignore no-explicit-any
-/** Lo que cambia por modelo en el pedido a Anthropic. Haiku 5.5 (Pablo, 09/10: "hagamos pruebas con ese"): piensa por defecto y, pensando,
- *  hay que devolverle sus bloques de pensamiento con cada resultado de herramienta; el historial normalizado (NormMsg) no los guarda.
- *  Se usa con el pensamiento apagado y esfuerzo bajo (la documentación lo permite hasta "high"): lo más rápido y barato, y lo más
- *  parecido a cómo corre Haiku 4.5. Más tope de salida: su tokenizador cuenta ~30 % más tokens por el mismo texto. */
-// deno-lint-ignore no-explicit-any
-export function extrasAnthropic(model: string): Record<string, any> {
-  if (/^claude-haiku-5/.test(model)) return { max_tokens: 2048, thinking: { type: "disabled" }, output_config: { effort: "low" } };
-  return {};
-}
+// Lo que cambia por modelo (Haiku 5.5, 09/10): _shared/anthropic-extras.ts. Se reexporta para las pruebas y los que ya lo importaban de acá.
+export { extrasAnthropic } from "./anthropic-extras.ts";
 
 export function cuerpoAnthropic(model: string, system: SystemPrompt, tools: ToolDef[], history: NormMsg[]): Record<string, any> {
   const c = contextoEnElTurno(system, history);

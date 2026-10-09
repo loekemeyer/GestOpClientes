@@ -1,7 +1,7 @@
 // lk_parse-comprobante — Parser de comprobantes de pago con visión.
 //
 // Cadena de modelos leída de wa_agente_modelos WHERE tarea='parse_comprobante'
-// (ORDER BY prioridad ASC). Primario: Claude Haiku 4.5 (vision). Fallback:
+// (ORDER BY prioridad ASC). Primario: Claude Haiku 5.5 (vision; Haiku 4.5 hasta el 09/10, ver _shared/anthropic-extras.ts). Fallback:
 // Gemini 2.5 Flash (free tier). En caída del primario: cooldown 5 min y sigue.
 //
 // El schema del JSON de salida es intencionalmente FLEXIBLE en el "resto" de
@@ -23,6 +23,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireAdminOrService } from "../_shared/admin-gate.ts";
+import { extrasAnthropic, textoAnthropic } from "../_shared/anthropic-extras.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS = {
@@ -208,13 +209,14 @@ async function callAnthropicVision(
             { type: "text", text: USER_PROMPT },
           ],
         }],
+        ...extrasAnthropic(row.model_id),
       }),
     },
     timeoutMs,
   );
   if (!r.ok) throw new Error(`Anthropic ${r.status}: ${(await r.text()).slice(0, 400)}`);
   const d = await r.json();
-  const raw = d.content?.[0]?.text ?? "";
+  const raw = textoAnthropic(d.content);
   const parsed = extractFirstJson(raw);
   return {
     parsed,
