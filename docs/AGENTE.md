@@ -201,7 +201,11 @@ Pablo: *"para que se nutra de la memoria tiene que registrarse el input inicial 
   (`memoria-cliente.ts › bloqueMemoria`, `bot-conversation.ts › memoriaDelCliente`). Los clientes de Chef no llegan al agente.
 - **Seguridad:** la ficha es texto de un tercero. Al guardarla se sacan mails, CUIT, teléfonos y direcciones (`redactarFicha`); al leerla, cada
   línea pasa por `lineaSegura` y la que parece una orden se descarta (`pareceInstruccion`). Medida en `MEDIDAS_SEGURIDAD`.
-- **Qué no tiene todavía:** lo incremental (sumar a la ficha las charlas nuevas del bot) y el historial del 10/06 a hoy (no está importado).
+- **Incremental (09/10):** cada charla del bot con un cliente de LK que se cierra (12 h sin mensajes, al menos 2 mensajes del cliente) se suma a
+  su ficha (`lk_memoria-cliente` `incremental`, cron `lk_memoria-incremental` cada hora, sql/139). Si no tenía ficha, se crea. Arranca desde el
+  09/10: el historial anterior del bot son pruebas y no se suma. El canal de prueba nunca se suma. Tope por día: `app_settings.memoria_tope_diario_usd`
+  (sin fila, US$ 0,50). US$ 0,003 por charla [Probable].
+- **Qué no tiene todavía:** el historial de WhatsApp Business del 10/06 a hoy (no está importado) y lo incremental de clientes de Chef.
 - **Cómo se hace y por qué así:** `docs/REQUERIMIENTOS-AGENTE-2026-10-09.md` › "Memoria por cliente: cómo se hace".
 
 ## Corrida automática de los casos de evaluación (08/10/2026)

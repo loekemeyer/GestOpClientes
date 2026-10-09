@@ -63,6 +63,14 @@ Trato: …
 - No agregues ninguna otra línea (la del período del historial la pone el sistema).`;
 }
 
+/** Prompt para sumar una charla nueva del bot a la ficha (incremental, 09/10). Mismas reglas que la ficha inicial. */
+export function sistemaActualizacion(empresa: string): string {
+  return sistemaFicha(empresa).replace(
+    "a partir de su historial de WhatsApp con la empresa.",
+    "a partir de su historial de WhatsApp con la empresa. Te paso la FICHA ACTUAL (puede no haber) y una CHARLA NUEVA del cliente con el bot de WhatsApp de la empresa: devolvé la ficha completa actualizada. Sumá lo nuevo que sea estable, corregí lo que la charla nueva muestra que cambió y dejá lo que sigue valiendo. Lo que dijo el bot es de la empresa: no lo tomes como dato del cliente si el cliente no lo confirmó.",
+  );
+}
+
 /** La ficha que devolvió el modelo, limpia: sin markdown y cortada al máximo (por línea entera). */
 export function limpiarFicha(texto: string, max = MAX_CHARS_FICHA + 200): string {
   const lineas = String(texto ?? "").replace(/\*\*?|__|^#+\s*/gm, "").split("\n").map((l) => l.trim()).filter(Boolean);

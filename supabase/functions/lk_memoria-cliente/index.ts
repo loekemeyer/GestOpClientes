@@ -4,6 +4,7 @@
 //       "Wpp_Historial_Clientes" (el historial importado), le pide a Haiku la ficha (_shared/memoria-cliente.ts) y la guarda en
 //       wa_memoria_cliente (sql/137). Devuelve las fichas, los tokens y el costo.
 //   {action:"armar_pendientes", tope_usd, desde, segundos?, paralelo?}  → los que no tienen ficha (sql/138), con tope de gasto.
+//   {action:"incremental"}  → suma a la ficha las charlas del bot que se cerraron (sql/139). Cron lk_memoria-incremental, cada hora.
 //
 // Las charlas asignadas a más de un cliente (87 de 613, 65 cruzan LK y Chef) NO se leen: la ficha de una empresa no puede
 // traer lo que habló otra. Se cuentan en charlas_excluidas.
@@ -15,7 +16,7 @@
 
 import { getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
-import { fichaFinal, type MensajeHist, sistemaFicha, textoHistorial } from "../_shared/memoria-cliente.ts";
+import { fichaFinal, type MensajeHist, sistemaActualizacion, sistemaFicha, textoHistorial } from "../_shared/memoria-cliente.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +42,25 @@ async function esLlamadaInterna(req: Request): Promise<boolean> {
   return esperado.length > 0 && recibido === esperado;
 }
 
+/** Una llamada a Haiku. El gasto queda en bot_token_usage con su motivo (memoria_cliente / memoria_incremental). */
+async function pedirFicha(apiKey: string, system: string, usuario: string, motivo: string, phone: string | null):
+  Promise<{ ok: true; texto: string; it: number; ot: number; costo: number } | { ok: false; error: string }> {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: MODELO, max_tokens: 600, temperature: 0, system, messages: [{ role: "user", content: usuario }] }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) return { ok: false, error: `Anthropic ${res.status}: ${(await res.text()).slice(0, 200)}` };
+  const r = await res.json();
+  const it = Number(r?.usage?.input_tokens ?? 0), ot = Number(r?.usage?.output_tokens ?? 0);
+  const costo = (it * TARIFA.input + ot * TARIFA.output) / 1_000_000;
+  await supabase.from("bot_token_usage").insert({
+    model: MODELO, input_tokens: it, output_tokens: ot, function_name: "lk_memoria-cliente", phone, estimated_cost_usd: costo, motivo,
+  });
+  return { ok: true, texto: String(r?.content?.[0]?.text ?? ""), it, ot, costo };
+}
+
 // deno-lint-ignore no-explicit-any
 async function armarUna(marca: string, cod: number, apiKey: string, estado: string): Promise<Record<string, any>> {
   const { data: links, error: eL } = await supabase.from("Wpp_Conversaciones_Clientes")
@@ -62,24 +82,10 @@ async function armarUna(marca: string, cod: number, apiKey: string, estado: stri
   const empresa = EMPRESA[marca];
   const { texto } = textoHistorial(lista, empresa);
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({
-      model: MODELO, max_tokens: 600, temperature: 0, system: sistemaFicha(empresa),
-      messages: [{ role: "user", content: `Historial de WhatsApp del cliente:\n\n${texto}` }],
-    }),
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!res.ok) return { marca, cod_cli: cod, ok: false, error: `Anthropic ${res.status}: ${(await res.text()).slice(0, 200)}` };
-  const r = await res.json();
-  const it = Number(r?.usage?.input_tokens ?? 0), ot = Number(r?.usage?.output_tokens ?? 0);
-  const costo = (it * TARIFA.input + ot * TARIFA.output) / 1_000_000;
-  await supabase.from("bot_token_usage").insert({
-    model: MODELO, input_tokens: it, output_tokens: ot, function_name: "lk_memoria-cliente", phone: null,
-    estimated_cost_usd: costo, motivo: "memoria_cliente",
-  });
-  const ficha = fichaFinal(String(r?.content?.[0]?.text ?? ""), lista.length, lista[0]?.creado_en ?? null, lista[lista.length - 1]?.creado_en ?? null);
+  const r = await pedirFicha(apiKey, sistemaFicha(empresa), `Historial de WhatsApp del cliente:\n\n${texto}`, "memoria_cliente", null);
+  if (!r.ok) return { marca, cod_cli: cod, ok: false, error: r.error };
+  const { it, ot, costo } = r;
+  const ficha = fichaFinal(r.texto, lista.length, lista[0]?.creado_en ?? null, lista[lista.length - 1]?.creado_en ?? null);
   if (!ficha) return { marca, cod_cli: cod, ok: false, error: "respuesta vacía" };
 
   const fila = {
@@ -91,6 +97,45 @@ async function armarUna(marca: string, cod: number, apiKey: string, estado: stri
   const { error: eU } = await supabase.from("wa_memoria_cliente").upsert(fila, { onConflict: "marca,cod_cli" });
   if (eU) return { marca, cod_cli: cod, ok: false, error: eU.message, ficha };
   return { ok: true, ...fila };
+}
+
+// ── Incremental (Pablo, 09/10): cada charla del bot que se cierra (12 h sin mensajes) se suma a la ficha del cliente ─────────────────────
+// wa_memoria_incremental_pendientes (sql/139) da los teléfonos con mensajes nuevos desde lo último que se sumó (wa_memoria_telefono). Sólo
+// clientes de LK (los de Chef no llegan al agente). Un número que no es cliente de LK se marca visto sin gastar. Tope por día en
+// app_settings.memoria_tope_diario_usd (sin fila: US$ 0,50).
+// deno-lint-ignore no-explicit-any
+async function sumarCharla(p: { telefono: string; desde: string | null; hasta: string }, apiKey: string): Promise<Record<string, any>> {
+  const marcar = (resultado: string) => supabase.from("wa_memoria_telefono")
+    .upsert({ telefono: p.telefono, bot_hasta: p.hasta, actualizado_en: new Date().toISOString(), resultado }, { onConflict: "telefono" });
+  const { data: ident } = await supabase.rpc("wa_identify_customer", { p_phone: p.telefono });
+  const cod = Number((ident as { cod_cliente?: string }[] | null)?.[0]?.cod_cliente);
+  if (!Number.isInteger(cod) || cod <= 0) { await marcar("no_cliente_lk"); return { telefono: p.telefono.slice(-4), ok: true, saltado: "no_cliente_lk" }; }
+
+  let q = supabase.from("bot_historial_chat").select("rol, contenido, creado_en").eq("telefono", p.telefono).lte("creado_en", p.hasta);
+  if (p.desde) q = q.gt("creado_en", p.desde);
+  const { data: msgs, error: eM } = await q.order("creado_en", { ascending: true }).limit(400);
+  if (eM) return { cod_cli: cod, ok: false, error: eM.message };
+  const nuevos = (msgs ?? []) as MensajeHist[];
+  if (!nuevos.length) { await marcar("sin_mensajes"); return { cod_cli: cod, ok: true, saltado: "sin_mensajes" }; }
+
+  const { data: prev } = await supabase.from("wa_memoria_cliente")
+    .select("ficha, mensajes, desde, charlas_excluidas").eq("marca", "LK").eq("cod_cli", cod).maybeSingle();
+  const { texto } = textoHistorial(nuevos, EMPRESA.LK, 30_000);
+  const r = await pedirFicha(apiKey, sistemaActualizacion(EMPRESA.LK),
+    `FICHA ACTUAL:\n${prev?.ficha ?? "(todavía no tiene ficha)"}\n\nCHARLA NUEVA CON EL BOT DE WHATSAPP:\n${texto}`, "memoria_incremental", p.telefono);
+  if (!r.ok) return { cod_cli: cod, ok: false, error: r.error };
+  const mensajes = Number(prev?.mensajes ?? 0) + nuevos.length;
+  const desde = prev?.desde ?? nuevos[0].creado_en;
+  const hasta = nuevos[nuevos.length - 1].creado_en;
+  const ficha = fichaFinal(r.texto, mensajes, desde, hasta);
+  if (!ficha) return { cod_cli: cod, ok: false, error: "respuesta vacía" };
+  const { error: eU } = await supabase.from("wa_memoria_cliente").upsert({
+    marca: "LK", cod_cli: cod, ficha, mensajes, desde, hasta, charlas_excluidas: Number(prev?.charlas_excluidas ?? 0),
+    modelo: MODELO, input_tokens: r.it, output_tokens: r.ot, costo_usd: r.costo, estado: "aprobada", generada_en: new Date().toISOString(),
+  }, { onConflict: "marca,cod_cli" });
+  if (eU) return { cod_cli: cod, ok: false, error: eU.message };
+  await marcar(prev ? "sumada" : "creada");
+  return { cod_cli: cod, ok: true, mensajes_nuevos: nuevos.length, costo_usd: r.costo };
 }
 
 Deno.serve(async (req: Request) => {
@@ -159,6 +204,28 @@ Deno.serve(async (req: Request) => {
       }
       if (errores.length) console.error("[memoria-cliente] errores:", errores.join(" | "));
       return json({ ok: true, terminado: false, armadas, errores });
+    }
+
+    if (body.action === "incremental") {
+      const tope = Number((await getSetting("memoria_tope_diario_usd")) ?? "0.5");
+      const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+      const { data: g } = await supabase.from("bot_token_usage").select("estimated_cost_usd")
+        .eq("function_name", "lk_memoria-cliente").eq("motivo", "memoria_incremental").gte("created_at", `${hoy}T03:00:00Z`).limit(10000);
+      const gastadoHoy = (g ?? []).reduce((a, r) => a + Number(r.estimated_cost_usd ?? 0), 0);
+      if (!(tope > 0) || gastadoHoy >= tope) return json({ ok: true, detenido: "tope_diario", gastado_hoy_usd: gastadoHoy, tope_usd: tope });
+      const { data: pend, error } = await supabase.rpc("wa_memoria_incremental_pendientes", { p_limite: 5 });
+      if (error) return json({ ok: false, error: error.message }, 200);
+      if (!(pend ?? []).length) return json({ ok: true, pendientes: 0 });
+      const apiKey = (await getSetting("ANTHROPIC_API_KEY")) ?? Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+      if (!apiKey) return json({ ok: false, error: "Falta ANTHROPIC_API_KEY" }, 200);
+      // deno-lint-ignore no-explicit-any
+      const salida: Record<string, any>[] = [];
+      for (const p of pend as { telefono: string; desde: string | null; hasta: string }[]) {
+        try { salida.push(await sumarCharla(p, apiKey)); }
+        catch (e) { salida.push({ ok: false, error: e instanceof Error ? e.message : String(e) }); }
+      }
+      if (salida.some((x) => !x.ok)) console.error("[memoria-cliente] incremental:", JSON.stringify(salida.filter((x) => !x.ok)));
+      return json({ ok: true, procesados: salida.length, resultados: salida });
     }
 
     return json({ ok: false, error: "action desconocida" }, 400);

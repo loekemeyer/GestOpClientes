@@ -113,8 +113,10 @@ incremental (cuando un cliente lo agarre el agente, que lo agregue a la memoria)
    `"Wpp_Conversaciones_Clientes"` (charla → cliente). Hoy: 27.348 mensajes del 09/06/2025 al 09/06/2026, 664 clientes.
    `lk_memoria-cliente` (`{action:"armar", clientes:[{marca, cod_cli}]}`, hasta 10 por llamada) lee el historial del cliente, Haiku
    arma la ficha y se guarda.
-3. **Input incremental** (por hacer): cuando una charla del bot se cierra (12 h sin mensajes), lo nuevo de `bot_historial_chat` se suma a
-   la ficha (ficha anterior + mensajes nuevos → ficha nueva), no se rearma desde cero.
+3. **Input incremental** (hecho el 09/10, sql/139): cuando una charla del bot se cierra (12 h sin mensajes, al menos 2 mensajes del
+   cliente), lo nuevo de `bot_historial_chat` se suma a la ficha (ficha anterior + mensajes nuevos → ficha nueva, `sistemaActualizacion`),
+   no se rearma desde cero. `wa_memoria_telefono` guarda hasta dónde se sumó cada teléfono. Arranca desde el 09/10 (lo anterior son pruebas
+   asociadas a clientes reales) y el canal de prueba nunca entra. Tope diario `app_settings.memoria_tope_diario_usd` (US$ 0,50 sin fila).
 4. **Exportaciones nuevas de WhatsApp Business** (la del 10/06/2026 a hoy está pedida): se cargan en las mismas dos tablas y se
    rearman las fichas de los clientes que cambiaron. ⚠ El script que cargó la primera exportación no está en este repo: hay que
    conseguirlo o escribir uno antes de cargar la segunda, y deduplicar contra lo ya cargado (misma charla, misma fecha y texto).

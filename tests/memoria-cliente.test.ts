@@ -1,7 +1,7 @@
 // Ficha de memoria por cliente: armado del historial y limpieza de la ficha (supabase/functions/_shared/memoria-cliente.ts).
 // Pablo Olejavetzky, 09/10/2026. Sin red, sin IA, US$ 0.
 // Correr: deno run tests/memoria-cliente.test.ts   (sale con código 1 si algo falla)
-import { bloqueMemoria, fichaFinal, sinCifras, limpiarFicha, MAX_CHARS_BLOQUE_MEMORIA, redactarFicha, sistemaFicha, textoHistorial } from "../supabase/functions/_shared/memoria-cliente.ts";
+import { bloqueMemoria, fichaFinal, sinCifras, sistemaActualizacion, limpiarFicha, MAX_CHARS_BLOQUE_MEMORIA, redactarFicha, sistemaFicha, textoHistorial } from "../supabase/functions/_shared/memoria-cliente.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -74,6 +74,12 @@ igual("no toca localidades", redactarFicha("Retira en Junín. Retira en Olavarr�
 const ff = fichaFinal("Quién escribe: Marta\nPagos: transferencia\nHistorial: 13 mensajes, de octubre 2025 a mayo 2026.", 57, "2025-10-15 15:59:00", "2026-05-04 10:00:00");
 igual("historial calculado reemplaza al del modelo", ff, "Quién escribe: Marta\nPagos: transferencia\nHistorial: 57 mensajes, de octubre 2025 a mayo 2026.");
 igual("vacía si el modelo no devolvió nada", fichaFinal("", 10, null, null), "");
+
+// ── Incremental: el prompt de actualización es el de la ficha más la consigna de sumar ──
+const sa = sistemaActualizacion("Loekemeyer");
+igual("actualización: pide la ficha completa actualizada", sa.includes("devolvé la ficha completa actualizada"), true);
+igual("actualización: lo del bot no es dato del cliente", sa.includes("Lo que dijo el bot es de la empresa"), true);
+igual("actualización: mantiene las reglas de la ficha", sa.includes("NO copies CUIT") && sa.includes("NO pongas precios"), true);
 
 // ── Porcentajes e importes (casos reales de la tanda del 09/10, sin datos del cliente) ──
 igual("línea entera de descuento se va", sinCifras("Pagos: Contado con 25% de descuento"), "");
