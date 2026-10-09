@@ -3,6 +3,7 @@
 //   {action:"armar", clientes:[{marca:"LK"|"CH", cod_cli}], estado?:"prueba"}  → hasta MAX_POR_LLAMADA clientes. Lee
 //       "Wpp_Historial_Clientes" (el historial importado), le pide a Haiku la ficha (_shared/memoria-cliente.ts) y la guarda en
 //       wa_memoria_cliente (sql/137). Devuelve las fichas, los tokens y el costo.
+//   {action:"armar_pendientes", tope_usd, desde, segundos?, paralelo?}  → los que no tienen ficha (sql/138), con tope de gasto.
 //
 // Las charlas asignadas a más de un cliente (87 de 613, 65 cruzan LK y Chef) NO se leen: la ficha de una empresa no puede
 // traer lo que habló otra. Se cuentan en charlas_excluidas.
@@ -117,6 +118,45 @@ Deno.serve(async (req: Request) => {
       }
       const costo = salida.reduce((a, s) => a + Number(s.costo_usd ?? 0), 0);
       return json({ ok: true, armadas: salida.filter((s) => s.ok).length, costo_usd: Math.round(costo * 1e6) / 1e6, fichas: salida });
+    }
+
+    // Recorre los que no tienen ficha (wa_memoria_pendientes, sql/138) durante `segundos` (para que una corrida por minuto
+    // no se pise con la siguiente), de a `paralelo` a la vez. Se frena sola si lo gastado por esta función desde `desde`
+    // llega a `tope_usd` (regla de gasto: el tope es el estimativo que aprobó Pablo con margen). La llama un cron temporal.
+    if (body.action === "armar_pendientes") {
+      const tope = Number(body.tope_usd);
+      const desde = String(body.desde ?? "");
+      if (!(tope > 0 && tope <= 10) || isNaN(Date.parse(desde))) return json({ ok: false, error: "faltan tope_usd (0 a 10) y desde (ISO)" }, 400);
+      const segundos = Math.min(50, Math.max(10, Number(body.segundos ?? 40)));
+      const paralelo = Math.min(3, Math.max(1, Number(body.paralelo ?? 2)));
+      const apiKey = (await getSetting("ANTHROPIC_API_KEY")) ?? Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+      if (!apiKey) return json({ ok: false, error: "Falta ANTHROPIC_API_KEY" }, 200);
+      const gastado = async () => {
+        const { data } = await supabase.from("bot_token_usage").select("estimated_cost_usd")
+          .eq("function_name", "lk_memoria-cliente").gte("created_at", desde).limit(10000);
+        return (data ?? []).reduce((a, r) => a + Number(r.estimated_cost_usd ?? 0), 0);
+      };
+      const fin = Date.now() + segundos * 1000;
+      const fallidos = new Set<string>();
+      let armadas = 0;
+      const errores: string[] = [];
+      while (Date.now() < fin) {
+        const g = await gastado();
+        if (g >= tope) return json({ ok: true, detenido: "tope", gastado_usd: g, armadas, errores });
+        const { data: pend, error } = await supabase.rpc("wa_memoria_pendientes", { p_limite: paralelo + fallidos.size });
+        if (error) return json({ ok: false, error: error.message, armadas }, 200);
+        const lote = ((pend ?? []) as { marca: string; cod_cli: number }[])
+          .filter((p) => !fallidos.has(`${p.marca}${p.cod_cli}`)).slice(0, paralelo);
+        if (!lote.length) return json({ ok: true, terminado: true, gastado_usd: await gastado(), armadas, errores });
+        const res = await Promise.all(lote.map((p) =>
+          armarUna(p.marca, p.cod_cli, apiKey, "prueba").catch((e) => ({ marca: p.marca, cod_cli: p.cod_cli, ok: false, error: String(e) }))));
+        for (const r of res) {
+          if (r.ok) armadas++;
+          else { fallidos.add(`${r.marca}${r.cod_cli}`); errores.push(`${r.marca} ${r.cod_cli}: ${r.error}`); }
+        }
+      }
+      if (errores.length) console.error("[memoria-cliente] errores:", errores.join(" | "));
+      return json({ ok: true, terminado: false, armadas, errores });
     }
 
     return json({ ok: false, error: "action desconocida" }, 400);
