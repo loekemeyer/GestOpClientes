@@ -31,6 +31,8 @@ const COST_PER_MTOK: Record<string, { input: number; output: number }> = {
   "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
   "claude-sonnet-5": { input: 2.0, output: 10.0 },
+  // Haiku 5.5 (09/10/2026): US$ 0,10 / 0,50 con prompts de hasta 100K tokens (los del bot andan en 8 a 16K); arriba de eso, 0,50 / 2,50.
+  "claude-haiku-5-5": { input: 0.10, output: 0.50 },
   "gpt-4o-mini": { input: 0.15, output: 0.60 },
   "gpt-4o": { input: 2.50, output: 10.0 },
   "gemini-2.0-flash-lite": { input: 0.075, output: 0.30 },
@@ -330,6 +332,16 @@ function marcarCache(msgs: any[], i: number) {
  *  4) el último mensaje: en el loop de herramientas, la llamada siguiente lee todo lo anterior del caché.
  *  Un prefijo más corto que el mínimo del modelo (1024 tokens en Sonnet 4.6, 4096 en Haiku 4.5) simplemente no se cachea: no da error. */
 // deno-lint-ignore no-explicit-any
+/** Lo que cambia por modelo en el pedido a Anthropic. Haiku 5.5 (Pablo, 09/10: "hagamos pruebas con ese"): piensa por defecto y, pensando,
+ *  hay que devolverle sus bloques de pensamiento con cada resultado de herramienta; el historial normalizado (NormMsg) no los guarda.
+ *  Se usa con el pensamiento apagado y esfuerzo bajo (la documentación lo permite hasta "high"): lo más rápido y barato, y lo más
+ *  parecido a cómo corre Haiku 4.5. Más tope de salida: su tokenizador cuenta ~30 % más tokens por el mismo texto. */
+// deno-lint-ignore no-explicit-any
+export function extrasAnthropic(model: string): Record<string, any> {
+  if (/^claude-haiku-5/.test(model)) return { max_tokens: 2048, thinking: { type: "disabled" }, output_config: { effort: "low" } };
+  return {};
+}
+
 export function cuerpoAnthropic(model: string, system: SystemPrompt, tools: ToolDef[], history: NormMsg[]): Record<string, any> {
   const c = contextoEnElTurno(system, history);
   const sys = [{ type: "text", text: c.system, cache_control: CACHE }];
@@ -337,7 +349,7 @@ export function cuerpoAnthropic(model: string, system: SystemPrompt, tools: Tool
   const msgs = toAnthropicMessages(c.history);
   if (c.ultimoCliente > 0) marcarCache(msgs, c.ultimoCliente - 1);
   marcarCache(msgs, msgs.length - 1);
-  return { model, max_tokens: 1024, system: sys, tools: tl, messages: msgs };
+  return { model, max_tokens: 1024, system: sys, tools: tl, messages: msgs, ...extrasAnthropic(model) };
 }
 
 // ── Anthropic ────────────────────────────────────────────────────────────────

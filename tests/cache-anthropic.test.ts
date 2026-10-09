@@ -139,5 +139,15 @@ igual("2ª llamada: 0,1× lo leído", Math.round(c2 * 1e6), Math.round(167 * 3 +
 igual("un turno de 2 llamadas cuesta menos que sin caché", c1 + c2 < 2 * costoEstimado({ inputTokens: 11_300, outputTokens: 81 }, r), true);
 igual("free tier sigue en 0", costoEstimado({ inputTokens: 5000, outputTokens: 50, cacheReadTokens: 4000 }, { input: 0, output: 0 }), 0);
 
+// ── Haiku 5.5 (09/10): pensamiento apagado, esfuerzo bajo y más tope de salida; los demás modelos quedan igual ──
+const h55 = cuerpoAnthropic("claude-haiku-5-5", { estable: "E", variable: "V" }, tools, [{ role: "user", text: "hola" }]);
+igual("haiku 5.5: pensamiento apagado", h55.thinking, { type: "disabled" });
+igual("haiku 5.5: esfuerzo bajo", h55.output_config, { effort: "low" });
+igual("haiku 5.5: tope de salida 2048", h55.max_tokens, 2048);
+igual("haiku 5.5: sin temperature (daría 400)", "temperature" in h55, false);
+const s46 = cuerpoAnthropic("claude-sonnet-4-6", { estable: "E", variable: "V" }, tools, [{ role: "user", text: "hola" }]);
+igual("sonnet 4.6 sin cambios", [s46.max_tokens, "thinking" in s46, "output_config" in s46], [1024, false, false]);
+igual("haiku 5.5: costo a US$ 0,10 / 0,50", costoEstimado({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, { input: 0.10, output: 0.50 }), 0.6);
+
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");
