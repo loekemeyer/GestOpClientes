@@ -13,7 +13,7 @@
 
 import { getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
-import { limpiarFicha, type MensajeHist, sistemaFicha, textoHistorial } from "../_shared/memoria-cliente.ts";
+import { fichaFinal, type MensajeHist, sistemaFicha, textoHistorial } from "../_shared/memoria-cliente.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -77,7 +77,7 @@ async function armarUna(marca: string, cod: number, apiKey: string, estado: stri
     model: MODELO, input_tokens: it, output_tokens: ot, function_name: "lk_memoria-cliente", phone: null,
     estimated_cost_usd: costo, motivo: "memoria_cliente",
   });
-  const ficha = limpiarFicha(String(r?.content?.[0]?.text ?? ""));
+  const ficha = fichaFinal(String(r?.content?.[0]?.text ?? ""), lista.length, lista[0]?.creado_en ?? null, lista[lista.length - 1]?.creado_en ?? null);
   if (!ficha) return { marca, cod_cli: cod, ok: false, error: "respuesta vacía" };
 
   const fila = {
