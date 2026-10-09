@@ -34,6 +34,7 @@ const COST_PER_MTOK: Record<string, { input: number; output: number }> = {
   "claude-sonnet-5": { input: 2.0, output: 10.0 },
   // Haiku 5.5 (09/10/2026): US$ 0,10 / 0,50 con prompts de hasta 100K tokens (los del bot andan en 8 a 16K); arriba de eso, 0,50 / 2,50.
   "claude-haiku-5-5": { input: 0.10, output: 0.50 },
+  "claude-sonnet-5-5": { input: 2.0, output: 10.0 },
   "gpt-4o-mini": { input: 0.15, output: 0.60 },
   "gpt-4o": { input: 2.50, output: 10.0 },
   "gemini-2.0-flash-lite": { input: 0.075, output: 0.30 },
@@ -54,7 +55,9 @@ export type NormToolCall = {
 };
 export type NormMsg =
   | { role: "user"; text: string }
-  | { role: "assistant"; text: string; toolCalls: NormToolCall[] }
+  // `bloques`: el contenido tal cual lo devolvió Anthropic (con los bloques de pensamiento), para mandárselo de vuelta al MISMO modelo dentro del
+  // turno (Sonnet 5.5 lo pide; anthropic-extras.ts). Otro modelo, u otro proveedor, arma el mensaje con text + toolCalls como siempre.
+  | { role: "assistant"; text: string; toolCalls: NormToolCall[]; bloques?: unknown[]; bloquesModelo?: string }
   | { role: "tool"; results: { id: string; name: string; content: string }[] };
 
 export interface ModelResult {
@@ -68,6 +71,8 @@ export interface ModelResult {
   cacheReadTokens?: number;
   provider: string;
   model: string;
+  /** Anthropic con bloques de pensamiento: el contenido crudo, para devolverlo en la próxima vuelta del turno. */
+  bloques?: unknown[];
 }
 
 export interface ResolvedModel {
@@ -340,7 +345,7 @@ export function cuerpoAnthropic(model: string, system: SystemPrompt, tools: Tool
   const c = contextoEnElTurno(system, history);
   const sys = [{ type: "text", text: c.system, cache_control: CACHE }];
   const tl = tools.map((t, i) => (i === tools.length - 1 ? { ...t, cache_control: CACHE } : t));
-  const msgs = toAnthropicMessages(c.history);
+  const msgs = toAnthropicMessages(c.history, model);
   if (c.ultimoCliente > 0) marcarCache(msgs, c.ultimoCliente - 1);
   marcarCache(msgs, msgs.length - 1);
   return { model, max_tokens: 1024, system: sys, tools: tl, messages: msgs, ...extrasAnthropic(model) };
@@ -348,7 +353,7 @@ export function cuerpoAnthropic(model: string, system: SystemPrompt, tools: Tool
 
 // ── Anthropic ────────────────────────────────────────────────────────────────
 // deno-lint-ignore no-explicit-any
-function toAnthropicMessages(history: NormMsg[]): any[] {
+function toAnthropicMessages(history: NormMsg[], model = ""): any[] {
   // deno-lint-ignore no-explicit-any
   const msgs: any[] = [];
   for (const m of history) {
@@ -356,6 +361,11 @@ function toAnthropicMessages(history: NormMsg[]): any[] {
       // Siempre en bloques (como el asistente y los resultados de herramientas): así un mensaje se manda igual lleve o no la marca de caché.
       msgs.push({ role: "user", content: m.text ? [{ type: "text", text: m.text }] : m.text });
     } else if (m.role === "assistant") {
+      // Mismo modelo que lo produjo: el contenido tal cual (con el pensamiento), copiado para que la marca de caché no lo modifique.
+      if (m.bloques?.length && m.bloquesModelo === model) {
+        msgs.push({ role: "assistant", content: structuredClone(m.bloques) });
+        continue;
+      }
       // deno-lint-ignore no-explicit-any
       const content: any[] = [];
       if (m.text) content.push({ type: "text", text: m.text });
@@ -387,8 +397,11 @@ async function callAnthropic(
   const toolCalls: NormToolCall[] = content
     .filter((b) => b.type === "tool_use")
     .map((b) => ({ id: b.id, name: b.name, input: b.input ?? {} }));
+  const conPensamiento = content.some((b) => b.type === "thinking" || b.type === "redacted_thinking");
+  if (d.stop_reason === "refusal") console.warn(`[bot-llm] ${model} declinó (refusal): ${d.stop_details?.category ?? "sin categoría"}`);
   return {
     text, toolCalls,
+    ...(conPensamiento ? { bloques: content } : {}),
     // Con caché, input_tokens trae sólo lo que no se escribió ni se leyó del caché: se guarda el total y el desglose (costoEstimado).
     inputTokens: (d.usage?.input_tokens ?? 0) + (d.usage?.cache_creation_input_tokens ?? 0) + (d.usage?.cache_read_input_tokens ?? 0),
     outputTokens: d.usage?.output_tokens ?? 0,

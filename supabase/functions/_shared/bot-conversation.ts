@@ -1756,7 +1756,7 @@ export async function runConversation(
     }
 
     // El modelo pidió herramientas: las ejecutamos y devolvemos los resultados.
-    history.push({ role: "assistant", text: res.text, toolCalls: res.toolCalls });
+    history.push({ role: "assistant", text: res.text, toolCalls: res.toolCalls, ...(res.bloques ? { bloques: res.bloques, bloquesModelo: res.model } : {}) });
 
     const results: { id: string; name: string; content: string }[] = [];
     for (const tc of res.toolCalls) {

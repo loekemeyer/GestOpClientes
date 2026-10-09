@@ -149,5 +149,20 @@ const s46 = cuerpoAnthropic("claude-sonnet-4-6", { estable: "E", variable: "V" }
 igual("sonnet 4.6 sin cambios", [s46.max_tokens, "thinking" in s46, "output_config" in s46], [1024, false, false]);
 igual("haiku 5.5: costo a US$ 0,10 / 0,50", costoEstimado({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, { input: 0.10, output: 0.50 }), 0.6);
 
+// ── Sonnet 5.5 (09/10): los bloques de pensamiento vuelven tal cual al MISMO modelo dentro del turno; a otro modelo, no ──
+const pens = [{ type: "thinking", thinking: "", signature: "firma" }, { type: "text", text: "Busco" }, { type: "tool_use", id: "t1", name: "buscar_productos", input: { q: "x" } }];
+const conBloques = [
+  { role: "user" as const, text: "¿tienen x?" },
+  { role: "assistant" as const, text: "Busco", toolCalls: [{ id: "t1", name: "buscar_productos", input: { q: "x" } }], bloques: pens, bloquesModelo: "claude-sonnet-5-5" },
+  { role: "tool" as const, results: [{ id: "t1", name: "buscar_productos", content: "ok" }] },
+];
+const s55 = cuerpoAnthropic("claude-sonnet-5-5", { estable: "E", variable: "V" }, tools, conBloques);
+igual("sonnet 5.5: el turno del asistente lleva el bloque de pensamiento", s55.messages[1].content[0].type, "thinking");
+igual("sonnet 5.5: la firma va intacta", s55.messages[1].content[0].signature, "firma");
+igual("la marca de caché no toca los bloques guardados", "cache_control" in (pens[2] as Record<string, unknown>), false);
+const otro = cuerpoAnthropic("claude-sonnet-4-6", { estable: "E", variable: "V" }, tools, conBloques);
+igual("otro modelo: sin pensamiento, text + tool_use", otro.messages[1].content.map((b: { type: string }) => b.type), ["text", "tool_use"]);
+igual("sonnet 5.5: sin thinking en el cuerpo (adaptativo por defecto) y esfuerzo bajo", ["thinking" in s55, s55.output_config], [false, { effort: "low" }]);
+
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");
