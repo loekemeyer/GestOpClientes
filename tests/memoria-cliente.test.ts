@@ -1,7 +1,7 @@
 // Ficha de memoria por cliente: armado del historial y limpieza de la ficha (supabase/functions/_shared/memoria-cliente.ts).
 // Pablo Olejavetzky, 09/10/2026. Sin red, sin IA, US$ 0.
 // Correr: deno run tests/memoria-cliente.test.ts   (sale con código 1 si algo falla)
-import { bloqueMemoria, fichaFinal, limpiarFicha, MAX_CHARS_BLOQUE_MEMORIA, redactarFicha, sistemaFicha, textoHistorial } from "../supabase/functions/_shared/memoria-cliente.ts";
+import { bloqueMemoria, fichaFinal, sinCifras, limpiarFicha, MAX_CHARS_BLOQUE_MEMORIA, redactarFicha, sistemaFicha, textoHistorial } from "../supabase/functions/_shared/memoria-cliente.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -74,6 +74,15 @@ igual("no toca localidades", redactarFicha("Retira en Junín. Retira en Olavarr�
 const ff = fichaFinal("Quién escribe: Marta\nPagos: transferencia\nHistorial: 13 mensajes, de octubre 2025 a mayo 2026.", 57, "2025-10-15 15:59:00", "2026-05-04 10:00:00");
 igual("historial calculado reemplaza al del modelo", ff, "Quién escribe: Marta\nPagos: transferencia\nHistorial: 57 mensajes, de octubre 2025 a mayo 2026.");
 igual("vacía si el modelo no devolvió nada", fichaFinal("", 10, null, null), "");
+
+// ── Porcentajes e importes (casos reales de la tanda del 09/10, sin datos del cliente) ──
+igual("línea entera de descuento se va", sinCifras("Pagos: Contado con 25% de descuento"), "");
+igual("paréntesis con % se va, el resto queda", sinCifras("Pagos: Paga por transferencia dentro de 14 días de factura (descuento 25% por pago contado)"), "Pagos: Paga por transferencia dentro de 14 días de factura");
+igual("oración con % se va, la otra queda", sinCifras("Pagos: Paga por transferencia. También paga a 30 días con 20% descuento."), "Pagos: Paga por transferencia.");
+igual("importe en pesos se va", sinCifras("Qué compra: Peladores. Pedidos de $ 500.000 por mes."), "Qué compra: Peladores.");
+igual("sin cifras no cambia", sinCifras("Entrega o retiro: Retira en Junín (13 a 16 hs)."), "Entrega o retiro: Retira en Junín (13 a 16 hs).");
+igual("fichaFinal saca la línea que queda vacía", fichaFinal("Quién escribe: Marta\nPagos: Contado con 25% de descuento", 5, null, null), "Quién escribe: Marta\nHistorial: 5 mensajes, de ? a ?.");
+igual("al leer también (fichas viejas)", bloqueMemoria("Pagos: Contado con 25% de descuento\nTrato: cordial").includes("25%"), false);
 
 // ── Lo que lee el agente: la ficha es texto de un tercero ──
 igual("sin ficha no hay bloque", bloqueMemoria(null), "");

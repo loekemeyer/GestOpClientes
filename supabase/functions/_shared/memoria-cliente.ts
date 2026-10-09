@@ -84,6 +84,22 @@ const REDACCIONES: Array<[RegExp, string | ((...m: string[]) => string)]> = [
       /^virgilio$/i.test(calle.trim()) ? `${prep} el depósito (Virgilio)` : /^(calle|av\.?|avenida)$/i.test(prep) ? "(dirección omitida)" : `${prep} (dirección omitida)`],
 ];
 
+// Porcentajes e importes (descuentos, recargos, montos): cambian y el agente los consulta con consultar_mis_descuentos. Haiku los puso igual en
+// 10 de las primeras 94 fichas de la tanda completa (09/10), pese a la regla. Se saca la oración o el paréntesis que los trae.
+const CIFRA = /\d+(?:[.,]\d+)?\s?%|\$\s?\d/;
+
+/** La línea sin los paréntesis ni las oraciones que traen un porcentaje o un importe. "" si no queda nada después del título. */
+export function sinCifras(linea: string): string {
+  if (!CIFRA.test(linea)) return linea;
+  const m = linea.match(/^([^:]{1,40}:)\s*(.*)$/);
+  const titulo = m ? m[1] : "", cuerpo = m ? m[2] : linea;
+  const oraciones = cuerpo.replace(/\s*\([^()]*\)/g, (p) => (CIFRA.test(p) ? "" : p))
+    .split(/(?<=\.)\s+/).filter((o) => o.trim() && !CIFRA.test(o));
+  const resto = oraciones.join(" ").trim();
+  if (!resto || /^[.,;:\s]*$/.test(resto)) return "";
+  return titulo ? `${titulo} ${resto}` : resto;
+}
+
 /** Saca mails, CUIT, teléfonos y direcciones con número que el modelo haya copiado igual. */
 export function redactarFicha(texto: string): string {
   let t = String(texto ?? "");
@@ -100,7 +116,8 @@ function mesAnio(iso: string | null | undefined): string {
 
 /** Ficha final: limpia, sin datos personales y con la línea del historial calculada (el modelo contaba mal: 13 en vez de 57). */
 export function fichaFinal(textoModelo: string, mensajes: number, desde: string | null, hasta: string | null): string {
-  const cuerpo = limpiarFicha(redactarFicha(textoModelo)).split("\n").filter((l) => !/^historial\s*:/i.test(l)).join("\n");
+  const cuerpo = limpiarFicha(redactarFicha(textoModelo)).split("\n").filter((l) => !/^historial\s*:/i.test(l))
+    .map(sinCifras).filter(Boolean).join("\n");
   if (!cuerpo) return "";
   return `${cuerpo}\nHistorial: ${mensajes} mensajes, de ${mesAnio(desde)} a ${mesAnio(hasta)}.`;
 }
@@ -116,7 +133,8 @@ export function bloqueMemoria(ficha: string | null | undefined): string {
   let n = 0;
   for (const cruda of String(ficha ?? "").split("\n")) {
     if (!cruda.trim() || pareceInstruccion(cruda).length) continue;
-    const l = lineaSegura(cruda, 600);
+    // sinCifras también al leer: cubre las fichas guardadas antes de que existiera (09/10).
+    const l = lineaSegura(/^historial\s*:/i.test(cruda) ? cruda : sinCifras(cruda), 600);
     if (!l || n + l.length > MAX_CHARS_BLOQUE_MEMORIA) continue;
     lineas.push(l); n += l.length + 1;
   }
