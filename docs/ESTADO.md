@@ -4,6 +4,20 @@
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
 > Última actualización: 2026-10-09.
 >
+> **09/10 (Pablo: "hacé lo mismo con Sonnet 5.5" → "sí, hacelo, así comparamos"): Sonnet 5.5 probado con los mismos 6 casos, US$ 0,276194 (15 llamadas, estimado US$ 0,43).** Soporte en `974b634`: pensamiento adaptativo con esfuerzo bajo y los bloques de pensamiento devueltos tal cual dentro del turno (`NormMsg.bloques`), sin `temperature`. 5 de 5 turnos de IA bien y siempre con la alerta cuando dice que avisa. **Producción sigue con Sonnet 4.6** (cadena id 1, `pedido-turno.ts`, `pedido-archivo.ts`).
+> ⚠ **Corrección de la comparativa de la tarde:** los tiempos "por turno" (Haiku 5.5 p50 1,4 s, Gemini 3.5 flash-lite 1,1 s, etc.) estaban mal: los casos corrieron en paralelo y el agrupado por `iteracion` mezcló turnos. Lo confiable es por llamada (`bot_llm_intentos`, Simulador, 09/10 desde 18:29 UTC), multiplicado por las llamadas por respuesta (llamadas / 5 turnos de IA):
+>
+> | Modelo | p50 por llamada | llamadas por respuesta | respuesta ≈ | US$ por llamada | US$ por respuesta | US$ por conversación |
+> |---|--:|--:|--:|--:|--:|--:|
+> | Sonnet 5.5 | 1,72 s | 3,0 | 5,2 s | 0,0184 | 0,055 | 0,113 |
+> | Sonnet 4.6 (webhook real) | 2,2 s | 1,8 | 4,4 s | 0,0264 | 0,048 | 0,097 |
+> | Haiku 5.5 | 1,32 s | 2,4 | 3,2 s | 0,0013 | 0,003 | 0,006 |
+> | Gemini 3.1 flash-lite-preview | 1,36 s | 2,4 | 3,3 s | 0 | 0 | 0 |
+> | Gemini flash-lite-latest | 0,96 s | 2,2 | 2,1 s | 0 | 0 | 0 |
+> | Gemini 3.5 flash-lite | 0,93 s | 2,2 | 2,0 s | 0 | 0 | 0 |
+>
+> Conversación = 6,4 mensajes del cliente × 32 % que va a la IA = 2,04 respuestas de IA. Muestra chica (5 turnos por modelo).
+>
 > **09/10 (Pablo: "reemplazá el uso de Haiku 4.5 por 5.5"): Haiku 5.5 (`claude-haiku-5-5`) en todo lo que usaba Haiku 4.5** (`7e5243c`): lector de comprobantes (`lk_parse-comprobante`, `wa_agente_modelos` id 45, tarea `parse_comprobante`), puntaje de respuestas (`lk_ia-puntaje`), fichas de memoria (`lk_memoria-cliente`) y la fila de catálogo id 2. Lo común está en `_shared/anthropic-extras.ts`: sin `temperature` (da 400), pensamiento apagado con esfuerzo bajo, `max_tokens` 2048 y el texto tomado de los bloques `text`. ⚠ **Sin probar en producción todavía:** el puntaje no tenía pendientes y el lector de comprobantes no se pudo llamar desde la base (la clave `service_role_key` del vault no es la de la función: 401). Se prueban con el primer comprobante y la primera respuesta de la IA que lleguen. El agente NO usaba Haiku 4.5: su cadena sigue siendo Sonnet 4.6 #1 → Gemini #2.
 > **Costo promedio por conversación [Probable]:** 6,4 mensajes del cliente por conversación (120 conversaciones del bot, 22/04 → 08/10, corte de 12 h) × 32 % que va a la IA (551 de 1.725 consultas reales del estudio, el resto lo contesta la capa fija gratis) × llamadas por turno × costo por llamada. **Haiku 5.5: US$ 0,006** (2,4 llamadas × US$ 0,0013). **Haiku 4.5: US$ 0,04** (1,8 × US$ 0,0112). **Sonnet 4.6, la cadena de hoy: US$ 0,10** (1,8 × US$ 0,0264, medido en el webhook: 47 llamadas, US$ 1,2421). Gemini gratis: US$ 0, con 141 fallas en 445 turnos. No incluye la toma de pedidos, que va siempre con Sonnet.
 >
