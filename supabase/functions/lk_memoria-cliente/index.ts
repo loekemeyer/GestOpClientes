@@ -7,7 +7,8 @@
 //
 // Las charlas asignadas a más de un cliente (87 de 613, 65 cruzan LK y Chef) NO se leen: la ficha de una empresa no puede
 // traer lo que habló otra. Se cuentan en charlas_excluidas.
-// El agente todavía no lee las fichas: primero las revisa Pablo (estado 'prueba').
+// El agente lee las fichas 'aprobada' de LK (bot-conversation.ts › memoriaDelCliente). Pablo, 09/10 ("pasala"): sin revisión previa,
+// nacen aprobadas; 'prueba' queda para pedirla a mano.
 // Gasto: cada llamada a Haiku queda en bot_token_usage con function_name 'lk_memoria-cliente'. Regla de gasto de CLAUDE.md: estimativo
 // y "sí" de Pablo antes de cada tanda.
 // Acceso: interno (x-lk-secret = LK_FN_CRON_SECRET) o admin del dashboard (access_token).
@@ -107,7 +108,8 @@ Deno.serve(async (req: Request) => {
         .filter((c: { marca: string; cod: number }) => (c.marca === "LK" || c.marca === "CH") && Number.isInteger(c.cod) && c.cod > 0);
       if (!clientes.length) return json({ ok: false, error: "clientes vacío: [{marca:'LK'|'CH', cod_cli}]" }, 400);
       if (clientes.length > MAX_POR_LLAMADA) return json({ ok: false, error: `máximo ${MAX_POR_LLAMADA} clientes por llamada` }, 400);
-      const estado = ["prueba", "aprobada"].includes(body.estado) ? body.estado : "prueba";
+      // Pablo, 09/10 ("pasala"): sin revisión previa, la ficha nace aprobada (el agente la lee). "prueba" sólo si se pide.
+      const estado = body.estado === "prueba" ? "prueba" : "aprobada";
       const apiKey = (await getSetting("ANTHROPIC_API_KEY")) ?? Deno.env.get("ANTHROPIC_API_KEY") ?? "";
       if (!apiKey) return json({ ok: false, error: "Falta ANTHROPIC_API_KEY" }, 200);
       // deno-lint-ignore no-explicit-any
@@ -149,7 +151,7 @@ Deno.serve(async (req: Request) => {
           .filter((p) => !fallidos.has(`${p.marca}${p.cod_cli}`)).slice(0, paralelo);
         if (!lote.length) return json({ ok: true, terminado: true, gastado_usd: await gastado(), armadas, errores });
         const res = await Promise.all(lote.map((p) =>
-          armarUna(p.marca, p.cod_cli, apiKey, "prueba").catch((e) => ({ marca: p.marca, cod_cli: p.cod_cli, ok: false, error: String(e) }))));
+          armarUna(p.marca, p.cod_cli, apiKey, "aprobada").catch((e) => ({ marca: p.marca, cod_cli: p.cod_cli, ok: false, error: String(e) }))));
         for (const r of res) {
           if (r.ok) armadas++;
           else { fallidos.add(`${r.marca}${r.cod_cli}`); errores.push(`${r.marca} ${r.cod_cli}: ${r.error}`); }

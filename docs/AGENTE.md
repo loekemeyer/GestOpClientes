@@ -189,6 +189,21 @@ siguientes la leen del caché (0,1×). Prueba local: la charla anterior queda ig
 en 17 de 20 (`tests/memoria-charla.test.ts`). Las compuertas de pedido y de mail y la nota de tiempo siguen con los últimos 16. El Simulador acepta
 `creado_en` en cada mensaje de `historial` para probarlo (sin él, todo es de ahora).
 
+## Memoria: ficha por cliente de sus charlas anteriores (09/10/2026)
+
+Pablo: *"para que se nutra de la memoria tiene que registrarse el input inicial y el incremental"*, y sobre revisar las fichas: *"pasala"*.
+
+- **Qué es:** un resumen corto por cliente (quién escribe, cómo pide, qué compra, cómo recibe o retira, pagos, problemas que se repitieron, trato)
+  armado por Haiku desde el historial importado de WhatsApp Business (`"Wpp_Historial_Clientes"`, 09/06/2025 → 09/06/2026). Tabla
+  `wa_memoria_cliente` (sql/137), clave marca + código. La arma `lk_memoria-cliente` (`armar` / `armar_pendientes`, sql/138).
+- **Qué ve el agente:** la ficha `aprobada` de su cliente de LK, en el prompt, antes del bloque de Seguridad (parte estable: no rompe el caché),
+  con la aclaración de que es un dato, que puede estar desactualizada y que lo que cambia se consulta con las herramientas
+  (`memoria-cliente.ts › bloqueMemoria`, `bot-conversation.ts › memoriaDelCliente`). Los clientes de Chef no llegan al agente.
+- **Seguridad:** la ficha es texto de un tercero. Al guardarla se sacan mails, CUIT, teléfonos y direcciones (`redactarFicha`); al leerla, cada
+  línea pasa por `lineaSegura` y la que parece una orden se descarta (`pareceInstruccion`). Medida en `MEDIDAS_SEGURIDAD`.
+- **Qué no tiene todavía:** lo incremental (sumar a la ficha las charlas nuevas del bot) y el historial del 10/06 a hoy (no está importado).
+- **Cómo se hace y por qué así:** `docs/REQUERIMIENTOS-AGENTE-2026-10-09.md` › "Memoria por cliente: cómo se hace".
+
 ## Corrida automática de los casos de evaluación (08/10/2026)
 
 Los casos de Configuración del agente › Evaluación (`wa_agente_evals`, 84 que se pueden simular al 08/10) se simulan solos cada noche

@@ -22,6 +22,7 @@ import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { hechosDeLaCharla } from "./hechos-charla.ts";
+import { bloqueMemoria } from "./memoria-cliente.ts";
 import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
 import { type Fila, historialParaElModelo, LECTURA_MAX, marcaDeTramo, sinMarcaDeTramo, VENTANA_MIN } from "./ventana-historial.ts";
@@ -451,6 +452,7 @@ async function buildSystemPrompt(
   codCliente: number,
   dtoVol: number,
   canario: string | null = null,
+  memoria = "",   // bloque de memoria-cliente.ts: va antes de Seguridad, así el canario sigue siendo lo último
 ): Promise<string> {
   const dtoText =
     dtoVol > 0
@@ -501,7 +503,7 @@ ${infoPedidos}- Descuentos por forma de pago (contado, 30/60/90 días, e-cheq): 
 - Web: loekemeyer.com
 ${rectorBloque}
 ${reglasOperativas(pedidosOn)}
-
+${memoria ? `\n${memoria}\n` : ""}
 ${bloqueSeguridad(customerName, codCliente)}${canario ? `\n\n${lineaCanario(canario)}` : ""}`;
 }
 
@@ -1541,6 +1543,20 @@ async function filtrarSalida(reply: string, c: {
   }
 }
 
+/** Ficha de memoria del cliente (sql/137, Pablo 09/10). Sólo clientes de LK: los de Chef no llegan al agente (chef.ts). Sólo las
+ *  aprobadas. Si la base falla, sigue sin ficha: la memoria nunca puede frenar una respuesta. */
+async function memoriaDelCliente(codCliente: number): Promise<string> {
+  if (!Number.isInteger(codCliente) || codCliente <= 0) return "";
+  try {
+    const { data } = await supabase.from("wa_memoria_cliente").select("ficha")
+      .eq("marca", "LK").eq("cod_cli", codCliente).eq("estado", "aprobada").maybeSingle();
+    return bloqueMemoria(data?.ficha);
+  } catch (e) {
+    console.error("[memoria] no se pudo leer la ficha:", e instanceof Error ? e.message : e);
+    return "";
+  }
+}
+
 export async function runConversation(
   userText: string,
   phone: string,
@@ -1559,7 +1575,8 @@ export async function runConversation(
   const canario = await canarioDelServidor();
   const [historial, promptBase, herramientas, chain, ejemplos, hechos] = await Promise.all([
     historialDelTurno(phone),
-    buildSystemPrompt(customerName, codCliente, dtoVol, canario),
+    // Pablo, 09/10: la ficha de sus charlas anteriores (memoria-cliente.ts) va en la parte estable: es igual en todos los mensajes del cliente.
+    memoriaDelCliente(codCliente).then((memoria) => buildSystemPrompt(customerName, codCliente, dtoVol, canario, memoria)),
     herramientasDelTurno(),
     resolveChain(),
     ejemplosAprobados(),

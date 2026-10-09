@@ -124,8 +124,9 @@ incremental (cuando un cliente lo agarre el agente, que lo agregue a la memoria)
 6. **Datos personales los saca el código, no el modelo** (`redactarFicha`): en la prueba Haiku copió 2 mails y 3 direcciones pese a
    la regla. Mails, CUIT, teléfonos y direcciones con número salen siempre, el depósito de LK se nombra.
 7. **Charlas compartidas entre clientes no se leen** (87 de 613, 65 cruzan LK y Chef): la ficha de una empresa no puede traer lo de otra.
-8. **Revisión antes de usar**: las fichas nacen en estado `prueba`. El agente sólo leerá las `aprobada`.
+8. **Sin revisión previa** (Pablo, 09/10: "pasala"): las fichas nacen `aprobada` y el agente las lee. `prueba` queda para pedirla a mano.
 9. **Gasto**: Haiku, con estimativo y "sí" de Pablo por tanda (regla de gasto). Prueba del 09/10: 5 fichas, US$ 0,026618 (estimado
    US$ 0,02). Las 664: unos US$ 3 [Probable]. No Gemini gratis: el plan gratis puede usar lo que se le manda y son charlas de clientes.
-10. **Lectura** (por hacer, después de aprobar): el agente recibe la ficha del cliente en el bloque de contexto de cada turno
-    (unos 400 tokens, una lectura por índice, sin demora medible). No reemplaza la ventana corta (charla actual + anterior).
+10. **Lectura** (hecha el 09/10): el agente recibe la ficha de su cliente de LK en la parte estable del prompt, antes del bloque de
+    Seguridad (no en el bloque de contexto del sistema: es texto de un tercero). Unos 150 a 400 tokens, una lectura por índice. No
+    reemplaza la ventana corta (charla actual + anterior).
