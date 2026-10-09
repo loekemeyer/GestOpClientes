@@ -1,90 +1,138 @@
-# Estimación y cronograma de salida a producción
+# Plan de salida a producción por compuertas
 
-Pedido de Pablo Olejavetzky. Preparado el 9 de octubre de 2026, con inicio el **martes 13 de octubre de 2026**, fechas de Argentina y disponibilidad de **4–6 horas por jornada**.
+Pedido de Pablo Olejavetzky, 09/10/2026. Reemplaza la estimación por jornadas del mismo día (commit `aac3332`, queda en el
+historial de git). Arranca el **martes 13/10/2026** (el 12 es feriado), con las decisiones de la sección 2.
 
-Alcance: bot de WhatsApp para consultas, pedidos en precarga con revisión humana, derivaciones al equipo mediante Planify y memoria persistente por cliente. Incluye revisar el historial anual importado y los clientes con varios contactos. La carga directa de pedidos sin revisión humana queda para una etapa posterior.
+Alcance: bot de WhatsApp para consultas, pedidos en precarga con revisión humana, derivaciones al equipo por Planify y
+memoria por cliente. La carga directa de pedidos sin revisión humana queda para después.
 
-## Plazo propuesto
+**Por qué compuertas y no un calendario de 17 jornadas.** La versión anterior reservaba 11 jornadas de validación antes del
+piloto, con Simulador y servicios simulados, que ella misma decía que no reemplazan el circuito real. La evidencia sale del
+tráfico real, y el cuello de botella no es el código: la memoria inicial, su lectura y la incremental salieron en unos 50
+minutos el 09/10 (`d93e398` → `aaead53`). Lo lento es lo humano: aprobar clientes, que el equipo tome los casos, revisar
+charlas. Cada fase tiene fecha objetivo y una condición para pasar. Si no se cumple, no se avanza y se reestima.
 
-| Hito | Objetivo provisional | Condición |
-|---|---|---|
-| Piloto con 2–5 clientes | 28–30 de octubre | Identidades verificadas, memoria comprobada y circuito completo de pedidos/avisos funcionando |
-| Habilitación gradual a una etapa mayor | 4–6 de noviembre | Piloto estable, equipo disponible y bloqueos críticos cerrados |
-| Auditoría completa de contactos e historial | A dimensionar con la muestra del 13/10 | Depende del volumen pendiente y de la revisión humana de asociaciones ambiguas |
+## 1. Estado medido el 09/10 (en la base, no en los docs)
 
-El calendario base tiene **17 jornadas hábiles**, del 13/10 al 04/11. Con dos jornadas adicionales para memoria/auditoría, pasa a **19 jornadas**, hasta el 06/11. A 4–6 horas por jornada equivale a **68–114 horas de dedicación reservada**, incluyendo implementación, pruebas, decisiones, coordinación y seguimiento del piloto. El trabajo técnico requiere capacidad de desarrollo además de la disponibilidad de Pablo.
+1. **Llaves:** `wa_envio_automatico = prueba` y `wa_bot_solo_whitelist = 1`. La whitelist tiene 2 filas: Thomy (canal
+   de prueba) y Damián (Chef 411, real desde el 02/10).
+2. **Uso real:** Damián escribió **19 mensajes en 2 días** desde el 02/10 (`bot_historial_chat`). Prueba que el circuito
+   anda con un cliente real, pero no alcanza como evidencia de piloto.
+3. **Envíos:** 314 estados de Meta en 7 días, **5 fallidos**, todos fotos a Damián (131053). La causa de las fotos está
+   corregida (`docs/ESTADO.md`). Lo que sigue abierto es lo general: Meta rechaza **después** de aceptar, y el bot ya le
+   dijo al cliente "listo".
+4. **Memoria:** **504 fichas** generadas y `aprobada` (US$ 1,53), sin revisión humana. Las lee el agente para clientes
+   de LK. La incremental corre cada hora desde el 09/10. Falta el historial del 10/06/2026 a hoy (no importado), y 160
+   clientes sólo aparecen en charlas compartidas.
+5. **Gasto de IA:** US$ 5,28 en 7 días, casi todo pruebas (`bot_token_usage`).
+6. **Latencia del modelo (turnos reales):** Sonnet 4.6 tiene p50 4,4 s y p90 7,3 s, con 4 de 12 turnos por encima de 6 s.
+   Haiku 4.5 en el Simulador: p50 1,4 s. El requerimiento es 1 a 3 s (`docs/REQUERIMIENTOS-AGENTE-2026-10-09.md`).
+   Haiku 5.5 y Sonnet 5.5 ya están soportados y no hay medición real de ninguno de los dos.
+7. **Tareas de Planify abiertas que tocan el lanzamiento** (todas de Pablo, 64): 5343 (un cliente edita su descuento en
+   `customers`), 5273 (endurecer seguridad), 5314 (tope de gasto), 5474 (un solo sí), 5267 (avisos a Ventas), 5532 (memoria).
 
-Las fechas son una estimación condicionada. La importación restante, los permisos de prueba, las identidades ambiguas y los cambios necesarios de recuperación pueden ampliar el plazo. La auditoría anual completa no tiene una fecha garantizada: el día 13 se debe estimar su esfuerzo restante. El piloto propuesto usa sólo cuentas y contactos validados; las asociaciones pendientes mantienen sus restricciones.
+## 2. Decisiones del martes 13/10 (en orden de impacto)
 
-## Base de la estimación
+Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
 
-Se revisó el repo al 09/10/2026, incluyendo main hasta `825e1b4`. Los datos de cobertura siguientes provienen de `ESTADO.md` y SQL del repo; aún requieren verificación directa en la base.
+1. **Qué 3 a 5 clientes entran al piloto, y quién los aprueba (Luis o Thomas).** La regla de no contactar a nadie
+   (`CLAUDE.md`) exige que sea uno de ellos. Criterio sugerido: clientes con charla propia en el historial (tienen ficha),
+   que ya compran por WhatsApp y que tienen un contacto que responde. Hace falta saber también si Damián cuenta como uno.
+2. **Modelo de producción para el agente.** Las opciones son Sonnet 4.6 (medido, lento en la cola), Haiku 5.5 (barato y
+   rápido, sin medición real) o Sonnet 5.5 (sin medir). Propuesta: medir Haiku 5.5 y Sonnet 5.5 con los casos de evaluación
+   el 13/10, después de un estimativo y un "sí" (regla de gasto), y decidir con latencia, costo y aciertos en la mano.
+3. **Responsable por sector** que toma los casos del piloto en Planify en el día, y quién cubre fuera de horario.
+4. **Tope de gasto mensual** para producción (tarea 5314). Hoy no hay número: ver la sección 6.
+5. **Quién exporta el historial del 10/06/2026 a hoy**, y para cuándo. No bloquea el piloto, pero son los 4 meses más
+   recientes y los que más pesan en la memoria.
 
-- La confirmación de pedidos ya compara el resumen renglón por renglón. Las pruebas de la compuerta de main `0713505` se ejecutaron en esta revisión: **105 chequeos conformes**, sin red ni IA. Sigue siendo necesaria la validación del comportamiento con el modelo real y de las operaciones en la base.
-- Existe `wa_memoria_cliente`, identificada por **marca + código**, y el runner ya incorpora la lectura de la ficha aprobada del cliente de LK. La integración equivalente para Chef debe verificarse. La actualización incremental con charlas nuevas sigue pendiente según la documentación actual.
-- Se documentan **27.348 mensajes de 664 cuentas**, del 09/06/2025 al 09/06/2026. Falta el período del 10/06/2026 a la fecha actual y el script inicial de importación no está en el repo.
-- Se excluyen **87 conversaciones compartidas**, 65 entre LK/CH. Según sql/138, **504 cuentas** tienen conversación propia elegible y **160** sólo aparecen en conversaciones compartidas. El modelo puede proponer asociaciones con evidencia; éstas no conceden acceso a datos privados por sí solas.
-- Las pruebas operativas anteriores con servicios simulados reprodujeron derivaciones anunciadas sin persistencia, respuestas perdidas ante rechazo de Meta y efectos repetidos por herramientas dentro de un turno. Se debe comprobar cuáles siguen presentes en la versión elegida y corregirlos antes del piloto.
-- No se certificaron aquí el aislamiento real entre clientes en PostgreSQL, los pedidos finales en Gestión ni la entrega completa bot → aviso → Planify. Leer y cerrar tareas propias en Planify se comprobó por separado.
-- El problema registrado en la tarea 5343, sobre edición de campos protegidos de `customers`, necesita reproducción o evidencia de protección efectiva antes del piloto.
+## 3. Compuertas
 
-Los avances del repo se descuentan del trabajo pendiente al iniciar cada jornada. No se vuelve a implementar una función que ya existe; se verifica su comportamiento y se cubren las partes faltantes.
+| Fase | Fechas objetivo | Qué se hace | Para pasar a la siguiente |
+|---|---|---|---|
+| 0 · Lo que bloquea | Mar 13 – Mié 14/10 | Seguridad, envíos fallidos, modelo, pausa (detalle abajo) | Las 5 cosas comprobadas en la base real |
+| 1 · Circuito con el equipo | Jue 15 – Vie 16/10 | Una derivación y una precarga reales, punta a punta. Fichas del piloto revisadas a mano | El caso llega al responsable correcto y se cierra |
+| 2 · Piloto | Lun 19 – Vie 23/10 | 3 a 5 clientes en la whitelist: el bot les contesta y les llegan sus avisos. Nadie más. Pedidos con revisión humana | 50+ mensajes de clientes, 0 incidentes críticos, 0 derivaciones perdidas |
+| 3 · Ampliación | Lun 26 – Vie 30/10 | 15 a 20 clientes. En paralelo: historial faltante y mensajes simultáneos | Gasto y latencia dentro de lo decidido. El equipo da abasto |
+| 4 · Avisos automáticos | desde Lun 02/11 | `wa_envio_automatico` pasa a `1` | Decisión aparte de Luis o Thomas |
 
-## Plan día por día
+### Fase 0 · Lo que bloquea (Mar 13 – Mié 14/10)
 
-Cada jornada apunta a 4–6 horas. Si el criterio de cierre no se cumple, se reestima el calendario antes de ampliar el uso.
+1. **Tarea 5343:** reproducir con un teléfono de prueba que un cliente no puede tocar campos protegidos de `customers`
+   (descuento, condición, lista). Si puede, se corrige antes de seguir.
+2. **Aislamiento entre clientes:** desde dos teléfonos de prueba vinculados a dos clientes distintos, pedir datos del otro
+   (pedidos, facturas, saldo, ficha). Tiene que dar cero en la base real, no en el Simulador.
+3. **Envío rechazado por Meta después de aceptado:** cuando llega un `failed` en `wa_message_status` de algo que el bot
+   ya dio por enviado, que quede registrado y le llegue a alguien (alerta o reintento). Hoy el bot no se entera.
+4. **Modelo de producción:** la decisión 2 de la sección 2.
+5. **Pausa ensayada:** apagar y prender las respuestas a clientes del piloto sin tocar código (`wa_bot_solo_whitelist` y
+   whitelist), y comprobar que la atención manual sigue funcionando.
 
-| Fecha | Trabajo | Criterio de cierre |
-|---|---|---|
-| **Mar 13/10** | Confirmar versión desplegada, accesos y responsable humano. Revisar permisos/descuentos. Medir cobertura del historial y analizar una muestra de hasta 100 conversaciones, incluidos contactos desconocidos y ambiguos. | Bloqueos identificados; volumen, calidad y esfuerzo restante de la auditoría estimados. |
-| **Mié 14/10** | Corregir o verificar la protección de campos de clientes y el manejo de errores al guardar derivaciones. | Datos protegidos; un aviso que falla no se anuncia como guardado y conserva una vía de recuperación. |
-| **Jue 15/10** | Recuperar respuestas rechazadas por Meta con estados persistentes y reintento separado de la recepción. | Un fallo recuperable no pierde la respuesta ni crea otro pedido; el historial refleja el estado real de envío. |
-| **Vie 16/10** | Evitar precargas y alertas repetidas dentro de un turno; revisar mensajes simultáneos y múltiples. | Una confirmación produce una sola precarga; cada mensaje tiene un tratamiento definido. |
-| **Lun 19/10** | Revisar fichas existentes y asociaciones de contactos. Preparar la importación faltante y deduplicación, con fuentes y fechas. Definir cómo corregir y borrar recuerdos. | Identidades y cobertura de las cuentas del piloto verificadas; plan concreto para casos ambiguos y datos pendientes. |
-| **Mar 20/10** | Implementar o verificar la actualización incremental de memoria y la recuperación para varios contactos autorizados; comprobar LK/CH. | La memoria se actualiza con charlas nuevas, persiste tras reinicios y conserva la separación por cuenta y contacto. |
-| **Mié 21/10** | Probar recuerdos antiguos con fechas simuladas, conversaciones largas, cambios de modelo, correcciones, borrado y reasignación de teléfono. Medir costo/tiempo. | Recupera hechos relevantes sin mezclar clientes ni usar recuerdos como autorización para operar. Si falta trabajo, reservar dos jornadas adicionales y mover los hitos. |
-| **Jue 22/10** | Validar pedidos: un solo “sí”, cambios de cantidades, pago, entrega y precio al guardar. Revisar recuperación si falla el descarte de una precarga. | Se guarda lo aprobado y los errores no dejan operaciones sin seguimiento. Las pruebas pagas se presupuestan antes de ejecutarlas. |
-| **Vie 23/10** | Probar el circuito real: WhatsApp → bot → precarga/derivación → alerta → tarea en Planify; verificar acceso a datos propios y ajenos. | El caso llega al responsable correcto y se comprueba el aislamiento real entre clientes. |
-| **Lun 26/10** | Validar toma y cierre de casos por el equipo. Revisar las alarmas reprogramadas remotamente en Planify. | Seguimiento comprobado. Para alarmas: app validada o procedimiento operativo documentado. |
-| **Mar 27/10** | Ajustar presupuesto, límites, destinatarios y plantillas. Corregir asociaciones temporales de prueba según las autorizaciones existentes. Ensayar pausa y atención manual. | Clientes del piloto permitidos, configuración comprobada y mecanismo de pausa disponible. |
-| **Mié 28/10** | Iniciar piloto con **2–5 clientes** y revisión humana de pedidos. Revisar conversaciones, recuerdos y avisos. | Cero incidentes críticos pendientes; pausar si aparecen datos expuestos, pedidos distintos, duplicación o derivaciones perdidas. |
-| **Jue 29/10** | Revisar el piloto: costos, tiempos, errores, avisos y memoria entre charlas/contactos. | Evidencia de funcionamiento real y lista priorizada de ajustes. |
-| **Vie 30/10** | Corregir lo observado y repetir las pruebas afectadas, incluidas caídas del modelo, Meta y base. | Recuperación comprobada y problemas críticos resueltos. |
-| **Lun 02/11** | Ampliar a **10–20 clientes** sólo si el piloto está estable, manteniendo revisión humana. | Equipo capaz de atender la demanda, avisos recibidos y gasto dentro del presupuesto decidido. |
-| **Mar 03/11** | Revisar resultados y preparar la decisión de lanzamiento, responsables y procedimiento de incidentes. | Bloqueos cerrados y evidencia suficiente para habilitar una etapa mayor. |
-| **Mié 04/11** | Habilitar una etapa mayor y monitorizar. | Producción gradual con atención y métricas; si faltan criterios, mantener el piloto y reestimar. |
+### Fase 1 · Circuito con el equipo (Jue 15 – Vie 16/10)
 
-Si la memoria/auditoría consume dos jornadas adicionales, se desplazan los pasos posteriores: piloto el **30/10** y habilitación mayor el **06/11**. Si el volumen o las asociaciones ambiguas requieren más esfuerzo, se revisa el calendario completo. Se necesita un responsable de atención y contingencia durante el piloto, incluidos períodos entre jornadas.
+1. Desde el canal de prueba, asociado a un cliente del piloto: una consulta que deriva y un pedido que queda en precarga.
+   La alerta tiene que llegar a Planify, la persona del sector la toma y la cierra, y el pedido aparece en Gestión con lo
+   que se aprobó.
+2. Revisar a mano las fichas de memoria de los clientes del piloto (nacieron aprobadas sin revisión): que no mezclen
+   clientes, no tengan datos personales ni porcentajes y no afirmen cosas que no salen del historial.
+3. Cargar los clientes del piloto en `wa_envio_contactos` y `bot_customer_whatsapps`, con la aprobación de la decisión 1.
 
-## Memoria e historial anual
+### Fase 2 · Piloto (Lun 19 – Vie 23/10)
 
-El requisito es recordar información útil del cliente entre charlas, incluso meses después y tras reinicios o cambios de modelo. Los precios, saldos, permisos y estados de pedidos se consultan en su fuente actual. Los hechos de una empresa y los de cada persona/contacto tienen ámbitos de acceso definidos.
+1. El bot contesta a los clientes del piloto. **La llave sigue en `prueba`**: con ella, los avisos automáticos de pedidos
+   y facturas salen sólo a los números de la whitelist, así que los del piloto también los reciben. Eso es parte de lo que
+   se aprueba en la decisión 1.
+2. Revisión diaria de 30 a 45 min: charlas, derivaciones, precargas, gasto y tiempo de respuesta (`wa_turno_tiempos`).
+   Lo que aparece se corrige en el día.
+3. **Se pausa** si aparecen: datos de otro cliente, un pedido distinto de lo aprobado, una precarga o alerta duplicada, una
+   derivación anunciada que no llegó a Planify, o un mensaje que el cliente no recibió y el bot dio por mandado.
 
-La auditoría producirá:
+### Fase 3 · Ampliación (Lun 26 – Vie 30/10)
 
-1. **Mapa de cuentas y contactos:** empresa, cuenta, números normalizados, evidencia de asociación, validación y vigencia. Un número puede representar más de una cuenta o cambiar de dueño.
-2. **Memoria individual:** preferencias confirmadas, acuerdos históricos y seguimiento mediante fuentes actuales. Cada conclusión debe conservar fecha y procedencia.
-3. **Conocimiento general revisado:** preguntas frecuentes y procedimientos útiles extraídos de charlas humanas, con excepciones y contradicciones identificadas antes de publicarlos como reglas.
+1. Pasar a 15 a 20 clientes, con la misma revisión humana de pedidos.
+2. En paralelo, fuera del camino crítico: importar el historial faltante y regenerar o sumar a las fichas, mensajes
+   simultáneos o en ráfaga de un mismo cliente, y medir de nuevo latencia y costo con tráfico real.
 
-Primero se mide una muestra y se decide presupuesto y procesamiento por lotes. Se conserva el original, se evita pagar reprocesamiento y se valida el registro de gasto y el control de tandas concurrentes. La generación inicial de fichas con Haiku y una auditoría con un modelo más potente son operaciones distintas con presupuestos separados.
+### Fase 4 · Avisos automáticos (desde Lun 02/11)
 
-La ficha compacta existente no ofrece por sí sola búsqueda de cualquier mensaje antiguo. Si ese comportamiento forma parte del alcance final, se dimensiona y prueba la recuperación de fragmentos con fecha, autor y fuente. El conocimiento general extraído se revisa antes de incorporarlo como política comercial.
+`wa_envio_automatico` pasa a `1`. Es una decisión distinta de que el bot conteste: con la llave en `1` **el bot inicia
+el contacto** con todos los clientes que tengan teléfono vinculado, y cada plantilla se paga. La toman Luis o Thomas, con
+el resultado de las fases 2 y 3 delante. Las filas que hoy quedan `held_no_whitelist` no se reenvían al pasar a `1`.
 
-## Condiciones para habilitar más clientes
+## 4. Qué queda fuera del camino crítico
 
-- Protección de campos y aislamiento real entre clientes comprobados.
-- Pedidos que coinciden con lo aprobado, sin efectos duplicados.
-- Avisos y respuestas con persistencia, entrega/reintento y seguimiento verificables.
-- Memoria correcta para las identidades habilitadas, actualización incremental y comportamiento definido ante una asociación desconocida o ambigua.
-- Presupuesto medido, límites definidos, responsables disponibles y pausa ensayada.
-- Pruebas de las rutas de producción completadas; el simulador y los mocks no sustituyen el circuito real.
+Nada de esto bloquea el piloto si los clientes elegidos tienen charla propia y ficha:
 
-## Dependencias y trabajo posterior
+1. La auditoría completa del historial anual (27.348 mensajes, 664 clientes).
+2. Los 160 clientes que sólo aparecen en charlas compartidas.
+3. El historial del 10/06/2026 a hoy.
+4. Buscar mensajes viejos sueltos (la ficha resume, no busca). Se dimensiona sólo si el piloto muestra que hace falta.
+5. Mistral gratis, el conocimiento técnico ampliado de artículos y lo cosmético.
 
-Se necesitan acceso de lectura al historial y fichas, configuración de prueba para operaciones controladas, disponibilidad del equipo para resolver identidades y validar conocimiento, y las exportaciones faltantes. La revisión directa del historial en esta sesión quedó bloqueada por el proxy antes de alcanzar Supabase; se preparó la ampliación de red en el entorno, pendiente de aplicar y verificar. No se presupone acceso por haber guardado la configuración.
+## 5. Dueños
 
-El experimento con Mistral gratuito, el conocimiento técnico ampliado de artículos y mejoras cosméticas pueden seguir después. Cuando un dato técnico o comercial no esté validado, el bot debe reconocer el límite y derivar. La vigencia de precios sí se confirma si afecta presupuestos o pedidos.
+1. **Luis o Thomas:** aprobar la lista del piloto (decisión 1) antes del Mié 14/10, y la llave en `1` (fase 4).
+2. **Pablo Olejavetzky:** decisiones 2, 4 y 5, revisión diaria del piloto y aprobar los gastos de prueba.
+3. **Responsable de cada sector en Planify:** tomar los casos del piloto en el día (decisión 3).
+4. **Sin dueño hoy:** exportar el historial del 10/06/2026 a hoy (decisión 5).
+5. **Claude (sesiones):** el código de las fases 0 a 3, con pruebas locales en US$ 0 y Simulador con Gemini.
 
-Tareas de Planify relacionadas: **5343** (seguridad de clientes), **5273** (endurecimiento), **5474** (un solo sí), **5314** (presupuesto), **5267** (avisos) y **5532** (memoria inicial/incremental). Este documento no reprograma esas tareas ni habilita clientes, genera fichas o autoriza un gasto.
+## 6. Costos
 
-Referencias: [estado actual](ESTADO.md), [memoria y requerimientos](REQUERIMIENTOS-AGENTE-2026-10-09.md), [comportamiento del agente](AGENTE.md) y [flujos](FLUJOS.md). Revisar el estado desplegado al empezar y actualizar este cronograma cuando cambien las dependencias o resultados.
+1. **Fase 0, medición de modelos:** sale de un estimativo que se presenta el 13/10 y se corre sólo con el "sí" (regla de
+   gasto). Referencia del 09/10: Haiku 5.5, unos US$ 0,003 por caso.
+2. **Piloto:** con 3 a 5 clientes, centavos por día. Sale medido de `bot_token_usage`.
+3. **Producción [estimado sin tráfico real]:** unos US$ 18 por mes de IA (`docs/ESTADO.md`, sobre 12 consultas por día)
+   más el techo de US$ 17,63 por mes de avisos al equipo por plantilla de utilidad. Total aproximado US$ 36 por mes.
+   El piloto lo reemplaza por un número medido, y con ese número se fija el tope (decisión 4).
+
+## 7. Qué se conserva de la versión anterior
+
+1. Un criterio de cierre por fase y reestimar si no se cumple.
+2. Las condiciones de pausa y la revisión humana de pedidos.
+3. Los recuerdos de la memoria no autorizan a operar: precios, saldos, permisos y estados se consultan en su fuente.
+4. No se reimplementa lo que ya existe: se verifica y se completa.
+5. La generación de fichas y una auditoría con un modelo más caro son gastos separados.
+
+Referencias: [estado actual](ESTADO.md), [memoria y requerimientos](REQUERIMIENTOS-AGENTE-2026-10-09.md),
+[comportamiento del agente](AGENTE.md) y [flujos](FLUJOS.md).

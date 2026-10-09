@@ -1,6 +1,6 @@
 # Plan de desarrollo — BotWA-LK
 
-> Cronograma de salida a producción desde el martes 13 de octubre de 2026: [estimación actualizada, memoria permanente y auditoría del historial](PLAN-PRODUCCION-2026-10-13.md). El plan que sigue conserva las etapas originales de desarrollo; para fechas y requisitos de lanzamiento usar el cronograma actualizado.
+> Cronograma de salida a producción desde el martes 13 de octubre de 2026: [plan por compuertas, decisiones del 13/10 y estado medido](PLAN-PRODUCCION-2026-10-13.md). El plan que sigue conserva las etapas originales de desarrollo; para fechas y requisitos de lanzamiento usar el cronograma actualizado.
 
 ## Paso 1 — Infraestructura base (3-4 días)
 
