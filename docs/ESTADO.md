@@ -2,7 +2,9 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-10-08.
+> Última actualización: 2026-10-09.
+>
+> **09/10 (Pablo: "hacé la medición punta a punta"): cada mensaje que atiende el webhook deja una fila en `wa_turno_tiempos`** (sql/136, vista `v_wa_turno_tiempos` con los segundos ya calculados). La escribe `_shared/tiempos-turno.ts` en el `finally` del POST, después de contestar; los envíos los anota `waPost` (todo POST a Meta con `to` que Meta aceptó). `respuesta_s` = llegada al webhook → Meta aceptó la primera respuesta, `total_s` suma lo que tardó Meta en entregarnos el mensaje (precisión de 1 s), `ia_s` = tiempo dentro de `runConversation`. `envios = 0` es un cliente que no recibió nada. `concurrente = true` (ráfaga del mismo número) se deja afuera al medir. ⚠ El saludo suelto espera 5 s a propósito y la ráfaga de pedido también espera: esos turnos inflan la cola y no son lentitud del bot. Contexto y primera medición (sólo del modelo, sin esto): `docs/REQUERIMIENTOS-AGENTE-2026-10-09.md`.
 >
 > **08/10 (Pablo: "si quisiera correr este bot con un modelo local, ¿qué hardware necesitaría?" → "medile", "seguí gratis"): Gemma 4 26B-A4B (pesos abiertos, los que se podrían correr en un equipo propio) medido con los casos de evaluación, US$ 0** (corrida 2, `b117f97`, `eb6a410`, `wa_agente_modelos` id 10 con `is_free_tier = true`). La corrida 2 quedó en estado **`prueba_modelo`** a propósito: `wa_eval_tick` sólo toma `terminada` o `cortada` como corrida anterior, así la de las 03:15 (Gemini) no se compara contra Gemma.
 > **Por qué Gemma y no gpt-oss-120b [Seguro]:** en Groq gratis, gpt-oss-120b, gpt-oss-20b y qwen3.8-27b tienen un tope de 8.000 tokens de entrada por minuto (header `x-ratelimit-limit-tokens`, medido el 08/10 con llamadas de 5 tokens), y una llamada del bot manda de 7.704 a 16.544 (mediana 8.692 en 456 llamadas del Simulador de 2 días). El plan pago de Groq quedó afuera (Pablo: "no hay presupuesto"). Gemma 4 31B no contestó en 60 s con un prompt de 13.281 tokens: descartado.

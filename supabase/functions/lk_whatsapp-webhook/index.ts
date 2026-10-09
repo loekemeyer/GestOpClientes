@@ -31,6 +31,7 @@ import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
 import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
+import { abrirTurno, guardarTurno, iaEmpieza, iaTermina, type Turno } from "../_shared/tiempos-turno.ts";
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
 import { contextoAlertaTope, mensajeTope } from "../_shared/tope-ia.ts";
 import {
@@ -1508,6 +1509,7 @@ async function handleMessage(
   //      recibe un aviso fijo una vez por día y una persona le contesta (alerta `tope_gasto`). Las FAQ y los flujos sin IA ya contestaron arriba.
   if ((await pasoElTopeDeGasto(cfg, phone, customer, text)) === "tope") return;
 
+  iaEmpieza(phone); // tiempo de la IA dentro del turno (sql/136)
   const result = await runConversation(
     text,
     phone,
@@ -1517,7 +1519,7 @@ async function handleMessage(
     cfg.anthropicKey,
     "lk_whatsapp-webhook",
     { pistas },
-  );
+  ).finally(() => iaTermina(phone));
 
   // 6b. Si el LLM se cayó (timeout / error irrecuperable), NO enviamos
   // nada al cliente. `runConversation` ya avisó a un humano vía
@@ -1606,6 +1608,11 @@ Deno.serve(async (req: Request) => {
 
   // ── POST: Mensaje entrante o acción interna ──
   if (req.method === "POST") {
+    // Tiempo de punta a punta (sql/136): se abre un turno recién cuando el mensaje ganó el candado de idempotencia y se
+    // guarda en el `finally`, después de contestar. Un reintento de Meta no abre turno.
+    const recibidoMs = Date.now();
+    let turno: Turno | null = null;
+    let errorTurno: string | null = null;
     try {
       // El cuerpo se lee CRUDO: la firma de Meta es un HMAC del texto exacto que llegó, así
       // que parsear y re-serializar rompería la verificación (cambia espacios y orden).
@@ -1668,6 +1675,7 @@ Deno.serve(async (req: Request) => {
             .insert({ wamid: msg.msgId, phone: msg.from }).select("first_seen").maybeSingle();
           firstSeenAdj = vistoA?.first_seen ?? null;
           if (dupA?.code === "23505") { console.log(`[idem] adjunto repetido, se ignora: ${msg.msgId}`); return new Response("OK", { status: 200 }); }
+          turno = abrirTurno({ wamid: msg.msgId, phone: msg.from, tipo: msg.type, metaTimestamp: msg.timestamp, recibidoMs });
         }
         if (msg.type === "audio") {
           const a = await textoDeAudio(msg, cfg);
@@ -1717,12 +1725,16 @@ Deno.serve(async (req: Request) => {
           }
           console.error("[idem] no se pudo registrar el wamid, se sigue igual:", dup.message);
         }
+        turno = abrirTurno({ wamid: msg.msgId, phone: msg.from, tipo: msg.type, metaTimestamp: msg.timestamp, recibidoMs });
       }
 
       // Procesar (Meta tolera hasta 20s de respuesta)
       await conAvisoFueraDeHorario(msg.from, cfg, () => handleMessage(msg.from, msg.text, msg.msgId, msg.name, cfg, firstSeen));
     } catch (e) {
       console.error("Error procesando mensaje:", e);
+      errorTurno = e instanceof Error ? e.message : String(e);
+    } finally {
+      if (turno) await guardarTurno(supabase, turno, errorTurno);
     }
 
     // Siempre responder 200 a Meta (no perder webhook)

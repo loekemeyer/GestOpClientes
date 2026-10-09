@@ -8,6 +8,7 @@
 //
 // Ahora hay una sola. Si hace falta algo nuevo, va acá.
 import "./wa-guard.ts"; // D007: corte único de envíos a Meta
+import { registrarEnvio } from "./tiempos-turno.ts";
 const META_API = "https://graph.facebook.com/v21.0";
 
 /** Normaliza teléfono argentino a formato canónico (sin +, con 54). */
@@ -60,6 +61,7 @@ export async function waPost(
   body: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const url = `${META_API}/${phoneNumberId}/${endpoint}`;
+  const inicio = Date.now();
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -82,6 +84,8 @@ export async function waPost(
       code,
     );
   }
+  // Tiempo de punta a punta (sql/136): sólo cuenta lo que Meta aceptó y va a una persona (el "leído" no lleva `to`).
+  if (endpoint === "messages" && typeof body.to === "string" && body.to) registrarEnvio(body.to, inicio, Date.now());
   return json;
 }
 

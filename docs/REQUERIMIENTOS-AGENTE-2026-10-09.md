@@ -34,7 +34,7 @@ en la mediana y se rompe en la cola. Muestra chica: 12 turnos reales desde el 08
 
 ⚠ **[Seguro] `wa_conversations` no sirve para medir latencia**: las 156 filas `in` tienen 0,0 s hasta su
 respuesta (se graban juntas). Y desde el 05/10 no tiene filas: el historial real del agente es
-`bot_historial_chat`. Hoy **no existe ninguna medición de punta a punta** (llegada del mensaje → envío a Meta).
+`bot_historial_chat`. Hasta el 09/10 no existía ninguna medición de punta a punta: desde ahí la da `v_wa_turno_tiempos` (sql/136).
 
 ## Requerimiento por requerimiento
 
@@ -54,8 +54,8 @@ respuesta (se graban juntas). Y desde el 05/10 no tiene filas: el historial real
 |---|---|
 | Query por ID 1 a 2 s | **Ya cumple con margen**: 0,11 ms (ver arriba) |
 | LLM 1 a 3 s | **No cumple con Sonnet** (p50 4,4 s por turno). Haiku sí en la mediana (1,4 s) |
-| Envío 1 s | **No medido** |
-| Total 3 a 6 s | **No medido de punta a punta.** Falta una columna o tabla con llegada y salida por turno |
+| Envío 1 s | Se mide desde el 09/10: `envio_s` en `v_wa_turno_tiempos` (incluye la consulta de `wa-guard`) |
+| Total 3 a 6 s | Se mide desde el 09/10: `respuesta_s` (llegada al webhook → primera respuesta aceptada por Meta) y `total_s` (desde que el cliente lo mandó) |
 
 Timeouts vigentes (`_shared/timeouts.ts`): 30 s por llamada (Sonnet, Haiku, Gemma), 8 s Gemini. Hasta 5 vueltas
 por turno.
@@ -93,8 +93,8 @@ queda en silencio hasta que conteste). Es el hueco de "manejo de excepciones" qu
 
 ## Qué haría, por impacto
 
-1. **Medir punta a punta** (llegada → envío a Meta) por turno. Sin eso el SLA de 3 a 6 s no se puede ni afirmar
-   ni negar. Costo: una columna o tabla y dos marcas de tiempo.
+1. ~~**Medir punta a punta**~~ **Hecho el 09/10**: tabla `wa_turno_tiempos` (sql/136) y vista `v_wa_turno_tiempos`.
+   Lectura: `select * from v_wa_turno_tiempos where not concurrente order by recibido_at desc`.
 2. **Mensaje al cliente cuando la IA falla** (hoy silencio). Ej.: "Se me complicó, ya le paso tu consulta a
    alguien del equipo". Sale por la llave de envío como todo lo demás.
 3. **Indicador "escribiendo…"** en el `markRead`.
