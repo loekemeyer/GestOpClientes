@@ -101,3 +101,31 @@ queda en silencio hasta que conteste). Es el hueco de "manejo de excepciones" qu
 4. **Llevar al repo el índice de `bot_historial_chat`** que ya existe en producción (migración idempotente con
    `create index if not exists`), así una base reconstruida desde `sql/` no lo pierde.
 5. Aviso de texto inmediato y embeddings: no por ahora (razones arriba).
+
+## Memoria por cliente: cómo se hace (Pablo Olejavetzky, 09/10/2026)
+
+Pablo: *"para que se nutra de la memoria tiene que registrarse el input inicial (los chats con todos los clientes que subí) y el
+incremental (cuando un cliente lo agarre el agente, que lo agregue a la memoria)"*. Se hace así, y no de otra manera:
+
+1. **Una ficha por cliente**, no el historial crudo. Tabla `wa_memoria_cliente` (sql/137), clave **marca + código** (`LK`/`CH` +
+   `cod_cli`): el código de Chef y el de LK se pisan (CH 1926 y LK 1926 son clientes distintos). Nunca por código solo ni por teléfono.
+2. **Input inicial**: el historial exportado de WhatsApp Business, en `"Wpp_Historial_Clientes"` (mensajes) +
+   `"Wpp_Conversaciones_Clientes"` (charla → cliente). Hoy: 27.348 mensajes del 09/06/2025 al 09/06/2026, 664 clientes.
+   `lk_memoria-cliente` (`{action:"armar", clientes:[{marca, cod_cli}]}`, hasta 10 por llamada) lee el historial del cliente, Haiku
+   arma la ficha y se guarda.
+3. **Input incremental** (por hacer): cuando una charla del bot se cierra (12 h sin mensajes), lo nuevo de `bot_historial_chat` se suma a
+   la ficha (ficha anterior + mensajes nuevos → ficha nueva), no se rearma desde cero.
+4. **Exportaciones nuevas de WhatsApp Business** (la del 10/06/2026 a hoy está pedida): se cargan en las mismas dos tablas y se
+   rearman las fichas de los clientes que cambiaron. ⚠ El script que cargó la primera exportación no está en este repo: hay que
+   conseguirlo o escribir uno antes de cargar la segunda, y deduplicar contra lo ya cargado (misma charla, misma fecha y texto).
+5. **Qué lleva la ficha**: títulos fijos (Quién escribe, Cómo pide, Qué compra, Entrega o retiro, Pagos, Problemas que se repitieron,
+   Trato) y al final la línea del historial, que calcula el código. **Nada que cambie**: precios, importes, saldos, stock, porcentajes de
+   descuento, números de pedido o factura, entregas pendientes (eso lo consulta el agente con sus herramientas).
+6. **Datos personales los saca el código, no el modelo** (`redactarFicha`): en la prueba Haiku copió 2 mails y 3 direcciones pese a
+   la regla. Mails, CUIT, teléfonos y direcciones con número salen siempre, el depósito de LK se nombra.
+7. **Charlas compartidas entre clientes no se leen** (87 de 613, 65 cruzan LK y Chef): la ficha de una empresa no puede traer lo de otra.
+8. **Revisión antes de usar**: las fichas nacen en estado `prueba`. El agente sólo leerá las `aprobada`.
+9. **Gasto**: Haiku, con estimativo y "sí" de Pablo por tanda (regla de gasto). Prueba del 09/10: 5 fichas, US$ 0,026618 (estimado
+   US$ 0,02). Las 664: unos US$ 3 [Probable]. No Gemini gratis: el plan gratis puede usar lo que se le manda y son charlas de clientes.
+10. **Lectura** (por hacer, después de aprobar): el agente recibe la ficha del cliente en el bloque de contexto de cada turno
+    (unos 400 tokens, una lectura por índice, sin demora medible). No reemplaza la ventana corta (charla actual + anterior).
