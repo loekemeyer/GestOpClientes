@@ -18,6 +18,9 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: «el pedido» sin decir cuál: no pregunta de cuál ni la fecha`, /Si habla de «el pedido» sin decir cu[aá]l \(anular, retirar, cambiar, preguntar cu[aá]ndo llega\), NO le preguntes de cu[aá]l se trata ni de qu[eé] fecha es/.test(txt));
   ok(`${modo}: toma el más reciente que no salió y lo nombra por su fecha`, /miralo con consultar_mis_pedidos, tom[aá] el m[aá]s reciente que todav[ií]a no sali[oó] y nombralo por su fecha/.test(txt));
   ok(`${modo}: sólo pregunta entre VARIOS pedidos pendientes`, /a cu[aá]l de VARIOS pedidos pendientes se refiere/.test(txt));
+  // 13/10, ronda 2 con Haiku 5.5: con la regla ya no derivaba el cambio de artículo (m7) y en m73 ofrecía derivar en vez de derivar.
+  ok(`${modo}: no reemplaza a las de derivación (cambio, anulación, dato que ninguna herramienta tiene)`, /Esta regla NO reemplaza a las de derivaci[oó]n: si es un cambio o una anulaci[oó]n de pedido, o ninguna herramienta tiene el dato que pide, der[ií]v[aá] igual con derivar_a_persona en ese mismo turno/.test(txt));
+  ok(`${modo}: no pregunta si quiere que derive`, /no le preguntes si quer[eé]s que lo derives/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
 }
 ok("la regla es UNA sola línea", reglasOperativas(false).split("\n").filter((l) => l.startsWith("- CONSULTÁ ANTES DE PREGUNTAR")).length === 1);
