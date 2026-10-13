@@ -96,6 +96,20 @@ igual("ok: con la etiqueta de marca arriba y texto del modelo antes y después",
   conSi(BLOQUE, `*Loekemeyer*\nPerfecto, te paso el resumen:\n\n${BLOQUE}\n\n¿Confirmás con un sí? 🙌`), { ok: true });
 igual("ok: espacios de más", conSi(BLOQUE, RESUMEN.replace(/ /g, "  ")), { ok: true });
 
+// Haiku 5.5 (13/10, Simulador, 4 de 4): al mostrar el resumen cambia "(505) — $120.000" por "(505): $120.000", mueve la negrita de la primera
+// línea y deja una línea en blanco. Antes la compuerta lo tomaba por otro resumen y el cliente tenía que decir "sí" dos veces.
+const HAIKU = BLOQUE.replace(/ — \$/g, ": $").replace("*Chef S.R.L.* (CUIT 30-71234567-9):", "Chef S.R.L. (CUIT 30-71234567-9):")
+  .replace("Tu pedido a nombre", "*Tu pedido a nombre").replace("(CUIT 30-71234567-9):\n", "(CUIT 30-71234567-9):*\n").replace("\nSubtotal", "\n\nSubtotal");
+igual("el caso de Haiku 5.5 es lo que dice (no es igual al bloque)", HAIKU !== BLOQUE && HAIKU.includes("(505): $120.000") && HAIKU.includes("\n\nSubtotal"), true);
+igual("ok: Haiku 5.5 escribe '(505): $120.000' en vez de '(505) — $120.000'", conSi(BLOQUE, `Este es el resumen de tu pedido:\n\n${HAIKU}\n\n¿Confirmás el pedido?`), { ok: true });
+igual("ok: sólo los dos puntos cambian", conSi(BLOQUE, RESUMEN.replace(/ — \$/g, ": $")), { ok: true });
+igual("ok: dos puntos sin espacio antes del importe", conSi(BLOQUE, RESUMEN.replace(/ — \$/g, ":$")), { ok: true });
+igual("bloquea: con dos puntos y otro importe", conSi(BLOQUE, RESUMEN.replace("(505) — $120.000", "(505): $99.000")), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: con dos puntos y otras cajas", conSi(BLOQUE, RESUMEN.replace("3 cajas Pelapapas (505) — $120.000", "4 cajas Pelapapas (505): $120.000")), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: con dos puntos y otro código", conSi(BLOQUE, RESUMEN.replace("(505) — $120.000", "(506): $120.000")), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: con dos puntos y un artículo menos en lo que vio el cliente", conSi(BLOQUE, RESUMEN.replace(/ — \$/g, ": $").replace("\n• 2 cajas Abrelatas (LOKE-501): $45.500", "")), { ok: false, motivo: "resumen_distinto" });
+igual("bloquea: los dos puntos no igualan cualquier cosa (sin signo $ después)", conSi(BLOQUE, RESUMEN.replace("(505) — $120.000", "(505): 120.000")), { ok: false, motivo: "resumen_distinto" });
+
 // ── Un solo "sí" alcanza (08/10, auditoría 742): armar_pedido en el turno del "sí" ──
 // Con Sonnet 4.6 el agente volvía a llamar armar_pedido ante el "sí", la regla le decía "mostrale el resumen y pedile que confirme" y
 // el cliente tenía que decir "sí" dos veces. Ahora armar_pedido le dice que confirme ya, pero sólo si confirmar_pedido va a pasar.
@@ -103,6 +117,7 @@ const yaConfirmo = (texto: string, resumen = BLOQUE, visto = RESUMEN) =>
   yaConfirmoEsteResumen({ textoCliente: texto, historial: [fila("user", texto, 0), fila("assistant", visto, 1)], ahora: AHORA, resumen });
 igual("ya confirmó: 'sí' al mismo resumen", yaConfirmo("sí"), true);
 igual("ya confirmó: 'sí, confirmo' al mismo resumen", yaConfirmo("sí, confirmo"), true);
+igual("ya confirmó: Haiku 5.5 mostró '(505): $120.000' y el cliente dijo sí", yaConfirmo("sí", BLOQUE, `Este es el resumen de tu pedido:\n\n${HAIKU}\n\n¿Confirmás?`), true);
 igual("NO ya confirmó: armó con otra entrega que la que vio", yaConfirmo("sí", cambiado("Entrega: Virgilio 2788", "Entrega: Sucursal Rosario")), false);
 igual("NO ya confirmó: armó con otras cajas", yaConfirmo("sí", cambiado("3 cajas Pelapapas (505) — $120.000", "4 cajas Pelapapas (505) — $160.000")), false);
 igual("NO ya confirmó: 'sí pero con 4 cajas'", yaConfirmo("sí pero con 4 cajas"), false);

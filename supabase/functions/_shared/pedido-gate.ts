@@ -78,9 +78,13 @@ export function esResumenDePedido(texto: string): boolean {
 const TOLERANCIA_RELOJ_MS = 2 * 60_000;
 
 /** Renglón comparable: sin negritas ni viñeta inicial, guiones largos como "-", espacios simples y minúsculas. Sólo tolera lo que
- *  WhatsApp o el modelo cambian de forma; cajas, códigos, importes, forma de pago y entrega tienen que estar iguales. */
+ *  WhatsApp o el modelo cambian de forma; cajas, códigos, importes, forma de pago y entrega tienen que estar iguales.
+ *  El separador entre el código y el importe del artículo, "—" o ":", se iguala a " - " (Pablo, 13/10: Haiku 5.5 copia el resumen con
+ *  "(505): $105.322" en vez de "(505) — $105.322" y la compuerta lo tomaba por otro resumen: el cliente tenía que decir "sí" dos veces).
+ *  Se mira sólo ")" + separador + "$": el código, las cajas y el importe se siguen comparando letra por letra. */
 function renglon(s: string): string {
-  return s.replace(/[*_~]/g, "").replace(/[–—]/g, "-").replace(/^\s*[•·-]\s*/, "").replace(/\s+/g, " ").trim().toLowerCase();
+  return s.replace(/[*_~]/g, "").replace(/[–—]/g, "-").replace(/^\s*[•·-]\s*/, "").replace(/\s+/g, " ").trim().toLowerCase()
+    .replace(/\)\s*[:-]\s*\$/, ") - $");
 }
 const renglones = (texto: string) => String(texto ?? "").split(/\r?\n/).map(renglon).filter(Boolean);
 
