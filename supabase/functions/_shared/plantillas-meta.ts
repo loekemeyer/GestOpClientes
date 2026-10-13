@@ -127,7 +127,8 @@ export const PLANTILLAS: PlantillaMeta[] = [
     // Sin la doble presentación (Pablo, 29/09, sql/094). {{2}} = expreso sin la palabra "Expreso".
     variables: ["fecha en que hizo el pedido (dd/mm)", "expreso (sin la palabra Expreso)"],
     // Pablo, 30/09: + "si llegó algo mal, avisanos" (antes sólo lo decía pedido_entregado, que expreso no recibe).
-    body: "Tu pedido del {{1}} ya salió hacia Expreso {{2}}.\nDesde ahí el expreso te lo lleva con sus tiempos de entrega.\nCuando lo recibas, si falta algo o llegó algo mal, avisanos por acá.",
+    // Pablo, 13/10 (tono formal): «por acá» → «por este medio». Versión nueva en Meta (templates_sync version_nueva); la activa sigue saliendo hasta que Meta la apruebe.
+    body: "Tu pedido del {{1}} ya salió hacia Expreso {{2}}.\nDesde ahí el expreso te lo lleva con sus tiempos de entrega.\nCuando lo recibas, si falta algo o llegó algo mal, avisanos por este medio.",
     ejemplos: ["22/09", "Arias"],
   },
   {
@@ -153,7 +154,8 @@ export const PLANTILLAS: PlantillaMeta[] = [
     disparo: "order_tracking pasa a 'entregado' y el pedido fue por reparto propio (no expreso ni retiro).",
     // Sin la doble presentación (Pablo, 29/09, sql/094).
     variables: ["fecha en que hizo el pedido (dd/mm)"],
-    body: "Tu pedido del {{1}} fue entregado.\nSi falta algo o llegó algo mal, avisanos por acá.",
+    // Pablo, 13/10 (tono formal): «por acá» → «por este medio». Versión nueva en Meta (templates_sync version_nueva); la activa sigue saliendo hasta que Meta la apruebe.
+    body: "Tu pedido del {{1}} fue entregado.\nSi falta algo o llegó algo mal, avisanos por este medio.",
     ejemplos: ["22/09"],
   },
   // Recordatorio de descuento por vencer (Pablo, 30/09, con el OK de Thomy): 2 días hábiles antes de CADA escalón
@@ -209,7 +211,8 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "Manual: una persona retoma una charla cuando pasaron más de 24 h del último mensaje del cliente (Centro de mensajes › Reabrir con plantilla).",
     variables: ["nombre del cliente (razón social)"],
-    body: "Hola {{1}}, te escribimos de Loekemeyer por la consulta que nos hiciste.\nRetomamos la conversación: respondé este mensaje o tocá el botón y seguimos por acá.",
+    // Pablo, 13/10 (tono formal): «por acá» → «por este medio». Versión nueva en Meta (templates_sync version_nueva); la activa sigue saliendo hasta que Meta la apruebe.
+    body: "Hola {{1}}, te escribimos de Loekemeyer por la consulta que nos hiciste.\nRetomamos la conversación: respondé este mensaje o tocá el botón y continuamos por este medio.",
     ejemplos: ["Chef S.R.L."],
     // El botón le llega al webhook como texto; la charla queda en modo humano (lo pone "Reabrir con plantilla"), así que el bot no contesta.
     botones: ["Retomar consulta"],
