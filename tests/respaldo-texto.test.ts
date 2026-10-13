@@ -12,7 +12,7 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
 const ok = JSON.stringify({ ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por acá." });
 const error = JSON.stringify({ error: "Este tema lo responde el bot: no lo derives. Resolvelo con las herramientas de consulta y la información que tenés." });
 
-igual("el texto aprobado por Pablo", RESPALDO_DERIVADO, "Gracias por avisarnos. Una persona del equipo te escribe por acá. 🙏");
+igual("el texto aprobado por Pablo", RESPALDO_DERIVADO, "Gracias por avisarnos. Una persona del equipo te va a responder por este medio.");
 igual("el de siempre no cambia", RESPALDO_SIN_TEXTO, "Contame un poco más tu consulta así te ayudo.");
 igual("sin herramientas: el de siempre", textoDeRespaldo([]), RESPALDO_SIN_TEXTO);
 igual("derivó con éxito: el de derivación", textoDeRespaldo([{ nombre: "derivar_a_persona", resultado: ok }]), RESPALDO_DERIVADO);

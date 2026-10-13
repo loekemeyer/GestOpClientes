@@ -179,7 +179,7 @@
       "resumen": "El cliente recibe un aviso en vez de silencio, y una persona del equipo toma la consulta.",
       "bot": "Si fallan o vencen todos los modelos de la cadena, el cliente recibe: «En este momento no puedo procesar tu consulta. Ya la derivé a una persona del equipo, que te va a responder por este medio.». Se manda una sola vez cada 30 minutos por número: si el cliente insiste y la IA sigue caída, no se repite, y cada mensaje nuevo vuelve a probar la cadena por si se recuperó. El aviso pasa por la llave de envíos como cualquier otro mensaje, así que hoy sólo sale a los números de la lista de prueba. Hasta el 13/10 el cliente se quedaba sin respuesta hasta que alguien veía la alerta.",
       "deriva": "Alerta de error o demora de la IA (llm_error o llm_timeout) para una persona del equipo, que toma la conversación desde ahí.",
-      "falta": "Texto más formal pedido por Pablo el 13/10. Falta que confirme esta versión."
+      "falta": "Texto aprobado por Pablo el 13/10. Falta verlo en un caso real: se probó sólo con pruebas locales."
     }
   ]
 }
