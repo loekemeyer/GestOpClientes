@@ -2,7 +2,9 @@
 
 > **Leer esto (y `git log --oneline -20`) al empezar cualquier sesión.**
 > **Actualizarlo al cerrar** cuando cambies flags, flujos o arquitectura.
-> Última actualización: 2026-10-09.
+> Última actualización: 2026-10-13.
+>
+> **13/10 (Pablo): el piloto arranca el lunes 19/10, con corte el viernes 16/10.** Pablo eligió entre el 19/10 (plan por compuertas, `docs/PLAN-PRODUCCION-2026-10-13.md`) y el 28/10 (estimación `aac3332`, descartada): *«Si, me parece perfecto»*. Si el viernes 16/10 no están cumplidas las compuertas de las fases 0 y 1, el piloto pasa sin renegociar al lunes 26/10 y todo se corre una semana (ampliación 02 a 06/11, llave en `1` desde el 09/11). **[Seguro] medido el 13/10:** el trigger `trg_00_customers_cliente_solo_pin` sigue ausente en PaginaLK (0 de 1) a 5 días de entregado el SQL de la tarea 5343, y nadie figuraba como responsable de aplicarlo: se agregó a la sección "Dueños" del plan. La decisión 1 (qué 3 a 5 clientes entran y la aprobación de Luis o Thomas) vence el miércoles 14/10. Sólo documentación: no cambia código, la versión visible del dashboard no cambia (v0.28.8).
 >
 > **09/10 (Pablo: "hacé lo mismo con Sonnet 5.5" → "sí, hacelo, así comparamos"): Sonnet 5.5 probado con los mismos 6 casos, US$ 0,276194 (15 llamadas, estimado US$ 0,43).** Soporte en `974b634`: pensamiento adaptativo con esfuerzo bajo y los bloques de pensamiento devueltos tal cual dentro del turno (`NormMsg.bloques`), sin `temperature`. 5 de 5 turnos de IA bien y siempre con la alerta cuando dice que avisa. **Producción sigue con Sonnet 4.6** (cadena id 1, `pedido-turno.ts`, `pedido-archivo.ts`).
 > ⚠ **Corrección de la comparativa de la tarde:** los tiempos "por turno" (Haiku 5.5 p50 1,4 s, Gemini 3.5 flash-lite 1,1 s, etc.) estaban mal: los casos corrieron en paralelo y el agrupado por `iteracion` mezcló turnos. Lo confiable es por llamada (`bot_llm_intentos`, Simulador, 09/10 desde 18:29 UTC), multiplicado por las llamadas por respuesta (llamadas / 5 turnos de IA):

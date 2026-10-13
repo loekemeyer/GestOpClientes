@@ -6,6 +6,14 @@ historial de git). Arranca el **martes 13/10/2026** (el 12 es feriado), con las 
 Alcance: bot de WhatsApp para consultas, pedidos en precarga con revisión humana, derivaciones al equipo por Planify y
 memoria por cliente. La carga directa de pedidos sin revisión humana queda para después.
 
+**Decisión de fecha (Pablo, 13/10/2026): el piloto arranca el lunes 19/10, con corte el viernes 16/10.** Pablo comparó el 19/10
+(este plan) con el 28/10 (la estimación `aac3332`) y eligió el 19/10: *«Si, me parece perfecto»*. La razón: las cinco
+comprobaciones de la fase 0 son las mismas en los dos calendarios, y los 9 días extra del 28/10 compran validación con
+simulador, no esas correcciones. **Regla de corte:** el viernes 16/10, al cierre, se revisan las compuertas de las fases 0 y 1.
+Si todas están cumplidas, el piloto sale el lunes 19/10. Si falta alguna, el piloto pasa **sin renegociar** al lunes 26/10 y todo
+lo que sigue se corre una semana: piloto 26 a 30/10, ampliación 02 a 06/11, avisos automáticos (llave en `1`) desde el lunes 09/11.
+Descartada la fecha del 28/10: la estimación `aac3332` queda sólo en el historial de git.
+
 **Por qué compuertas y no un calendario de 17 jornadas.** La versión anterior reservaba 11 jornadas de validación antes del
 piloto, con Simulador y servicios simulados, que ella misma decía que no reemplazan el circuito real. La evidencia sale del
 tráfico real, y el cuello de botella no es el código: la memoria inicial, su lectura y la incremental salieron en unos 50
@@ -114,7 +122,10 @@ Nada de esto bloquea el piloto si los clientes elegidos tienen charla propia y f
 1. **Luis o Thomas:** aprobar la lista del piloto (decisión 1) antes del Mié 14/10, y la llave en `1` (fase 4).
 2. **Pablo Olejavetzky:** decisiones 2, 4 y 5, revisión diaria del piloto y aprobar los gastos de prueba.
 3. **Responsable de cada sector en Planify:** tomar los casos del piloto en el día (decisión 3).
-4. **Sin dueño hoy:** exportar el historial del 10/06/2026 a hoy (decisión 5).
+4. **Sin dueño hoy:** exportar el historial del 10/06/2026 a hoy (decisión 5). Y, agregado el 13/10 tras medirlo en la base:
+   **aplicar en PaginaLK el SQL de la tarea 5343** (trigger `trg_00_customers_cliente_solo_pin` en `customers`). Seguía sin
+   aplicarse (0 de 1 triggers) a los 5 días de entregado, y PaginaLK es un proyecto hermano que este repo no modifica. La
+   compuerta 1 de la fase 0 depende de eso: hay que nombrar quién lo aplica antes del miércoles 14/10.
 5. **Claude (sesiones):** el código de las fases 0 a 3, con pruebas locales en US$ 0 y Simulador con Gemini.
 
 ## 6. Costos
