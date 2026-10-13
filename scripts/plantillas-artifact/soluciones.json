@@ -180,6 +180,15 @@
       "bot": "Si fallan o vencen todos los modelos de la cadena, el cliente recibe: «En este momento no puedo procesar tu consulta. Ya la derivé a una persona del equipo, que te va a responder por este medio.». Se manda una sola vez cada 30 minutos por número: si el cliente insiste y la IA sigue caída, no se repite, y cada mensaje nuevo vuelve a probar la cadena por si se recuperó. El aviso pasa por la llave de envíos como cualquier otro mensaje, así que hoy sólo sale a los números de la lista de prueba. Hasta el 13/10 el cliente se quedaba sin respuesta hasta que alguien veía la alerta.",
       "deriva": "Alerta de error o demora de la IA (llm_error o llm_timeout) para una persona del equipo, que toma la conversación desde ahí.",
       "falta": "Texto aprobado por Pablo el 13/10. Falta verlo en un caso real: se probó sólo con pruebas locales."
+    },
+    {
+      "motivo": "El mensaje no le llegó al cliente",
+      "estado": "parcial",
+      "ejemplo": "«¡Listo! Te mandé la foto» y la foto nunca llegó: el 08/10 en Chef 411 lo dijo 5 veces y Meta rechazó las 5",
+      "resumen": "El bot se entera de lo que Meta rechaza después de aceptarlo: no le dice al cliente que se lo mandó y una persona recibe la alerta.",
+      "bot": "Cada mensaje que manda el bot (texto, foto, archivo o plantilla) se guarda con su número de Meta. Si Meta lo rechaza después de aceptarlo, el agente lo ve en el turno siguiente como «NO le llegó la foto «505 — …» (Meta lo rechazó, código 131053)». Su regla: no decir que se lo mandó, no volver a mandarlo por su cuenta, decirle que no pudo salir y, si lo necesita, pasarlo a una persona. No hay un texto fijo: lo redacta el agente. Lo que corta la llave de envíos no entra en esta cuenta. Hasta el 13/10 nadie se enteraba salvo por el mail de fallas, y en el turno siguiente el bot repetía «ya te la mandé» (13/10).",
+      "deriva": "Alerta «envío fallido» para una persona, en Tareas: una por teléfono cada 30 minutos, con qué no llegó y el código de Meta. Los avisos al equipo (plantillas aviso_equipo) no dejan alerta porque ya los cubre el mail de fallas.",
+      "falta": "Falta verlo en un caso real: al 13/10 la tabla de envíos todavía no tenía filas y no hubo ningún rechazo de Meta desde que se aplicó."
     }
   ]
 }
