@@ -56,18 +56,20 @@ jobs:
           # commit de arriba era de docs ("Sin cambios").
           fetch-depth: 0
 
-      # `version: latest` hace que setup-cli le pregunte a la API de GitHub cuál es el
-      # último release, SIN autenticar. Esa API es 60 req/h por IP compartida entre todos
-      # los runners, así que en horas cargadas devuelve 403 y el job muere antes de compilar
-      # nada: "Failed to resolve latest Supabase CLI release: rate limit exceeded".
-      # Pasó el 2026-09-09 a las 00:21 UTC y tiró abajo un deploy que no tenía nada malo.
+      # Versión FIJA del CLI (Pablo, 13/10/2026). Con `version: latest`, setup-cli le pregunta a la API de GitHub
+      # cuál es el último release y, si esa API está limitada (60 req/h por IP compartida entre runners), el job
+      # muere antes de desplegar nada: "Failed to resolve latest Supabase CLI release: rate limit exceeded".
+      # Pasó el 2026-09-09 y otra vez el 13/10 a las 17:37 UTC (corrida 379, un commit sólo de comentarios).
+      # El 09/09 se probó autenticar la consulta con `GITHUB_TOKEN` para no congelar la versión, y el 13/10
+      # falló IGUAL con el token puesto. Con una versión exacta setup-cli no tiene que resolver `latest`.
       #
-      # `GITHUB_TOKEN` autentica esa consulta (5.000 req/h en vez de 60) y lo arregla sin
-      # congelar la versión. El token lo emite el propio run y sólo necesita leer releases
-      # públicos, por eso `permissions: contents: read`.
+      # 2.120.0 = el último de npm el 13/10 (publicado el 06/10), o sea el que `latest` resolvió en la corrida buena de las
+      # 16:10 UTC (el log de setup-cli no imprime la versión: dato de npm, no del log). Para subirla: cambiar
+      # el número, mirar que el primer deploy salga bien y que `supabase functions deploy` siga usando el mismo
+      # edge-runtime (hoy v1.77.4 en el log). No poner `latest` de nuevo.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.120.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
