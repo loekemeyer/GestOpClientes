@@ -390,7 +390,8 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 | Uso | Modelo | Razón |
 |-----|--------|-------|
 | Intent detection / parsing, comprobantes, puntaje, fichas de memoria | `claude-haiku-5-5` | Rápido y barato (US$ 0,10 / 0,50 por millón, un décimo de Haiku 4.5). Reemplazó a `claude-haiku-4-5` el 09/10/2026 (Pablo O.). Va con el pensamiento apagado, esfuerzo bajo y sin `temperature` (da 400): `_shared/anthropic-extras.ts` |
-| Conversacional / respuestas complejas | `claude-sonnet-4-6` | Balance costo/calidad |
+| Conversacional (el agente que contesta a los clientes) | `claude-haiku-5-5` principal desde el 13/10/2026 (Pablo O.), respaldo `claude-sonnet-4-6` y tercero Gemini gratis (`wa_agente_modelos`, tarea `general`, prioridad 1, 2 y 3) | Medido el 13/10 sobre 34 casos: 1 a 2 preguntas de más cada 34 contra 0 de Sonnet, p50 por llamada 1,33 s contra 2,30 s y unas 20 veces más barato. En el agente corre con esfuerzo alto (`ESFUERZO_HAIKU_AGENTE`, `_shared/anthropic-extras.ts`) |
+| Toma de pedidos y lector de cotizadores | `claude-sonnet-4-6` fijo (`MODELO_PEDIDOS` en `pedido-turno.ts`, `MODELO` en `pedido-archivo.ts`) | No pasan por la cadena: llevan plata. Haiku 5.5 no se midió en esas rutas |
 | Scoring / análisis | `claude-sonnet-4-6` | Necesita razonamiento |
 
 ## Tablas nuevas (en schema public de PaginaLK)

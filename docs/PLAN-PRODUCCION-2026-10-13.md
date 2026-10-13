@@ -49,6 +49,8 @@ Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
 2. **Modelo de producción para el agente.** Las opciones son Sonnet 4.6 (medido, lento en la cola), Haiku 5.5 (barato y
    rápido, sin medición real) o Sonnet 5.5 (sin medir). Propuesta: medir Haiku 5.5 y Sonnet 5.5 con los casos de evaluación
    el 13/10, después de un estimativo y un "sí" (regla de gasto), y decidir con latencia, costo y aciertos en la mano.
+   **Resuelta el 13/10 (Pablo): Haiku 5.5 principal en producción**, con Sonnet 4.6 de respaldo; se mide con el tráfico del piloto
+   (`docs/ESTADO.md`, entrada del 13/10). La toma de pedidos sigue con Sonnet 4.6.
 3. **Responsable por sector** que toma los casos del piloto en Planify en el día, y quién cubre fuera de horario.
 4. **Tope de gasto mensual** para producción (tarea 5314). Hoy no hay número: ver la sección 6.
 5. **Quién exporta el historial del 10/06/2026 a hoy**, y para cuándo. No bloquea el piloto, pero son los 4 meses más
