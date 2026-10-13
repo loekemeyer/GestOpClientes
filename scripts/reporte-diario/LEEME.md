@@ -53,6 +53,7 @@ el connector Supabase, con el mismo prompt.
   "areas": { "sql": 2, "funciones": 44, "docs": 36, "scripts": 13, "otros": 31 },
   "asuntos": ["...", "..."],
   "audit": { "abiertos": 0, "cerrados": 0 },
+  "resumen": "Una o dos oraciones con lo mas importante del dia (sintesis de los asuntos).",
   "fuente": "backfill"
 }
 ```
