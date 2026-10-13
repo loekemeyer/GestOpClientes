@@ -43,6 +43,9 @@ quien conoce al cliente (hoy, el vendedor 7 para tres de los cuatro):
 
 1. Que **compra por WhatsApp** (la tabla `orders` no registra el canal).
 2. Que **tiene un contacto que responde** rápido.
+3. Que **el teléfono sea el actual de cada cliente.** Los 4 teléfonos del piloto salen **sólo** de `wa_clientes_telefono`, una copia del padrón que **no se actualiza desde el
+   24/09** (0 filas tocadas en los últimos 3 días, medido el 13/10; auditoría 695). Ninguno está en la agenda de vinculaciones (`bot_customer_whatsapps`), que sí pasó por revisión
+   humana. `wa_identify_customer` los reconoce bien hoy, pero un número cambiado después del 24/09 no se vería. Hay que confirmarlos con el vendedor antes de cargarlos en la whitelist.
 
 ## 5. Revisión de las fichas (Fase 1 punto 2, hecha el 13/10 sobre estos 4)
 
