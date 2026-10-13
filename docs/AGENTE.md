@@ -23,6 +23,12 @@ requieren interpretar lenguaje libre.
 marca, o derivar a un humano cuando corresponda — gastando la menor cantidad de
 tokens posible.
 
+**Resultado buscado:** la consulta queda resuelta sin pasar a una persona. Y si
+es un pedido, queda en precarga tal como el vendedor la aprueba, sin cambios.
+Se mide con la vista `v_wa_resultado_charla` (PaginaLK), que clasifica cada
+charla cerrada en: `resuelta`, `derivada`, `precarga_aprobada_sin_cambios`,
+`precarga_con_cambios` o `sin_respuesta`.
+
 Especificidades:
 
 - Habla por WhatsApp con clientes mayoristas ya identificados.
