@@ -81,6 +81,8 @@ Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
    tocar campos protegidos de `customers` (descuento, condición, lista).
 2. **Aislamiento entre clientes:** desde dos teléfonos de prueba vinculados a dos clientes distintos, pedir datos del otro
    (pedidos, facturas, saldo, ficha). Tiene que dar cero en la base real, no en el Simulador.
+   **13/10: prueba preparada, sin correr** (`docs/PRUEBA-AISLAMIENTO-2026-10-13.md`): 8 mensajes desde el canal de prueba, verificación en SQL y
+   estimativo de gasto (esperado US$ 0,010, tope razonable US$ 0,09). Espera el «sí» de Pablo al gasto. Alcanza con un solo teléfono, el de Thomy.
 3. **Envío rechazado por Meta después de aceptado:** cuando llega un `failed` en `wa_message_status` de algo que el bot
    ya dio por enviado, que quede registrado y le llegue a alguien (alerta o reintento). Hoy el bot no se entera.
 4. **Modelo de producción:** la decisión 2 de la sección 2.
