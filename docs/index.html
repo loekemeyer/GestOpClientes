@@ -365,6 +365,10 @@
     .ev-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
     .ev-seg button { border: 0; background: var(--card); color: var(--muted); padding: 0.35rem 0.7rem; font-size: 0.8rem; cursor: pointer; }
     .ev-seg button.on { background: var(--primary); color: #fff; }
+    .ev-piloto { border-collapse: collapse; font-size: 0.82rem; }
+    .ev-piloto th, .ev-piloto td { border: 1px solid var(--border); padding: 0.25rem 0.55rem; text-align: center; white-space: nowrap; }
+    .ev-piloto th { background: var(--card); font-weight: 600; }
+    .ev-piloto td:first-child, .ev-piloto th:first-child { text-align: left; }
     #evBuscar { flex: 1 1 220px; min-width: 0; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.84rem; background: var(--card); color: var(--text); }
     .ev-sec { margin: 1.4rem 0 0.2rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
     .ev-causa { margin: 1.2rem 0 0.3rem; font-size: 1rem; display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; }
@@ -1426,6 +1430,15 @@
               reales representa cada uno. <b>🔁 Simular de nuevo</b> le pregunta al bot de hoy (no manda WhatsApp ni crea
               tareas) y en <b>Respuesta corregida</b> va lo que debería contestar.
             </p>
+            <!-- P8 (Pablo, 13/10; sql/146 v_wa_resultado_semana): la foto del piloto semana a semana. -->
+            <div class="consulta-card" id="evPiloto" style="max-width:860px">
+              <div class="consulta-q">📈 Resultado del piloto <span class="hint">por semana</span></div>
+              <p class="hint" style="font-size:0.75rem;color:var(--muted);margin:0.1rem 0 0.6rem">
+                Charlas cerradas de los números del piloto: cuántas quedaron <b>resueltas sin pasar a una persona</b>,
+                cuántas se <b>derivaron</b>, el tiempo de respuesta (p50/p90) y lo que gastó la IA del webhook. El Simulador no cuenta.
+              </p>
+              <div id="evPilotoTabla"><div class="consulta-meta">Cargando...</div></div>
+            </div>
             <!-- v0.28.8 (Pablo, 08/10): corrida automática de los casos (sql/133). Cada noche a las 03:15, o con «Correr ahora». -->
             <div class="consulta-card" id="evCorrida" style="max-width:860px">
               <div class="consulta-q">🤖 Corrida automática <span class="hint" id="evCorridaFecha"></span></div>
@@ -3444,6 +3457,7 @@ async function loadEvals() {
     '<button type="button" data-f="' + k + '" class="' + (k === _evFiltro ? "on" : "") + '" onclick="evFiltrar(\'' + k + '\')">' + t + "</button>").join("");
   try {
     evCorridaCargar();
+    pilotoCargar();
     const r = await amInvoke({ action: "eval_list" });
     _evals = r.evals || [];
     if (!_evals.length) { cont.innerHTML = '<div class="bl-empty">Sin preguntas de evaluación</div>'; return; }
@@ -3671,6 +3685,38 @@ async function evCorridaCargar() {
     if (c.estado === "corriendo") _evCorridaTimer = setTimeout(evCorridaCargar, 60000);
   } catch (e) {
     res.textContent = "No pude leer la corrida: " + e.message;
+  }
+}
+// P8 (sql/146): foto semanal del piloto. Lee v_wa_resultado_semana por lk_agente-modelos (admin).
+async function pilotoCargar() {
+  const el = document.getElementById("evPilotoTabla");
+  if (!el) return;
+  try {
+    const r = await amInvoke({ action: "resultado_semana" });
+    const s = r.semanas || [];
+    if (!s.length) { el.innerHTML = '<div class="consulta-meta">Todavía sin charlas cerradas del piloto.</div>'; return; }
+    const num = (v) => (v == null ? "—" : String(v).replace(".", ","));
+    const seg = (v) => (v == null ? "—" : num(v) + " s");
+    const usd = (v) => "US$ " + (Number(v || 0)).toFixed(4).replace(".", ",");
+    let h = '<table class="ev-piloto"><thead><tr>' +
+      '<th>Semana</th><th>Charlas</th><th>Resueltas</th><th>Derivadas</th><th>Precarga</th>' +
+      '<th>Sin resp.</th><th>p50</th><th>p90</th><th>Gasto</th></tr></thead><tbody>';
+    for (const w of s) {
+      const pre = (w.precarga_ok || 0) + (w.precarga_cambios || 0);
+      h += '<tr><td>' + evEsc(w.semana) + '</td>' +
+        '<td>' + (w.charlas || 0) + '</td>' +
+        '<td>' + (w.resueltas || 0) + (w.pct_resueltas != null ? ' <span class="hint">(' + num(w.pct_resueltas) + '%)</span>' : "") + '</td>' +
+        '<td>' + (w.derivadas || 0) + '</td>' +
+        '<td>' + pre + '</td>' +
+        '<td>' + (w.sin_respuesta || 0) + '</td>' +
+        '<td>' + seg(w.p50_s) + '</td>' +
+        '<td>' + seg(w.p90_s) + '</td>' +
+        '<td>' + usd(w.gasto_usd) + '</td></tr>';
+    }
+    h += "</tbody></table>";
+    el.innerHTML = h;
+  } catch (e) {
+    el.innerHTML = '<div class="consulta-meta" style="color:var(--danger)">Error: ' + evEsc(e.message) + "</div>";
   }
 }
 async function evCorrer() {
@@ -5482,7 +5528,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.9</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.10</div>
 <script src="gestop2.js?v=0.28.6"></script>
 </body>
 </html>

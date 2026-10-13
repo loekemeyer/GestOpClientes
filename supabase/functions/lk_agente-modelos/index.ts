@@ -384,6 +384,15 @@ serve(async (req) => {
       return json({ ok: true, corrida: data });
     }
 
+    // P8 (Pablo, 13/10; sql/146): la foto semanal del piloto (v_wa_resultado_semana). Charlas, cuántas quedaron
+    // resueltas sin pasar a una persona, cuántas derivadas, latencia p50/p90 y gasto del webhook. Vista revocada
+    // de anon: se lee con service_role tras el gate de admin.
+    if (action === "resultado_semana") {
+      const { data, error } = await sb.from("v_wa_resultado_semana").select("*").limit(12);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, semanas: data ?? [] });
+    }
+
     // La última respuesta del bot, simulada desde el panel (lk_bot-simular).
     if (action === "eval_resultado") {
       if (!body.id) return json({ error: "id requerido" }, 400);
