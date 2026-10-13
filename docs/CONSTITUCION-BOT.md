@@ -37,7 +37,7 @@ refundación, cambio de razón social o dato registral viejo. **Lo confirma Pabl
 
 ### Misión y valores
 
-`[Probable: web]` destilado del copy de loekemeyer.com — **a confirmar o reescribir por Pablo/Thomas**.
+`[Seguro: Pablo 13/10]` — aprobado por Pablo el 13/10/2026 sobre el copy de loekemeyer.com.
 
 - **Misión:** fabricar utensilios de cocina pensados para durar, que acompañen generaciones, y
   acercarlos al comercio mayorista de todo el país.
@@ -143,11 +143,9 @@ capa **más débil**: lo que protege de verdad está en el código.
 
 ## 7. Lo que queda por confirmar
 
-1. **Misión y valores** (sección «Misión y valores»): están en borrador `[Probable: web]`; falta
-   tu visto o tu reescritura para pasarlos a firme.
-2. **Actitud ante un reclamo o un error del propio sistema:** no hay fuente escrita. `[FALTA]`
+1. **Actitud ante un reclamo o un error del propio sistema:** no hay fuente escrita. `[FALTA]`
    Lo define Pablo/Thomas en una línea.
-3. **Antigüedad pública «Desde 1950» vs. registro 1900** (sección 1): decidí qué se dice en
+2. **Antigüedad pública «Desde 1950» vs. registro 1900** (sección 1): decidí qué se dice en
    público. Hasta entonces queda «Desde 1950» (lo que ya comunica la web), con la discrepancia
    anotada.
 
