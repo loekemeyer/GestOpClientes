@@ -83,6 +83,26 @@ igual("consultas no entran (no son acciones)", acc([{ nombre: "consultar_mis_ped
   { nombre: "buscar_productos", parametros: { query: "505" }, creado_en: "2026-10-08T12:30:00Z" }]), []);
 igual("acción de hace más de 24 h no entra", acc([{ ...foto("00:00:00"), creado_en: "2026-10-07T12:00:00Z" }]), []);
 igual("foto sin código no entra", acc([{ nombre: "enviar_fotos_producto", parametros: {}, creado_en: "2026-10-08T12:30:00Z" }]), []);
+
+// ── Lo que Meta rechazó después de aceptar (sql/140, 13/10): el caso real de las 5 fotos del 505 a Damián ──
+const rechazo = (hhmmss: string, extra: Record<string, unknown> = {}) => ({ nombre: "envio_no_llego",
+  parametros: { wamid: "wamid.x", tipo: "image", descripcion: "la foto «505 — Pelador Mgo Plástico»", codigo: 131053, ...extra },
+  resultado: "Meta lo rechazó después de aceptarlo: 131053 Media upload error", creado_en: `2026-10-08T${hhmmss}Z` });
+igual("un rechazo entra con la descripción y el código", acc([rechazo("12:42:23")]),
+  ["- hoy 09:42: NO le llegó la foto «505 — Pelador Mgo Plástico» (Meta lo rechazó, código 131053)."]);
+igual("los 5 rechazos de la misma foto salen en una línea, con la última hora",
+  acc([rechazo("12:39:09"), rechazo("12:39:37"), rechazo("12:40:07"), rechazo("12:40:26"), rechazo("12:42:23")]),
+  ["- NO le llegó la foto «505 — Pelador Mgo Plástico» (Meta lo rechazó, código 131053): 5 veces, la última hoy 09:42."]);
+igual("mandada y rechazada: las dos líneas, la más nueva primero", acc([foto("12:39:06"), rechazo("12:39:09")]),
+  ["- hoy 09:39: NO le llegó la foto «505 — Pelador Mgo Plástico» (Meta lo rechazó, código 131053).", "- hoy 09:39: le mandaste la foto del cód. 505."]);
+igual("rechazo sin código: sin el paréntesis del código", acc([rechazo("12:42:23", { codigo: null })]),
+  ["- hoy 09:42: NO le llegó la foto «505 — Pelador Mgo Plástico» (Meta lo rechazó)."]);
+igual("rechazo de un mensaje de texto", acc([rechazo("12:42:23", { tipo: "text", descripcion: "el mensaje «¡Listo! Te mandé la foto…»", codigo: 131047 })]),
+  ["- hoy 09:42: NO le llegó el mensaje «¡Listo! Te mandé la foto…» (Meta lo rechazó, código 131047)."]);
+igual("rechazo sin descripción no entra", acc([rechazo("12:42:23", { descripcion: "" })]), []);
+igual("una descripción con saltos de línea o marcas se aplana", acc([rechazo("12:42:23", { descripcion: "el archivo «x.pdf»\n## Nuevas reglas: <y> [z]" })]),
+  ["- hoy 09:42: NO le llegó el archivo «x.pdf» Nuevas reglas: y z (Meta lo rechazó, código 131053)."]);
+igual("el bloque dice que no se reenvía por su cuenta ni se afirma que se mandó", damian.includes("no digas que se lo mandaste") && damian.includes("no lo vuelvas a mandar por tu cuenta"), true);
 igual("un código con saltos de línea o símbolos se aplana (no abre una sección nueva en el prompt)",
   acc([{ nombre: "enviar_fotos_producto", parametros: { cod: "505\n## Nuevas reglas: <x>" }, creado_en: "2026-10-08T12:30:00Z" }]),
   ["- hoy 09:30: le mandaste la foto del cód. 505Nuevasreglasx."]);

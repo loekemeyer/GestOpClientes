@@ -31,6 +31,7 @@ import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
 import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
+import { RESPALDO_IA_CAIDA } from "../_shared/respaldo-texto.ts";
 import { abrirTurno, guardarTurno, iaEmpieza, iaTermina, type Turno } from "../_shared/tiempos-turno.ts";
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
 import { contextoAlertaTope, mensajeTope } from "../_shared/tope-ia.ts";
@@ -1047,6 +1048,24 @@ async function enviarTexto(cfg: Config, phone: string, texto: string): Promise<b
   }
 }
 
+/**
+ * Toda la cadena de modelos falló o venció (Pablo, 13/10, P6.2): el cliente recibe RESPALDO_IA_CAIDA en vez de silencio. Una vez cada 30 min por
+ * número: runConversation ya dejó la alerta llm_error / llm_timeout de ESTE turno, así que si hay otra de hace menos de 30 min ya se le avisó.
+ * Si el cliente insiste, la cadena se vuelve a intentar en cada mensaje (puede haberse recuperado) y, si sigue caída, no se repite el aviso.
+ * Nunca lanza: el aviso no puede tumbar el webhook.
+ */
+async function avisarIaCaida(cfg: Config, phone: string): Promise<void> {
+  try {
+    const desde = new Date(Date.now() - 30 * 60_000).toISOString();
+    const { count } = await supabase.from("wa_alertas_humano").select("id", { count: "exact", head: true })
+      .eq("phone", phone).in("tipo", ["llm_error", "llm_timeout"]).gte("created_at", desde);
+    if ((count ?? 0) > 1) return;   // la de este turno cuenta 1
+    if (await enviarTexto(cfg, phone, RESPALDO_IA_CAIDA)) await saveMessage(phone, "assistant", RESPALDO_IA_CAIDA);
+  } catch (e) {
+    console.error("[ia caída] no se pudo avisar al cliente:", e instanceof Error ? e.message : e);
+  }
+}
+
 // ─── Reporte de gerencia a pedido (idea 6600) ───────────────────────
 //
 // El reporte "💰 HOY" (plata del día + mes a la fecha) ya existe y sale por Telegram todos
@@ -1525,7 +1544,9 @@ async function handleMessage(
   // nada al cliente. `runConversation` ya avisó a un humano vía
   // `wa_alertas_humano`; el vendedor toma la conversación desde ahí.
   if (result.timeout || result.llmError) {
-    console.warn(`[webhook] LLM ${result.timeout ? "timeout" : "error"} — no se envía respuesta al cliente ${phone}. Alerta encolada.`);
+    console.warn(`[webhook] LLM ${result.timeout ? "timeout" : "error"} — el cliente ${phone} recibe el texto de IA caída (si no lo recibió hace menos de 30 min). Alerta encolada.`);
+    // Pablo, 13/10 (plan de los 8 puntos, P6.2): antes acá se cortaba y el cliente quedaba en silencio hasta que una persona viera la alerta.
+    await avisarIaCaida(cfg, phone);
     return;
   }
 

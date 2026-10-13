@@ -9,6 +9,7 @@
 // Ahora hay una sola. Si hace falta algo nuevo, va acá.
 import "./wa-guard.ts"; // D007: corte único de envíos a Meta
 import { registrarEnvio } from "./tiempos-turno.ts";
+import { registrarEnvioBot } from "./envios-bot.ts";
 const META_API = "https://graph.facebook.com/v21.0";
 
 /** Normaliza teléfono argentino a formato canónico (sin +, con 54). */
@@ -85,7 +86,11 @@ export async function waPost(
     );
   }
   // Tiempo de punta a punta (sql/136): sólo cuenta lo que Meta aceptó y va a una persona (el "leído" no lleva `to`).
-  if (endpoint === "messages" && typeof body.to === "string" && body.to) registrarEnvio(body.to, inicio, Date.now());
+  if (endpoint === "messages" && typeof body.to === "string" && body.to) {
+    registrarEnvio(body.to, inicio, Date.now());
+    // El wamid de lo que Meta aceptó (sql/140): si después lo rechaza, el agente y una persona se enteran (_shared/envios-bot.ts).
+    await registrarEnvioBot(body.to, body, json);
+  }
   return json;
 }
 

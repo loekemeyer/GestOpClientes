@@ -77,6 +77,7 @@ const CORTO: Record<string, string> = {
   tope_ia: "Cliente pasó el tope de consultas",
   tope_gasto: "Gasto diario de IA: aviso o tope",
   archivo_sospechoso: "Auditoría: archivo con texto sospechoso",
+  envio_fallido: "Mensaje del bot que no le llegó",
 };
 
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, ...o }).format(d);

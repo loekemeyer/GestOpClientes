@@ -23,6 +23,11 @@ export function textoDeRespaldo(usadas: ReadonlyArray<{ nombre: string; resultad
 // ("Una persona de Ventas revisa … y te escribe por acá"): pendiente de que Pablo lo apruebe o lo cambie.
 export const RESPALDO_SIN_TERMINAR = "Una persona del equipo revisa tu consulta y te escribe por acá. 🙏";
 
+// Pablo, 13/10 (plan de los 8 puntos, P6.2): cuando TODOS los modelos de la cadena fallan o vencen, el cliente no recibía nada (sólo la alerta
+// llm_error / llm_timeout a una persona). Ahora recibe este texto, una vez cada 30 min por número (lk_whatsapp-webhook, avisarIaCaida), por la
+// llave de envío como todo lo demás. Texto mío sobre el patrón de los aprobados: pendiente de que Pablo lo apruebe o lo cambie.
+export const RESPALDO_IA_CAIDA = "Se me complicó para contestarte ahora. Ya le paso tu consulta a una persona del equipo, que te escribe por acá. 🙏";
+
 /** Qué hacer cuando se terminan las vueltas: el texto y si hay que dejar una alerta (no, si en el turno ya se derivó bien). */
 export function cierreSinTerminar(usadas: ReadonlyArray<{ nombre: string; resultado: string }>): { texto: string; derivar: boolean } {
   const derivo = usadas.some((u) => u.nombre === "derivar_a_persona" && /"ok"\s*:\s*true/.test(u.resultado));

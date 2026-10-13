@@ -53,7 +53,8 @@ export const MOTIVOS: Record<string, string> = {
 };
 
 // Acciones del agente que el cliente ve y que no dejan alerta. confirmar_pedido / enviar_pedido sólo cuentan si salieron bien.
-export const ACCIONES = ["enviar_fotos_producto", "enviar_catalogo", "confirmar_pedido", "enviar_pedido"];
+// envio_no_llego (13/10, sql/140): lo escribe el trigger de wa_message_status cuando Meta rechaza algo que ya había aceptado.
+export const ACCIONES = ["enviar_fotos_producto", "enviar_catalogo", "confirmar_pedido", "enviar_pedido", "envio_no_llego"];
 
 const H24 = 24 * 3600_000;
 const D7 = 7 * H24;
@@ -111,6 +112,12 @@ function lineasAcciones(acciones: AccionHecho[], ahora: Date): string[] {
       clave = `fotos:${cod}`; texto = `le mandaste la foto del cód. ${cod}`;
     } else if (a.nombre === "enviar_catalogo") {
       clave = "catalogo"; texto = "le mandaste el catálogo";
+    } else if (a.nombre === "envio_no_llego") {
+      // La descripción la armó el código (_shared/envios-bot.ts) a partir de lo que se mandó: se aplana igual, por si trae un caption o un nombre de archivo raro.
+      const desc = String(p.descripcion ?? "").replace(/[\r\n]+/g, " ").replace(/[<>#\[\]{}]/g, "").replace(/\s+/g, " ").trim().slice(0, 90);
+      if (!desc) continue;
+      const cod = Number(p.codigo) || 0;
+      clave = `nollego:${desc}`; texto = `NO le llegó ${desc} (Meta lo rechazó${cod ? `, código ${cod}` : ""})`;
     } else {
       if (!salioBien(a.resultado)) continue;
       clave = `pedido:${a.creado_en}`; texto = "quedó cargado un pedido por WhatsApp";
@@ -139,7 +146,8 @@ export function bloqueHechos(alertas: AlertaHecho[], acciones: AccionHecho[], ah
     "Lo que ya pasó con este cliente, aunque no figure en los mensajes de arriba. Usalo para no contradecirte ni repetir: si pregunta por " +
       "algo que ya se pasó a una persona (si lo van a llamar, cuándo le escriben, si alguien lo vio), decile que ya está pasado y desde " +
       "qué hora, y NO lo vuelvas a pasar: pasalo de nuevo sólo si es un tema distinto o si ahora es urgente. Que algo se mandó no " +
-      "confirma que le llegó. No le leas esta lista.",
+      "confirma que le llegó. Si una línea dice que algo NO le llegó, no digas que se lo mandaste: decile que no pudo salir, no lo " +
+      "vuelvas a mandar por tu cuenta y, si lo necesita, pasalo a una persona. No le leas esta lista.",
   ];
   if (pases.length) partes.push("Pases a una persona:", ...pases);
   if (hechas.length) partes.push("Lo que hizo el bot en las últimas 24 horas:", ...hechas);

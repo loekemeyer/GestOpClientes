@@ -51,6 +51,9 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   tope_gasto:             { label: "Gasto diario de IA: aviso o tope", min: 60 },
   // Pablo, 07/10: un archivo del cliente trae texto que parece una orden para el bot (_shared/archivo-sospechoso.ts). Es auditoría, no una consulta: verde y 24 h.
   archivo_sospechoso:     { label: "Auditoría: archivo con texto que parece una orden para el bot", min: 1440 },
+  // Pablo, 13/10 (sql/140, P6 del plan de los 8 puntos): Meta rechazó algo que el bot ya había mandado (foto, archivo, texto o aviso), después de
+  // aceptarlo. El bot pudo haberle dicho al cliente que se lo mandó: una persona se lo manda por otro lado o le avisa. Una por teléfono cada 30 min.
+  envio_fallido:          { label: "Mensaje del bot que no le llegó al cliente (Meta lo rechazó)", min: 120 },
   otro:                   { label: "Otros", min: 240 },
   whitelist_gate:         { label: "Número fuera de la lista de prueba", min: 1440 },
 };

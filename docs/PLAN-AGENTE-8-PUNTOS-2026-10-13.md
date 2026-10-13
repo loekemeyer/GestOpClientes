@@ -113,6 +113,9 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   fase 0) · 2 jueves 16/10.
 - **Ok cuando:** una foto a un número inválido del canal de prueba deja fila en `bot_auditoria` y el turno siguiente del
   Simulador la muestra en hechos de charla; y con `wa_agente_modelos` vacío el canal de prueba recibe el mensaje fijo.
+- **Avance 13/10 (Pablo: "arrancá con P6"):** 6.1 y 6.2 hechos el mismo día (`sql/140`, `_shared/envios-bot.ts`, `hechos-charla.ts`,
+  `RESPALDO_IA_CAIDA`). Probado en la base con rollback y con pruebas locales. **Falta para el "ok":** un rechazo real de Meta al canal de
+  prueba visto en hechos de charla, y que Pablo apruebe el texto de IA caída. Detalle en `ESTADO.md` (13/10).
 
 ### P7 · Límites — hoy OK
 

@@ -171,6 +171,14 @@ al principio del último mensaje del cliente (ver "Caché de prompt": no rompe e
 si la base no contesta, el turno sigue sin el bloque. En el Simulador sale de lo que pasó en la simulación entera. **No cubre** lo que contesta
 la capa fija sin dejar alerta (una respuesta fija, un PDF de factura): eso sigue sólo en las 16 filas. Pruebas: `tests/hechos-charla.test.ts`.
 
+### Lo que no le llegó al cliente (13/10/2026)
+
+Desde el 13/10 (plan de los 8 puntos, P6) el bloque también muestra lo que Meta **rechazó después de aceptar**: «NO le llegó la foto «505 — …» (Meta lo
+rechazó, código 131053)». Sale de `bot_auditoria` (`envio_no_llego`), que escribe el trigger de `sql/140` con el `wamid` que cada envío del bot guarda en
+`wa_envios_bot`. El bloque le pide al agente que no diga que se lo mandó, que no lo reenvíe por su cuenta y que, si hace falta, lo pase a una persona.
+Además queda una alerta `envio_fallido` para el equipo. Y si toda la cadena de modelos cae, el cliente ya no queda en silencio: recibe un texto fijo y
+una persona la alerta de siempre (`respaldo-texto.ts › RESPALDO_IA_CAIDA`).
+
 ## Memoria: la charla anterior completa (08/10/2026)
 
 Pedido de gerencia, aprobado por Pablo: que el agente recuerde la última charla. Además de la ventana anclada (16 a 23 mensajes), el modelo ve
