@@ -505,6 +505,22 @@ serve(async (req) => {
       return json({ ok: true, phone, wamid, plantilla: nombrePlantilla, texto });
     }
 
+    // Resultado de las charlas (P1 del plan de los 8 puntos): la vista v_wa_resultado_charla clasifica
+    // cada charla cerrada. Está revocada de anon/authenticated, así que la lee este service_role.
+    if (action === "resultado") {
+      const { data, error } = await sb.from("v_wa_resultado_charla")
+        .select("telefono, estado, fin").order("fin", { ascending: false }).limit(2000);
+      if (error) return json({ error: error.message }, 500);
+      const resumen: Record<string, number> = {};
+      const por_tel: Record<string, { estado: string; fin: string }> = {};
+      for (const r of data ?? []) {
+        resumen[r.estado] = (resumen[r.estado] ?? 0) + 1;
+        const k = ult10(r.telefono);
+        if (k && !por_tel[k]) por_tel[k] = { estado: r.estado, fin: r.fin }; // ordenado por fin desc: el primero es el más nuevo
+      }
+      return json({ ok: true, resumen, por_tel, total: (data ?? []).length });
+    }
+
     return json({ error: "action desconocida" }, 400);
   } catch (err) {
     console.error("lk_conversaciones error:", err);

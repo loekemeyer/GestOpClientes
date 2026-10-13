@@ -808,6 +808,7 @@
                 <button class="config-btn small icono" title="Actualizar" onclick="convRefresh()">⟳</button>
               </span>
             </div>
+            <div id="convResumen" style="padding:0 0.5rem;"></div>
             <div id="convList" style="flex:1;overflow-y:auto;"></div>
           </div>
           <div class="conv-charla" style="flex:1;min-width:0;display:flex;flex-direction:column;background: var(--card,var(--surface));border: 1px solid var(--border);border-radius:12px;overflow:hidden;">
@@ -4979,9 +4980,30 @@ function loadConversaciones() { convRefresh(); }
 
 async function convRefresh() {
   try {
-    const d = await convCall({ action: "list" });
+    const [d, r] = await Promise.all([
+      convCall({ action: "list" }),
+      convCall({ action: "resultado" }).catch(() => null),
+    ]);
+    convRenderResumen(r);
     convRenderList(d.items || []);
   } catch (e) { document.getElementById("convList").innerHTML = '<div class="bl-empty" style="padding:1rem;font-size:0.8rem;">⚠️ ' + esc(e.message) + "</div>"; }
+}
+
+// Resultado de las charlas cerradas (vista v_wa_resultado_charla, P1 del plan). Franja arriba de la lista
+// + un ícono por conversación con el resultado de su última charla cerrada. _convResultado.por_tel se
+// indexa por los últimos 10 dígitos del teléfono.
+let _convResultado = null;
+const EST_RES = { resuelta: "✅", derivada: "🙋", precarga_aprobada_sin_cambios: "📦", precarga_con_cambios: "📦✏️", sin_respuesta: "⚠️" };
+const EST_RES_LABEL = { resuelta: "Resuelta por el agente", derivada: "Derivada a una persona", precarga_aprobada_sin_cambios: "Pedido precargado y aprobado sin cambios", precarga_con_cambios: "Pedido precargado, aprobado con cambios", sin_respuesta: "El agente no respondió" };
+function convRenderResumen(r) {
+  const box = document.getElementById("convResumen");
+  if (!box) return;
+  _convResultado = r && r.por_tel ? r : null;
+  if (!r || !r.resumen || !r.total) { box.innerHTML = ""; return; }
+  const ORD = ["resuelta", "derivada", "precarga_aprobada_sin_cambios", "precarga_con_cambios", "sin_respuesta"];
+  const chips = ORD.filter((k) => r.resumen[k]).map((k) =>
+    `<span title="${esc(EST_RES_LABEL[k])}" style="font-size:0.7rem;padding:0.1rem 0.35rem;border: 1px solid var(--border);border-radius:10px;white-space:nowrap;">${EST_RES[k]} ${r.resumen[k]}</span>`).join("");
+  box.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:0.25rem;padding:0.4rem 0;justify-content:center;" title="Resultado de las ${r.total} charlas cerradas">${chips}</div>`;
 }
 
 const EST_DOT = { abierto: "🟢", pendiente: "🟡", resuelto: "✅" };
@@ -5001,6 +5023,9 @@ function convRenderList(items) {
     const icon = c.modo_humano ? "🤝" : "🤖";
     const win = c.ventana_abierta ? "" : '<span title="ventana 24h cerrada" style="opacity:0.5;">⏱️</span>';
     const pre = (c.last_dir === "out" ? "vos: " : "") + (c.last_body || "");
+    const k10 = (c.phone || "").replace(/\D/g, "").slice(-10);
+    const res = _convResultado?.por_tel?.[k10];
+    const resBadge = res ? `<span title="Última charla cerrada: ${esc(EST_RES_LABEL[res.estado] || res.estado)}" style="font-size:0.72rem;flex-shrink:0;">${EST_RES[res.estado] || ""}</span>` : "";
     // Cliente identificado → razón social + código y el teléfono como subtítulo.
     // Sin identificar → el teléfono es el título (comportamiento anterior).
     const title = c.business_name
@@ -5017,7 +5042,7 @@ function convRenderList(items) {
       ${subtitle}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;margin-top:0.15rem;">
         <span style="font-size:0.74rem;color: var(--g-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">${icon} ${esc(pre)}</span>
-        <span style="display:flex;gap:0.25rem;align-items:center;">${win}${unread}</span>
+        <span style="display:flex;gap:0.25rem;align-items:center;">${win}${resBadge}${unread}</span>
       </div>
     </div>`;
   }).join("");
@@ -5457,7 +5482,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.8</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.9</div>
 <script src="gestop2.js?v=0.28.6"></script>
 </body>
 </html>
