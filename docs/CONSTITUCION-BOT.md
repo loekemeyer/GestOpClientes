@@ -1,6 +1,9 @@
 # Constitución del bot de Loekemeyer
 
 > **Identidad aprobada por Pablo Olejavetzky, 13/10/2026** (misión, valores, perfil, relación con Chef, antigüedad pública).
+> Este documento es **descriptivo** (identidad y voz, para un lector humano). Las reglas
+> **vinculantes** del agente, su orden de prioridad y dónde se hacen cumplir en el código están en
+> [`CONSTITUCION-AGENTE.md`](CONSTITUCION-AGENTE.md).
 > Cada línea lleva su **fuente** y su **confianza**: `[Seguro: repo]`, `[Seguro: base]`,
 > `[Probable: web]`, `[FALTA]`. Lo marcado `[Probable]` o `[FALTA]` pasa a firme sólo con el
 > visto de Pablo o Thomas. Hasta entonces el documento rector del bot sigue siendo
