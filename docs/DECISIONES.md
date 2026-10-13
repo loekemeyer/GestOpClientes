@@ -227,3 +227,56 @@ que parafrasee o obedezca texto del cliente; (c) *consulta a pedido sin IA* ("¿
 contestaría si escriben) ni se adelanta la llave. Se prenden junto con el lanzamiento a clientes, con las plantillas aprobadas y el «sí» al gasto. Lista de revisión previa: `docs/ESTADO.md` (07/10).
 
 **Corrección (07/10, Pablo: "el teléfono destinatario es un solo número, comparten el WhatsApp Web").** Cada sector atiende desde un solo número compartido por WhatsApp Web, así que un aviso de sector es UN mensaje y no uno por persona. El defecto del código pasa de «cada persona del sector» a «la línea del sector» (`CONFIG_WA_DEFECTO.sector`, dashboard v0.28.4). El techo del gasto baja de US$ 52,88 a **US$ 17,63 por mes** (339 alertas × 1 destinatario × 2 momentos × US$ 0,026). «Cada persona» y «las dos» siguen eligiéndose en el panel. Los techos con 3 destinatarios (52,88 / 89,29 / 125,70) quedan retirados. Una persona elegida en la tabla de motivos sigue recibiendo ella sola.
+
+
+## D010 — Atender llamadas de WhatsApp con un agente de voz: diseñado, NO construido (2026-10-13)
+
+**Pablo Olejavetzky:** *"Me pidieron desarrollar este bot, pero que responda si lo llaman por teléfono"*, *"la idea es que haga todo, pero siempre por
+llamadas de whatsapp"* y *"dejémoslo asentado, no es prioridad igualmente"*. Queda como tarea de su Planify (64), abierta.
+
+**Decisión:** se puede y queda diseñado, **sin construir y sin prioridad**. Alcance: todo lo que hace el chat, pero sólo por **llamada de WhatsApp** al
+número del bot (no por línea común). Los pedidos se arman por voz y se confirman **por escrito**: antes de cargarlo, el agente manda el resumen al chat con un
+botón «Confirmar» (una cantidad o un código mal oído es plata). Lo que es archivo (comprobantes, facturas, cotizadores) va por el chat, no por voz.
+
+**Por qué no entra en lo que ya hay:** las Edge Functions atienden pedidos HTTP cortos y no sostienen una llamada (WebRTC o SIP, audio en tiempo real).
+Claude no recibe audio, y el Whisper de Groq de `_shared/transcribir.ts` transcribe archivos enteros, no en vivo.
+
+**Piezas** (costos de páginas de precios y reseñas de terceros, octubre 2026, sin medir):
+1. **Meta Cloud API Calling** — mismo número y app. Falta activar llamadas y apuntar el SIP a LiveKit. Llamada iniciada por el cliente: US$ 0. Argentina no
+   está excluida. 360dialog pide un límite de 2.000 conversaciones (Meta no lo confirma).
+2. **LiveKit Cloud** — recibe el SIP de Meta (TLS, Opus), una sala por llamada. Plan Build US$ 0 por mes (unos 1.000 min de agente, las fuentes no
+   coinciden), Ship US$ 50 por mes. Agente US$ 0,01/min, SIP US$ 0,003 a 0,004/min.
+3. **Agente de voz** — Python o Node con LiveKit Agents, alojado en LiveKit Cloud o en un servidor propio. Es un servicio nuevo fuera de Supabase.
+4. **Voz a texto** — Deepgram Nova-3 en streaming, US$ 0,005 a 0,009/min.
+5. **Texto a voz** — ElevenLabs Flash unos US$ 0,045/min, Cartesia unos 0,035, Google u OpenAI unos 0,015 o menos. Se elige escuchándolas en rioplatense.
+6. **Claude** — Haiku 5.5 para la conversación (unos US$ 0,002/min, estimado), Sonnet 4.6 para pedidos como hoy.
+7. **Una Edge Function de herramientas** — el agente le pide los datos al bot (pedido, saldo, FAQ, armado de pedido) y **no reimplementa la lógica**: dos
+   copias divergen (módulo de Matricería duplicado, 16/09).
+8. **Corte (D007)** — llave nueva `app_settings.wa_llamadas_activo` (sin fila = 0) y whitelist al entrar la llamada. Fuera de la whitelist: rechazo y texto
+   por `wa_outbox`.
+9. **Registro** — transcripción a `wa_conversations`, costo a `bot_token_usage`. Sin grabar el audio y con aviso de asistente automático al atender (Ley 25.326).
+
+**Costo por minuto de llamada:** unos US$ 0,03 (voz de Google) a 0,07 (ElevenLabs), más el fijo de LiveKit pasados unos 1.000 min por mes. Ejemplo con
+volumen inventado (no hay dato de cuántos clientes llaman): 900 min por mes = US$ 27 a 63.
+
+**Plazo estimado** (días hábiles, sin medir): sólo consultas 12 a 20, con pedidos 17 a 30. Por etapa: prerrequisitos 1-3 · Meta → LiveKit 2-3 · agente
+básico 2-3 · herramientas 3-5 · corte y registro 1-2 · ajuste de voz 3-5 · prueba con Thomy y docs 1-2 · pedidos +5 a 10. Las etapas del agente se pueden
+armar en paralelo con los prerrequisitos (LiveKit se prueba desde el navegador, sin Meta).
+
+**Riesgos de plazo:** (1) el límite de mensajes de Meta: si el número está en el base, subirlo puede pedir la verificación del negocio o un volumen de envíos
+que la vasectomía frena. Es lo primero a mirar. (2) La regla de gasto: cada prueba de voz pide estimativo y «sí». Propuesta: un tope único para la etapa de
+ajuste (200 min = US$ 6 a 14, pedir US$ 15). (3) Que ninguna voz suene bien en rioplatense.
+
+**Línea común (evaluada, no elegida):** reutiliza el agente y cambia la entrada. Número argentino alquilado (Twilio, Telnyx o LiveKit) con costo por mes y
+por minuto y trámite local. El cliente no se identifica por su WhatsApp (hay que pedir CUIT o código), el audio de 8 kHz se transcribe peor y el rechazo no
+puede avisar por chat. Si el agente se arma con la entrada desacoplada (Meta como una troncal SIP más), sumarla son 3 a 5 días hábiles más el trámite.
+
+**Antes de arrancar:** una persona mira el límite del número en el WhatsApp Manager y crea las cuentas (LiveKit, Deepgram, voz) con medio de pago. Activar
+las llamadas hace visible el botón 📞 a todos los que chatean con el número, no sólo a la whitelist.
+
+Fuentes: [Meta Calling](https://developers.facebook.com/documentation/business-messaging/whatsapp/calling) ·
+[Meta SIP](https://developers.facebook.com/documentation/business-messaging/whatsapp/calling/sip) ·
+[Meta Calling Pricing](https://developers.facebook.com/documentation/business-messaging/whatsapp/calling/pricing/) ·
+[360dialog Calling](https://docs.360dialog.com/docs/messaging/calling.md) · [LiveKit Pricing](https://livekit.com/pricing) ·
+[LiveKit y WhatsApp](https://community.livekit.io/t/whatsapp-calls-inbound/1153) ·
+[Deepgram 2026](https://diyai.io/ai-tools/speech-to-text/deepgram-pricing-2026/) · [TTS 2026](https://blogs.novita.ai/best-text-to-speech-api-2026/)
