@@ -79,8 +79,11 @@ Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
 4. **Modelo de producción:** la decisión 2 de la sección 2.
 5. **Pausa ensayada:** apagar y prender las respuestas a clientes del piloto sin tocar código, y comprobar que la atención
    manual sigue funcionando. **13/10: interruptor construido** (`app_settings.wa_bot_pausa`, un `UPDATE`, ver `docs/FLUJOS.md`, Flujo 0).
-   `wa_bot_solo_whitelist` NO sirve para esto: en `0` el bot contesta a todos. **Falta el ensayo en la base real** (prender, un
-   mensaje desde el canal de prueba, ver la alerta, apagar).
+   `wa_bot_solo_whitelist` NO sirve para esto: en `0` el bot contesta a todos. **13/10 ensayada en la base real** (Pablo: «Sí, hacé el ensayo
+   ahora»): prendida 18:24:01 UTC, un mensaje real desde el canal de prueba (Thomy) a las 18:26, apagada 18:28:00 UTC. Resultado: el mensaje quedó en
+   `bot_historial_chat`, UNA alerta `bot_pausa` (sin respuesta saliente, 0 llamadas de IA, US$ 0), cartel en Planify y atendida en 58 s.
+   **No se probó todavía:** la atención manual desde el panel con la pausa prendida, el tope de 30 min por teléfono, un adjunto, ni que el bot
+   vuelva a contestar tras apagarla.
 
 ### Fase 1 · Circuito con el equipo (Jue 15 – Vie 16/10)
 
