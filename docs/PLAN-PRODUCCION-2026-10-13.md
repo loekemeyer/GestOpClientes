@@ -66,8 +66,10 @@ Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
 
 ### Fase 0 · Lo que bloquea (Mar 13 – Mié 14/10)
 
-1. **Tarea 5343:** reproducir con un teléfono de prueba que un cliente no puede tocar campos protegidos de `customers`
-   (descuento, condición, lista). Si puede, se corrige antes de seguir.
+1. **Tarea 5343 · CUMPLIDA el 13/10:** el trigger `trg_00_customers_cliente_solo_pin` quedó aplicado en PaginaLK y probado
+   (el cliente que cambia su descuento recibe 42501, el PIN y el admin pasan, también en la página). El `dto_vol` de la web
+   coincide con Gestión en los 1.262 clientes con código. Era: reproducir con un teléfono de prueba que un cliente no puede
+   tocar campos protegidos de `customers` (descuento, condición, lista).
 2. **Aislamiento entre clientes:** desde dos teléfonos de prueba vinculados a dos clientes distintos, pedir datos del otro
    (pedidos, facturas, saldo, ficha). Tiene que dar cero en la base real, no en el Simulador.
 3. **Envío rechazado por Meta después de aceptado:** cuando llega un `failed` en `wa_message_status` de algo que el bot
@@ -122,10 +124,8 @@ Nada de esto bloquea el piloto si los clientes elegidos tienen charla propia y f
 1. **Luis o Thomas:** aprobar la lista del piloto (decisión 1) antes del Mié 14/10, y la llave en `1` (fase 4).
 2. **Pablo Olejavetzky:** decisiones 2, 4 y 5, revisión diaria del piloto y aprobar los gastos de prueba.
 3. **Responsable de cada sector en Planify:** tomar los casos del piloto en el día (decisión 3).
-4. **Sin dueño hoy:** exportar el historial del 10/06/2026 a hoy (decisión 5). Y, agregado el 13/10 tras medirlo en la base:
-   **aplicar en PaginaLK el SQL de la tarea 5343** (trigger `trg_00_customers_cliente_solo_pin` en `customers`). Seguía sin
-   aplicarse (0 de 1 triggers) a los 5 días de entregado, y PaginaLK es un proyecto hermano que este repo no modifica. La
-   compuerta 1 de la fase 0 depende de eso: hay que nombrar quién lo aplica antes del miércoles 14/10.
+4. **Sin dueño hoy:** exportar el historial del 10/06/2026 a hoy (decisión 5). (El SQL de la tarea 5343 estaba sin aplicar y sin
+   responsable: lo aplicó Pablo el 13/10 desde el editor SQL de PaginaLK. Resuelto.)
 5. **Claude (sesiones):** el código de las fases 0 a 3, con pruebas locales en US$ 0 y Simulador con Gemini.
 
 ## 6. Costos
