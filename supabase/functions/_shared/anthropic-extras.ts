@@ -14,10 +14,15 @@
 // con esfuerzo bajo (a ese nivel no piensa en la mayoría de los pedidos simples). Los bloques de pensamiento que devuelve se le
 // mandan de vuelta tal cual dentro del mismo turno (bot-llm.ts: NormMsg.bloques). temperature también da 400.
 
-/** Campos que se agregan (o pisan) en el cuerpo del pedido para ese modelo. {} si no hay nada que cambiar. */
+// Esfuerzo de Haiku 5.5 SÓLO en el agente conversacional (Pablo, 13/10: "pulir para usar 100 % Haiku"). Con esfuerzo bajo, en la comparación del 13/10 le preguntaba al
+// cliente un dato que el sistema ya tiene en 5 de 34 casos (m4, m16, m37, m72, m73) donde Sonnet 4.6 consultaba la herramienta. Los demás usos de Haiku 5.5
+// (comprobantes, puntaje, fichas) siguen con esfuerzo bajo: son tareas de una sola llamada, sin herramientas.
+export const ESFUERZO_HAIKU_AGENTE = "high";
+
+/** Campos que se agregan (o pisan) en el cuerpo del pedido para ese modelo. {} si no hay nada que cambiar. `agente` = el pedido es del agente conversacional (con herramientas). */
 // deno-lint-ignore no-explicit-any
-export function extrasAnthropic(model: string): Record<string, any> {
-  if (/^claude-haiku-5/.test(model)) return { max_tokens: 2048, thinking: { type: "disabled" }, output_config: { effort: "low" } };
+export function extrasAnthropic(model: string, agente = false): Record<string, any> {
+  if (/^claude-haiku-5/.test(model)) return { max_tokens: 2048, thinking: { type: "disabled" }, output_config: { effort: agente ? ESFUERZO_HAIKU_AGENTE : "low" } };
   if (/^claude-sonnet-5-5/.test(model)) return { max_tokens: 4096, output_config: { effort: "low" } };
   return {};
 }

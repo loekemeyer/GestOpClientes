@@ -1,6 +1,6 @@
 // Haiku 5.5 en lugar de Haiku 4.5 (supabase/functions/_shared/anthropic-extras.ts). Pablo Olejavetzky, 09/10/2026. Sin red, sin IA, US$ 0.
 // Correr: deno run tests/anthropic-extras.test.ts   (sale con código 1 si algo falla)
-import { devuelvePensamiento, extrasAnthropic, sinMuestreo, textoAnthropic } from "../supabase/functions/_shared/anthropic-extras.ts";
+import { devuelvePensamiento, ESFUERZO_HAIKU_AGENTE, extrasAnthropic, sinMuestreo, textoAnthropic } from "../supabase/functions/_shared/anthropic-extras.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -11,7 +11,12 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
 
 igual("haiku 5.5: pensamiento apagado, esfuerzo bajo, 2048 de salida", extrasAnthropic("claude-haiku-5-5"),
   { max_tokens: 2048, thinking: { type: "disabled" }, output_config: { effort: "low" } });
+igual("haiku 5.5 en el agente: esfuerzo alto (13/10), el resto igual", extrasAnthropic("claude-haiku-5-5", true),
+  { max_tokens: 2048, thinking: { type: "disabled" }, output_config: { effort: ESFUERZO_HAIKU_AGENTE } });
+igual("el esfuerzo del agente con Haiku 5.5 es alto", ESFUERZO_HAIKU_AGENTE, "high");
+igual("sólo el agente cambia: sin el parámetro sigue en bajo", extrasAnthropic("claude-haiku-5-5").output_config, { effort: "low" });
 igual("haiku 4.5 sin cambios", extrasAnthropic("claude-haiku-4-5-20251001"), {});
+igual("sonnet 4.6 y sonnet 5.5 no cambian por ser del agente", [extrasAnthropic("claude-sonnet-4-6", true), extrasAnthropic("claude-sonnet-5-5", true)], [{}, { max_tokens: 4096, output_config: { effort: "low" } }]);
 igual("sonnet 4.6 sin cambios", extrasAnthropic("claude-sonnet-4-6"), {});
 igual("el cuerpo con los extras no lleva temperature", "temperature" in { model: "claude-haiku-5-5", max_tokens: 300, ...extrasAnthropic("claude-haiku-5-5") }, false);
 igual("los extras pisan el max_tokens del que llama", { max_tokens: 300, ...extrasAnthropic("claude-haiku-5-5") }.max_tokens, 2048);

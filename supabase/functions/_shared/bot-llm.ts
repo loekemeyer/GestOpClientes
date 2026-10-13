@@ -348,7 +348,7 @@ export function cuerpoAnthropic(model: string, system: SystemPrompt, tools: Tool
   const msgs = toAnthropicMessages(c.history, model);
   if (c.ultimoCliente > 0) marcarCache(msgs, c.ultimoCliente - 1);
   marcarCache(msgs, msgs.length - 1);
-  return { model, max_tokens: 1024, system: sys, tools: tl, messages: msgs, ...extrasAnthropic(model) };
+  return { model, max_tokens: 1024, system: sys, tools: tl, messages: msgs, ...extrasAnthropic(model, true) };
 }
 
 // ── Anthropic ────────────────────────────────────────────────────────────────

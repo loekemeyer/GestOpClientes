@@ -142,7 +142,7 @@ igual("free tier sigue en 0", costoEstimado({ inputTokens: 5000, outputTokens: 5
 // ── Haiku 5.5 (09/10): pensamiento apagado, esfuerzo bajo y más tope de salida; los demás modelos quedan igual ──
 const h55 = cuerpoAnthropic("claude-haiku-5-5", { estable: "E", variable: "V" }, tools, [{ role: "user", text: "hola" }]);
 igual("haiku 5.5: pensamiento apagado", h55.thinking, { type: "disabled" });
-igual("haiku 5.5: esfuerzo bajo", h55.output_config, { effort: "low" });
+igual("haiku 5.5: esfuerzo alto en el agente (13/10)", h55.output_config, { effort: "high" });
 igual("haiku 5.5: tope de salida 2048", h55.max_tokens, 2048);
 igual("haiku 5.5: sin temperature (daría 400)", "temperature" in h55, false);
 const s46 = cuerpoAnthropic("claude-sonnet-4-6", { estable: "E", variable: "V" }, tools, [{ role: "user", text: "hola" }]);
