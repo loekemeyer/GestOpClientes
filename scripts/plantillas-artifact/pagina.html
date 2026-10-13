@@ -213,8 +213,8 @@ function abrirProblema(m, origen) {
   const lista = nombres.map((n) => DATOS.plantillas.find((x) => x.name === n)).filter(Boolean);
   modal(m.motivo, `
     <div class="bloque"><h4>Cómo se arregla</h4><p>${esc(m.resumen || "")}</p></div>
-    ${lista.length ? `<div class="bloque"><h4>${lista.length > 1 ? "Los mensajes que le llegan" : "El mensaje que le llega"}</h4><div class="grid" style="grid-template-columns:1fr">${lista.map(tarjeta).join("")}</div></div>`
-      : `<div class="bloque"><h4>Qué contesta el bot</h4><p>${esc(m.bot)}</p></div>`}
+    ${lista.length ? `<div class="bloque"><h4>${lista.length > 1 ? "Los mensajes que le llegan" : "El mensaje que le llega"}</h4><div class="grid" style="grid-template-columns:1fr">${lista.map(tarjeta).join("")}</div></div>` : ""}
+    ${m.bot ? `<div class="bloque"><h4>Qué contesta el bot${lista.length ? " cuando el cliente pregunta" : ""}</h4><p>${esc(m.bot)}</p></div>` : ""}
     ${m.deriva ? `<div class="bloque"><h4>Cuándo lo ve una persona</h4><p>${esc(m.deriva)}</p></div>` : ""}
     ${m.falta ? `<div class="falta"><b>Falta:</b> ${esc(m.falta)}</div>` : ""}`, origen);
 }

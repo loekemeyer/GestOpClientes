@@ -16,7 +16,7 @@ de Loekemeyer: cuándo sale cada una, para quién, qué dice y cuántas salieron
 | `pagina.html` | La página; se arma sola desde los datos embebidos. |
 | `generar.mjs` | Junta datos + disparadores + texto definido en `_shared/plantillas-meta.ts` (marca si Meta difiere). |
 | `datos.sql` | Consulta que arma `datos.json` (sólo lectura). |
-| `soluciones.json` | Pestaña «Cómo lo resolvemos». `motivos`: una tarjeta por motivo de consulta (a mano cuando cambia el manejo). `transversal`: tarjetas bajo «En todas las consultas», para lo que vale sin importar el motivo (hoy: la IA no puede contestar, 13/10). Si un motivo tiene `previene` (plantillas), el popup muestra esos mensajes y NO el texto `bot`. |
+| `soluciones.json` | Pestaña «Cómo lo resolvemos». `motivos`: una tarjeta por motivo de consulta (a mano cuando cambia el manejo). `transversal`: tarjetas bajo «En todas las consultas», para lo que vale sin importar el motivo (hoy: la IA no puede contestar, 13/10). El popup muestra los mensajes de `previene` (si hay) y debajo el texto `bot`. |
 | `simulacion.json` | Pestaña "Últimos 2 meses": retro-simulación de los avisos (alcance, costo, demora real vs promesa de 14 días). **Foto**: la Routine diaria NO la recalcula; se rehace a pedido con las consultas de la sesión del 29/09 (fuentes en su `_nota`). |
 
 ## Pasos para actualizar (lo que hace la Routine)
