@@ -32,6 +32,7 @@ import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
 import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
+import { pareceAtaqueEntrada } from "../_shared/ataque-entrada.ts";
 import { RESPALDO_IA_CAIDA } from "../_shared/respaldo-texto.ts";
 import {
   atiendeLaPausa, botEnPausa, CLAVE_PAUSA, contextoAlertaPausa, MINUTOS_ENTRE_AVISOS_PAUSA, MOTIVO_PAUSA, sigueElCaminoNormal, textoParaGuardar,
@@ -1203,6 +1204,29 @@ async function handleMessage(
         contexto: { motivo: "blacklist", texto_recibido: text.slice(0, 200) },
       });
       return;
+    }
+  }
+
+  // 0c. Señal de ataque en la ENTRADA (riesgo 4, Pablo 13/10). Patrones de alta precisión (inyección /
+  //     extracción de prompt / jailbreak) en el texto del cliente. NO corta la respuesta —la defensa real es el
+  //     bloque de Seguridad, el canario y el filtro de salida—: sólo escala. A los 3 intentos en 24 h avisa a una
+  //     persona; a los 5, el número pasa a wa_blacklist. Si el registro falla, no rompe el flujo.
+  {
+    const det = pareceAtaqueEntrada(text);
+    if (det.hit) {
+      try {
+        const { data: r } = await supabase.rpc("bot_ataque_entrada", { p_phone: phone, p_patron: det.patron });
+        const info = (r ?? {}) as { n?: number; alertar?: boolean; blacklistear?: boolean };
+        console.warn(`[ataque-entrada] patrón "${det.patron}" de ${phone} (intento ${info.n ?? "?"}/24h)`);
+        if (info.alertar) {
+          await notificarHumano({ tipo: "otro", phone,
+            contexto: { motivo: "ataque_entrada", patron: det.patron, intentos: info.n ?? null, texto_recibido: text.slice(0, 200) } });
+        }
+        if (info.blacklistear) {
+          await supabase.from("wa_blacklist").upsert({ phone }, { onConflict: "phone", ignoreDuplicates: true });
+          console.warn(`[ataque-entrada] ${phone} a wa_blacklist (${info.n} intentos en 24 h)`);
+        }
+      } catch (e) { console.warn("[ataque-entrada] no pude registrar:", e instanceof Error ? e.message : e); }
     }
   }
 

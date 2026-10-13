@@ -129,7 +129,12 @@ muerta: están para que nadie confíe de más.
    vuelve este riesgo y hay que avisar al mail viejo + verificar por otro canal.
 3. ~~Faltan topes por acción.~~ **Cerrado el 13/10/2026:** cada acción (derivar, solicitar_*,
    armar/confirmar pedido) tiene su tope por hora y por número (Art. 7.2).
-4. **Detección de ataques en la entrada es sólo una señal**, se evade con paráfrasis.
+4. **Detección de ataques en la entrada: hecha el 13/10/2026, pero sigue siendo una SEÑAL, no una
+   barrera** (se evade con paráfrasis, por diseño). En el texto del cliente se detectan patrones de
+   alta precisión y se escala: a los 3 intentos en 24 h avisa a una persona, a los 5 el número pasa
+   a `wa_blacklist`. No corta la respuesta: la barrera real sigue siendo el bloque de Seguridad, el
+   canario y el filtro de salida. ⇒ `ataque-entrada.ts`, `bot_ataque_entrada` (sql/143), `lk_whatsapp-webhook`.
+   Queda pendiente la batería de ataques como prueba (correrla en el Simulador al tocar el prompt).
 
 ---
 

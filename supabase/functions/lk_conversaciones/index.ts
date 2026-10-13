@@ -76,6 +76,7 @@ const MOTIVO: Record<string, string> = {
   tope_gasto: "Tope de gasto de IA",
   bot_pausa: "Bot en pausa",
   archivo_sospechoso: "Auditoría: archivo sospechoso",
+  ataque_entrada: "Intento de ataque al bot",
 };
 // deno-lint-ignore no-explicit-any
 function motivoAlerta(a: any): string {
