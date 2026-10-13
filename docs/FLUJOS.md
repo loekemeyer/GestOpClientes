@@ -261,6 +261,8 @@ El Simulador hace lo mismo que el webhook; el chat de prueba manda las pistas de
 "tal cual" y ese texto ya trae el nombre. Texto aprobado por Pablo: *"No tenés pedidos registrados en este momento. El Pelador Mgo Plástico (cód. 505) tiene stock
 disponible. ✅ Ahora bien, viene en cajas de 12 unidades. 200 docenas son 2.400 unidades, lo que equivale a 200 cajas exactas. ¿Querés que te tomemos el pedido?"*
 
+**Consultar antes de preguntar (13/10, Pablo):** el agente usa la herramienta ANTES de preguntarle al cliente algo que el sistema ya sabe (regla `CONSULTÁ ANTES DE PREGUNTAR`, `agente-fijos.ts`): sus pedidos y fechas con `consultar_mis_pedidos`, la entrega con `consultar_mi_entrega`, un artículo con `buscar_productos`, un dato técnico con `consultar_kb`. Sólo pregunta lo que ninguna herramienta puede decir (qué quiere, cuántas cajas, a cuál de varios pedidos se refiere). Nace de la comparación de modelos del 13/10: con Haiku 5.5 el agente pedía la fecha, el código o el pedido en 5 de 34 casos (m4, m16, m37, m72, m73) y Sonnet 4.6 los resolvía consultando. Prueba del texto: `tests/regla-consulta-antes.test.ts`.
+
 **Costo:** cada mensaje compuesto o repetido es un turno de IA. Para compensarlo, el agente usa el caché de prompt de Anthropic (`bot-llm.ts`):
 herramientas, base del prompt, fin del historial anterior y último mensaje marcados; desde la segunda llamada del turno se leen a 0,1×, y el turno
 siguiente del mismo cliente (dentro de los 5 minutos) lee el historial anterior del caché. Las pistas llegan en el bloque `<contexto_del_sistema>` al
