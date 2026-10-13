@@ -77,8 +77,10 @@ Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
 3. **Envío rechazado por Meta después de aceptado:** cuando llega un `failed` en `wa_message_status` de algo que el bot
    ya dio por enviado, que quede registrado y le llegue a alguien (alerta o reintento). Hoy el bot no se entera.
 4. **Modelo de producción:** la decisión 2 de la sección 2.
-5. **Pausa ensayada:** apagar y prender las respuestas a clientes del piloto sin tocar código (`wa_bot_solo_whitelist` y
-   whitelist), y comprobar que la atención manual sigue funcionando.
+5. **Pausa ensayada:** apagar y prender las respuestas a clientes del piloto sin tocar código, y comprobar que la atención
+   manual sigue funcionando. **13/10: interruptor construido** (`app_settings.wa_bot_pausa`, un `UPDATE`, ver `docs/FLUJOS.md`, Flujo 0).
+   `wa_bot_solo_whitelist` NO sirve para esto: en `0` el bot contesta a todos. **Falta el ensayo en la base real** (prender, un
+   mensaje desde el canal de prueba, ver la alerta, apagar).
 
 ### Fase 1 · Circuito con el equipo (Jue 15 – Vie 16/10)
 

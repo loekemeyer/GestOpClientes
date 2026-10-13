@@ -76,6 +76,7 @@ const CORTO: Record<string, string> = {
   nota_cliente: "Nota del cliente",
   tope_ia: "Cliente pasó el tope de consultas",
   tope_gasto: "Gasto diario de IA: aviso o tope",
+  bot_pausa: "Escribió con el bot en pausa",
   archivo_sospechoso: "Auditoría: archivo con texto sospechoso",
   envio_fallido: "Mensaje del bot que no le llegó",
 };

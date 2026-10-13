@@ -1,5 +1,14 @@
 # Flujos conversacionales — BotWA-LK
 
+## Flujo 0: Pausa del bot (13/10/2026, `app_settings.wa_bot_pausa`, `_shared/pausa-bot.ts`)
+
+Es la primera puerta del webhook (después de la firma de Meta y de los estados). Con `wa_bot_pausa` prendida (`'1'`; cualquier valor que no sea vacío, `0`, `false`, `off` o `no`) el bot **no contesta a nadie** de los que atiende:
+
+- **Mensaje de texto o adjunto de un número de la whitelist** (o de cualquiera, si `wa_bot_solo_whitelist = 0`): se guarda en la conversación, deja **una** alerta `bot_pausa` por teléfono cada 30 minutos («Escribió con el bot en pausa», amarilla, va a Planify) y termina. No marca leído, no corre la IA ni las respuestas fijas ni el alta, no lee archivos ni audios y no manda el aviso de fuera de horario.
+- **Número fuera de la whitelist**: sigue su camino de siempre (descarte silencioso).
+- **No toca**: atención manual desde el panel, estados de Meta, Simulador, Chat de prueba, avisos automáticos de pedidos y facturas (esos: `wa_envio_automatico = '0'`).
+- **Prender / apagar**: `update app_settings set value = '1' where key = 'wa_bot_pausa'` / `'0'`. Efecto en unos 15 segundos.
+
 ## Flujo 1: Primer contacto (vinculación)
 
 Desde sql/072 (25/09) un número nuevo **nunca** queda vinculado sólo por escribir un CUIT (el CUIT

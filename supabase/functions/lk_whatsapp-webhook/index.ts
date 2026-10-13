@@ -18,6 +18,7 @@ import {
   extractMessage,
   downloadMediaFromMeta,
   WaApiError,
+  type WaMessage,
 } from "../_shared/wa-api.ts";
 import {
   loadHistory,
@@ -32,6 +33,9 @@ import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
 import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { RESPALDO_IA_CAIDA } from "../_shared/respaldo-texto.ts";
+import {
+  atiendeLaPausa, botEnPausa, CLAVE_PAUSA, contextoAlertaPausa, MINUTOS_ENTRE_AVISOS_PAUSA, MOTIVO_PAUSA, sigueElCaminoNormal, textoParaGuardar,
+} from "../_shared/pausa-bot.ts";
 import { abrirTurno, guardarTurno, iaEmpieza, iaTermina, type Turno } from "../_shared/tiempos-turno.ts";
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
 import { contextoAlertaTope, mensajeTope } from "../_shared/tope-ia.ts";
@@ -1066,6 +1070,32 @@ async function avisarIaCaida(cfg: Config, phone: string): Promise<void> {
   }
 }
 
+/**
+ * Pausa del bot (Pablo, 13/10, plan de producción Fase 0 punto 5; ver _shared/pausa-bot.ts). `app_settings.wa_bot_pausa` prendida: el mensaje se guarda en la
+ * conversación y deja UNA alerta `bot_pausa` por teléfono cada 30 min. NO contesta, NO marca leído, NO llama a la IA, a las respuestas fijas ni al lector de
+ * archivos, NO transcribe audios y NO manda el aviso de fuera de horario: lo único que sale de acá es una fila en la base. Nunca lanza.
+ */
+async function atenderPausa(msg: WaMessage): Promise<void> {
+  const phone = msg.from;
+  try {
+    // Meta reintenta el webhook si no ve el 200 a tiempo: el mismo candado de idempotencia que el camino normal (sql/057), para no guardar ni alertar dos veces.
+    if (msg.msgId) {
+      const { error: dup } = await supabase.from("wa_inbound_seen").insert({ wamid: msg.msgId, phone });
+      if (dup?.code === "23505") { console.log(`[pausa] wamid repetido, se ignora: ${msg.msgId}`); return; }
+    }
+    await saveMessage(phone, "user", textoParaGuardar(msg));
+    const desde = new Date(Date.now() - MINUTOS_ENTRE_AVISOS_PAUSA * 60_000).toISOString();
+    const { count } = await supabase.from("wa_alertas_humano").select("id", { count: "exact", head: true })
+      .eq("phone", phone).eq("contexto->>motivo", MOTIVO_PAUSA).gte("created_at", desde);
+    if ((count ?? 0) > 0) return;   // ya quedó avisado hace menos de 30 min
+    let cliente: CustomerContext | null = null;
+    try { cliente = await getCustomerContext(phone); } catch { /* sin cliente: la alerta sale igual con el teléfono */ }
+    await notificarHumano({ tipo: "otro", phone, customerId: cliente?.customer_id ?? null, contexto: contextoAlertaPausa(msg) });
+  } catch (e) {
+    console.error("[pausa] no se pudo registrar el mensaje:", e instanceof Error ? e.message : e);
+  }
+}
+
 // ─── Reporte de gerencia a pedido (idea 6600) ───────────────────────
 //
 // El reporte "💰 HOY" (plata del día + mes a la fecha) ya existe y sale por Telegram todos
@@ -1683,6 +1713,17 @@ Deno.serve(async (req: Request) => {
       // por cada clave (auditoría 02/10).
       await primeSettings();
       const cfg = await loadConfig();
+
+      // ── Pausa del bot (Pablo, 13/10): app_settings.wa_bot_pausa. Va ANTES de cualquier otra cosa que conteste, gaste o marque leído (adjuntos, audio, texto). Un
+      // número que la whitelist iba a descartar igual sigue su camino de siempre. Cualquier valor que no sea 0, false, off, no o vacío pausa (_shared/pausa-bot.ts).
+      if (botEnPausa(await getSetting(CLAVE_PAUSA)) && atiendeLaPausa(msg)) {
+        const soloWhitelist = Number((await getSetting("wa_bot_solo_whitelist")) ?? "1") === 1;
+        const enWhitelist = soloWhitelist ? await estaEnWhitelist(msg.from) : true;
+        if (!sigueElCaminoNormal({ pausa: true, soloWhitelist, enWhitelist })) {
+          await atenderPausa(msg);
+          return new Response("OK", { status: 200 });
+        }
+      }
 
       // Adjuntos (imagen, documento, audio, video, sticker): se guardan y se pasan a una
       // persona (ver handleAdjunto).

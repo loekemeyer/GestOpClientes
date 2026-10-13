@@ -49,6 +49,8 @@ export const CATEGORIAS: Record<string, { label: string; min: number; extra?: bo
   // Pablo, 07/10: el gasto de IA de los clientes llegó al aviso (US$ 1) o al tope (US$ 2) del día (_shared/tope-gasto.ts). Con el tope el agente se corta y los clientes
   // quedan sin respuesta de IA hasta las 00:00: una persona les contesta, por eso el plazo es corto.
   tope_gasto:             { label: "Gasto diario de IA: aviso o tope", min: 60 },
+  // Pablo, 13/10 (plan de producción, Fase 0 punto 5): un cliente escribió mientras el bot estaba en pausa (wa_bot_pausa = 1, _shared/pausa-bot.ts). El bot no le contesta: una persona tiene que hacerlo.
+  bot_pausa:              { label: "Escribió con el bot en pausa", min: 30 },
   // Pablo, 07/10: un archivo del cliente trae texto que parece una orden para el bot (_shared/archivo-sospechoso.ts). Es auditoría, no una consulta: verde y 24 h.
   archivo_sospechoso:     { label: "Auditoría: archivo con texto que parece una orden para el bot", min: 1440 },
   // Pablo, 13/10 (sql/140, P6 del plan de los 8 puntos): Meta rechazó algo que el bot ya había mandado (foto, archivo, texto o aviso), después de
