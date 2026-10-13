@@ -1,0 +1,166 @@
+<title>Agente LK: 8 puntos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: una columna de lectura (máx. 880px) con un encabezado que resume el avance en 8 segmentos, y debajo una fila por punto. */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --fg: #1b2330; --muted: #5b6575; --line: #dde2ea;
+  --accent: #2b4c7e;
+  --ok: #1f7a4d; --ok-bg: #e2f3ea; --parcial: #9a6200; --parcial-bg: #fbefd6; --no: #b3352b; --no-bg: #fbe4e1;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161d; --surface: #1a2029; --fg: #e6eaf0; --muted: #9aa4b3; --line: #2c3440; --accent: #8fb0e3;
+  --ok: #6fd3a0; --ok-bg: #173327; --parcial: #f0b860; --parcial-bg: #3a2c12; --no: #f08a80; --no-bg: #3d1d1a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161d; --surface: #1a2029; --fg: #e6eaf0; --muted: #9aa4b3; --line: #2c3440; --accent: #8fb0e3;
+  --ok: #6fd3a0; --ok-bg: #173327; --parcial: #f0b860; --parcial-bg: #3a2c12; --no: #f08a80; --no-bg: #3d1d1a; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 17px/1.5 var(--font-body); margin: 0; padding-inline: 16px; padding-block: 28px 48px; }
+.wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+h1 { font: 800 clamp(26px, 5vw, 34px)/1.15 var(--font-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 65ch; }
+.eyebrow { font: 600 12px/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+.resumen { display: flex; flex-direction: column; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+.cifra { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cifra b { font: 800 40px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.cifra span { color: var(--muted); }
+.barra { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.seg { height: 10px; border-radius: 3px; background: var(--line); }
+.seg.ok { background: var(--ok); } .seg.parcial { background: var(--parcial); } .seg.no { background: var(--no); opacity: .55; }
+.leyenda { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.supuesto { border-top: 1px solid var(--line); padding-top: 12px; font-size: 15px; color: var(--muted); }
+.supuesto strong { color: var(--fg); font-weight: 600; }
+
+.lista { display: flex; flex-direction: column; gap: 12px; }
+.punto { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: grid; grid-template-columns: 56px 1fr; overflow: hidden; }
+.num { display: flex; align-items: flex-start; justify-content: center; padding-top: 18px; font: 700 15px var(--font-mono); color: var(--muted); border-right: 1px solid var(--line); }
+.punto.ok .num { background: var(--ok-bg); color: var(--ok); }
+.cuerpo { padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.cab h2 { font: 700 20px/1.25 var(--font-display); margin: 0; text-wrap: balance; }
+.estado { font: 600 13px/1 var(--font-body); padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
+.estado.ok { background: var(--ok-bg); color: var(--ok); } .estado.parcial { background: var(--parcial-bg); color: var(--parcial); } .estado.no { background: var(--no-bg); color: var(--no); }
+.hoy { margin: 0; }
+.bloque { display: flex; flex-direction: column; gap: 4px; }
+.bloque ul { margin: 0; padding-left: 20px; }
+.bloque li { margin: 2px 0; }
+.criterio { font-size: 15px; border-left: 3px solid var(--accent); padding: 4px 0 4px 10px; color: var(--fg); }
+.pie { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+details { font-size: 15px; }
+details summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+details ol { margin: 6px 0 0; padding-left: 20px; color: var(--muted); }
+.fecha { font-family: var(--font-mono); font-size: 13px; color: var(--fg); }
+
+.vacio { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 24px 20px; color: var(--muted); }
+.vacio strong { color: var(--fg); display: block; margin-bottom: 4px; }
+.fuente { font-size: 13px; color: var(--muted); }
+@media (max-width: 520px) { .punto { grid-template-columns: 1fr; } .num { justify-content: flex-start; padding: 10px 20px 0; border-right: 0; background: none !important; } }
+</style>
+
+<main class="wrap">
+  <header>
+    <div class="eyebrow">Bot de WhatsApp · Loekemeyer</div>
+    <h1>Agente LK: 8 puntos</h1>
+    <p class="sub">Lo que le falta al bot para ser un agente que busca un resultado. Cada punto se tilda cuando cumple su criterio de «ok», no antes.</p>
+  </header>
+
+  <section class="resumen" aria-label="Avance">
+    <div class="cifra"><b id="nOk">–</b><span id="txtAvance">puntos en ok de 8</span></div>
+    <div class="barra" id="barra" aria-hidden="true"></div>
+    <div class="leyenda"><span><i style="background:var(--ok)"></i>Ok</span><span><i style="background:var(--parcial)"></i>Parcial</span><span><i style="background:var(--no);opacity:.55"></i>Falta</span><span>Meta: los 8 al cierre del piloto, viernes 23/10</span></div>
+    <div class="supuesto"><strong>Resultado que persigue el agente</strong> (confirmado por Pablo el 13/10): la consulta queda resuelta sin pasar a una persona y, si es un pedido, la precarga se aprueba sin cambios.</div>
+  </section>
+
+  <section class="lista" id="lista" aria-live="polite">
+    <div class="vacio" id="vacio"><strong>Cargando los puntos…</strong>Los 8 puntos y su estado se leen de la base de esta página. Si no aparecen, la página no pudo conectarse a la base en esta vista.</div>
+  </section>
+
+  <p class="fuente">Plan completo: docs/PLAN-AGENTE-8-PUNTOS-2026-10-13.md en el repo GestOpClientes. Lo actualiza Claude desde la sesión de trabajo cuando un punto cambia de estado.</p>
+</main>
+
+<script>
+(function () {
+  const ETQ = { ok: "Ok ✓", parcial: "Parcial", no: "Falta" };
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  const fmt = (iso) => { const d = new Date(iso); if (isNaN(d)) return ""; return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", timeZone: "America/Argentina/Buenos_Aires" }); };
+  const estadoDe = (s) => (s === "ok" || s === "parcial") ? s : "no";
+
+  function resumen(puntos) {
+    const nOk = puntos.filter((p) => estadoDe(p.estado) === "ok").length;
+    $("nOk").textContent = String(nOk);
+    $("txtAvance").textContent = (nOk === 1 ? "punto en ok" : "puntos en ok") + " de 8";
+    const barra = $("barra"); barra.replaceChildren();
+    for (let i = 1; i <= 8; i++) {
+      const p = puntos.find((x) => Number(x.numero) === i);
+      barra.append(el("div", "seg " + (p ? estadoDe(p.estado) : "")));
+    }
+  }
+
+  function fila(p) {
+    const est = estadoDe(p.estado);
+    const art = el("article", "punto " + est);
+    art.append(el("div", "num", String(p.numero).padStart(2, "0")));
+    const c = el("div", "cuerpo");
+    const cab = el("div", "cab");
+    cab.append(el("h2", null, String(p.nombre || "")), el("span", "estado " + est, ETQ[est]));
+    c.append(cab);
+    if (p.hoy) c.append(el("p", "hoy", String(p.hoy)));
+    const falta = Array.isArray(p.falta) ? p.falta.filter(Boolean) : [];
+    if (falta.length && est !== "ok") {
+      const b = el("div", "bloque"); b.append(el("span", "eyebrow", "Falta"));
+      const ul = el("ul"); for (const f of falta) ul.append(el("li", null, String(f)));
+      b.append(ul); c.append(b);
+    }
+    if (p.criterio) { const b = el("div", "bloque"); b.append(el("span", "eyebrow", "Está ok cuando"), el("div", "criterio", String(p.criterio))); c.append(b); }
+    const pie = el("div", "pie");
+    if (p.dueno) pie.append(el("span", null, "Dueño: " + p.dueno));
+    if (p.fecha_objetivo && est !== "ok") pie.append(el("span", null, "Para: " + p.fecha_objetivo));
+    if (est === "ok" && p.fecha_ok) pie.append(el("span", null, "En ok desde el " + fmt(p.fecha_ok)));
+    if (p.actualizado) pie.append(el("span", null, "Actualizado el " + fmt(p.actualizado)));
+    if (pie.childNodes.length) c.append(pie);
+    const hist = Array.isArray(p.historial) ? p.historial : [];
+    if (hist.length) {
+      const d = el("details"); d.append(el("summary", null, "Avances (" + hist.length + ")"));
+      const ol = el("ol");
+      for (const h of [...hist].reverse()) { const li = el("li"); li.append(el("span", "fecha", fmt(h.fecha) + " "), document.createTextNode(String(h.texto || ""))); ol.append(li); }
+      d.append(ol); c.append(d);
+    }
+    art.append(c);
+    return art;
+  }
+
+  function pintar(puntos) {
+    const lista = $("lista");
+    resumen(puntos);
+    if (!puntos.length) {
+      lista.replaceChildren(el("div", "vacio"));
+      lista.firstChild.append(el("strong", null, "Todavía no hay puntos cargados."), document.createTextNode("Claude los carga desde la sesión de trabajo con el estado medido de cada uno."));
+      return;
+    }
+    lista.replaceChildren(...puntos.sort((a, b) => Number(a.numero) - Number(b.numero)).map(fila));
+  }
+
+  function sinBase() {
+    const v = $("vacio"); if (!v) return;
+    v.replaceChildren(el("strong", null, "No se pudo leer la base en esta vista."), document.createTextNode("Abrí la página con tu cuenta de claude.ai para ver el estado de los 8 puntos."));
+  }
+
+  (async function () {
+    let db = null;
+    try { db = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch (e) { db = null; }
+    if (!db) { sinBase(); return; }
+    db.collection("puntos").onSnapshot(
+      (snap) => pintar(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      () => sinBase()
+    );
+  })();
+})();
+</script>

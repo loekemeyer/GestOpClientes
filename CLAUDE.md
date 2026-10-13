@@ -480,6 +480,11 @@ cambio se regeneran y se republican los dos artifacts (con `scripts/.../generar.
 - **Recorrido de un pedido web** — `scripts/flujo-pedido-artifact/` → https://claude.ai/artifact/1C6GyTJ3YYKPf9E3uC9kej
 Si el cambio todavía no está aprobado en Meta, el artifact muestra el texto del sistema (plantillas-meta.ts) y lo aclara.
 
+**Tablero de los 8 puntos del agente** (Pablo, 13/10: *"andá dándoles el check cuando estemos ya ok"*) →
+https://claude.ai/artifact/DY3rYB4AtYejUZmEyE4VoG. Toda sesión que cierre algo de un punto del plan (`docs/PLAN-AGENTE-8-PUNTOS-2026-10-13.md`)
+actualiza su fila en el mismo cambio, con `ArtifactData` (colección `puntos`, `p1`…`p8`). Un punto pasa a `ok` sólo cuando cumple su
+criterio, medido. Cómo: `scripts/ocho-puntos-artifact/LEEME.md`.
+
 ## Correcciones del artifact "Respuestas del bot por causa": cómo llegan al bot (Pablo, 05/10/2026)
 
 Artifact → https://claude.ai/artifact/BtK9a4M43Qtj7SpoUsgJoL. Colección `correcciones` (un documento por caso; `doc_id` = `clave` de `wa_agente_evals`: `m21`, `r3`…;

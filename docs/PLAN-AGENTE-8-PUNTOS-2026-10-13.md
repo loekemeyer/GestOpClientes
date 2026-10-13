@@ -174,8 +174,9 @@ informa el SQL, el efecto y el `SELECT`).
 
 ## 4. Cómo se sabe que los 8 están "ok"
 
-Un punto está ok cuando cumple su "Ok cuando" de la sección 1. Al 13/10: **2, 4 y 7 ok; 3 ok con dos huecos; 1, 5, 6 y
-8 no.** Objetivo: los 8 con su criterio cumplido al cierre del piloto, viernes 23/10, salvo 3.2 (historial faltante), que
+Un punto está ok cuando cumple su "Ok cuando" de la sección 1. Al 13/10: **2 y 4 ok; 3, 6 y 7 parciales; 1, 5 y 8 no.**
+(Corregido el 13/10: la primera versión daba el 7 por ok, pero su propio criterio pide la pausa ensayada y el tope revisado, que
+no están. El 6 pasó a parcial con lo hecho ese día.) **Tablero vivo:** https://claude.ai/artifact/DY3rYB4AtYejUZmEyE4VoG Objetivo: los 8 con su criterio cumplido al cierre del piloto, viernes 23/10, salvo 3.2 (historial faltante), que
 es de fase 3.
 
 Referencias: [plan de producción](PLAN-PRODUCCION-2026-10-13.md), [requerimientos y memoria](REQUERIMIENTOS-AGENTE-2026-10-09.md),
