@@ -46,6 +46,11 @@ Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
 1. **Qué 3 a 5 clientes entran al piloto, y quién los aprueba (Luis o Thomas).** La regla de no contactar a nadie
    (`CLAUDE.md`) exige que sea uno de ellos. Criterio sugerido: clientes con charla propia en el historial (tienen ficha),
    que ya compran por WhatsApp y que tienen un contacto que responde. Hace falta saber también si Damián cuenta como uno.
+   **Pospuesta el 13/10 (Pablo): «Pospone esa decisión hasta que no tengamos primero todo claro la constitución aprobada».** No se pide la
+   lista a Luis o Thomas hasta que esté cerrada la constitución (`CONSTITUCION-AGENTE.md`, aprobada por Pablo el 13/10, y `CONSTITUCION-BOT.md`,
+   con 8 líneas `[Probable: web]` sin visto de Pablo o Thomas). La fecha del Mié 14/10 deja de regir. **Tope real: Vie 16/10**, la compuerta de
+   las fases 0 y 1. El paso 3 de la fase 1 (cargar los clientes) necesita la decisión; si no está para entonces, el piloto pasa al Lun 26/10
+   por la regla ya acordada (`docs/ESTADO.md`, entrada del piloto). Las fases 0 y 1 siguen sin esperar: usan el canal de prueba.
 2. **Modelo de producción para el agente.** Las opciones son Sonnet 4.6 (medido, lento en la cola), Haiku 5.5 (barato y
    rápido, sin medición real) o Sonnet 5.5 (sin medir). Propuesta: medir Haiku 5.5 y Sonnet 5.5 con los casos de evaluación
    el 13/10, después de un estimativo y un "sí" (regla de gasto), y decidir con latencia, costo y aciertos en la mano.
@@ -128,7 +133,7 @@ Nada de esto bloquea el piloto si los clientes elegidos tienen charla propia y f
 
 ## 5. Dueños
 
-1. **Luis o Thomas:** aprobar la lista del piloto (decisión 1) antes del Mié 14/10, y la llave en `1` (fase 4).
+1. **Luis o Thomas:** aprobar la lista del piloto (decisión 1) — pospuesta por Pablo hasta cerrar la constitución, tope Vie 16/10 — y la llave en `1` (fase 4).
 2. **Pablo Olejavetzky:** decisiones 2, 4 y 5, revisión diaria del piloto y aprobar los gastos de prueba.
 3. **Responsable de cada sector en Planify:** tomar los casos del piloto en el día (decisión 3).
 4. **Sin dueño hoy:** exportar el historial del 10/06/2026 a hoy (decisión 5). (El SQL de la tarea 5343 estaba sin aplicar y sin
