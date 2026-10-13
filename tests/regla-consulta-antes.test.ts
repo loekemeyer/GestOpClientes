@@ -14,6 +14,10 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: nombra las cuatro herramientas de consulta`, ["consultar_mis_pedidos", "consultar_mi_entrega", "buscar_productos", "consultar_kb"].every((h) => txt.includes(h)));
   ok(`${modo}: no pide la fecha del pedido ni el código ni el nombre completo del artículo`, /No le pidas la fecha del pedido, el c[oó]digo ni el nombre completo de un art[ií]culo si pod[eé]s buscarlos vos/.test(txt));
   ok(`${modo}: pregunta sólo lo que ninguna herramienta puede decir`, /Preguntale s[oó]lo lo que ninguna herramienta te puede decir/.test(txt));
+  // 13/10, ronda 2 con Haiku 5.5: m16 («Anulá todo el pedido») y m37 («El jueves lo retiro») seguían preguntando de qué pedido se trataba.
+  ok(`${modo}: «el pedido» sin decir cuál: no pregunta de cuál ni la fecha`, /Si habla de «el pedido» sin decir cu[aá]l \(anular, retirar, cambiar, preguntar cu[aá]ndo llega\), NO le preguntes de cu[aá]l se trata ni de qu[eé] fecha es/.test(txt));
+  ok(`${modo}: toma el más reciente que no salió y lo nombra por su fecha`, /miralo con consultar_mis_pedidos, tom[aá] el m[aá]s reciente que todav[ií]a no sali[oó] y nombralo por su fecha/.test(txt));
+  ok(`${modo}: sólo pregunta entre VARIOS pedidos pendientes`, /a cu[aá]l de VARIOS pedidos pendientes se refiere/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
 }
 ok("la regla es UNA sola línea", reglasOperativas(false).split("\n").filter((l) => l.startsWith("- CONSULTÁ ANTES DE PREGUNTAR")).length === 1);
