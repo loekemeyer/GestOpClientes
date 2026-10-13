@@ -1,3 +1,6 @@
+-- ⚠ 13/10 (auditoría 715, cerrada): wa_product_match y wa_product_match_with_price están ROTAS en la base (UNION bigint/uuid y product_id bigint
+-- contra products.id uuid) y SIN llamadores desde el 07/10 (commit 5609c7f: faq.ts ya no las llama, por nombre resuelve la IA). No reconectarlas
+-- sin arreglar los tipos: exige DROP + CREATE y, con limit 1, cotizaría un artículo equivocado. Este archivo las vuelve a crear tal cual.
 -- ============================================================
 -- 008_wa_product_match.sql
 -- Matching inteligente de productos para el bot de WhatsApp
