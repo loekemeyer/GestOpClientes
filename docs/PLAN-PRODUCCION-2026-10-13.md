@@ -48,7 +48,7 @@ Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
    que ya compran por WhatsApp y que tienen un contacto que responde. Hace falta saber también si Damián cuenta como uno.
    **Pospuesta el 13/10 (Pablo): «Pospone esa decisión hasta que no tengamos primero todo claro la constitución aprobada».** No se pide la
    lista a Luis o Thomas hasta que esté cerrada la constitución (`CONSTITUCION-AGENTE.md`, aprobada por Pablo el 13/10, y `CONSTITUCION-BOT.md`,
-   con 8 líneas `[Probable: web]` sin visto de Pablo o Thomas). La fecha del Mié 14/10 deja de regir. **Tope real: Vie 16/10**, la compuerta de
+   cuyas 8 líneas `[Probable: web]` Pablo confirmó el mismo 13/10). La fecha del Mié 14/10 deja de regir. **Tope real: Vie 16/10**, la compuerta de
    las fases 0 y 1. El paso 3 de la fase 1 (cargar los clientes) necesita la decisión; si no está para entonces, el piloto pasa al Lun 26/10
    por la regla ya acordada (`docs/ESTADO.md`, entrada del piloto). Las fases 0 y 1 siguen sin esperar: usan el canal de prueba.
 2. **Modelo de producción para el agente.** Las opciones son Sonnet 4.6 (medido, lento en la cola), Haiku 5.5 (barato y

@@ -8,6 +8,8 @@
 > `[Probable: web]`, `[FALTA]`. Lo marcado `[Probable]` o `[FALTA]` pasa a firme sólo con el
 > visto de Pablo o Thomas. Hasta entonces el documento rector del bot sigue siendo
 > `docs/AGENTE.md` + `_shared/agente-fijos.ts`.
+> **13/10: Pablo confirmó las 8 líneas que seguían en `[Probable: web]`** (qué hace, a quién le vende, clientes
+> citados, slogan y contacto de Loekemeyer; qué vende, antigüedad y slogan de Chef). Hoy no queda ninguna `[Probable]` ni `[FALTA]`.
 
 ## 0. Qué es esto y qué NO es
 
@@ -26,12 +28,12 @@
 | Dato | Valor | Fuente |
 |---|---|---|
 | Empresa | Loekemeyer Hnos. S.R.L. | `[Seguro: repo]` AGENTE.md |
-| Qué hace | Fabrica utensilios de cocina (acero inox, nylon, silicona, madera) | `[Probable: web]` loekemeyer.com |
-| A quién le vende | Mayorista: supermercados, bazares y distribuidores de todo el país | `[Probable: web]` |
-| Clientes grandes citados | Jumbo, La Anónima, Coto, DIA, ChangoMas | `[Probable: web]` |
+| Qué hace | Fabrica utensilios de cocina (acero inox, nylon, silicona, madera) | `[Seguro: Pablo 13/10]` loekemeyer.com |
+| A quién le vende | Mayorista: supermercados, bazares y distribuidores de todo el país | `[Seguro: Pablo 13/10]` |
+| Clientes grandes citados | Jumbo, La Anónima, Coto, DIA, ChangoMas | `[Seguro: Pablo 13/10]` |
 | Antigüedad (uso público) | "Desde 1950", "cuarta generación de fabricantes" | `[Seguro: Pablo 13/10]` |
-| Slogan público | "Desde 1950 acompañándote en tu cocina" | `[Probable: web]` |
-| Contacto declarado | ventas@loekemeyer.com, +54 9 11 3118 1021, canales por WhatsApp | `[Probable: web]` |
+| Slogan público | "Desde 1950 acompañándote en tu cocina" | `[Seguro: Pablo 13/10]` |
+| Contacto declarado | ventas@loekemeyer.com, +54 9 11 3118 1021, canales por WhatsApp | `[Seguro: Pablo 13/10]` |
 
 ℹ **«Desde 1950» es lo que se comunica en público** (decisión de Pablo, 13/10). El registro
 público (CUIT 30-51584245-0, indicadores.ar) figura con constitución en 1900 y actividad
@@ -52,9 +54,9 @@ cliente.
 | Dato | Valor | Fuente |
 |---|---|---|
 | Qué es | **La misma empresa que Loekemeyer, operando una segunda marca** (chefsrl.com → Pedidos Mayorista) | `[Seguro: Pablo 13/10]` |
-| Qué vende | Utensilios de cocina para hogar y uso profesional | `[Probable: web]` chefsrl.com |
-| Antigüedad declarada | "Desde 1995" | `[Probable: web]` |
-| Slogan público | "La línea de utensilios más amplia del país" | `[Probable: web]` |
+| Qué vende | Utensilios de cocina para hogar y uso profesional | `[Seguro: Pablo 13/10]` chefsrl.com |
+| Antigüedad declarada | "Desde 1995" | `[Seguro: Pablo 13/10]` |
+| Slogan público | "La línea de utensilios más amplia del país" | `[Seguro: Pablo 13/10]` |
 
 El bot atiende a clientes de **las dos marcas**: a un cliente de Chef le contesta como Chef
 (hoy, en el piloto, Damián de Chef 411). `[Seguro: repo]` CLAUDE.md (bloque vasectomía).
