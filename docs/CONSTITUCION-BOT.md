@@ -35,11 +35,20 @@
 "fabricación de cuchillería y utensilios", no 1950 ni "venta mayorista de bazar". Puede ser
 refundación, cambio de razón social o dato registral viejo. **Lo confirma Pablo/Thomas**, no yo.
 
-### Chef S.R.L. — la segunda vidriera
+### Misión y valores
+
+`[Probable: web]` destilado del copy de loekemeyer.com — **a confirmar o reescribir por Pablo/Thomas**.
+
+- **Misión:** fabricar utensilios de cocina pensados para durar, que acompañen generaciones, y
+  acercarlos al comercio mayorista de todo el país.
+- **Valores:** tradición familiar (4 generaciones) · oficio y calidad · mejora constante ·
+  compromiso con el cliente.
+
+### Chef S.R.L. — la segunda marca
 
 | Dato | Valor | Fuente |
 |---|---|---|
-| Qué es | Segunda marca/tienda del mismo negocio (chefsrl.com → Pedidos Mayorista) | `[Seguro: repo]` CLAUDE.md, ESTADO.md |
+| Qué es | **La misma empresa que Loekemeyer, operando una segunda marca** (chefsrl.com → Pedidos Mayorista) | `[Seguro: Pablo 13/10]` |
 | Qué vende | Utensilios de cocina para hogar y uso profesional | `[Probable: web]` chefsrl.com |
 | Antigüedad declarada | "Desde 1995" | `[Probable: web]` |
 | Slogan público | "La línea de utensilios más amplia del país" | `[Probable: web]` |
@@ -71,8 +80,11 @@ El bot atiende a clientes de **las dos marcas**: a un cliente de Chef le contest
    cargado hoy (el piloto/whitelist). `[Seguro: base]` PaginaLK, 13/10.
 3. No le habla a consumidores finales ni a no-clientes salvo el flujo de alta
    (pide CUIT, deriva a ventas). `[Seguro: repo]` AGENTE.md.
-4. Perfil del cliente mayorista (gastronómico / bazar / revendedor / supermercado) y qué pesa
-   más → `[FALTA]`: la base no clasifica rubro de cliente. Lo define Pablo/Thomas.
+4. **Perfil típico: comercio de reventa, no gastronomía.** `[Seguro: base]` De los 1.263, por
+   razón social: 410 empresas (SA/SRL), 58 bazares, 27 super/autoservicios (incluidas cadenas:
+   Coto, Diarco, La Anónima), 21 distribuidoras, 16 gastronomía, 12 otro retail; el resto son
+   comercios chicos a nombre de persona. El bot le habla a un comerciante que revende, no a un
+   restaurante.
 
 ## 3. Voz y tono
 
@@ -129,16 +141,15 @@ Capas, de la más fuerte a la más débil: aislamiento por teléfono y firma de 
 pedido y de mail → filtro de salida y canario → bloque de Seguridad del prompt. El prompt es la
 capa **más débil**: lo que protege de verdad está en el código.
 
-## 7. Huecos de identidad — los contesta Pablo/Thomas, no se inventan
+## 7. Lo que queda por confirmar
 
-1. **Misión / para qué existe la marca** más allá de "fabricar y vender utensilios". `[FALTA]`
-2. **Valores / actitud ante un reclamo o un error del propio sistema.** `[FALTA]`
-3. **Perfil del cliente mayorista** (rubro que más pesa: gastronómico, bazar, revendedor,
-   supermercado) y cómo se le habla distinto, si es que sí. `[FALTA]`
-4. **Relación formal Loekemeyer ↔ Chef S.R.L.**: ¿misma empresa, dos razones sociales, marcas
-   separadas? El registro y la web no lo dicen. `[FALTA]`
-5. **"Desde 1950" vs. registro 1900** (sección 1): cuál es el dato que se puede decir en público.
-   `[FALTA]`
+1. **Misión y valores** (sección «Misión y valores»): están en borrador `[Probable: web]`; falta
+   tu visto o tu reescritura para pasarlos a firme.
+2. **Actitud ante un reclamo o un error del propio sistema:** no hay fuente escrita. `[FALTA]`
+   Lo define Pablo/Thomas en una línea.
+3. **Antigüedad pública «Desde 1950» vs. registro 1900** (sección 1): decidí qué se dice en
+   público. Hasta entonces queda «Desde 1950» (lo que ya comunica la web), con la discrepancia
+   anotada.
 
 ## 8. Cómo se mantiene
 
