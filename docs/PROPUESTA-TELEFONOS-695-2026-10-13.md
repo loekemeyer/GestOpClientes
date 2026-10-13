@@ -1,7 +1,7 @@
 # Propuesta: una sola fuente de teléfonos para el bot (auditoría 695)
 
-> **PROPUESTA. No se aplicó nada.** Pablo Olejavetzky, 13/10/2026: *«Sí, investigalo y traeme la propuesta»*. Todo lo de abajo son lecturas.
-> Aplicar es un cambio a una función que alimenta tablas del bot: necesita el «sí» de Pablo con el SQL exacto, y el `SELECT` de verificación después.
+> **APLICADA el 13/10/2026 (`sql/145_telefonos_gv_manda_por_cliente.sql`).** Pablo Olejavetzky: *«Sí, investigalo y traeme la propuesta»* y después *«Aplicalo»*. Resultado en la sección 7.
+> El texto original de la propuesta queda como estaba, para que se vea qué se dijo antes de aplicar.
 
 ## 1. Qué es el problema, medido el 13/10
 
@@ -76,3 +76,17 @@ select cod_cliente, source from wa_identify_customer('<teléfono de uno de los 4
 1. **¿Por qué 196 clientes de LK no pasaron a la nueva el 24/09?** (consulta `c-20261005-0913-1` a Thommy). Si se dejaron afuera a propósito, la regla «la vieja completa» los mantiene reconocibles
    cuando quizás no debería. Alternativa más estricta: no copiar la vieja, y los 196 dejan de ser reconocidos hasta que alguien los cargue en la nueva. 16 de ellos tienen pedido en los últimos 90 días.
 2. **Quién carga teléfonos hoy.** Nadie los tocó en 19 días en ninguna de las dos fuentes; si se cargan en otro lugar (`customers.whatsapp`, vinculaciones) eso sí lo lee `wa_identify_customer`.
+
+## 7. Resultado de la aplicación (13/10, 19:46 UTC)
+
+Se aplicó con `apply_migration` (`sql/145`): respaldo de la función en `zz_backups.bkp_sincronizar_ppp_20261013` con RLS prendida, cambio **sólo** del `INSERT` de teléfonos sobre la definición viva
+(la función conserva sus otros bloques: `rep_snapshot_despacho`, `gv_lk_np_feed`, `entregas_np`), y una corrida a mano de `sincronizar_ppp()`: `ok: true`, `errores: {}`, `telefonos: 807`.
+
+1. **Medido: `wa_clientes_telefono` pasó de 792 a 807 filas**, como se calculó. Los 623 clientes de LK de GV tienen su fila (0 sin fila). Ningún cliente de Chef-sólo quedó colgado de un código de LK (0).
+2. **Los 43 teléfonos de clientes de LK que no están en la tabla** son exactamente los 43 que `sql/086` saca por figurar sólo de Chef en GV: **ya faltaban antes**, no es una pérdida nueva (43 de 43 explicados).
+3. **Piloto: los 5 teléfonos (LK 1987, 3790, 3848, 3969 y 4028) siguen identificando al cliente correcto.**
+4. **Efecto que la propuesta no previó:** de los 15 clientes nuevos en la tabla, **8 se identifican bien y 7 no**. Los 7 no se identifican «de forma segura» (ninguno identifica a otro cliente): en 6 el teléfono es **también el de otro
+   cliente de Loekemeyer con distinto CUIT**, y `wa_identify_customer` no identifica a nadie cuando un teléfono es de dos empresas. O sea que esos 6 clientes «otros», que antes se reconocían, **ahora pasan a vinculación con revisión humana**.
+   Ninguno es del piloto y ninguno le escribió nunca al bot; uno (LK 3862 Jauregui) tiene 2 pedidos en 90 días, y su par nuevo es LK 2502 «Filippi Navier (Ex Jauregui)», casi seguro el mismo negocio con otro código.
+   Pares (nuevo / otro): 1941 / 747, 2340 / 1180, 2502 / 3862, 2516 / 1450, 820 / 2001, 984 / 2099. Es un dato a limpiar en GV; el séptimo (LK 2383) no se identifica por otra razón que no se investigó.
+5. **Pendiente sin cambio:** la consulta a Thommy `c-20261005-0913-1`. Los 196 clientes sólo de la vieja siguen reconocibles, porque la vieja los completa.
