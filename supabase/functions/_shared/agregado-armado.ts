@@ -29,13 +29,13 @@ function situacion(estado: string): string {
 export function textoClienteEnArmado(del: string, estado: string, items: ItemAgregado[]): string {
   return `Tu pedido del ${del} ${situacion(estado)}, así que no lo puedo modificar yo. Le consulté a Ventas si pueden sumarle:\n` +
     items.map((a) => `• ${linea(a)}`).join("\n") +
-    `\nTe confirmamos por acá si llegan a tiempo.`;
+    `\nTe confirmamos por este medio si llegan a tiempo.`;
 }
 
 /** Texto de la tarea para la persona que recibe la consulta. */
 export function textoTareaEnArmado(del: string, estado: string, items: ItemAgregado[]): string {
   return `Pidió SUMAR al pedido del ${del}, que ${situacion(estado)} (no se aplica solo, hay que ver si llega a tiempo): ` +
-    items.map(linea).join("; ") + `. Avisarle por acá si se puede o no.`;
+    items.map(linea).join("; ") + `. Avisarle por este medio si se puede o no.`;
 }
 
 /** Pedido ya entregado: no hay a qué sumarle, se hace uno nuevo. */

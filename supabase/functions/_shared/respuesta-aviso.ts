@@ -127,7 +127,9 @@ export async function avisoReciente(phone: string): Promise<AvisoReciente | null
 }
 
 // Último mensaje del historial si lo escribió el bot ("" si no): para saber si el cliente insiste con lo mismo.
-const MARCA_RETIRO_INFORMADO = "Si necesitás que sea otro día, decime cuál y se lo paso a un asesor.";
+const MARCA_RETIRO_INFORMADO = "Si necesitás que sea otro día, indicame cuál y se lo paso a un asesor.";
+// Pablo, 13/10 (tono formal): el texto anterior decía «decime cuál». Se sigue reconociendo por unos días, por los mensajes que salieron antes del cambio.
+const MARCA_RETIRO_INFORMADO_VIEJA = "Si necesitás que sea otro día, decime cuál y se lo paso a un asesor.";
 async function ultimoMensajeBot(phone: string): Promise<string> {
   const { data } = SIM.activo
     ? { data: SIM.historial.slice(-1) }
@@ -158,13 +160,13 @@ async function estadoPedido(pedido: number): Promise<string> {
   const status = String(e?.status ?? "");
   const fecha = e?.fecha_entrega ? conDia(String(e.fecha_entrega)) : "";
   if (status === "entregado") {
-    return `Tu pedido${del} figura como entregado${fecha ? ` el ${fecha}` : ""}. Si no lo recibiste, avisanos por acá y lo revisamos.`;
+    return `Tu pedido${del} figura como entregado${fecha ? ` el ${fecha}` : ""}. Si no lo recibiste, avisanos por este medio y lo revisamos.`;
   }
   if (!fecha || status === "recibido" || !status) {
-    return `Tu pedido${del} está recibido y todavía no tiene fecha de entrega. Te avisamos por acá apenas la tenga.`;
+    return `Tu pedido${del} está recibido y todavía no tiene fecha de entrega. Te avisamos por este medio apenas la tenga.`;
   }
   const etapa = status === "en preparacion" ? "en preparación" : status;
-  return `Tu pedido${del} está ${etapa} y sale el ${fecha}. Cualquier cambio te avisamos por acá.`;
+  return `Tu pedido${del} está ${etapa} y sale el ${fecha}. Cualquier cambio te avisamos por este medio.`;
 }
 
 /**
@@ -190,8 +192,8 @@ async function anularPedido(
       detalle: `Anulación del pedido del ${del} (${st})`, razon_social: customer.business_name },
   });
   return st === "recibido" || st === "pendiente"
-    ? `Tu pedido del ${del} ${estado}. Le paso la anulación a una persona del equipo, que te la confirma por acá. 🙏`
-    : `Tu pedido del ${del} ${estado}. Le paso la anulación a una persona del equipo para que revise si todavía se puede frenar, y te confirma por acá. 🙏`;
+    ? `Tu pedido del ${del} ${estado}. Le paso la anulación a una persona del equipo, que te la confirma por este medio.`
+    : `Tu pedido del ${del} ${estado}. Le paso la anulación a una persona del equipo para que revise si todavía se puede frenar, y te confirma por este medio.`;
 }
 
 export async function pedidoDeCambio(
@@ -332,7 +334,7 @@ export async function pedidoDeCambio(
     // Pablo, 01/10: pide un día ANTERIOR al que el pedido está listo: se le contesta con la fecha real (antes iba directo a un
     // asesor "para reprogramar", aunque sólo preguntaba). Si insiste (el último mensaje del bot ya fue éste), recién ahí deriva.
     const hoyYmd = ahoraAR.toISOString().slice(0, 10);
-    if (esRetiro && pedida && lista && pedida < lista && pedida >= hoyYmd && !(await ultimoMensajeBot(phone)).includes(MARCA_RETIRO_INFORMADO)) {
+    if (esRetiro && pedida && lista && pedida < lista && pedida >= hoyYmd && !((m) => m.includes(MARCA_RETIRO_INFORMADO) || m.includes(MARCA_RETIRO_INFORMADO_VIEJA))(await ultimoMensajeBot(phone))) {
       return `Tu pedido del ${fechaCorta(ped.created_at)} está programado: lo podés retirar desde el ${conDia(lista)}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ${MARCA_RETIRO_INFORMADO}`;
     }
   }
@@ -343,9 +345,9 @@ export async function pedidoDeCambio(
       razon_social: customer.business_name },
   });
   if (retiroDia) {
-    return `Le paso a un asesor el retiro de tu pedido del ${fechaCorta(ped.created_at)} para reprogramarlo y te confirma por acá. 🙏 Recordá que los retiros son ${HORARIO_RETIRO}.`;
+    return `Le paso a un asesor el retiro de tu pedido del ${fechaCorta(ped.created_at)} para reprogramarlo y te confirma por este medio. Recordá que los retiros son ${HORARIO_RETIRO}.`;
   }
-  return `Le paso tu pedido del ${fechaCorta(ped.created_at)} a un asesor para que coordine el cambio y te escriba por acá. 🙏`;
+  return `Le paso tu pedido del ${fechaCorta(ped.created_at)} a un asesor para que coordine el cambio y te escriba por este medio.`;
 }
 
 // ── Respuesta al recordatorio de descuento (pedido_recordatorio_descuento) — Pablo, 30/09 ──
@@ -376,11 +378,11 @@ async function responderRecordatorio(
       contexto: { motivo: "reclamo_saldo", plantilla: aviso.plantilla, texto_recibido: t.slice(0, 300),
         razon_social: customer.business_name, detalle: `Respondió al recordatorio de descuento de la factura${delFac}` },
     });
-    return `Gracias por avisar. Le paso tu consulta sobre la factura${delFac} a una persona del equipo para que lo revise y te escriba por acá. 🙏`;
+    return `Gracias por avisar. Le paso tu consulta sobre la factura${delFac} a una persona del equipo para que lo revise y te escriba por este medio.`;
   }
 
   if (RE_YA_PAGUE.test(t)) {
-    return "¡Gracias! Si tenés el comprobante, mandalo por acá así lo registramos. 🙏";
+    return "Gracias. Si tenés el comprobante, envialo por este medio para registrarlo.";
   }
 
   if (RE_POSTERGA.test(t) && fac && saldo > 0) {
@@ -420,7 +422,7 @@ async function responderRecordatorio(
   }
 
   if (t.length <= 60 && esAgradecimiento(t)) {
-    return `¡Gracias a vos! Cualquier consulta sobre tu factura${delFac}, escribinos por acá.`;
+    return `¡Gracias a vos! Cualquier consulta sobre tu factura${delFac}, escribinos por este medio.`;
   }
   return null;
 }
@@ -463,7 +465,7 @@ export async function responderAviso(
         razon_social: customer.business_name,
       },
     });
-    return "Le paso tu pedido a un asesor para que lo vea y te escriba por acá. 🙏";
+    return "Le paso tu pedido a un asesor para que lo vea y te escriba por este medio.";
   }
 
   if (RE_CUANDO.test(t) && aviso.pedido) {
@@ -476,7 +478,7 @@ export async function responderAviso(
       const { data: ord } = await supabase.from("orders").select("created_at").eq("id", aviso.pedido).maybeSingle();
       if (ord?.created_at) del = ` del ${fechaCorta(ord.created_at)}`;
     }
-    return `¡Gracias a vos! Cualquier consulta sobre tu pedido${del}, escribinos por acá.`;
+    return `¡Gracias a vos! Cualquier consulta sobre tu pedido${del}, escribinos por este medio.`;
   }
 
   return null;

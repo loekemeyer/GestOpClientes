@@ -278,7 +278,7 @@ export const textoDomicilio = (d: DomicilioFiscal) => `${d.calle}, ${d.localidad
 
 /** Lo que se le muestra al cliente para que confirme (siempre: nada se usa sin su "sí"). */
 export function textoConfirmaConstancia(d: ConstanciaDatos): string {
-  return `Leí tu constancia de inscripción. 📄\n\n` +
+  return `Leí tu constancia de inscripción.\n\n` +
     `• CUIT: ${formatoCuit(d.cuit)}\n` +
     `• Razón social: ${d.razonSocial}\n` +
     (d.condicionIva ? `• Condición frente al IVA: ${d.condicionIva}\n` : "") +

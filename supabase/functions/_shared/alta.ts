@@ -41,22 +41,22 @@ export async function tryRegister(phone: string, cuit: string): Promise<Register
 // que la solicitud va a revisión.
 
 export const ALTA_INTRO =
-  `¡Genial! Te tomo los datos para registrarte. 📋\n\n` +
+  `Perfecto. Te pido algunos datos para registrarte.\n\n` +
   `Te voy a ir preguntando de a uno. Si querés cortar, escribí *cancelar*.\n\n` +
-  `📄 Si tenés la *constancia de inscripción* de ARCA en PDF, mandámela y me ahorrás varias preguntas.\n\n` +
+  `📄 Si tenés la *constancia de inscripción* de ARCA en PDF, enviámela y así evitamos varias preguntas.\n\n` +
   `🔢 ¿Cuál es tu *CUIT*? (11 números, con o sin guiones)`;
 
 // Cuando el CUIT que pasó el cliente no está en el sistema (arranca el alta con el CUIT ya cargado). Webhook, Simulador y Chat de prueba.
 export const MSG_CUIT_NO_ENCONTRADO =
-  `No te encontré como cliente con ese CUIT. 🤔\n\n` +
+  `No encontré una cuenta de cliente con ese CUIT.\n\n` +
   `Si querés te tomo los datos para registrarte —así podés ver precios y hacer pedidos. ` +
   `Te pregunto de a uno (para cortar, escribí *cancelar*).\n\n` +
-  `📄 Si tenés la *constancia de inscripción* de ARCA en PDF, mandámela y completo yo los datos fiscales.\n\n` +
+  `📄 Si tenés la *constancia de inscripción* de ARCA en PDF, enviámela y completo yo los datos fiscales.\n\n` +
   `📋 ¿Cuál es tu *razón social*?`;
 
 // El CUIT ya es de un cliente (Loekemeyer o Chef): no es un alta, es vincular el número, y lo confirma una persona (sql/072, sql/116).
 export const MSG_CUIT_YA_CLIENTE =
-  "Ese CUIT ya es cliente nuestro 👍 Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por acá.";
+  "Ese CUIT ya es cliente nuestro. Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por este medio.";
 
 // Pablo, 29/09 (alta mixta): los 10 datos acordados, en este orden. El CUIT se pide sólo si el alta arrancó sin él
 // (con "registrarme"); si vino de cuit_not_found ya está validado. El vendedor, el código y el descuento los completa
@@ -74,37 +74,37 @@ type AltaPaso = {
 };
 const ALTA_STEPS: AltaPaso[] = [
   { field: "cuit", prompt: "🔢 ¿Cuál es tu *CUIT*? (11 números, con o sin guiones)", skip: (l) => !!l.cuit,
-    parse: (t) => { const c = extractCuit(t); return c ? { value: c } : { error: "Ese CUIT no parece válido 🤔 Revisá que tenga los 11 números bien copiados y pasámelo de nuevo." }; } },
+    parse: (t) => { const c = extractCuit(t); return c ? { value: c } : { error: "Ese CUIT no parece válido. Revisá que tenga los 11 números bien copiados y enviámelo de nuevo." }; } },
   { field: "razon_social", prompt: "📋 ¿Cuál es tu *razón social*?", skip: (l) => !!l.razon_social },
   { field: "condicion_iva", prompt: "🧾 ¿Condición frente al IVA? (*Responsable inscripto*, *Monotributo* o *Exento*)", skip: (l) => !!l.condicion_iva,
     parse: (t) => /inscrip|\bri\b|responsable/i.test(t) ? { value: "Responsable inscripto" }
       : /monot/i.test(t) ? { value: "Monotributo" } : /exent/i.test(t) ? { value: "Exento" }
-      : { error: "No te entendí 🤔 Escribí *Responsable inscripto*, *Monotributo* o *Exento*." } },
+      : { error: "No entendí la respuesta. Escribí *Responsable inscripto*, *Monotributo* o *Exento*." } },
   { field: "nombre_contacto", prompt: "👤 ¿*Nombre de contacto*? (nombre y apellido)" },
   { field: "telefono", prompt: "📱 ¿*Teléfono* de contacto? Si es este mismo número, escribí *este*.",
     parse: (t, phone) => /^(este|el mismo|mismo|este mismo|es este)\b/i.test(t.trim()) ? { value: phone }
-      : t.replace(/\D/g, "").length < 8 ? { error: "Ese teléfono parece corto 🤔 Pasámelo con característica (ej: *11 2345-6789*) o escribí *este*." }
+      : t.replace(/\D/g, "").length < 8 ? { error: "Ese teléfono parece corto. Indicámelo con característica (ej: *11 2345-6789*) o escribí *este*." }
       : { value: t.trim() } },
   { field: "mail", prompt: "📧 ¿*Mail*? (ej: nombre@dominio.com)",
     parse: (t) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t.trim()) ? { value: t.trim() }
-      : { error: "Ese mail no parece válido 🤔 Debería ser algo tipo *nombre@dominio.com*. ¿Me lo pasás de nuevo?" } },
+      : { error: "Ese mail no parece válido. Debería tener la forma *nombre@dominio.com*. ¿Me lo podés enviar de nuevo?" } },
   { field: "direccion", prompt: "📍 Dirección de *entrega*: ¿calle y número?",
     // Si el cliente mandó la constancia y confirmó sus datos, se le propone entregar en el domicilio fiscal (no siempre es el mismo).
-    promptDe: (l) => { const d = domicilioDeConstancia(l); return d ? `📍 ¿Entregamos en tu domicilio fiscal, *${textoDomicilio(d)}*? Respondé *sí*, o pasame la dirección de *entrega* (calle y número).` : null; },
+    promptDe: (l) => { const d = domicilioDeConstancia(l); return d ? `📍 ¿Entregamos en tu domicilio fiscal, *${textoDomicilio(d)}*? Respondé *sí*, o indicame la dirección de *entrega* (calle y número).` : null; },
     parse: (t, _phone, l) => {
       const d = domicilioDeConstancia(l);
       if (!d) return { value: t.trim() };
       if (esConfirmacion(t) || /^\W*(la misma|misma|el mismo|mismo|igual|ah[ií]|en el fiscal)\b/i.test(t)) {
         return { value: d.calle, extra: { localidad: d.localidad, provincia: d.provincia, codigo_postal: d.codigoPostal } };
       }
-      if (RE_NIEGA.test(t)) return { error: "Dale 👍 Pasame la dirección de *entrega* (calle y número)." };
+      if (RE_NIEGA.test(t)) return { error: "De acuerdo. Indicame la dirección de *entrega* (calle y número)." };
       return { value: t.trim() };
     } },
   { field: "localidad", prompt: "📍 ¿*Localidad*?", skip: (l) => !!l.localidad },
   { field: "provincia", prompt: "📍 ¿*Provincia*?", skip: (l) => !!l.provincia },
   { field: "codigo_postal", prompt: "📍 ¿*Código postal*?", skip: (l) => !!l.codigo_postal,
-    parse: (t) => { const m = t.toUpperCase().match(/\b([A-Z]?\d{4}[A-Z]{0,3})\b/); return m ? { value: m[1] } : { error: "No encontré el código postal 🤔 Son 4 números (ej: *1417*)." }; } },
-  { field: "expreso_nombre", prompt: "🚚 ¿Te lo mandamos por *expreso* (interior)? Decime cuál. Si recibís en CABA o GBA, escribí *no*.",
+    parse: (t) => { const m = t.toUpperCase().match(/\b([A-Z]?\d{4}[A-Z]{0,3})\b/); return m ? { value: m[1] } : { error: "No encontré el código postal. Son 4 números (ej: *1417*)." }; } },
+  { field: "expreso_nombre", prompt: "🚚 ¿Lo enviamos por *expreso* (interior)? Indicame cuál. Si recibís en CABA o GBA, escribí *no*.",
     parse: (t) => /^(no|ninguno|no\s+uso|reparto|caba|gba)\b/i.test(t.trim()) ? { value: null } : { value: t.trim() } },
   { field: "tipo_comercio", prompt: "🏪 Por último, ¿qué *tipo de comercio* tenés? (ej: bazar, mayorista, distribuidor). Si preferís no decirlo, escribí *saltar*.",
     parse: (t) => /^(saltar|no|-|paso)\b/i.test(t.trim()) ? { value: null } : { value: t.trim() } },
@@ -184,13 +184,13 @@ export async function procesarConstancia(
   if (d.vigenteHasta && d.vigenteHasta < hoy) {
     const [a, m, dd] = d.vigenteHasta.split("-");
     const sig = lead ? promptActual(lead) : null;
-    await send(`Esa constancia venció el ${dd}/${m}/${a}. 📄 Las de ARCA valen 30 días: bajá una nueva y mandámela, o seguimos cargando los datos a mano.` +
+    await send(`Esa constancia venció el ${dd}/${m}/${a}. Las de ARCA valen 30 días: descargá una nueva y enviámela, o seguimos cargando los datos a mano.` +
       (sig ? `\n\n${sig}` : `\n\nPara eso escribí *registrarme*.`));
     return;
   }
   if (lead?.cuit && lead.cuit !== d.cuit) {
     await send(`El CUIT de la constancia (${formatoCuit(d.cuit)}) no es el que me pasaste antes (${formatoCuit(lead.cuit)}). ` +
-      `Revisá cuál es el correcto y mandame la constancia de nuevo, o escribime el CUIT.`);
+      `Revisá cuál es el correcto y enviame la constancia de nuevo, o escribí el CUIT.`);
     return;
   }
   const entrada = { role: "constancia", estado: "pendiente", datos: d, archivo, desdeConstancia: !lead, ts: new Date().toISOString() };
@@ -203,11 +203,11 @@ export async function procesarConstancia(
 }
 
 export const MSG_ALTA_COMPLETA =
-  `✅ ¡Listo! Ya tengo todos tus datos.\n\n` +
-  `La solicitud irá a revisión y nos pondremos en contacto con vos cuando sea aprobada. ¡Gracias! 🙌`;
+  `Gracias, ya tengo todos tus datos.\n\n` +
+  `La solicitud irá a revisión y nos pondremos en contacto con vos cuando sea aprobada. Gracias.`;
 
 export const MSG_ALTA_CANCELADA =
-  `Listo, cancelé el registro. Si querés retomarlo más adelante, escribime *registrarme*. 👋`;
+  `Cancelé el registro. Si querés retomarlo más adelante, escribí *registrarme*.`;
 
 // Dispara el alta (aceptar el registro / "soy nuevo").
 //
@@ -266,15 +266,15 @@ export async function ultimoMensajeDelBot(phone: string): Promise<string> {
 
 // Textos del no-cliente que todavía no arrancó el alta. Los usan el webhook, el Simulador y el Chat de prueba.
 export const MSG_CUIT_INVALIDO =
-  `Ese CUIT no parece válido 🤔\n\n` +
+  `Ese CUIT no parece válido.\n\n` +
   `Verificá que tenga *11 dígitos* y esté bien copiado (con o sin guiones), y probá de nuevo.\n\n` +
   `Si no lo tenés a mano, escribinos a ventas@loekemeyer.com`;
 
 // Pablo, 05/10: antes mezclaba las dos cosas en una sola pregunta ("pasame tu CUIT… si todavía no sos cliente, decime registrarme")
 // y quien quería ser cliente no sabía qué contestar. Ahora son dos caminos, cada uno con su palabra. "sí" / "dale" también arrancan el alta.
 export const MSG_NO_CLIENTE =
-  `Todavía no te tengo registrado como cliente. 🤔\n\n` +
-  `• Si ya sos cliente: pasame tu *CUIT* (con o sin guiones) y te vinculo este número.\n` +
+  `Todavía no te tengo registrado como cliente.\n\n` +
+  `• Si ya sos cliente: indicame tu *CUIT* (con o sin guiones) y te vinculo este número.\n` +
   `• Si querés ser cliente: escribí *registrarme* y te tomo los datos (te pregunto de a uno).`;
 
 export interface RespuestaNoCliente { respuestas: string[]; via: string }
@@ -311,7 +311,7 @@ export async function atenderNoCliente(
     if (ya?.length || yaCh?.length) {
       const nombre = ya?.length ? ya[0].business_name : yaCh![0].razon_social;
       return {
-        respuestas: [`Encontré la cuenta de *${nombre}*. 👍\n\nPor seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. (Prueba: no se pide la vinculación.)`],
+        respuestas: [`Encontré la cuenta de *${nombre}*.\n\nPor seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. (Prueba: no se pide la vinculación.)`],
         via: ya?.length ? "registro por CUIT" : "registro por CUIT (cliente de Chef)",
       };
     }
@@ -472,7 +472,7 @@ export async function handleAltaStep(
       if (!lead.condicion_iva && d.condicionIva) relleno.condicion_iva = d.condicionIva;
       messages[messages.length - 1] = { ...entrada, estado: "aplicada" };
       messages.push(mensajeCliente);
-      await guardarYAvanzar(phone, lead, messages, relleno, lead.alta_step ?? 0, send, "Perfecto, ya tengo tus datos fiscales. ✅\n\n");
+      await guardarYAvanzar(phone, lead, messages, relleno, lead.alta_step ?? 0, send, "Perfecto, ya tengo tus datos fiscales.\n\n");
       return;
     }
     messages[messages.length - 1] = { ...entrada, estado: "descartada" };
@@ -492,11 +492,11 @@ export async function handleAltaStep(
 
   if (step >= ALTA_STEPS.length) {
     // Ya estaba completo (mensaje tardío) — no re-notificar.
-    await send("Tu solicitud ya está registrada y en revisión ✅ Te avisamos por acá cuando se apruebe.");
+    await send("Tu solicitud ya está registrada y en revisión. Te avisamos por este medio cuando se apruebe.");
     return;
   }
   const paso = ALTA_STEPS[step];
-  if (!text.trim()) { await send("Se me quedó vacío 🤔 ¿Me lo repetís?"); return; }
+  if (!text.trim()) { await send("No recibí ningún texto. ¿Me lo podés repetir?"); return; }
   const r: AltaParse = paso.parse ? paso.parse(text, phone, lead) : { value: text.trim() };
   if ("error" in r) { await send(r.error); return; }   // dato mal → se repregunta el MISMO campo
 

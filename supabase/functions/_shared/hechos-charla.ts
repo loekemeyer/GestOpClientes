@@ -89,7 +89,7 @@ function lineaAlerta(a: AlertaHecho, ahora: Date): string | null {
   const abierta = a.estado !== "atendido";
   if (edad > D7 || (!abierta && edad > H24)) return null;
   const estado = abierta
-    ? "Todavía no la tomó nadie: una persona le va a escribir por acá."
+    ? "Todavía no la tomó nadie: una persona le va a escribir por este medio."
     : `En el sistema figura atendida${a.atendido_at ? ` (${hora(a.atendido_at, ahora)})` : ""}.`;
   return `- ${hora(a.created_at, ahora)}: se pasó a una persona su consulta sobre ${motivo}. ${estado}`;
 }

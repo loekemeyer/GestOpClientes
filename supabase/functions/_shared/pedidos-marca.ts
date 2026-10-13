@@ -117,7 +117,7 @@ export function textoPedidosChef(
   if (!visibles.length) {
     if (opts.soloSiHay) return null;
     if (!nuevos.length) {
-      return `${saludo}no veo pedidos de Chef en los últimos 30 días. Si hiciste uno por otro medio, decime de qué fecha es y se lo paso a una persona del equipo.`;
+      return `${saludo}no veo pedidos de Chef en los últimos 30 días. Si hiciste uno por otro medio, indicame de qué fecha es y se lo paso a una persona del equipo.`;
     }
     const u = nuevos[0];
     const cuando = u.entregado_at ?? u.fecha_entrega;

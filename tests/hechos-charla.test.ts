@@ -22,7 +22,7 @@ const foto = (hhmmss: string) => ({ nombre: "enviar_fotos_producto", parametros:
 const fotos505 = [foto("12:39:06"), foto("12:39:34"), foto("12:40:03"), foto("12:40:23")];
 const damian = bloqueHechos([pase858], fotos505, AHORA);
 igual("Damián: el pase de las 09:32 a Ventas aparece, abierto", lineas(damian)[0],
-  "- hoy 09:32: se pasó a una persona su consulta sobre la entrega de un pedido. Todavía no la tomó nadie: una persona le va a escribir por acá.");
+  "- hoy 09:32: se pasó a una persona su consulta sobre la entrega de un pedido. Todavía no la tomó nadie: una persona le va a escribir por este medio.");
 igual("Damián: las 4 fotos del 505 salen en una sola línea, con la última hora", lineas(damian)[1],
   "- Le mandaste la foto del cód. 505: 4 veces, la última hoy 09:40.");
 igual("el bloque arranca con su título", damian.split("\n")[0], "## Hechos de esta charla");
@@ -48,7 +48,7 @@ igual("descartada no entra", una({ motivo: "entrega", estado: "descartado" }), [
 igual("de prueba (simulador, viene como texto de la base) no entra", una({ motivo: "entrega", simulador: "true" }), []);
 igual("de prueba (simulador booleano) no entra", una({ motivo: "entrega", simulador: true }), []);
 igual("escalation sin motivo (FAQ que pide una persona) entra", una({ tipo: "escalation", motivo: null }),
-  ["- hoy 09:00: se pasó a una persona su consulta sobre una consulta que necesitaba una persona. Todavía no la tomó nadie: una persona le va a escribir por acá."]);
+  ["- hoy 09:00: se pasó a una persona su consulta sobre una consulta que necesitaba una persona. Todavía no la tomó nadie: una persona le va a escribir por este medio."]);
 igual("comprobante recibido sin motivo entra", una({ tipo: "comprobante_recibido", motivo: null }).length, 1);
 igual("alta de cliente entra", una({ tipo: "alta_cliente_nuevo", motivo: "solicitud_alta_completa" })[0].includes("su alta como cliente"), true);
 igual("atendida en las últimas 24 h: entra con la hora en que se atendió",
@@ -56,7 +56,7 @@ igual("atendida en las últimas 24 h: entra con la hora en que se atendió",
   ["- hoy 09:00: se pasó a una persona su consulta sobre un cambio en un pedido. En el sistema figura atendida (hoy 09:20)."]);
 igual("atendida hace más de 24 h: no entra", una({ motivo: "cambio_pedido", estado: "atendido", created_at: "2026-10-07T10:00:00Z" }), []);
 igual("abierta de hace 3 días: entra con la fecha", una({ motivo: "reclamo", created_at: "2026-10-05T13:00:00Z" }),
-  ["- 05/10 10:00: se pasó a una persona su consulta sobre un reclamo. Todavía no la tomó nadie: una persona le va a escribir por acá."]);
+  ["- 05/10 10:00: se pasó a una persona su consulta sobre un reclamo. Todavía no la tomó nadie: una persona le va a escribir por este medio."]);
 igual("abierta de hace 8 días: no entra", una({ motivo: "reclamo", created_at: "2026-09-30T13:00:00Z" }), []);
 igual("la fecha es la de Argentina (02:30 UTC del 08/10 = 23:30 del 07/10)", una({ motivo: "pago", created_at: "2026-10-08T02:30:00Z" })[0].slice(0, 15), "- 07/10 23:30: ");
 igual("fecha ilegible: no entra", una({ motivo: "pago", created_at: "no-es-fecha" }), []);

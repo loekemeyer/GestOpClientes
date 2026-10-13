@@ -6,7 +6,7 @@
 // tests/respaldo-texto.test.ts.
 
 /** Respaldo de siempre: el modelo no devolvió nada y no se derivó. */
-export const RESPALDO_SIN_TEXTO = "Contame un poco más tu consulta así te ayudo.";
+export const RESPALDO_SIN_TEXTO = "¿Podrías darme más detalle de tu consulta para poder ayudarte?";
 /** Respaldo cuando en el turno se derivó con derivar_a_persona y el modelo no escribió nada. */
 export const RESPALDO_DERIVADO = "Gracias por avisarnos. Una persona del equipo te va a responder por este medio.";
 

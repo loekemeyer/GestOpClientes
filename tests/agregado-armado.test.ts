@@ -32,7 +32,7 @@ igual("cliente: sin número de pedido ni cierre de cortesía", !/#|nro|n°|algo 
 const tarea = textoTareaEnArmado("25/09", "facturado", dos);
 igual("tarea: dice que pidió SUMAR y que no se aplica solo", tarea.includes("Pidió SUMAR al pedido del 25/09") && tarea.includes("no se aplica solo"), true);
 igual("tarea: trae código y cajas de cada artículo", tarea.includes("3 cajas de Pelador X (cód. 505); 1 caja de Abrelatas Y (cód. 501)"), true);
-igual("tarea: pide avisarle al cliente", /Avisarle por acá/.test(tarea), true);
+igual("tarea: pide avisarle al cliente", /Avisarle por este medio/.test(tarea), true);
 
 const ent = textoClienteEntregado("25/09");
 igual("entregado: pedido nuevo en la web", ent.includes("ya fue entregado") && ent.includes("Pedidos Mayorista"), true);

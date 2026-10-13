@@ -34,12 +34,12 @@ export async function atenderMalHumor(
     yaAvisado = !!data?.length;
   }
   if (yaAvisado) {
-    return "Ya le avisé a una persona del equipo: te escribe por acá a la brevedad. 🙏";
+    return "Ya le avisé a una persona del equipo: te escribe por este medio a la brevedad.";
   }
   await notificarHumano({
     tipo: "escalation", phone, customerId: customer?.customer_id ?? null,
     contexto: { motivo: "cliente_molesto", urgente: true, texto_recibido: text.trim().slice(0, 300),
       razon_social: customer?.business_name ?? null, ...(customer?.empresa ? { empresa: customer.empresa } : {}) },
   });
-  return "Perdón por las molestias. Ya le paso tu mensaje a una persona del equipo para que te responda cuanto antes por acá. 🙏";
+  return "Perdón por las molestias. Ya le paso tu mensaje a una persona del equipo para que te responda cuanto antes por este medio.";
 }

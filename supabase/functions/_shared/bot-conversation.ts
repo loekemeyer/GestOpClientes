@@ -145,7 +145,7 @@ const BOT_TOOLS: ToolDef[] = [
     // otros WhatsApp. Esta herramienta crea la alerta (Centro de mensajes › Tareas + cartel de Planify).
     name: "derivar_a_persona",
     description:
-      "Pasa la conversación a una persona del equipo: queda como alerta en el Centro de mensajes y le llega a quien atiende. Usala SIEMPRE que haga falta alguien: reclamos (nota de crédito, faltante, mercadería rota, factura mal o duplicada, descuento que no se aplicó), pagos o importes que no coinciden, cambios o cancelaciones de pedido, un pedido que el cliente dice haber hecho y no aparece, alta de cliente, problemas con la web que no podés resolver, o cuando el cliente pide hablar con alguien. Después de usarla decile al cliente que una persona del equipo le escribe por acá. Nunca le des mails ni otros números para que se arregle solo; la única excepción son los datos de Cobranzas que devuelve esta misma herramienta con el motivo pago (datos_cobranzas).",
+      "Pasa la conversación a una persona del equipo: queda como alerta en el Centro de mensajes y le llega a quien atiende. Usala SIEMPRE que haga falta alguien: reclamos (nota de crédito, faltante, mercadería rota, factura mal o duplicada, descuento que no se aplicó), pagos o importes que no coinciden, cambios o cancelaciones de pedido, un pedido que el cliente dice haber hecho y no aparece, alta de cliente, problemas con la web que no podés resolver, o cuando el cliente pide hablar con alguien. Después de usarla decile al cliente que una persona del equipo le escribe por este medio. Nunca le des mails ni otros números para que se arregle solo; la única excepción son los datos de Cobranzas que devuelve esta misma herramienta con el motivo pago (datos_cobranzas).",
     input_schema: {
       type: "object",
       properties: {
@@ -595,12 +595,12 @@ async function executeTool(
         try {
           const datos = datosCobranzas(await datosEmpresas(), { lk: true, chef: false });
           if (datos) {
-            return { data: { ok: true, mensaje: "Listo: quedó derivado a Cobranzas. Decile al cliente que Cobranzas le escribe por acá y, para consultas sobre sus pagos, pasale estos datos de Cobranzas tal cual (no agregues otros).",
+            return { data: { ok: true, mensaje: "Listo: quedó derivado a Cobranzas. Decile al cliente que Cobranzas le escribe por este medio y, para consultas sobre sus pagos, pasale estos datos de Cobranzas tal cual (no agregues otros).",
               datos_cobranzas: datos } };
           }
         } catch (e) { console.warn("derivar_a_persona: datos de Cobranzas:", e instanceof Error ? e.message : e); }
       }
-      return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por acá." } };
+      return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por este medio." } };
     }
 
     case "solicitar_cambio_mail": {
@@ -652,7 +652,7 @@ async function executeTool(
         contexto: { motivo: "cambio_datos", origen: "agente_ia", sucursal: suc, texto: `Agregar dirección de entrega: ${texto}`,
           razon_social: cli[0].customer_name ?? null, urgente: false },
       });
-      return { data: { ok: true, texto_para_el_cliente: `Listo, pedí que agreguen la dirección ${texto}. Una persona la revisa y te confirmamos por acá; después la vas a poder elegir en tu próximo pedido en la web.`,
+      return { data: { ok: true, texto_para_el_cliente: `Pedí que agreguen la dirección ${texto}. Una persona la revisa y te confirmamos por este medio; después la vas a poder elegir en tu próximo pedido en la web.`,
         regla: "Pasale este texto tal cual." } };
     }
 
@@ -742,7 +742,7 @@ async function executeTool(
       });
       return { data: { ok: true, texto_para_el_cliente: `Listo, dejé pedido el agregado a tu pedido del ${del}:\n` +
         agregar.map((a) => `• ${cj(a.cajas)} de ${a.descripcion} (cód. ${a.cod})`).join("\n") +
-        `\nUna persona lo aprueba y te confirmamos por acá con el total nuevo.`, regla: "Pasale este texto tal cual." } };
+        `\nUna persona lo aprueba y te confirmamos por este medio con el total nuevo.`, regla: "Pasale este texto tal cual." } };
     }
 
     case "consultar_mis_pedidos": {
@@ -901,14 +901,14 @@ async function executeTool(
       // Datos para transferir de CADA empresa con facturas (Chef sin alias cargado: no se le da el de LK).
       const emp = await datosEmpresas();
       const datos_para_pagar = (["lk", "chef"] as const).filter((k) => rows.some((r) => r.empresa === k)).map((k) =>
-        textoDatosPago(emp[k], hayChef) ?? `Para las facturas de ${emp[k].nombre}, Cobranzas te pasa los datos de pago por acá.`);
+        textoDatosPago(emp[k], hayChef) ?? `Para las facturas de ${emp[k].nombre}, Cobranzas te pasa los datos de pago por este medio.`);
       return { data: { saldo_total: pesos(saldo),
         ...(Math.round(conDto) < Math.round(saldo) ? { total_con_descuento: `${pesos(conDto)} (pagando cada factura hasta su fecha de descuento)` } : {}),
         facturas, datos_para_pagar, nota: "Importes con IVA, redondeados a pesos. Cobranzas quedó avisada de la consulta.",
         // Thommy, 30/09: en toda respuesta de importes, pedir el comprobante.
         regla: hayChef
-          ? "Tiene facturas de Loekemeyer y de Chef: separalas por empresa y, si da datos para pagar, los de cada empresa tal cual datos_para_pagar (nunca el alias de una para las facturas de la otra). Cerrá pidiéndole que, cuando pague, mande el comprobante por acá."
-          : "Cerrá pidiéndole que, cuando pague, mande el comprobante por acá." } };
+          ? "Tiene facturas de Loekemeyer y de Chef: separalas por empresa y, si da datos para pagar, los de cada empresa tal cual datos_para_pagar (nunca el alias de una para las facturas de la otra). Cerrá pidiéndole que, cuando pague, mande el comprobante por este medio."
+          : "Cerrá pidiéndole que, cuando pague, mande el comprobante por este medio." } };
     }
 
     case "consultar_mis_descuentos": {
@@ -1182,7 +1182,7 @@ async function executeTool(
         return { data: { ok: false, no_cargado: true, regla: REGLA_BLOQUEO[veredicto.motivo] } };
       }
       if (SIM.activo) {
-        return { data: { ok: true, simulado: true, texto_para_el_cliente: "¡Listo! Recibimos tu pedido. Lo revisamos y te llega la confirmación por acá. 🙌" } };
+        return { data: { ok: true, simulado: true, texto_para_el_cliente: "Recibimos tu pedido. Lo revisamos y te llega la confirmación por este medio." } };
       }
       // Pasó la compuerta: ahora sí se guarda. Si entre los dos armados cambió el total (precio o stock), no se carga lo que el cliente no vio.
       const g = await armar(true);
@@ -1228,8 +1228,8 @@ async function executeTool(
         },
       });
       return { data: { ok: true, texto_para_el_cliente: directo?.ok
-        ? "¡Listo! Tu pedido quedó cargado. Te llega la confirmación por acá. 🙌"
-        : "¡Listo! Recibimos tu pedido. Lo revisamos y te llega la confirmación por acá. 🙌",
+        ? "Tu pedido quedó cargado. Te llega la confirmación por este medio."
+        : "Recibimos tu pedido. Lo revisamos y te llega la confirmación por este medio.",
         regla: "Pasale este texto tal cual. No le digas número de pedido." } };
     }
 

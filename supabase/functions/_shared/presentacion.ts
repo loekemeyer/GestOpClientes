@@ -11,7 +11,7 @@
 /** Texto aprobado por Pablo el 08/10. */
 export const TEXTO_PRESENTACION =
   "Soy el agente de Loekemeyer, especializado en tu cuenta: te ayudo con tus pedidos, tus compras, tus facturas, el stock y los productos que te pueden servir. " +
-  "Si algo necesita a una persona del equipo, le aviso y te escribe por acá.";
+  "Si algo necesita a una persona del equipo, le aviso y te escribe por este medio.";
 
 const QUE = "(?:bot|bote|boot|robot|agente|persona|humano|humana|m[aá]quina|ia|inteligencia artificial|programa|contestador(?:a)? autom[aá]tic[oa])";
 // «¿sos un bot?», «vos sos un bote, un agente o una persona», «¿eres una IA?», «¿estoy hablando con una persona?», «lo que me respondió es un boot o un agente».

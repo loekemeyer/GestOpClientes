@@ -105,7 +105,7 @@ const pesos2 = (n: number): string => "$" + n.toLocaleString("es-AR", { minimumF
 export function textoComparacion(cot: CotizadorLeido, dif: Diferencia[]): string {
   if (!dif.length) return "";
   const nombre = (d: Diferencia) => `${d.descripcion || "Artículo"} (cód. ${d.cod})`;
-  const lineas: string[] = [`💰 Ojo, tu cotizador puede estar desactualizado: estos valores no coinciden con los de la web.`];
+  const lineas: string[] = [`💰 Atención: tu cotizador puede estar desactualizado: estos valores no coinciden con los de la web.`];
   for (const d of dif.slice(0, 15)) {
     if (d.tipo === "precio") lineas.push(`• ${nombre(d)}: en tu cotizador ${pesos((d.cotizador ?? 0) * (d.uxb ?? 1))} por caja; en la web ${pesos((d.web ?? 0) * (d.uxb ?? 1))} por caja.`);
     else if (d.tipo === "unidades_por_caja") lineas.push(`• ${nombre(d)}: tu cotizador dice ${d.cotizador} unidades por caja; en la web son ${d.web}.`);

@@ -40,7 +40,7 @@ test_faq() {
 # FAQ Tests
 echo "📋 AUTO FAQs (0 tokens)"
 test_faq 10 "¿Donde está mi factura?" "factura se envía"
-test_faq 10 "no llegó factura" "pasame tu CUIT"
+test_faq 10 "no llegó factura" "indicame tu CUIT"
 test_faq 15 "¿Como pago?" "medios de pago"
 test_faq 15 "transferencia bancaria" "Credicoop"
 test_faq 15 "datos para transferir" "CBU"

@@ -40,7 +40,7 @@ igual("ficha sin mail: sin registro (no dice 'no coincide')", compararMails(["a@
 // ── los textos aprobados por Pablo (opción A) ──
 igual("la pregunta", PREGUNTA_MAIL_FACTURAS, "¿A qué mail te llegaron las facturas? Lo chequeo.");
 igual("coincide: texto", TEXTO_MAIL_COINCIDE, "Perfecto, es el mismo que tenemos registrado.");
-igual("no coincide: texto", TEXTO_MAIL_NO_COINCIDE, "Ese mail no coincide con el que tenemos registrado. Una persona de Ventas lo revisa y te escribe por acá.");
+igual("no coincide: texto", TEXTO_MAIL_NO_COINCIDE, "Ese mail no coincide con el que tenemos registrado. Una persona de Ventas lo revisa y te escribe por este medio.");
 igual("sin registro: texto (el de la opción B)", TEXTO_MAIL_SIN_REGISTRO, "Gracias, se lo paso a Ventas para que lo chequee.");
 igual("ningún texto de respuesta muestra un mail", [TEXTO_MAIL_COINCIDE, TEXTO_MAIL_NO_COINCIDE, TEXTO_MAIL_SIN_REGISTRO].some((x) => x.includes("@")), false);
 

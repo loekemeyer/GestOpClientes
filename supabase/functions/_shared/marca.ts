@@ -132,7 +132,7 @@ async function estadoDeLasDos(customer: NonNullable<Customer>, cuenta: CuentaChe
   const lk = (await lookupOrderStatus(customer)) ?? "";
   const chef = await pedidosChef({ cuit: cuenta.cuit });
   const bloqueChef = chef === null
-    ? "No pude consultar tus pedidos de Chef en este momento: una persona del equipo te los confirma por acá. 🙏"
+    ? "No pude consultar tus pedidos de Chef en este momento: una persona del equipo te los confirma por este medio."
     : textoPedidosChef(customer.business_name, chef, hoyAR(), { cierre: false, sinNombre: true })!;
   return `${etiquetaMarca("lk")}\n${lk}\n\n${etiquetaMarca("chef")}\n${bloqueChef}`;
 }

@@ -7,7 +7,7 @@
 export const PREGUNTA_MAIL_FACTURAS = "¿A qué mail te llegaron las facturas? Lo chequeo.";
 
 export const TEXTO_MAIL_COINCIDE = "Perfecto, es el mismo que tenemos registrado.";
-export const TEXTO_MAIL_NO_COINCIDE = "Ese mail no coincide con el que tenemos registrado. Una persona de Ventas lo revisa y te escribe por acá.";
+export const TEXTO_MAIL_NO_COINCIDE = "Ese mail no coincide con el que tenemos registrado. Una persona de Ventas lo revisa y te escribe por este medio.";
 /** La ficha no tiene mail (95 de 1.263 clientes al 07/10) o no se pudo leer: no hay con qué comparar, se lo pasa a Ventas. Texto de la opción B que vio Pablo. */
 export const TEXTO_MAIL_SIN_REGISTRO = "Gracias, se lo paso a Ventas para que lo chequee.";
 

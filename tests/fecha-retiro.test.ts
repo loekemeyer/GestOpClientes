@@ -60,9 +60,9 @@ igual("retiro facturado con fecha pasada: sin día, igual dice 'listo para retir
 
 // ── m36 y m37 (07/10): retiro con la pregunta de la franja y el aviso a Ventas ──
 igual("m36/m37: el texto aprobado por Pablo (con la pregunta)", textoRetiroConfirmado("30/09", "jueves 08/10", true),
-  "Sí, podés retirar tu pedido del 30/09 el jueves 08/10, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅\n¿Pasás por la mañana o por la tarde? Le avisamos a Ventas para que lo tenga a mano.");
+  "Sí, podés retirar tu pedido del 30/09 el jueves 08/10, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788.\n¿Pasás por la mañana o por la tarde? Le avisamos a Ventas para que lo tenga a mano.");
 igual("hoy pasado el mediodía: sin la pregunta, con el aviso", textoRetiroConfirmado("30/09", "miércoles 07/10", false),
-  "Sí, podés retirar tu pedido del 30/09 el miércoles 07/10, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅\nLe avisamos a Ventas para que lo tenga a mano.");
+  "Sí, podés retirar tu pedido del 30/09 el miércoles 07/10, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788.\nLe avisamos a Ventas para que lo tenga a mano.");
 igual("la respuesta a la franja (texto aprobado)", textoFranjaConfirmada("jueves 08/10", "mañana"), "Perfecto, te esperamos el jueves 08/10 por la mañana. Ya le avisamos a Ventas.");
 igual("la respuesta a la franja, tarde", textoFranjaConfirmada("jueves 08/10", "tarde"), "Perfecto, te esperamos el jueves 08/10 por la tarde. Ya le avisamos a Ventas.");
 igual("la pregunta es la marca del texto", textoRetiroConfirmado("30/09", "jueves 08/10", true).includes(PREGUNTA_FRANJA), true);
@@ -79,7 +79,7 @@ igual("retiroInformado: vacío", retiroInformado(""), null);
 
 // ── m39 (07/10): "Estoy llegando, ¿me esperan?" ──
 igual("m39: el texto aprobado por Pablo", textoLlegando("Estamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (de 12 a 13 cerramos para almorzar)."),
-  "Le aviso ahora mismo a Ventas para confirmar que te puedan esperar y te escribimos por acá en un momento. 🙏\nEstamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (de 12 a 13 cerramos para almorzar).");
+  "Le aviso ahora mismo a Ventas para confirmar que te puedan esperar y te escribimos por este medio en un momento.\nEstamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (de 12 a 13 cerramos para almorzar).");
 igual("m39: ya no promete '¡Te esperamos!'", /Te esperamos/.test(textoLlegando("x")), false);
 // 2026-10-07 es miércoles; la hora de Argentina es UTC-3
 const ar = (iso: string) => new Date(iso);

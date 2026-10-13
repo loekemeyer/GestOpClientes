@@ -105,7 +105,7 @@ const etiquetaStock = (s: StockArticulo | null | undefined) =>
 export function textoProductosChef(
   prods: ProductoChef[], stocks: Map<string, StockArticulo | null>, precio: boolean,
 ): { reply: string; alerta?: { motivo: string; detalle: string } } {
-  const cierrePrecio = precio ? "\n\nEl precio te lo pasa una persona del equipo por acá. 🙏" : "";
+  const cierrePrecio = precio ? "\n\nEl precio te lo pasa una persona del equipo por este medio." : "";
   const alertaPrecio = precio ? { motivo: "cliente_chef", detalle: `Cliente de Chef pide el precio de: ${prods.slice(0, 3).map((p) => `${p.description.trim()} (${p.cod})`).join("; ")}.` } : undefined;
   if (prods.length === 1) {
     const p = prods[0], s = stocks.get(p.cod);
@@ -119,10 +119,10 @@ export function textoProductosChef(
   const lista = prods.slice(0, MAX_LISTA);
   const conStock = lista.length <= MAX_CON_STOCK;
   const lineas = lista.map((p) => `• ${nombreProd(p)} — ${cajaDe(p)}${conStock ? etiquetaStock(stocks.get(p.cod)) : ""}`);
-  const mas = prods.length > MAX_LISTA ? `\nHay más resultados: decime la medida o el tipo para afinar.` : "";
+  const mas = prods.length > MAX_LISTA ? `\nHay más resultados: indicame la medida o el tipo para afinar la búsqueda.` : "";
   return {
     reply: `Encontré estos productos de *Chef*:\n\n${lineas.join("\n")}${mas}\n\n` +
-      `Decime el código del que te interesa y te confirmo ${conStock ? "el detalle" : "el stock"}.${cierrePrecio}`,
+      `Indicame el código del que te interesa y te confirmo ${conStock ? "el detalle" : "el stock"}.${cierrePrecio}`,
     alerta: alertaPrecio,
   };
 }
@@ -148,8 +148,8 @@ export function esPedidoDeFoto(text: string): boolean {
 /** Varios productos para una foto: se lista y se pide el código (una foto por pedido). */
 export function textoElegirFoto(prods: ProductoChef[]): string {
   const lista = prods.slice(0, MAX_LISTA).map((p) => `• ${nombreProd(p)}`);
-  const mas = prods.length > MAX_LISTA ? "\nHay más resultados: decime la medida o el tipo para afinar." : "";
-  return `Encontré varios así en *Chef*:\n\n${lista.join("\n")}${mas}\n\n¿De cuál te paso la foto? Con el código alcanza. 📷`;
+  const mas = prods.length > MAX_LISTA ? "\nHay más resultados: indicame la medida o el tipo para afinar la búsqueda." : "";
+  return `Encontré varios así en *Chef*:\n\n${lista.join("\n")}${mas}\n\n¿De cuál querés la foto? Con el código alcanza.`;
 }
 
 /** La respuesta a "mandame la foto de X" con ya el producto elegido. `url` = la foto, ya verificada. */
@@ -157,9 +157,9 @@ export function respuestaFoto(p: ProductoChef, url: string, precio: boolean): Re
   const desc = String(p.description).trim();
   return {
     // "foto de X" (no "del"): sirve para cualquier género.
-    reply: `¡Claro! Acá te paso la foto de ${nombreProd(p)}. 📷${precio ? "\n\nY el precio te lo confirma una persona del equipo por acá. 🙏" : ""}`,
+    reply: `Te envío la foto de ${nombreProd(p)}.${precio ? "\n\nEl precio te lo confirma una persona del equipo por este medio." : ""}`,
     via: "chef_foto",
-    imagenes: [{ url, caption: `${desc} (cód. ${p.cod}). Viene en caja de ${p.uxb}. 😊` }],
+    imagenes: [{ url, caption: `${desc} (cód. ${p.cod}). Viene en caja de ${p.uxb}.` }],
     ...(precio ? { alerta: { motivo: "cliente_chef", detalle: `Cliente de Chef pide foto y precio de: ${desc} (${p.cod}).` } } : {}),
   };
 }
@@ -200,10 +200,10 @@ export async function responderProductosChef(text: string): Promise<RespuestaPro
   const precio = RE_PRECIO.test(n);
 
   if (!terminos.length) {
-    if (foto) return { reply: "¡Con gusto! ¿De qué producto querés ver la foto? Contame el nombre o el código (por ejemplo, 437E). 📷", via: "chef_foto_pregunta" };
+    if (foto) return { reply: "¿De qué producto querés ver la foto? Indicame el nombre o el código (por ejemplo, 437E).", via: "chef_foto_pregunta" };
     // "¿Tienen catálogo?" / "pasame la lista de precios": Chef no tiene un PDF cargado en el bot.
     if (RE_CATALOGO.test(n)) {
-      return { reply: "El catálogo y la lista de precios de Chef te los pasa una persona del equipo por acá. 🙏", via: "chef_catalogo_persona",
+      return { reply: "El catálogo y la lista de precios de Chef te los pasa una persona del equipo por este medio.", via: "chef_catalogo_persona",
         alerta: { motivo: "cliente_chef", detalle: "Cliente de Chef pide el catálogo o la lista de precios." } };
     }
     return null;
@@ -216,7 +216,7 @@ export async function responderProductosChef(text: string): Promise<RespuestaPro
     return null;
   }
   if (!prods.length) {
-    return { reply: "No encontré ese producto en el catálogo de Chef. Le paso tu consulta a una persona del equipo para que te confirme. 🙏",
+    return { reply: "No encontré ese producto en el catálogo de Chef. Le paso tu consulta a una persona del equipo para que te confirme.",
       via: "chef_producto_sin_resultado",
       alerta: { motivo: "cliente_chef", detalle: `Cliente de Chef busca "${terminos.join(" ")}" y no figura en el catálogo de Chef.` } };
   }
@@ -226,7 +226,7 @@ export async function responderProductosChef(text: string): Promise<RespuestaPro
     const base = (await getSetting("chef_fotos_base_url").catch(() => null))?.trim() || FOTOS_BASE_DEFECTO;
     const url = urlFotoChef(p.cod, base);
     if (await fotoExiste(url)) return respuestaFoto(p, url, precio);
-    return { reply: `Uy, ahora no puedo conseguir la foto de ${nombreProd(p)}. Le aviso a una persona del equipo para que te la mande por acá. 🙏`,
+    return { reply: `En este momento no puedo obtener la foto de ${nombreProd(p)}. Le aviso a una persona del equipo para que te la envíe por este medio.`,
       via: "chef_foto_no_disponible",
       alerta: { motivo: "cliente_chef", detalle: `Cliente de Chef pide la foto de ${String(p.description).trim()} (${p.cod}) y no se pudo obtener.` } };
   }

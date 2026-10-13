@@ -121,7 +121,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   // Pablo, 07/10 (m71): prospecto (no cliente) que dice que escribió por mail para comercializar y no le respondieron → disculpas + Ventas. El motivo `pedido_mail` ya va a Ventas (sector 8)
   // y se parece (el prospecto "mandó un pedido estimativo por mail"); su etiqueta del panel no es exacta. Texto aprobado por Pablo el 07/10. Sólo si el número NO es cliente.
   if (!customer && avisaProspectoSinRespuesta(text)) {
-    return { reply: "Te pedimos disculpas por la demora en responderte. Le paso tu consulta a Ventas para que te escriban por acá a la brevedad. 🙏",
+    return { reply: "Te pedimos disculpas por la demora en responderte. Le paso tu consulta a Ventas para que te escriban por este medio a la brevedad.",
       intent: "prospecto_sin_respuesta", automation_level: "needs_human", topic: "Prospecto que escribió por mail y no recibió respuesta",
       alerta: { motivo: "pedido_mail", urgente: false, detalle: `Prospecto sin respuesta: escribió por mail para comercializar sus productos y dice que no le respondieron: ${text.slice(0, 200)}` } };
   }
@@ -165,7 +165,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   }
   // Pablo, 06/10 (m64): "¿Se podrá efectuar el pago el próximo viernes?" / "¿les puedo pagar la semana que viene?" → lo ve Cobranzas.
   if (customer && pidePagarDespues(text)) {
-    return { reply: "Gracias por avisarnos. Le paso tu consulta a Cobranzas para que te confirme por acá si se puede pagar en esa fecha. 🙏",
+    return { reply: "Gracias por avisarnos. Le paso tu consulta a Cobranzas para que te confirme por este medio si se puede pagar en esa fecha.",
       intent: "pago_otra_fecha", automation_level: "needs_human", topic: "Quiere pagar en otra fecha",
       alerta: { motivo: "pago", urgente: false, detalle: `Pide pagar en otra fecha: ${text.slice(0, 200)}` } };
   }
@@ -179,7 +179,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   }
   // Pablo, 07/10 (m11): "Adjunto orden de compra…" → fija + alerta `pedido_archivo` (no urgente) para Ventas. Va ANTES de vaALaIA: "adjunto … orden de compra" cuenta como pedido en curso y mandaba el mensaje a la IA. Texto aprobado por Pablo. El destino a Ventas se carga en Derivaciones con su "sí" (hoy ese motivo no tiene destino).
   if (customer && avisaOrdenDeCompra(text)) {
-    return { reply: "Recibimos tu orden de compra. Una persona de Ventas la revisa y te escribe por acá a la brevedad para confirmártela. 🙏",
+    return { reply: "Recibimos tu orden de compra. Una persona de Ventas la revisa y te escribe por este medio a la brevedad para confirmártela.",
       intent: "orden_de_compra", automation_level: "needs_human", topic: "Orden de compra",
       alerta: { motivo: "pedido_archivo", urgente: false, detalle: `Dice que adjunta una orden de compra: ${text.slice(0, 200)}` } };
   }
@@ -194,7 +194,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   }
   // Pablo, 07/10 (m67): "Todavía no recibí las NC" → fijo + alerta para Ventas (motivo nota_cliente, sin tocar Derivaciones). Va ANTES de vaALaIA y de RE_FALTANTE (un faltante con la NC ya pedida no repregunta la factura).
   if (customer && avisaNotaDeCreditoPendiente(text)) {
-    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa tus notas de crédito y te escribe por acá para confirmarte. 🙏",
+    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa tus notas de crédito y te escribe por este medio para confirmarte.",
       intent: "nota_credito_pendiente", automation_level: "needs_human", topic: "Pregunta por notas de crédito que todavía no recibió",
       alerta: { motivo: "nota_cliente", urgente: false, detalle: `Pregunta por notas de crédito que todavía no recibió: ${text.slice(0, 250)}` } };
   }
@@ -204,7 +204,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   if (customer && pideEntregaRapida(text) && RE_CANTIDAD_CON_UNIDAD.test(text)) return null;
   // Pablo, 06/10 (m59): "¿hay posibilidades de entrega rápida?" / "¿pueden adelantar la entrega?" → lo ve Ventas (motivo entrega): "todas las dudas pasan por Ventas primero".
   if (customer && pideEntregaRapida(text)) {
-    return { reply: "Una persona de Ventas revisa si se puede acelerar la entrega y te escribe por acá en un momento.",
+    return { reply: "Una persona de Ventas revisa si se puede acelerar la entrega y te escribe por este medio en un momento.",
       intent: "entrega_rapida", automation_level: "needs_human", topic: "Pide entrega rápida o adelantar la entrega",
       alerta: { motivo: "entrega", urgente: false, detalle: `Pide entrega rápida o adelantar la entrega: ${text.slice(0, 200)}` } };
   }
@@ -228,8 +228,8 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
     const fac = text.match(RE_NRO_FACTURA)?.[0];
     return {
       reply: fac
-        ? `Disculpá el inconveniente. Quedó registrado el faltante de la factura ${fac}: una persona del equipo te gestiona la nota de crédito y te escribe por acá. 🙏`
-        : "Disculpá el inconveniente. ¿Me pasás el número de la factura en la que vino el pedido? Figura arriba a la derecha (por ejemplo, FCA 0004-00036011). Con eso una persona del equipo te gestiona la nota de crédito y te escribe por acá. 🙏",
+        ? `Disculpá el inconveniente. Quedó registrado el faltante de la factura ${fac}: una persona del equipo te gestiona la nota de crédito y te escribe por este medio.`
+        : "Disculpá el inconveniente. ¿Me podés indicar el número de la factura en la que vino el pedido? Figura arriba a la derecha (por ejemplo, FCA 0004-00036011). Con eso una persona del equipo te gestiona la nota de crédito y te escribe por este medio.",
       intent: "faltante", automation_level: "needs_human", topic: "Faltante: pide nota de crédito",
       alerta: { motivo: "reclamo", detalle: `Faltante${fac ? ` (factura ${fac})` : ""}: ${text.slice(0, 200)}` },
     };
@@ -237,20 +237,20 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   // Pablo, 30/09 (11.1): "Los coladores vinieron todos rotos" → se le pide la foto. La foto que manda después la guarda el
   // webhook (bucket wa-comprobantes) y la suma como reclamo, porque en los 30 min anteriores habló de rotura (RE_ADJ_RECLAMO).
   if (customer && RE_ROTURA.test(text)) {
-    return { reply: "Disculpá el inconveniente. ¿Nos mandás por acá una foto de la mercadería rota? La guardamos con el reclamo y una persona del equipo te escribe para resolverlo. 🙏",
+    return { reply: "Disculpá el inconveniente. ¿Nos podés enviar por este medio una foto de la mercadería rota? La guardamos con el reclamo y una persona del equipo te escribe para resolverlo.",
       intent: "mercaderia_rota", automation_level: "needs_human", topic: "Mercadería rota o fallada",
       alerta: { motivo: "reclamo", urgente: true, detalle: `Mercadería rota (se le pidió foto): ${text.slice(0, 200)}` } };
   }
   // Thommy, 30/09 (11.3): "Los pelapapas vinieron con el mismo código de barras" repreguntaba. Es un reclamo: alerta
   // (va a Planify) y se le pide la foto de la etiqueta (el webhook la suma al reclamo: RE_ADJ_RECLAMO mira "código de barras").
   if (customer && RE_ETIQUETA.test(text)) {
-    return { reply: "Disculpá el inconveniente. Le paso a una persona del equipo para que revise el etiquetado y te escriba por acá. Si podés, mandanos una foto de la etiqueta. 🙏",
+    return { reply: "Disculpá el inconveniente. Le paso a una persona del equipo para que revise el etiquetado y te escriba por este medio. Si podés, envianos una foto de la etiqueta.",
       intent: "error_etiqueta", automation_level: "needs_human", topic: "Error de etiqueta o código de barras",
       alerta: { motivo: "reclamo", detalle: `Error de etiqueta / código de barras: ${text.slice(0, 200)}` } };
   }
   // Pablo, 06/10 (m17): "Cargué todo por unidad y después lo edité por caja" → fijo + alerta para Ventas (cambio_pedido); sin repreguntar si es de la web.
   if (customer && avisaErrorDeCarga(text)) {
-    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa cómo quedó cargado tu pedido y te escribe por acá. 🙏",
+    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa cómo quedó cargado tu pedido y te escribe por este medio.",
       intent: "error_de_carga", automation_level: "needs_human", topic: "Error de carga de un pedido",
       alerta: { motivo: "cambio_pedido", detalle: `Avisa un error de carga de un pedido ya hecho: ${text.slice(0, 250)}` } };
   }
@@ -263,7 +263,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   // Pablo, 06/10 (m66): "Vamos a devolver unas cucharas que no pedimos…" → por ahora lo maneja Ventas (motivo devolucion, editable en
   // Derivaciones). Un faltante o una rotura con "devolver" en el medio siguen en sus respuestas de arriba.
   if (customer && quiereDevolver(text)) {
-    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa tu devolución y te escribe por acá para coordinarla. 🙏",
+    return { reply: "Gracias por avisarnos. Una persona de Ventas revisa tu devolución y te escribe por este medio para coordinarla.",
       intent: "devolucion", automation_level: "needs_human", topic: "Devolución de mercadería",
       alerta: { motivo: "devolucion", detalle: `Devolución de mercadería: ${text.slice(0, 200)}` } };
   }
@@ -284,7 +284,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   // Pablo, 30/09 (1.9): "Figura programado para el 30/09 pero en el detalle dice 13/10, ¿cuál es?". La IA le contestaba
   // "¿puede ser que el 13/10 lo hayas visto en otro lado?": nunca se asume que el cliente se equivocó. Lo revisa una persona.
   if (customer && RE_FECHAS_NO_COINCIDEN.test(text)) {
-    return { reply: "Gracias por avisarnos. Le pido a una persona del equipo que revise las fechas de tu pedido y te confirme por acá cuál es la correcta. 🙏",
+    return { reply: "Gracias por avisarnos. Le pido a una persona del equipo que revise las fechas de tu pedido y te confirme por este medio cuál es la correcta.",
       intent: "fechas_no_coinciden", automation_level: "needs_human", topic: "Fechas del pedido que no coinciden",
       alerta: { motivo: "entrega", detalle: `Fechas que no coinciden: ${text.slice(0, 200)}` } };
   }
@@ -318,12 +318,12 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
     const d = await pedidosDuplicados(customer);
     if (d) {
       return { reply: `Veo ${d.cantidad} pedidos del ${d.del} por ${d.importe}, cargados con ${d.minutos} de diferencia.\n` +
-        `No anulamos nada por nuestra cuenta: una persona revisa cuál queda y te confirma por acá.`,
+        `No anulamos nada por nuestra cuenta: una persona revisa cuál queda y te confirma por este medio.`,
         intent: "pedido_duplicado", automation_level: "semi_auto",
         alerta: { motivo: "cambio_pedido", urgente: true, pedidos: d.ids, detalle: "Posible pedido duplicado" } };
     }
     if (pedidoPorMailRepetido(text)) {
-      return { reply: "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido.\nUna persona revisa el mail y te escribe por acá. 🙏",
+      return { reply: "Revisé tus pedidos de los últimos 7 días y no veo ninguno repetido.\nUna persona revisa el mail y te escribe por este medio.",
         intent: "pedido_mail", automation_level: "needs_human", topic: "Pedido enviado por mail que no se cargó",
         alerta: { motivo: "pedido_mail", urgente: false, detalle: `Pedido enviado por mail que no aparece (sin duplicados en la web): ${text.slice(0, 200)}` } };
     }
@@ -332,7 +332,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   }
   // Pablo, 29/09: "no me deja elegir la sucursal" es un problema de acceso a la web: lo revisa una persona.
   if (RE_SUCURSAL_WEB.test(text)) {
-    return { reply: "Una persona revisa tu acceso a la web y las sucursales de entrega cargadas, y te escribe por acá.",
+    return { reply: "Una persona revisa tu acceso a la web y las sucursales de entrega cargadas, y te escribe por este medio.",
       intent: "acceso_web", automation_level: "needs_human", topic: "Acceso a la web: no puede elegir sucursal",
       alerta: { motivo: "acceso_web", detalle: "No puede elegir sucursal en la web" } };
   }
@@ -591,7 +591,7 @@ async function lookupPaymentData(faq: any, customer: Customer): Promise<string |
   if (!chef?.length) return base;
   const emp = await datosEmpresas();
   return `${base.replace(/\n*\*?Alias:/, "\n\nPara las facturas de Loekemeyer:\n*Alias:")}\n\n` +
-    (textoDatosPago(emp.chef, true) ?? "Para las facturas de Chef, Cobranzas te pasa los datos de pago por acá.");
+    (textoDatosPago(emp.chef, true) ?? "Para las facturas de Chef, Cobranzas te pasa los datos de pago por este medio.");
 }
 
 export const RE_NO_LLEGO = /\b(no (me )?(lleg[oó]|vino|entregaron|trajeron)|nunca lleg|todav[ií]a no (lleg|vino|me)|ten[ií]a que (llegar|venir|haber llegado)|deb[ií]a (llegar|venir)|sigo esperando|no lleg[oó] nada)/i;
@@ -809,7 +809,7 @@ async function destinoPedidos(customer: NonNullable<Customer>): Promise<string |
     if (lineas.length >= 8) break;
   }
   if (!lineas.length) return null;
-  return `${lineas.length > 1 ? "Así van tus pedidos" : "Así va tu pedido"}:\n\n${lineas.join("\n")}\n\nSi alguna dirección no es la correcta, avisanos por acá y lo corregimos.`;
+  return `${lineas.length > 1 ? "Así van tus pedidos" : "Así va tu pedido"}:\n\n${lineas.join("\n")}\n\nSi alguna dirección no es la correcta, avisanos por este medio y lo corregimos.`;
 }
 
 async function pedidoExpresoAbierto(customer: NonNullable<Customer>): Promise<{ del: string; expreso: string; sale: string | null } | null> {
@@ -1154,7 +1154,7 @@ async function descuentosFacturasBlock(customer: NonNullable<Customer>): Promise
     const grupos = await deudaAgrupada(customer.cod_cliente);
     // Pablo, 30/09: sin facturas abiertas se lo dice (un error de lectura, en cambio, devuelve "" y la línea no sale).
     if (grupos === null) return "";
-    if (!grupos.length) return "*Tus facturas abiertas:* no tenés facturas con saldo pendiente. ✅";
+    if (!grupos.length) return "*Tus facturas abiertas:* no tenés facturas con saldo pendiente.";
     const { pesos, ddmm, lineasPago } = await contextoDescuentos();
     const MAX = 1;   // Pablo, 30/09 (4.3): sólo la última; el resto si lo pide.
     const bloques: string[] = [];
@@ -1229,15 +1229,15 @@ export async function pagoRegistrado(ctx: CtxPagos, text: string): Promise<FaqRe
     const dias = u ? Math.round((Date.parse(hoy) - Date.parse(u.fecha_primer_cobro.slice(0, 10))) / 86400_000) : null;
     if (u && dias !== null && dias <= 7) {
       return { reply: `Sí, tenemos registrado tu pago${a(u)} del ${ddmm(u.fecha_primer_cobro)} por ${pesos(u.pagado)}${u.medio ? ` (${u.medio})` : ""}. ¡Gracias! ` +
-        "Si te referís a otro pago, contame la fecha y el importe y le aviso a Cobranzas.", intent: "pago_recibido", automation_level: "semi_auto" };
+        "Si te referís a otro pago, indicame la fecha y el importe y le aviso a Cobranzas.", intent: "pago_recibido", automation_level: "semi_auto" };
     }
     const ultimo = u ? ` (el último que tenemos es del ${ddmm(u.fecha_primer_cobro)} por ${pesos(u.pagado)}${a(u)})` : "";
-    return cobranzas(`Todavía no lo vemos registrado${ultimo}. Le aviso a Cobranzas para que lo revise y te confirme por acá. Si tenés el comprobante, mandalo por acá así lo agilizan. 🙏`,
+    return cobranzas(`Todavía no lo vemos registrado${ultimo}. Le aviso a Cobranzas para que lo revise y te confirme por este medio. Si tenés el comprobante, envialo por este medio para agilizarlo.`,
       `Pregunta si llegó su pago; no hay recibo de los últimos 7 días${u ? ` (último ${ddmm(u.fecha_primer_cobro)} ${pesos(u.pagado)}${a(u)})` : ""}. Escribió: ${text.slice(0, 150)}`);
   } catch (e) {
     console.warn("pagoRegistrado:", e instanceof Error ? e.message : e);
     if (datos === null) await cargarDatos(!!ctx.codChef);
-    return cobranzas("Le aviso a Cobranzas para que revise tu pago y te confirme por acá. 🙏", `Pregunta si llegó su pago. Escribió: ${text.slice(0, 150)}`);
+    return cobranzas("Le aviso a Cobranzas para que revise tu pago y te confirme por este medio.", `Pregunta si llegó su pago. Escribió: ${text.slice(0, 150)}`);
   }
 }
 
@@ -1281,15 +1281,15 @@ export async function facturaDuplicada(ctx: CtxPagos, text: string): Promise<Faq
       if (iguales.length > 1) {
         const lista = iguales.map((x) => `${nro(x)} del ${ddmm(x.fecha)}`).join(" y ");
         const importe = "$" + Math.round(Number(d.total)).toLocaleString("es-AR");
-        return res(`Disculpá el inconveniente. Veo ${iguales.length} facturas por ${importe}: ${lista}. Le paso a una persona del equipo para que lo corrija y te confirme por acá. 🙏`,
+        return res(`Disculpá el inconveniente. Veo ${iguales.length} facturas por ${importe}: ${lista}. Le paso a una persona del equipo para que lo corrija y te confirme por este medio.`,
           `Factura duplicada: ${lista} por ${importe}. Escribió: ${text.slice(0, 150)}`, true);
       }
     }
-    return res("Disculpá el inconveniente. En tus facturas de los últimos 60 días no encuentro dos por el mismo importe, así que le paso a una persona del equipo para que lo revise con vos. Si tenés los números de las facturas, pasámelos por acá. 🙏",
+    return res("Disculpá el inconveniente. En tus facturas de los últimos 60 días no encuentro dos por el mismo importe, así que le paso a una persona del equipo para que lo revise con vos. Si tenés los números de las facturas, enviámelos por este medio.",
       `Dice que le facturaron dos veces; no hay dos facturas del mismo importe en 60 días. Escribió: ${text.slice(0, 150)}`, false);
   } catch (e) {
     console.warn("facturaDuplicada:", e instanceof Error ? e.message : e);
-    return res("Disculpá el inconveniente. Le paso a una persona del equipo para que lo revise y te confirme por acá. 🙏",
+    return res("Disculpá el inconveniente. Le paso a una persona del equipo para que lo revise y te confirme por este medio.",
       `Dice que le facturaron dos veces. Escribió: ${text.slice(0, 150)}`, true);
   }
 }
@@ -1311,7 +1311,7 @@ export async function lookupFacturaReenvio(ctx: CtxPagos, message: string): Prom
     if (/\bchef\b/.test(t0)) lista = lista.filter((d) => d.empresa === "chef");
     else if (/loeke/.test(t0)) lista = lista.filter((d) => d.empresa === "lk");
     if (!lista.length) {
-      return derivar("factura_no_encontrada", "No encuentro facturas a tu nombre. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏");
+      return derivar("factura_no_encontrada", "No encuentro facturas a tu nombre. Ya le paso el pedido a una persona del equipo para que te la envíe.");
     }
     // Qué fecha: "28/09" → ese día; "julio" → la última de ese mes; si no, el último día facturado.
     const t = message.toLowerCase();
@@ -1339,12 +1339,12 @@ export async function lookupFacturaReenvio(ctx: CtxPagos, message: string): Prom
     }
     const { pesos, ddmm, lineasPago, cfg } = await contextoDescuentos();
     if (!documentos.length) {
-      return derivar("factura_sin_pdf", `Tu factura del ${ddmm(fecha)} todavía no tiene el PDF cargado. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏`);
+      return derivar("factura_sin_pdf", `Tu factura del ${ddmm(fecha)} todavía no tiene el PDF cargado. Ya le paso el pedido a una persona del equipo para que te la envíe.`);
     }
     const total = elegidas.reduce((s, d) => s + Number(d.total || 0), 0);
     const empresasDia = new Set(elegidas.map((d) => d.empresa));
     const deQuien = dos && empresasDia.size === 1 ? (empresasDia.has("chef") ? " de Chef" : " de Loekemeyer") : "";
-    const lineas = [`Te mando ${documentos.length > 1 ? `las ${documentos.length} facturas` : "la factura"}${deQuien} del ${ddmm(fecha)} (total ${pesos(total)}). 📄`];
+    const lineas = [`Te envío ${documentos.length > 1 ? `las ${documentos.length} facturas` : "la factura"}${deQuien} del ${ddmm(fecha)} (total ${pesos(total)}).`];
     let alerta: FaqResult["alerta"];
     // Loekemeyer: descuento vigente hoy, con el saldo real de ese día (Deuda Viva) y la tabla de descuentos de LK.
     if (empresasDia.has("lk") && ctx.codLk) {
@@ -1370,15 +1370,15 @@ export async function lookupFacturaReenvio(ctx: CtxPagos, message: string): Prom
       if (delDia.length) {
         hayChefConSaldo = true;
         const datos = textoDatosPago((await datosEmpresas()).chef, false);
-        lineas.push("", datos ? `Datos para el pago:\n${datos}` : "Los datos para transferir a Chef te los pasa Cobranzas por acá.");
+        lineas.push("", datos ? `Datos para el pago:\n${datos}` : "Los datos para transferir a Chef te los pasa Cobranzas por este medio.");
         if (!datos) alerta = { motivo: "pago", urgente: false, detalle: "Se le reenvió una factura de Chef con saldo y la ficha Empresas no tiene el alias/CBU de Chef: pasale los datos para transferir." };
       }
     }
-    if (lineas.some((l) => l.startsWith("Datos para el pago")) || hayChefConSaldo) lineas.push("", "Cuando pagues, mandanos el comprobante por acá. 🙏");
+    if (lineas.some((l) => l.startsWith("Datos para el pago")) || hayChefConSaldo) lineas.push("", "Cuando pagues, envianos el comprobante por este medio.");
     return { reply: lineas.join("\n"), intent: "factura_reenvio", automation_level: "semi_auto", documentos, ...(alerta ? { alerta } : {}) };
   } catch (e) {
     console.warn("lookupFacturaReenvio:", e instanceof Error ? e.message : e);
-    return derivar("factura_error", "No pude buscar tu factura en este momento. Ya le paso el pedido a una persona del equipo para que te la mande. 🙏");
+    return derivar("factura_error", "No pude buscar tu factura en este momento. Ya le paso el pedido a una persona del equipo para que te la envíe.");
   }
 }
 

@@ -294,7 +294,7 @@ export function textoConfirmacion(arts: ArticuloPedido[], opts: { cotizador?: bo
   if (suc) t += `\n\n${suc}`;
   if (arts.some((a) => a.opciones?.length)) {
     if (arts.some((a) => a.estado === "dudoso" && !a.opciones?.length)) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
-    return t + `\n\nDecinos cuál querés en las líneas con ❓ (con el código alcanza)${suc ? ", el número de la dirección" : ""} y cualquier otro cambio.${opts.seguir ? "" : " Una persona lo carga."}`;
+    return t + `\n\nIndicanos cuál querés en las líneas con ❓ (con el código alcanza)${suc ? ", el número de la dirección" : ""} y cualquier otro cambio.${opts.seguir ? "" : " Una persona lo carga."}`;
   }
   if (arts.some((a) => a.estado === "dudoso")) t += `\n❓ = revisalo, no estamos seguros del artículo o la cantidad.`;
   // Pablo, 06/10 (m41): con la comparación de precios se le pide que confirme ARTÍCULO Y VALOR ("como si fuera un pedido por WhatsApp").
@@ -326,6 +326,6 @@ export async function respuestaPedidoArchivo(phone: string, text: string, seguir
   // Pedidos por WhatsApp prendidos: la respuesta la da el agente, que sigue con forma de pago y entrega (o los cambios)
   // y precarga el pedido; al precargarlo cierra esta tarea (confirmar_pedido) para que nadie lo cargue dos veces.
   if (seguir) return null;
-  return si ? "¡Gracias! Una persona lo carga en la web y te confirmamos por acá. 🙌"
-    : "Anotado. Una persona revisa el pedido con tus cambios y te escribe por acá. 🙌";
+  return si ? "Gracias. Una persona lo carga en la web y te confirmamos por este medio."
+    : "Anotado. Una persona revisa el pedido con tus cambios y te escribe por este medio.";
 }

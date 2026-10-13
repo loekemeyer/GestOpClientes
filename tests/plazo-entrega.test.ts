@@ -29,7 +29,7 @@ igual("texto de fecha: miércoles con ceros", textoFecha("2026-11-04"), "miérco
 igual("plazo general", textoPlazo(), "El plazo de entrega hoy es de 14 días hábiles desde que hacés el pedido.");
 igual("m62: texto completo", textoPedidoParaFecha("2026-10-06", ["2026-10-12"]),
   "Hoy la entrega estimada es de 14 días hábiles: si hacés el pedido hoy, sería el martes 27/10.\n" +
-  "Para la fecha que necesitás lo consulta una persona de Ventas y te escribe por acá. ¿Qué artículos necesitás?");
+  "Para la fecha que necesitás lo consulta una persona de Ventas y te escribe por este medio. ¿Qué artículos necesitás?");
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");

@@ -131,11 +131,11 @@ export async function atenderClienteChef(
     return { reply: r.reply, via, ...(r.documentos?.length ? { documentos: r.documentos } : {}) };
   };
 
-  if (esCortesia(t)) return { reply: "¡De nada! 🙌", via: "chef_gracias" };
+  if (esCortesia(t)) return { reply: "De nada.", via: "chef_gracias" };
 
   if (esSoloSaludo(t)) {
     return {
-      reply: `¡Hola${cuenta.razon_social ? ` ${cuenta.razon_social}` : ""}! 👋\n\n` +
+      reply: `¡Hola${cuenta.razon_social ? ` ${cuenta.razon_social}` : ""}!\n\n` +
         `Por acá te puedo pasar tus facturas de Chef (saldo, descuento y el PDF) y los datos para transferir. ` +
         `Para cualquier otra consulta te responde una persona del equipo. ¿En qué te ayudo?`,
       via: "chef_saludo", yaSaluda: true,
@@ -156,8 +156,8 @@ export async function atenderClienteChef(
     // Pablo, 01/10: con los datos de Cobranzas de Chef (ficha Empresas), si están cargados.
     const cob = datosCobranzas(await datosEmpresas(), { lk: false, chef: true });
     return {
-      reply: "¡Gracias! Le paso a Cobranzas para que lo registre y te confirme por acá. " +
-        "Si todavía no mandaste el comprobante, mandá la foto o el PDF por este chat. 🙏" +
+      reply: "Gracias. Le paso a Cobranzas para que lo registre y te confirme por este medio. " +
+        "Si todavía no enviaste el comprobante, enviá la foto o el PDF por este medio." +
         (cob ? `\nPara consultas sobre tus pagos podés comunicarte con Cobranzas: ${cob}` : ""),
       via: "chef_pago_aviso",
     };
@@ -170,7 +170,7 @@ export async function atenderClienteChef(
     if (pedidos === null) {
       await notificarHumano({ tipo: "otro", phone, customerId: null, contexto: {
         motivo: "entrega", detalle: "Cliente de Chef pregunta por su pedido y Gestión no respondió: pasale el estado.", ...contextoChef(cuenta, t) } });
-      return { reply: "No pude consultar tus pedidos en este momento. Le paso tu consulta a una persona del equipo, que te responde por acá. 🙏", via: "chef_pedidos_error" };
+      return { reply: "No pude consultar tus pedidos en este momento. Le paso tu consulta a una persona del equipo, que te responde por este medio.", via: "chef_pedidos_error" };
     }
     const reply = textoPedidosChef(cuenta.razon_social || "Hola", pedidos, hoyAR(), { soloSiHay: RE_PLAZO_ENTREGA.test(t) && !RE_ESTADO_PEDIDO.test(t) });
     if (reply) return { reply, via: "chef_pedidos" };
@@ -181,7 +181,7 @@ export async function atenderClienteChef(
     const bloque = await bloqueFacturasChef(cuenta.cuit);
     if (bloque === null) {
       await avisarCobranzas(phone, cuenta, t, "Cliente de Chef consultó sus descuentos y Gestión no respondió: pasale el detalle.");
-      return { reply: "No pude consultar tus facturas en este momento. Le paso tu consulta a Cobranzas, que te responde por acá. 🙏", via: "chef_descuentos_error" };
+      return { reply: "No pude consultar tus facturas en este momento. Le paso tu consulta a Cobranzas, que te responde por este medio.", via: "chef_descuentos_error" };
     }
     if (!bloque) {
       return { reply: "No tenés facturas de Chef abiertas. El descuento por pago depende de la condición de cada factura y figura en ella.", via: "chef_descuentos" };
@@ -201,13 +201,13 @@ export async function atenderClienteChef(
     const facturas = await deudaChefPorCuit(cuenta.cuit);
     if (facturas === null) {
       await avisarCobranzas(phone, cuenta, t, "Cliente de Chef consultó su saldo y Gestión no respondió: pasale el saldo.");
-      return { reply: "No pude consultar tus facturas en este momento. Le paso tu consulta a Cobranzas, que te responde por acá. 🙏", via: "chef_deuda_error" };
+      return { reply: "No pude consultar tus facturas en este momento. Le paso tu consulta a Cobranzas, que te responde por este medio.", via: "chef_deuda_error" };
     }
     const total = facturas.reduce((a, f) => a + Number(f.pendiente || 0), 0);
     await avisarCobranzas(phone, cuenta, t, facturas.length
       ? `Cliente de Chef consultó su saldo por WhatsApp: ${facturas.length} factura(s) impaga(s), ${pesos(total)}.`
       : "Cliente de Chef consultó su saldo por WhatsApp: no tiene facturas impagas.");
-    if (!facturas.length) return { reply: "No tenés facturas de Chef pendientes de pago. ✅", via: "chef_deuda" };
+    if (!facturas.length) return { reply: "No tenés facturas de Chef pendientes de pago.", via: "chef_deuda" };
     const hoy = hoyAR();
     const lineas = facturas.slice(0, 15).map((f) => {
       const vence = String(f.vence ?? "").slice(0, 10) || null;
@@ -223,8 +223,8 @@ export async function atenderClienteChef(
     return {
       reply: `Tenés ${facturas.length === 1 ? "1 factura" : `${facturas.length} facturas`} de Chef sin pagar, ` +
         `por un total de ${pesos(total)} (con IVA):\n${lineas.join("\n")}\n\n` +
-        (datos ?? "Los datos para transferir a Chef te los pasa Cobranzas por acá.") +
-        `\n\nCuando pagues, mandanos el comprobante por acá. 🙏`,
+        (datos ?? "Los datos para transferir a Chef te los pasa Cobranzas por este medio.") +
+        `\n\nCuando pagues, envianos el comprobante por este medio.`,
       via: "chef_deuda",
     };
   }
@@ -233,9 +233,9 @@ export async function atenderClienteChef(
     const datos = await datosDePagoChef();
     if (!datos) {
       await avisarCobranzas(phone, cuenta, t, "Cliente de Chef pide los datos para transferir y la ficha Empresas no tiene el alias/CBU de Chef.");
-      return { reply: "Los datos para transferir a Chef te los pasa Cobranzas por acá en un rato. 🙏", via: "chef_datos_pago_sin_cargar" };
+      return { reply: "Los datos para transferir a Chef te los pasa Cobranzas por este medio a la brevedad.", via: "chef_datos_pago_sin_cargar" };
     }
-    return { reply: `${datos}\n\nCuando pagues, mandanos el comprobante por acá. 🙏`, via: "chef_datos_pago" };
+    return { reply: `${datos}\n\nCuando pagues, envianos el comprobante por este medio.`, via: "chef_datos_pago" };
   }
 
   // "¿Tienen coladores?" (fase 4, paso A): busca en el catálogo de Chef. Sin precio (lo pasa una persona) ni foto. Si no es una
@@ -251,11 +251,11 @@ export async function atenderClienteChef(
 
   // Todo lo demás: a una persona. Una alerta por número cada 2 h; los mensajes siguientes quedan en la charla.
   if (await alertaAbierta(phone, "cliente_chef", 2)) {
-    return { reply: "Ya le pasé tu consulta a una persona del equipo: te responde por acá. 🙏", via: "chef_derivado_ya_avisado" };
+    return { reply: "Ya le pasé tu consulta a una persona del equipo: te responde por este medio.", via: "chef_derivado_ya_avisado" };
   }
   await notificarHumano({ tipo: "otro", phone, customerId: null, contexto: { motivo: "cliente_chef", ...contextoChef(cuenta, t) } });
   return {
-    reply: "Gracias por escribirnos. Tu consulta la responde una persona del equipo por acá, a la brevedad. 🙏",
+    reply: "Gracias por escribirnos. Tu consulta la responde una persona del equipo por este medio, a la brevedad.",
     via: "chef_derivado",
   };
 }

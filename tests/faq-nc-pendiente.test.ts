@@ -21,7 +21,7 @@ for (const t of ["Llegaron 59 aceiteras de 60, pido la NC", "Necesito la nota de
 // handleFaq (cliente falso): el texto, la alerta y que no pise al faltante que PIDE la NC.
 const cliente = { customer_id: "x", cod_cliente: 1, business_name: "Prueba", dto_vol: 0 };
 const r = await handleFaq("Hola, ¿cómo están? Todavía no recibí las NC 🙁", cliente);
-igual("el texto", r?.reply, "Gracias por avisarnos. Una persona de Ventas revisa tus notas de crédito y te escribe por acá para confirmarte. 🙏");
+igual("el texto", r?.reply, "Gracias por avisarnos. Una persona de Ventas revisa tus notas de crédito y te escribe por este medio para confirmarte.");
 igual("alerta nota_cliente no urgente (Ventas)", [r?.alerta?.motivo, r?.alerta?.urgente], ["nota_cliente", false]);
 igual("la alerta lleva el mensaje", /^Pregunta por notas de crédito que todavía no recibió: Hola, ¿cómo están\?/.test(r?.alerta?.detalle ?? ""), true);
 igual("needs_human", r?.automation_level, "needs_human");

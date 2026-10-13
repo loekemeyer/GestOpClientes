@@ -14,7 +14,7 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: no pide contexto ni adivina`, /NO le pidas contexto ni adivines \(nunca digas «contame más», «contame un poco más tu consulta» ni «no tengo contexto»\)/.test(txt));
   ok(`${modo}: deriva en ese mismo turno con cambio_pedido y sus palabras textuales`, /en ESE mismo turno llam[aá] a derivar_a_persona \(motivo «cambio_pedido», con sus palabras textuales en el resumen\)/.test(txt));
   ok(`${modo}: responde SÓLO el texto aprobado`, /respondele S[OÓ]LO esto, casi literal/.test(txt));
-  ok(`${modo}: el texto que aprobó Pablo`, txt.includes("«Gracias por avisarnos. Una persona de Ventas ve tu respuesta y te escribe por acá para confirmarte. 🙏»"));
+  ok(`${modo}: el texto que aprobó Pablo`, txt.includes("«Gracias por avisarnos. Una persona de Ventas ve tu respuesta y te escribe por este medio para confirmarte.»"));
   ok(`${modo}: no vale para un ok, dale o sí que contesta una pregunta del bot, ni para un gracias solo`, /No vale para un «ok», «dale» o «sí» que contesta una pregunta que acab[aá]s de hacerle vos, ni para un «gracias» solo/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
 }

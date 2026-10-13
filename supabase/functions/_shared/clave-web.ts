@@ -29,11 +29,11 @@ export function textoAccesoWeb(usuario: string, clave: string): string {
 export const TEXTO_ACCESO_TAPADO = textoAccesoWeb("tu CUIT", CLAVE_OCULTA);
 
 export const TEXTO_CLAVE_NO_AGENDADO =
-  "Este número no está agendado como cliente, así que por acá no te puedo pasar la clave de la web.\n" +
-  "Si ya sos cliente, pasame tu CUIT y una persona del equipo agenda este número. Después me la pedís de nuevo y te la paso.";
+  "Este número no está agendado como cliente, así que por este medio no te puedo pasar la clave de la web.\n" +
+  "Si ya sos cliente, indicame tu CUIT y una persona del equipo agenda este número. Después me la podés pedir de nuevo y te la envío.";
 
 /** El cliente no tiene PIN cargado (o no se pudo leer): lo resuelve una persona. */
-export const TEXTO_CLAVE_A_PERSONA = "Una persona del equipo revisa tu acceso a la web y te escribe por acá.";
+export const TEXTO_CLAVE_A_PERSONA = "Una persona del equipo revisa tu acceso a la web y te escribe por este medio.";
 
 /** Usuario y clave de la web del cliente. null si falta alguno de los dos. */
 export async function datosDeAccesoWeb(customerId: string): Promise<{ usuario: string; clave: string } | null> {

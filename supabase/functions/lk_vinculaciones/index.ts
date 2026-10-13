@@ -26,7 +26,7 @@ function avisoAlSolicitante(decision: string, tipo: string, negocio: string, mot
   // promete ver pedidos ni descuentos.
   if (empresa === "CH") {
     return decision === "approve"
-      ? `Hola ${negocio}, te escribimos de Chef.\nYa vinculamos este número a tu cuenta: por acá podés consultar tus facturas pendientes y los datos de pago, y para todo lo demás te responde una persona del equipo.`
+      ? `Hola ${negocio}, te escribimos de Chef.\nYa vinculamos este número a tu cuenta: por este medio podés consultar tus facturas pendientes y los datos de pago, y para todo lo demás te responde una persona del equipo.`
       : "Hola, te escribimos de Chef.\nNo pudimos confirmar la vinculación de este número" + (motivo ? ` (${motivo})` : "") +
         ".\nSi creés que es un error, respondé este mensaje y lo revisamos.";
   }

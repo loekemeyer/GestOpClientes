@@ -68,9 +68,9 @@ export function textoStock(desc: string, cod: string, s: StockArticulo, cajasPed
   const art = `*${desc}* (cód. ${cod})`;
   if (cajasPedidas && cajasPedidas > 0 && s.disponible >= cajasPedidas) {
     // 1 caja: "para la caja" (antes decía "para las 1 cajas", visto en la corrección m12 del 06/10).
-    return `Sí, ${art} tiene stock para ${cajasPedidas === 1 ? "la caja" : `las ${cajasPedidas} cajas`}. ✅`;
+    return `Sí, ${art} tiene stock para ${cajasPedidas === 1 ? "la caja" : `las ${cajasPedidas} cajas`}.`;
   }
-  if (s.nivel === "hay" && !cajasPedidas) return `${art} tiene stock disponible. ✅`;
+  if (s.nivel === "hay" && !cajasPedidas) return `${art} tiene stock disponible.`;
   if (s.nivel === "sin") {
     return `${art} no tiene stock disponible en este momento. Le paso tu consulta a un asesor para que te confirme cuándo entra.`;
   }

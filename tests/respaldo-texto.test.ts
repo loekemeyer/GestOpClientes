@@ -9,11 +9,11 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
   if (a === b) console.log(`ok   ${nombre}`);
   else { fallas++; console.error(`FALLA ${nombre}\n   real:     ${a}\n   esperado: ${b}`); }
 }
-const ok = JSON.stringify({ ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por acá." });
+const ok = JSON.stringify({ ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por este medio." });
 const error = JSON.stringify({ error: "Este tema lo responde el bot: no lo derives. Resolvelo con las herramientas de consulta y la información que tenés." });
 
 igual("el texto aprobado por Pablo", RESPALDO_DERIVADO, "Gracias por avisarnos. Una persona del equipo te va a responder por este medio.");
-igual("el de siempre no cambia", RESPALDO_SIN_TEXTO, "Contame un poco más tu consulta así te ayudo.");
+igual("el de siempre, en tono formal (Pablo, 13/10)", RESPALDO_SIN_TEXTO, "¿Podrías darme más detalle de tu consulta para poder ayudarte?");
 igual("sin herramientas: el de siempre", textoDeRespaldo([]), RESPALDO_SIN_TEXTO);
 igual("derivó con éxito: el de derivación", textoDeRespaldo([{ nombre: "derivar_a_persona", resultado: ok }]), RESPALDO_DERIVADO);
 igual("m7: consultó los pedidos y derivó", textoDeRespaldo([{ nombre: "consultar_mis_pedidos", resultado: "{}" }, { nombre: "derivar_a_persona", resultado: ok }]), RESPALDO_DERIVADO);

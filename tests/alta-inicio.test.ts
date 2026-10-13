@@ -97,7 +97,7 @@ let dv = 0; while (!validaCuit(`3071234567${dv}`)) dv++;
 const cuitOk = `3071234567${dv}`;
 llamadas.length = 0;
 r = await atenderNoCliente(tel, `Mi CUIT es ${cuitOk}`, { ultimoBot: SALUDO, faq: faqSaludo });
-igual("CUIT válido que no es cliente: arranca el alta con el CUIT cargado", [r.via, r.respuestas[0].startsWith("No te encontré como cliente con ese CUIT")], ["alta (arranca con CUIT)", true]);
+igual("CUIT válido que no es cliente: arranca el alta con el CUIT cargado", [r.via, r.respuestas[0].startsWith("No encontré una cuenta de cliente con ese CUIT")], ["alta (arranca con CUIT)", true]);
 igual("CUIT válido: el lead lleva el CUIT", llamadas.some((c) => c.metodo === "POST" && c.body.includes(cuitOk)), true);
 
 llamadas.length = 0;
@@ -109,7 +109,7 @@ igual("11+ dígitos que no son CUIT: avisa que no es válido", [r.respuestas, r.
 const leadAbierto = { id: 77, cuit: null, alta_step: 0, raw_messages: [], updated_at: new Date().toISOString() };
 const canceloLead = () => llamadas.some((c) => c.metodo === "PATCH" && c.url.includes("wa_prospect_leads") && c.body.includes("cancelled"));
 const sigueElAlta = () => llamadas.some((c) => c.metodo === "PATCH" && c.url.includes("wa_prospect_leads") && c.body.includes('"cuit"'));
-const MSG_YA_CLIENTE = "Ese CUIT ya es cliente nuestro 👍 Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por acá.";
+const MSG_YA_CLIENTE = "Ese CUIT ya es cliente nuestro. Por seguridad, un asesor confirma que este número es de la empresa y te avisamos por este medio.";
 SIM.activo = true;
 
 filasPorTabla["wa_prospect_leads"] = [leadAbierto]; filasPorTabla["customers"] = [{ id: "c1" }];

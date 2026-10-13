@@ -22,7 +22,7 @@ for (const t of ["Hola, quiero ser cliente", "Estamos interesados en comercializ
 // Sólo un número que NO es cliente: handleFaq con customer null responde y deriva; con un cliente no entra por esta rama.
 const frase = "Hace un mes nos comunicamos por mail porque estamos interesados en comercializar sus productos. Enviamos el pedido estimativo y no nos respondieron más, ¿qué pasó?";
 const r = await handleFaq(frase, null);
-igual("no cliente: el texto aprobado por Pablo", r?.reply, "Te pedimos disculpas por la demora en responderte. Le paso tu consulta a Ventas para que te escriban por acá a la brevedad. 🙏");
+igual("no cliente: el texto aprobado por Pablo", r?.reply, "Te pedimos disculpas por la demora en responderte. Le paso tu consulta a Ventas para que te escriban por este medio a la brevedad.");
 igual("no cliente: alerta pedido_mail no urgente (Ventas)", [r?.alerta?.motivo, r?.alerta?.urgente], ["pedido_mail", false]);
 igual("no cliente: la alerta lleva el mensaje", /^Prospecto sin respuesta: escribió por mail para comercializar sus productos y dice que no le respondieron: Hace un mes/.test(r?.alerta?.detalle ?? ""), true);
 igual("no cliente: needs_human", r?.automation_level, "needs_human");

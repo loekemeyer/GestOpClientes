@@ -241,7 +241,7 @@ async function handleRegistration(
   switch (result.status) {
     case "already_registered": {
       await send(
-        `¡Hola ${result.business_name}! 👋\n\n` +
+        `¡Hola ${result.business_name}!\n\n` +
         `Ya estás registrado. ¿En qué te puedo ayudar?\n\n` +
         `📦 Estado de pedidos\n` +
         `🔍 Buscar productos\n` +
@@ -253,7 +253,7 @@ async function handleRegistration(
 
     case "auto_associated": {
       await send(
-        `¡Hola ${result.business_name}! 👋\n\n` +
+        `¡Hola ${result.business_name}!\n\n` +
         `Ya quedaste vinculado a este número.\n` +
         `Podés consultarme por:\n\n` +
         `📦 Estado de tus pedidos\n` +
@@ -276,9 +276,9 @@ async function handleRegistration(
       // sql/072: un número nuevo nunca se vincula sólo con el CUIT; lo aprueba una persona
       // desde el dashboard (lk_vinculaciones). El aviso de aprobado/rechazado sale por wa_outbox.
       await send(
-        `Encontré la cuenta de *${result.business_name}*. 👍\n\n` +
+        `Encontré la cuenta de *${result.business_name}*.\n\n` +
         `Por seguridad, un asesor tiene que confirmar que este número es de la empresa antes de vincularlo. ` +
-        `Te avisamos por acá apenas quede listo. 🙏\n\n` +
+        `Te avisamos por este medio apenas quede listo.\n\n` +
         `Si es urgente, escribinos a ventas@loekemeyer.com o al WhatsApp 11 3118 1021.`,
       );
       break;
@@ -286,7 +286,7 @@ async function handleRegistration(
 
     case "too_many_attempts": {
       await send(
-        `Probaste varios CUIT desde este número en poco tiempo, así que por seguridad no puedo seguir con la vinculación por acá.\n\n` +
+        `Probaste varios CUIT desde este número en poco tiempo, así que por seguridad no puedo seguir con la vinculación por este medio.\n\n` +
         `Escribinos a ventas@loekemeyer.com o al WhatsApp 11 3118 1021 y lo resolvemos.`,
       );
       break;
@@ -294,9 +294,9 @@ async function handleRegistration(
 
     case "pending_primary": {
       await send(
-        `Encontré la cuenta de *${result.business_name}*. 👍\n\n` +
+        `Encontré la cuenta de *${result.business_name}*.\n\n` +
         `Como ya hay un teléfono principal registrado, tu solicitud queda pendiente de aprobación.\n\n` +
-        `Te vamos a avisar cuando se apruebe. 🙏`,
+        `Te vamos a avisar cuando se apruebe.`,
       );
       break;
     }
@@ -448,7 +448,7 @@ async function conSaludoSiCorresponde(
   if (umbral <= 0) return reply; // saludo desactivado
   const primero = await esPrimerContacto(phone, umbral);
   if (!primero) return reply;
-  return `¡Hola ${businessName}! 👋\n\n${reply}`;
+  return `¡Hola ${businessName}!\n\n${reply}`;
 }
 
 // ─── Statuses de Meta (delivery reports) ───────────────────────────
@@ -518,10 +518,10 @@ async function ingestStatuses(body: any): Promise<void> {
 // Si falla la bajada o la subida, igual contesta y deja la alerta (sin archivo): la persona se lo pide
 // de nuevo. Respeta kill switch y whitelist.
 
-const MSG_ADJUNTO_RECIBIDO = "Recibimos tu archivo. 🙌\nUna persona lo revisa y te escribe por acá.";
-const MSG_ADJUNTO_RECLAMO = "Recibimos la foto. 🙌\nUna persona revisa el reclamo y te escribe por acá.";
+const MSG_ADJUNTO_RECIBIDO = "Recibimos tu archivo.\nUna persona lo revisa y te escribe por este medio.";
+const MSG_ADJUNTO_RECLAMO = "Recibimos la foto.\nUna persona revisa el reclamo y te escribe por este medio.";
 // Mensaje de respaldo: si no hay datos de Cobranzas cargados (ficha Empresas) el comprobante se confirma sin ellos.
-const MSG_ADJUNTO_PAGO = "Recibimos tu comprobante. 🙌\nUna persona lo revisa y te confirma por acá.";
+const MSG_ADJUNTO_PAGO = "Recibimos tu comprobante.\nUna persona lo revisa y te confirma por este medio.";
 // Pablo, 01/10: el comprobante de pago recibe los datos de Cobranzas de la marca (plantillas comprobante_recibido y
 // comprobante_recibido_chef, _shared/plantillas-meta.ts). Un cliente sólo de Chef recibe los de Chef; el resto, los de Loekemeyer.
 async function respuestaPago(esChef: boolean): Promise<string> {
@@ -533,9 +533,9 @@ async function respuestaPago(esChef: boolean): Promise<string> {
   }
 }
 // Con la transcripción prendida el audio sí se intenta escuchar: si no se pudo (muy largo, ruido, límite de Groq), se pide por escrito.
-const MSG_AUDIO_NO_ENTENDIDO = "No pudimos entender tu audio. 🙏\nEscribinos tu consulta en un mensaje y te respondemos.";
+const MSG_AUDIO_NO_ENTENDIDO = "No pudimos entender tu audio.\nEscribinos tu consulta en un mensaje y te respondemos.";
 const MSG_ADJUNTO_AUDIO =
-  "Por ahora no podemos escuchar audios ni ver videos. 🙏\nEscribinos tu consulta en un mensaje y te respondemos.";
+  "Por ahora no podemos escuchar audios ni ver videos.\nEscribinos tu consulta en un mensaje y te respondemos.";
 
 // Lo que se guarda y se pasa a una persona. Audio, video y sticker quedan afuera.
 const ADJUNTO_MIMES = new Set([

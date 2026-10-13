@@ -19,7 +19,7 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
 
 igual("el texto que aprobó Pablo", TEXTO_PRESENTACION,
   "Soy el agente de Loekemeyer, especializado en tu cuenta: te ayudo con tus pedidos, tus compras, tus facturas, el stock y los productos que te pueden servir. " +
-  "Si algo necesita a una persona del equipo, le aviso y te escribe por acá.");
+  "Si algo necesita a una persona del equipo, le aviso y te escribe por este medio.");
 igual("el texto no dice que es una persona, ni que no lo es, ni que es un bot", /\b(soy una persona|soy humano|no soy|bot)\b/i.test(TEXTO_PRESENTACION), false);
 
 // Pregunta qué es: los de Damián y otras formas.

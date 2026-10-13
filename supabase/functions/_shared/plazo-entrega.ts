@@ -40,5 +40,5 @@ export const textoPlazo = (): string => `El plazo de entrega hoy es de ${PLAZO_D
 export function textoPedidoParaFecha(hoy: string, feriados: readonly string[] = []): string {
   const llega = textoFecha(sumarDiasHabiles(hoy, PLAZO_DIAS_HABILES, feriados));
   return `Hoy la entrega estimada es de ${PLAZO_DIAS_HABILES} días hábiles: si hacés el pedido hoy, sería el ${llega}.\n` +
-    "Para la fecha que necesitás lo consulta una persona de Ventas y te escribe por acá. ¿Qué artículos necesitás?";
+    "Para la fecha que necesitás lo consulta una persona de Ventas y te escribe por este medio. ¿Qué artículos necesitás?";
 }

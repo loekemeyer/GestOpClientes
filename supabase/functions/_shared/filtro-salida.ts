@@ -39,7 +39,7 @@ export interface EntradaFiltro {
 
 /** Texto fijo que reemplaza una respuesta bloqueada. No dice por qué (no revela el mecanismo) y es verdad: una persona recibe la alerta. */
 export const TEXTO_SALIDA_BLOQUEADA =
-  "Perdoná, con eso no te puedo ayudar por este medio. Una persona del equipo te escribe por acá para ayudarte.";
+  "Disculpá, con eso no puedo ayudarte. Una persona del equipo te va a responder por este medio.";
 
 // ── 1. Secretos ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 const SECRETOS: Array<[RegExp, string]> = [

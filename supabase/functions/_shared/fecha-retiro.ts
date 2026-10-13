@@ -60,7 +60,7 @@ export const PREGUNTA_FRANJA = "¿Pasás por la mañana o por la tarde?";
 /** "Sí, podés retirar tu pedido del 30/09 el jueves 08/10…" con la pregunta de la franja (si `preguntaFranja`) y el aviso a Ventas.
  *  Sin la pregunta cuando ya no tiene sentido (hoy, pasado el mediodía: sólo queda la tarde). */
 export function textoRetiroConfirmado(del: string, dia: string, preguntaFranja: boolean): string {
-  const base = `Sí, podés retirar tu pedido del ${del} el ${dia}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788. ✅`;
+  const base = `Sí, podés retirar tu pedido del ${del} el ${dia}, de 9 a 12 o de 13 a 16:30 h, en Virgilio 2788.`;
   return preguntaFranja
     ? `${base}\n${PREGUNTA_FRANJA} Le avisamos a Ventas para que lo tenga a mano.`
     : `${base}\nLe avisamos a Ventas para que lo tenga a mano.`;
@@ -97,7 +97,7 @@ export function retiroInformado(ultimoMensajeBot: string): { del: string; dia: s
 
 /** El texto que aprobó Pablo; `horarioDeposito` es la línea fija del depósito ("Estamos en Virgilio 2788, Villa Devoto, de lunes a viernes de 9 a 12 y de 13 a 16:30 (…)"). */
 export const textoLlegando = (horarioDeposito: string): string =>
-  `Le aviso ahora mismo a Ventas para confirmar que te puedan esperar y te escribimos por acá en un momento. 🙏\n${horarioDeposito}`;
+  `Le aviso ahora mismo a Ventas para confirmar que te puedan esperar y te escribimos por este medio en un momento.\n${horarioDeposito}`;
 
 /** ¿Está abierto el DEPÓSITO en `ahora`? De lunes a viernes de 9 a 12 y de 13 a 16:30 (hora de Argentina, UTC-3), menos los `feriados` ("AAAA-MM-DD"). Distinto del
  *  horario de atención telefónica de horario.ts (9 a 17, un solo tramo). */

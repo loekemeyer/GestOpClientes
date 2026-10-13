@@ -72,10 +72,10 @@ export function mailEscritoPorElCliente(p: PedidoMail): boolean {
 export const PREFIJO_PEDIDO_MAIL = "pedí que cambien tu mail a ";
 
 /** Lo que se le dice al cliente cuando se registró el pedido (lo devuelve la herramienta y el modelo lo pasa tal cual). */
-export const textoPedidoMail = (mail: string) => `Listo, ${PREFIJO_PEDIDO_MAIL}${mail}. Una persona lo revisa y te confirmamos por acá.`;
+export const textoPedidoMail = (mail: string) => `Listo, ${PREFIJO_PEDIDO_MAIL}${mail}. Una persona lo revisa y te confirmamos por este medio.`;
 
 /** Lo que se le dice cuando ese mismo mail ya estaba pedido: no se crea otra tarea. */
-export const textoYaPedidoMail = (mail: string) => `Ya lo pedí: una persona revisa el cambio de tu mail a ${mail} y te confirmamos por acá.`;
+export const textoYaPedidoMail = (mail: string) => `Ya lo pedí: una persona revisa el cambio de tu mail a ${mail} y te confirmamos por este medio.`;
 
 /** ¿El bot ya le dijo al cliente, en las últimas 12 horas de la charla, que pidió cambiar su mail A ESTE mail? Sólo cuentan los mensajes
  *  del bot (`rol === "assistant"`): que el cliente escriba la frase no frena nada. Es para el Simulador (donde no se guarda la alerta) y

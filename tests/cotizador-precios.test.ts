@@ -91,7 +91,7 @@ igual("la comparación consulta las cadenas con lista propia", /cadenasListaProp
 // ── Texto para el cliente ──
 const dif = compararConWeb(cot, { ...WEB, "255": { pu: 9060, uxb: 4, activo: true } });
 igual("texto con una diferencia (el caso real de la prueba del 06/10)", textoComparacion(cot, dif.diferencias),
-  "💰 Ojo, tu cotizador puede estar desactualizado: estos valores no coinciden con los de la web.\n" +
+  "💰 Atención: tu cotizador puede estar desactualizado: estos valores no coinciden con los de la web.\n" +
   "• Abrelatas Mariposa Capuchon Rojo (cód. 512): en tu cotizador $22.200 por caja; en la web $46.080 por caja.\n" +
   "Total que figura en tu cotizador: $172.695,60 (con sus precios).");
 igual("no aclara cuáles SÍ coinciden", /coinciden con la web\.$|coincide con la web/m.test(textoComparacion(cot, dif.diferencias).replace("no coinciden con los de la web", "")), false);
