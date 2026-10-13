@@ -28,3 +28,16 @@ export function siguienteNombre(base: string, v: Versiones, existentes: Set<stri
   }
   throw new Error(`sin nombre libre para ${base}`);
 }
+
+/**
+ * ¿Se activa una versión nueva que Meta ya aprobó? (Pablo, 13/10: "Si es marketing, quedate con la vieja".) Meta puede aprobar una
+ * plantilla pedida como UTILITY pero clasificarla MARKETING, que cuesta 2,38 veces más por mensaje (pasó con aviso_equipo y
+ * pedido_recordatorio_descuento). Si la nueva quedó MARKETING y la que sale hoy no lo es, no se activa: sigue la vieja y la nueva se
+ * descarta de la cola de promoción. Función pura: la prueba tests/plantillas-version.test.ts.
+ */
+export function decidirPromocion(estadoNueva: string, categoriaNueva: string | null | undefined, categoriaActiva: string | null | undefined):
+  "esperar" | "promover" | "descartar_marketing" {
+  if (estadoNueva !== "APPROVED") return "esperar";
+  const esMk = (c: string | null | undefined) => String(c ?? "").toUpperCase() === "MARKETING";
+  return esMk(categoriaNueva) && !esMk(categoriaActiva) ? "descartar_marketing" : "promover";
+}

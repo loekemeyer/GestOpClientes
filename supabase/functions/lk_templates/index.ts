@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdmin } from "../_shared/admin-gate.ts";
 import { PLANTILLAS, componentesMeta, validar } from "../_shared/plantillas-meta.ts";
-import { leerVersiones, nombreActivo, siguienteNombre, type Versiones } from "../_shared/plantillas-version.ts";
+import { decidirPromocion, leerVersiones, nombreActivo, siguienteNombre, type Versiones } from "../_shared/plantillas-version.ts";
 import { PLANTILLAS_FACTURA } from "../_shared/plantillas-factura.ts";
 import { fechaAR, fechaCorta, fechaLarga, masDias, modoDe } from "../_shared/aviso-pedido.ts";
 import { PDFDocument, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
@@ -421,10 +421,11 @@ async function handleTemplatesPromover(body: Record<string, unknown>, quien: str
   if (!token) return json({ ok: false, error: "Falta el token de WhatsApp (WHATSAPP_ACCESS_TOKEN)." }, 200);
   const { wabaId } = await resolveWaba(token);
   if (!wabaId) return json({ ok: false, error: "No se pudo determinar el WABA." }, 200);
-  const res = await fetch(`${META_API}/${wabaId}/message_templates?limit=250&fields=name,status`, { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetch(`${META_API}/${wabaId}/message_templates?limit=250&fields=name,status,category`, { headers: { Authorization: `Bearer ${token}` } });
   const data = await res.json();
   if (data.error) return json({ ok: false, error: `Meta: ${data.error.message ?? ""}` }, 200);
   const estado = new Map<string, string>((data.data ?? []).map((t: { name: string; status: string }) => [t.name, t.status]));
+  const categoria = new Map<string, string>((data.data ?? []).map((t: { name: string; category?: string }) => [t.name, t.category ?? ""]));
   // Tiempos: la primera vez que se la ve APPROVED (o REJECTED) queda la hora (resolución: la del cron, 30 min).
   if (sinResolver.length) {
     const ahora = new Date().toISOString();
@@ -435,11 +436,21 @@ async function handleTemplatesPromover(body: Record<string, unknown>, quien: str
     }
     await supabase.from("app_settings").upsert({ key: "wa_plantillas_tiempos", value: JSON.stringify(tiempos) }, { onConflict: "key" });
   }
-  const promovidas: Array<Record<string, unknown>> = [], siguen: Array<Record<string, unknown>> = [];
+  const promovidas: Array<Record<string, unknown>> = [], siguen: Array<Record<string, unknown>> = [], descartadas: Array<Record<string, unknown>> = [];
+  let descarto = false;
   for (const [base, x] of pendientes) {
     const st = estado.get(x.nueva!) ?? "NO_EXISTE";
-    if (st !== "APPROVED") { siguen.push({ base, nueva: x.nueva, estado: st }); continue; }
     const vieja = x.activa ?? base;
+    const decision = decidirPromocion(st, categoria.get(x.nueva!), categoria.get(vieja));
+    if (decision === "esperar") { siguen.push({ base, nueva: x.nueva, estado: st }); continue; }
+    // Pablo, 13/10: "Si es marketing, quedate con la vieja". La nueva queda aprobada en Meta y sin uso.
+    if (decision === "descartar_marketing") {
+      versiones[base] = { activa: vieja };
+      descarto = true;
+      descartadas.push({ base, nueva: x.nueva, sigue: vieja, motivo: "Meta la clasificó MARKETING" });
+      console.log(`templates_promover ${base}: ${x.nueva} quedó MARKETING, sigue ${vieja} por ${quien}`);
+      continue;
+    }
     versiones[base] = { activa: x.nueva };
     let borrada: unknown = null;
     if (body.borrar_vieja === true && vieja !== x.nueva) {
@@ -449,8 +460,8 @@ async function handleTemplatesPromover(body: Record<string, unknown>, quien: str
     promovidas.push({ base, ahora: x.nueva, antes: vieja, borrada });
     console.log(`templates_promover ${base}: ${vieja} → ${x.nueva} por ${quien}`);
   }
-  if (promovidas.length) await guardarVersiones(versiones);
-  return json({ ok: true, promovidas, pendientes: siguen });
+  if (promovidas.length || descarto) await guardarVersiones(versiones);
+  return json({ ok: true, promovidas, pendientes: siguen, descartadas });
 }
 
 // ── factura_sync: edita en Meta las plantillas de factura (6 de Loekemeyer + 6 de Chef, pedido_*_chef) con el texto de
