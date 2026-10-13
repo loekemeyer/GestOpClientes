@@ -203,12 +203,10 @@ const BOT_TOOLS: ToolDef[] = [
       required: ["calle_altura", "localidad", "provincia"],
     },
   },
-  {
-    // Pablo, 29/09: cambio de mail con aprobación de una persona (lk_alertas mail_cambiar).
-    name: "solicitar_cambio_mail",
-    description: "Pide cambiar el mail de la cuenta del cliente; una persona lo aprueba. El mail lo tiene que haber ESCRITO el cliente: si no te lo dio, pedíselo; nunca lo armes ni lo deduzcas. Confirmale el mail nuevo (\"¿Cambio tu mail a nombre@dominio.com?\") y recién con su sí, llamala: no en el mismo mensaje en que te lo dio. Llamala UNA sola vez por mail: si ya le dijiste \"pedí que cambien tu mail\", no la repitas.",
-    input_schema: { type: "object", properties: { mail: { type: "string", description: "Mail nuevo, tal cual lo escribió el cliente y confirmado con él" } }, required: ["mail"] },
-  },
+  // solicitar_cambio_mail DESACTIVADO (Pablo, 13/10/2026): el cambio de mail por el bot se apagó (uso ~0 y el
+  // riesgo era redirigir a dónde van las facturas). Si el cliente lo pide, el agente deriva a una persona (ver
+  // la regla MAIL en REGLAS_OPERATIVAS). Para reactivarlo: restaurar este bloque de herramienta + la línea del
+  // prompt en agente-fijos.ts. El handler de executeTool queda como red (deriva) por si una orden vieja la llama.
   {
     name: "consultar_mis_pedidos",
     description:
@@ -604,38 +602,20 @@ async function executeTool(
     }
 
     case "solicitar_cambio_mail": {
-      const mail = String(input.mail ?? "").trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return { data: { error: "Ese mail no parece válido: pedíselo de nuevo." } };
-      // Compuerta de servidor (Pablo, 06/10): el mail tiene que figurar en lo que escribió el cliente; el modelo no puede inventarlo
-      // (Gemini lo armó con la razón social en 2 de 2 corridas del caso 9.4). Ver mail-gate.ts. No se loguea el mail, sólo el teléfono.
-      if (!mailEscritoPorElCliente({ mail, textoCliente: ctx.userText, historial: ctx.historial })) {
-        console.warn(`[gate-mail] solicitar_cambio_mail bloqueado (mail no escrito por el cliente) …${phone.slice(-4)}`);
-        return { data: { ok: false, no_cargado: true, regla: REGLA_MAIL_NO_ESCRITO } };
-      }
-      // No repetir (Pablo, 07/10): el modelo la llamó en el mensaje con el mail y otra vez tras el "sí" del cliente, y salían 2 tareas
-      // cambio_datos iguales. Si ese mail ya se pidió no se crea otra: lo dice la charla (también en el Simulador) o, en producción,
-      // hay una alerta abierta del mismo teléfono con ese mail_nuevo de las últimas 12 h. Si la consulta falla, sigue y la crea.
-      let yaPedido = mailYaPedidoEnLaCharla({ mail, historial: ctx.historial });
-      if (!yaPedido && !SIM.activo) {
-        try {
-          const { data: abiertas } = await supabase.from("wa_alertas_humano").select("id").eq("phone", phone).eq("tipo", "escalation")
-            .in("estado", ["pendiente", "notificado"]).eq("contexto->>mail_nuevo", mail)
-            .gte("created_at", new Date(Date.now() - VIGENCIA_MAIL_MS).toISOString()).limit(1);
-          yaPedido = (abiertas?.length ?? 0) > 0;
-        } catch (e) { console.warn("[gate-mail] no pude buscar un pedido igual:", e instanceof Error ? e.message : e); }
-      }
-      if (yaPedido) {
-        console.warn(`[gate-mail] solicitar_cambio_mail repetido, no se crea otra tarea …${phone.slice(-4)}`);
-        return { data: { ok: true, ya_pedido: true, texto_para_el_cliente: textoYaPedidoMail(mail), regla: "Pasale este texto tal cual." } };
-      }
+      // DESACTIVADO (Pablo, 13/10/2026): el cambio de mail por el bot se apagó (uso ~0, el riesgo era redirigir
+      // a dónde van las facturas). La herramienta ya no se le ofrece al modelo; este handler queda como red: si
+      // una orden vieja o inyectada la llama igual, NO cambia nada y deriva a una persona. Para reactivar, ver
+      // el bloque de la herramienta más arriba y la línea MAIL de REGLAS_OPERATIVAS en agente-fijos.ts.
       const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
-      if (!cli?.[0]?.customer_id) return { data: { error: "No identifiqué la cuenta de este número. Derivá con derivar_a_persona." } };
-      await notificarHumano({
-        tipo: "escalation", phone, customerId: cli[0].customer_id,
-        contexto: { motivo: "cambio_datos", origen: "agente_ia", mail_nuevo: mail, texto: `Cambiar el mail a ${mail}`,
-          razon_social: cli[0].customer_name ?? null, urgente: false },
-      });
-      return { data: { ok: true, texto_para_el_cliente: textoPedidoMail(mail), regla: "Pasale este texto tal cual." } };
+      if (cli?.[0]?.customer_id) {
+        await notificarHumano({
+          tipo: "escalation", phone, customerId: cli[0].customer_id,
+          contexto: { motivo: "cambio_datos", origen: "agente_ia", texto: "El cliente quiere cambiar el mail de su cuenta", urgente: false },
+        });
+      }
+      return { data: { ok: false, desactivado: true,
+        texto_para_el_cliente: "Para cambiar el mail de tu cuenta te paso con una persona del equipo, que te escribe por este medio.",
+        regla: "Pasale este texto tal cual. El cambio de mail por este medio está desactivado: no uses esta herramienta." } };
     }
 
     case "solicitar_nueva_sucursal": {

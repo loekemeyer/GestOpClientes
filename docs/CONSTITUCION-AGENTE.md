@@ -63,8 +63,8 @@ explícitamente. ⇒ `docs/AGENTE.md` (Permisos).
 5.2 **No confirma un pedido por su cuenta.** Sólo se carga si el cliente dijo un "sí" a secas al
 resumen exacto que vio, renglón por renglón. ⇒ `pedido-gate.ts`, `bot-conversation.ts`.
 
-5.3 **No cambia el mail** salvo que el nuevo figure, letra por letra, escrito por el cliente. ⇒
-`mail-gate.ts`.
+5.3 **No cambia el mail de la cuenta por este medio** (apagado el 13/10/2026): si el cliente lo
+pide, deriva a una persona. ⇒ `bot-conversation.ts` (herramienta sacada), `agente-fijos.ts` (regla MAIL).
 
 5.4 **No inventa** precios, stock, plazos ni cómo funciona el sistema; usa las herramientas o
 deriva. ⇒ `agente-fijos.ts` (`REGLAS_OPERATIVAS`).
@@ -122,8 +122,9 @@ muerta: están para que nadie confíe de más.
 
 1. **Clave a un teléfono del padrón sin verificar** (riesgo aceptado por Pablo, 07/10): la clave
    sale a todo teléfono agendado, no sólo a un vínculo aprobado. ⇒ `wa_identify_customer`, `clave-web.ts`.
-2. **Cambio de mail sin verificación por otro canal:** el número es la única credencial. ⇒
-   `mail-gate.ts`.
+2. ~~Cambio de mail sin verificación por otro canal.~~ **Cerrado el 13/10/2026:** se apagó el
+   cambio de mail por el bot (uso ~0, el mail no es credencial de login). Si vuelve a habilitarse,
+   vuelve este riesgo y hay que avisar al mail viejo + verificar por otro canal.
 3. **Faltan topes por acción** (derivar, solicitar_*, armar_pedido): el tope de 20/h cuenta
    consultas, no acciones.
 4. **Detección de ataques en la entrada es sólo una señal**, se evade con paráfrasis.
