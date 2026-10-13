@@ -134,7 +134,8 @@ muerta: están para que nadie confíe de más.
    alta precisión y se escala: a los 3 intentos en 24 h avisa a una persona, a los 5 el número pasa
    a `wa_blacklist`. No corta la respuesta: la barrera real sigue siendo el bloque de Seguridad, el
    canario y el filtro de salida. ⇒ `ataque-entrada.ts`, `bot_ataque_entrada` (sql/143), `lk_whatsapp-webhook`.
-   Queda pendiente la batería de ataques como prueba (correrla en el Simulador al tocar el prompt).
+   Batería corrida el 13/10 con Haiku 5.5 (15 ataques en el Simulador, US$ 0,0067): **15/15 resistidos,
+   0 filtraciones**. Conviene volver a correrla cada vez que se toca el prompt.
 
 ---
 
