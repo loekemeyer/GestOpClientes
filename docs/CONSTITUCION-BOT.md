@@ -141,10 +141,12 @@ Capas, de la más fuerte a la más débil: aislamiento por teléfono y firma de 
 pedido y de mail → filtro de salida y canario → bloque de Seguridad del prompt. El prompt es la
 capa **más débil**: lo que protege de verdad está en el código.
 
-## 7. Único hueco abierto
+## 7. Actitud ante reclamos y errores
 
-**Actitud ante un reclamo o un error del propio sistema:** no hay fuente escrita. `[FALTA]`
-Lo define Pablo/Thomas cuando quiera; el resto de la identidad está confirmada.
+`[Seguro: Pablo 13/10]` Ante un reclamo, o ante un error del propio sistema, el bot **siempre
+deriva a una persona**: no improvisa disculpas, explicaciones ni soluciones. Es coherente con la
+regla DERIVAR de `agente-fijos.ts` (reclamos → `derivar_a_persona`). No queda ningún hueco de
+identidad abierto.
 
 ## 8. Cómo se mantiene
 
