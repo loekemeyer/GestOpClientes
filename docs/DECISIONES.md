@@ -232,7 +232,9 @@ contestaría si escriben) ni se adelanta la llave. Se prenden junto con el lanza
 ## D010 — Atender llamadas de WhatsApp con un agente de voz: diseñado, NO construido (2026-10-13)
 
 **Pablo Olejavetzky:** *"Me pidieron desarrollar este bot, pero que responda si lo llaman por teléfono"*, *"la idea es que haga todo, pero siempre por
-llamadas de whatsapp"* y *"dejémoslo asentado, no es prioridad igualmente"*. Queda como tarea de su Planify (64), abierta.
+llamadas de whatsapp"* y *"dejémoslo asentado, no es prioridad igualmente"*. Después: *"es algo totalmente informativo, primero hay que
+sacar el bot y luego ponerle las mejoras"*. **Se retoma después del lanzamiento a clientes**, no antes. La tarea de Planify (64) se cerró el mismo día: esta
+entrada es el registro.
 
 **Decisión:** se puede y queda diseñado, **sin construir y sin prioridad**. Alcance: todo lo que hace el chat, pero sólo por **llamada de WhatsApp** al
 número del bot (no por línea común). Los pedidos se arman por voz y se confirman **por escrito**: antes de cargarlo, el agente manda el resumen al chat con un
