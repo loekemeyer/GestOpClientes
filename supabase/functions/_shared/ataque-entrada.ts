@@ -15,14 +15,16 @@ export interface DeteccionAtaque {
   patron?: string;
 }
 
+// Ojo con \b: en JavaScript es ASCII. Después de una letra con tilde («Ignorá», «Olvidá», «Mostrá», «decí») NO hay límite de palabra, y antes de una palabra que
+// empieza con tilde («órden») tampoco. Por eso esos bordes usan (?![a-záéíóúüñ]) y (?<![a-záéíóúüñ]). Sin eso, el voseo con tilde no se detectaba (13/10, tests/ataque-entrada.test.ts).
 const PATRONES: { etiqueta: string; re: RegExp }[] = [
-  { etiqueta: "ignorar_instrucciones", re: /\bignor[aá](?:r|lo|las|los)?\b[^.?!]{0,25}\b(instruccion|regla|[oó]rden|lo anterior|todo lo que)/i },
-  { etiqueta: "olvidar_reglas", re: /\bolvid[aá](?:te|lo)?\b[^.?!]{0,25}\b(instruccion|regla|[oó]rden)/i },
+  { etiqueta: "ignorar_instrucciones", re: /\bignor[aá](?:r|lo|las|los)?(?![a-záéíóúüñ])[^.?!]{0,25}(?<![a-záéíóúüñ])(instruccion|regla|[oó]rden|lo anterior|todo lo que)/i },
+  { etiqueta: "olvidar_reglas", re: /\bolvid[aá](?:te|lo)?(?![a-záéíóúüñ])[^.?!]{0,25}(?<![a-záéíóúüñ])(instruccion|regla|[oó]rden)/i },
   { etiqueta: "ignore_instructions_en", re: /\bignore\b[^.?!]{0,25}\b(instruction|rule|prompt|previous)/i },
   { etiqueta: "modo_desarrollador", re: /\bmodo\s+desarrollador\b|\bdeveloper\s+mode\b/i },
   { etiqueta: "jailbreak", re: /\bjailbreak\b|\bmodo\s+dan\b|\bdan\s+mode\b/i },
   { etiqueta: "extraer_prompt", re: /\b(system\s+prompt|prompt\s+del\s+sistema|tus\s+instrucciones|reglas?\s+internas?|tu\s+configuraci[oó]n\s+interna)\b/i },
-  { etiqueta: "pedir_prompt", re: /\b(mostr[aá]|dec[ií]|repet[ií]|dame|revel[aá]|cu[aá]l\s+es)\b[^.?!]{0,30}\b(prompt|instruccion|reglas?\s+internas?)\b/i },
+  { etiqueta: "pedir_prompt", re: /\b(mostr[aá]|dec[ií]|repet[ií]|dame|revel[aá]|cu[aá]l\s+es)(?![a-záéíóúüñ])[^.?!]{0,30}\b(prompt|instruccion|reglas?\s+internas?)\b/i },
   { etiqueta: "actuar_como", re: /\b(actu[aá]\s+como|comport[aá]te\s+como|pretend\s+to\s+be|act\s+as\s+if)\b/i },
   { etiqueta: "sin_restricciones", re: /\bsin\s+(restriccion|reglas?|filtro|l[ií]mite|censura)/i },
   { etiqueta: "base64_largo", re: /[A-Za-z0-9+/]{40,}={0,2}/ },
