@@ -51,6 +51,8 @@ Sin la 1 no hay piloto. Las otras se pueden tomar dentro de la fase 0.
    cuyas 8 líneas `[Probable: web]` Pablo confirmó el mismo 13/10). La fecha del Mié 14/10 deja de regir. **Tope real: Vie 16/10**, la compuerta de
    las fases 0 y 1. El paso 3 de la fase 1 (cargar los clientes) necesita la decisión; si no está para entonces, el piloto pasa al Lun 26/10
    por la regla ya acordada (`docs/ESTADO.md`, entrada del piloto). Las fases 0 y 1 siguen sin esperar: usan el canal de prueba.
+   **Retomada el 13/10 (Pablo: «Sí, retomemos la decisión 1»).** Lista propuesta de 4 clientes y fichas revisadas en
+   [`PILOTO-LISTA-CLIENTES-2026-10-13.md`](PILOTO-LISTA-CLIENTES-2026-10-13.md). **Borrador: no se envió** a Luis ni a Thomas (Pablo: «armala, pero no lo mandes aún»).
 2. **Modelo de producción para el agente.** Las opciones son Sonnet 4.6 (medido, lento en la cola), Haiku 5.5 (barato y
    rápido, sin medición real) o Sonnet 5.5 (sin medir). Propuesta: medir Haiku 5.5 y Sonnet 5.5 con los casos de evaluación
    el 13/10, después de un estimativo y un "sí" (regla de gasto), y decidir con latencia, costo y aciertos en la mano.
