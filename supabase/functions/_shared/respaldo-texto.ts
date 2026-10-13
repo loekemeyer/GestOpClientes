@@ -25,8 +25,8 @@ export const RESPALDO_SIN_TERMINAR = "Una persona del equipo revisa tu consulta 
 
 // Pablo, 13/10 (plan de los 8 puntos, P6.2): cuando TODOS los modelos de la cadena fallan o vencen, el cliente no recibía nada (sólo la alerta
 // llm_error / llm_timeout a una persona). Ahora recibe este texto, una vez cada 30 min por número (lk_whatsapp-webhook, avisarIaCaida), por la
-// llave de envío como todo lo demás. Texto mío sobre el patrón de los aprobados: pendiente de que Pablo lo apruebe o lo cambie.
-export const RESPALDO_IA_CAIDA = "Se me complicó para contestarte ahora. Ya le paso tu consulta a una persona del equipo, que te escribe por acá. 🙏";
+// llave de envío como todo lo demás. Pablo, 13/10: «tiene que ser un poco más formal» → este texto, sin «se me complicó», sin «por acá» y sin emoji.
+export const RESPALDO_IA_CAIDA = "En este momento no puedo procesar tu consulta. Ya la derivé a una persona del equipo, que te va a responder por este medio.";
 
 /** Qué hacer cuando se terminan las vueltas: el texto y si hay que dejar una alerta (no, si en el turno ya se derivó bien). */
 export function cierreSinTerminar(usadas: ReadonlyArray<{ nombre: string; resultado: string }>): { texto: string; derivar: boolean } {
