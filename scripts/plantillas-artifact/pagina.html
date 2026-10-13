@@ -188,13 +188,16 @@ function problemas() {
   const S = DATOS.soluciones, v = document.getElementById("v-problemas");
   if (!S) { v.innerHTML = ""; return; }
   const items = S.motivos.map((m, i) => ({ m, i })).filter(({ m }) => !filtroEstado || m.estado === filtroEstado);
-  v.innerHTML = `<div class="grid">${items.map(({ m, i }) => `<button class="card c-${esc(m.estado)}" type="button" data-i="${i}"><div class="card-in">
-      <div class="fila-top"><span class="num">${nf(m.consultas)} consultas · ${pct(m.consultas, S.total_consultas)}</span><span class="sello s-${esc(m.estado)}">${EST[m.estado] || m.estado}</span></div>
+  const tr = (S.transversal || []).map((m, i) => ({ m, i })).filter(({ m }) => !filtroEstado || m.estado === filtroEstado);
+  const tarjetaMotivo = (m, attr, cuenta) => `<button class="card c-${esc(m.estado)}" type="button" ${attr}><div class="card-in">
+      <div class="fila-top">${cuenta}<span class="sello s-${esc(m.estado)}">${EST[m.estado] || m.estado}</span></div>
       <div class="pregunta">${esc(m.motivo)}</div>
       ${m.ejemplo ? `<div class="ejemplo">${esc(m.ejemplo)}</div>` : ""}
       <div class="flow c-${esc(m.estado)}"><b>Cómo se arregla</b>${esc(m.resumen || "")}</div>
-      <div class="meta"><span>Tocá para ver el mensaje</span><span class="ver">Ver ›</span></div></div></button>`).join("")}</div>`;
-  v.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => abrirProblema(S.motivos[Number(b.dataset.i)], b)));
+      <div class="meta"><span>Tocá para ver el mensaje</span><span class="ver">Ver ›</span></div></div></button>`;
+  v.innerHTML = `<div class="grid">${items.map(({ m, i }) => tarjetaMotivo(m, `data-i="${i}"`, `<span class="num">${nf(m.consultas)} consultas · ${pct(m.consultas, S.total_consultas)}</span>`)).join("")}</div>`
+    + (tr.length ? `<h2 class="tit" style="margin-top:22px">En todas las consultas</h2><p class="ayuda">Pasa sin importar el motivo.</p><div class="grid">${tr.map(({ m, i }) => tarjetaMotivo(m, `data-t="${i}"`, "")).join("")}</div>` : "");
+  v.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => abrirProblema(b.dataset.t != null ? S.transversal[Number(b.dataset.t)] : S.motivos[Number(b.dataset.i)], b)));
 }
 function filtrosEstado() {
   const S = DATOS.soluciones; if (!S) return;
