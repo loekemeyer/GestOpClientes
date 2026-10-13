@@ -751,8 +751,14 @@ const RE_FOTO_DE_OTRA_COSA = /\b(comprobantes?|transferencias?|factur\w*|pagos?|
 export function pideFotoProducto(text: string): boolean {
   return RE_PIDE_FOTO.test(text) && !RE_FOTO_DE_OTRA_COSA.test(text) && !RE_ROTURA.test(text);
 }
+// Pablo, 13/10 (Simulador, 4 de 4): "Hola, quiero 6 cajas del pelapapas 505, pago contado y que me lo manden por expreso a mi dirección" salía con la respuesta fija de medios
+// de pago (#15, el CBU) por "pago contado" y no tomaba el pedido; con "quiero hacer un pedido:" delante sí llegaba a la IA. Un cliente que PIDE una cantidad ("quiero 6 cajas",
+// "necesito 10 cajas del 505", "me llevo 3 docenas", "mandame 6 cajas") está haciendo un pedido: lo toma la IA. Hace falta el verbo de pedir pegado a la cantidad con su unidad, así
+// "¿cuánto sale la caja de 12 unidades?", "el mínimo son 12 cajas?" o "quiero saber si aceptan contado" siguen en su respuesta fija.
+const RE_PIDE_CANTIDAD = /(?<![a-záéíóúñ])(quiero|queremos|necesito|necesitamos|quisiera|quisi[eé]ramos|pido|pedimos|me\s+llevo|nos\s+llevamos|mand[aá]me|mand[aá]nme|env[ií][aá]me|anot[aá]me|carg[aá]me|arm[aá]me|reserv[aá]me)(?![a-záéíóúñ])\s+(?:(?:pedir|comprar|encargar|llevar)\s+)?(?:(?:unas?|unos|como)\s+)?\d+(?:[.,]\d+)?\s*(?:docenas?|cajas?|cj|unidades|bultos?)(?![a-záéíóúñ])/i;
+export const pideCargarPedido = (text: string): boolean => RE_PIDE_CANTIDAD.test(text);
 function vaALaIA(text: string): boolean {
-  return RE_AGREGA_A_PEDIDO.test(text) || RE_PAGO_RECIBIDO.test(text) || RE_RAZON_SOCIAL_MAL.test(text) ||
+  return RE_AGREGA_A_PEDIDO.test(text) || pideCargarPedido(text) || RE_PAGO_RECIBIDO.test(text) || RE_RAZON_SOCIAL_MAL.test(text) ||
     RE_FACTURA_DUPLICADA.test(text) || pideFotoProducto(text) ||
     // "Te paso el comprobante del pedido" sigue en la respuesta fija del comprobante (#20).
     (RE_ENVIA_PEDIDO.test(text) && !/comprobante|\bpag[oó]|transfer/i.test(text));
