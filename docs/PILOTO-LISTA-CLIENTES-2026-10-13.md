@@ -43,9 +43,11 @@ quien conoce al cliente (hoy, el vendedor 7 para tres de los cuatro):
 
 1. Que **compra por WhatsApp** (la tabla `orders` no registra el canal).
 2. Que **tiene un contacto que responde** rápido.
-3. Que **el teléfono sea el actual de cada cliente.** Los 4 teléfonos del piloto salen **sólo** de `wa_clientes_telefono`, una copia del padrón que **no se actualiza desde el
-   24/09** (0 filas tocadas en los últimos 3 días, medido el 13/10; auditoría 695). Ninguno está en la agenda de vinculaciones (`bot_customer_whatsapps`), que sí pasó por revisión
-   humana. `wa_identify_customer` los reconoce bien hoy, pero un número cambiado después del 24/09 no se vería. Hay que confirmarlos con el vendedor antes de cargarlos en la whitelist.
+3. Que **el teléfono sea el actual de cada cliente.** *(Corregido el 13/10, ver `PROPUESTA-TELEFONOS-695-2026-10-13.md`: antes decía que la copia del 24/09 podía perder cambios; no está demostrado.)*
+   Los 4 teléfonos del piloto están en **las dos fuentes del padrón** (la vieja y `GV_Clientes_Whatsapp`, que la reemplazó el 24/09), con el mismo cliente, y `wa_identify_customer` los reconoce.
+   Ninguna de las dos tiene un cambio posterior al 24/09, así que no hay un número más nuevo que el bot no vea; lo que no se puede saber desde la base es si un cliente cambió de número y nadie lo cargó.
+   Siguen sin estar en la agenda de vinculaciones (revisión humana). Confirmarlos con el vendedor antes de cargarlos sigue valiendo. Dato nuevo: **LK 1987 Bertotto tiene el mismo teléfono que el cliente
+   Chef 1891**, que es el mismo negocio. El bot lo trata como un cliente con dos marcas y ese caso no se probó en el aislamiento.
 
 ## 5. Revisión de las fichas (Fase 1 punto 2, hecha el 13/10 sobre estos 4)
 
