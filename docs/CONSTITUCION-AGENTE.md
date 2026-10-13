@@ -85,8 +85,10 @@ automático pasa por la llave antes de salir a Meta. ⇒ `wa-guard.ts`, `wa_pued
 7.1 Cada POST del webhook se verifica con la firma de Meta; uno forjado recibe 403. ⇒ `webhook-firma.ts`.
 
 7.2 Topes que no puede exceder: 20 consultas por hora y por número (`tope-ia.ts`), tope de gasto
-diario de IA (`tope-gasto.ts`), y máximo 5 vueltas de herramientas por turno (`bot-conversation.ts`,
-`runConversation`).
+diario de IA (`tope-gasto.ts`), máximo 5 vueltas de herramientas por turno, y **topes por acción y
+por número** (derivar 8/h, agregado 6/h, sucursal 4/h, armar 6/h, confirmar 6/h): al pasarlos, la
+acción no se ejecuta y una persona queda alertada. ⇒ `tope-accion.ts`, `bot_accion_tope` (sql/142),
+`bot-conversation.ts` (`runConversation`).
 
 ## Artículo 8 — Pedidos
 
@@ -125,8 +127,8 @@ muerta: están para que nadie confíe de más.
 2. ~~Cambio de mail sin verificación por otro canal.~~ **Cerrado el 13/10/2026:** se apagó el
    cambio de mail por el bot (uso ~0, el mail no es credencial de login). Si vuelve a habilitarse,
    vuelve este riesgo y hay que avisar al mail viejo + verificar por otro canal.
-3. **Faltan topes por acción** (derivar, solicitar_*, armar_pedido): el tope de 20/h cuenta
-   consultas, no acciones.
+3. ~~Faltan topes por acción.~~ **Cerrado el 13/10/2026:** cada acción (derivar, solicitar_*,
+   armar/confirmar pedido) tiene su tope por hora y por número (Art. 7.2).
 4. **Detección de ataques en la entrada es sólo una señal**, se evade con paráfrasis.
 
 ---

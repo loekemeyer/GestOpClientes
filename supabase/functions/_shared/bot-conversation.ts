@@ -17,6 +17,7 @@ import { type AlertaAbierta, casoDeAgregado, textoClienteEnArmado, textoClienteE
 import { candidatosDePedido, esTurnoDePedido, HERRAMIENTAS_DE_PEDIDO, modeloFijoDePedidos, RE_BOT_EN_PEDIDO } from "./pedido-turno.ts";
 import { evaluarConfirmacion, type FilaHistorial, REGLA_BLOQUEO, REGLA_YA_CONFIRMO, yaConfirmoEsteResumen } from "./pedido-gate.ts";
 import { mailEscritoPorElCliente, mailYaPedidoEnLaCharla, REGLA_MAIL_NO_ESCRITO, textoPedidoMail, textoYaPedidoMail, VIGENCIA_MAIL_MS } from "./mail-gate.ts";
+import { contextoTopeAccion, MSG_TOPE_ACCION, TOPES_ACCION } from "./tope-accion.ts";
 import { decidirSalida, type Hallazgo, modoDelFiltro, redactarSecretos, revisarSalida, TEXTO_SALIDA_BLOQUEADA } from "./filtro-salida.ts";
 import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
@@ -1740,6 +1741,37 @@ export async function runConversation(
 
     const results: { id: string; name: string; content: string }[] = [];
     for (const tc of res.toolCalls) {
+      // Tope por acción y por número (riesgo 3): que un cliente o un loop no inunde al equipo con derivaciones,
+      // agregados, sucursales o pedidos. El contador vive en la base (bot_accion_tope). El Simulador no topea.
+      // Si el contador falla, NO bloquea (nunca dejar al cliente sin acción por un error del tope).
+      const limiteAccion = TOPES_ACCION[tc.name];
+      if (limiteAccion && !SIM.activo) {
+        let permitido = true;
+        try {
+          const { data } = await supabase.rpc("bot_accion_tope", { p_phone: phone, p_accion: tc.name, p_limite: limiteAccion });
+          permitido = data !== false;
+        } catch (e) { console.warn("[tope-accion] no pude chequear el tope, dejo pasar:", e instanceof Error ? e.message : e); }
+        if (!permitido) {
+          console.warn(`[tope-accion] ${tc.name} topeado …${phone.slice(-4)} (max ${limiteAccion}/h)`);
+          // Alerta a una persona, una sola vez por número y por hora (si no, el tope mismo inunda).
+          try {
+            const { data: ab } = await supabase.from("wa_alertas_humano").select("id").eq("phone", phone)
+              .eq("contexto->>motivo", "tope_accion").in("estado", ["pendiente", "notificado"])
+              .gte("created_at", new Date(Date.now() - 3_600_000).toISOString()).limit(1);
+            if (!(ab?.length)) {
+              const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
+              if (cli?.[0]?.customer_id) {
+                await notificarHumano({ tipo: "escalation", phone, customerId: cli[0].customer_id, contexto: contextoTopeAccion(tc.name, limiteAccion) });
+              }
+            }
+          } catch (e) { console.warn("[tope-accion] no pude dejar la alerta:", e instanceof Error ? e.message : e); }
+          const data = { ok: false, topeado: true, texto_para_el_cliente: MSG_TOPE_ACCION,
+            regla: "Pasale este texto tal cual y NO vuelvas a llamar esta herramienta en este turno." };
+          results.push({ id: tc.id, name: tc.name, content: JSON.stringify(data) });
+          usadas.push({ nombre: tc.name, input: tc.input ?? {}, resultado: JSON.stringify(data).slice(0, 1500) });
+          continue;
+        }
+      }
       const result = await executeTool(tc.name, tc.input ?? {}, phone, { userText, historial: rawHistory });
       if (result.media) allMedia.push(...result.media);
       auditTool(phone, tc.name, tc.input ?? {}, JSON.stringify(result.data).slice(0, 500)).catch(() => {});
