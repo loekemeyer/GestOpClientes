@@ -118,9 +118,13 @@ for (const f of ["wa_claves_de_cliente", "wa_claves_del_telefono", "wa_telefono_
   igual(`sql/156 crea ${f} y el rollback la borra`, [sql.includes(`function public.${f}(`), leer("sql/rollback/156_wa_guardrail_cruce_cliente.sql").includes(`drop function if exists public.${f}(`)], [true, true]);
 }
 igual("sql/156: bot_flush_outbox retiene el cruce con el mismo estado que la llave y deja el motivo en error",
-  /update wa_outbox o\s+set status = 'held_no_whitelist',\s+error\s+= x\.motivo[\s\S]*?wa_destino_cruzado\(o2\.phone, null, null, ord\.customer_id\)/.test(sql), true);
-igual("sql/156: sólo los avisos de un pedido (order_created, retiro_listo, tracking_*) y con cast seguro del ref_id",
-  /o2\.context in \('order_created', 'retiro_listo'\) or o2\.context like 'tracking\\_%'/.test(sql) && /case when o2\.ref_id ~ '\^\\d\{1,15\}\$' then o2\.ref_id::bigint end/.test(sql), true);
+  /update wa_outbox o\s+set status = 'held_no_whitelist',\s+error\s+= x\.motivo[\s\S]*?wa_destino_cruzado\(\s*o2\.phone, null,\s*case when o2\.context = 'recordatorio_dto' then split_part\(o2\.ref_id, '\|', 1\) end,\s*ord\.customer_id\)/.test(sql), true);
+igual("sql/156: avisos de un pedido (order_created, retiro_listo, tracking_*) y el recordatorio de descuento (recordatorio_dto), con cast seguro del ref_id",
+  /o2\.context in \('order_created', 'retiro_listo', 'recordatorio_dto'\) or o2\.context like 'tracking\\_%'/.test(sql)
+  && /case when o2\.context <> 'recordatorio_dto' and o2\.ref_id ~ '\^\\d\{1,15\}\$' then o2\.ref_id::bigint end/.test(sql), true);
+igual("recordatorio_dto: el cliente es el cod de ref_id y ese contexto es el que arma lk_recordatorio-descuento con ref cod|fecha|condicion|dias",
+  /ref: `\$\{gr\.cod\}\|\$\{gr\.fecha\}\|\$\{gr\.condicion\}\|\$\{e\.dias\}`/.test(leer("supabase/functions/lk_recordatorio-descuento/index.ts"))
+  && /const CONTEXTO = "recordatorio_dto"/.test(leer("supabase/functions/lk_recordatorio-descuento/index.ts")), true);
 igual("el rollback devuelve bot_flush_outbox sin el guardrail", leer("sql/rollback/156_wa_guardrail_cruce_cliente.sql").includes("wa_destino_cruzado(o2.phone"), false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }

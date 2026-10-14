@@ -13,8 +13,9 @@
 --   a qué cliente va (no se puede juzgar: sigue como hasta hoy) o es de un cliente simulado (cuit 30999…).
 --
 -- Dónde se aplica (el único punto de salida, sin tocar a los productores):
---   1) `bot_flush_outbox` (la cola `wa_outbox`, por donde salen los avisos de pedido): las filas de contexto `order_created`,
---      `retiro_listo` y `tracking_*` traen en `ref_id` el pedido, y de ahí sale el cliente. Si cruza, la fila queda en
+--   1) `bot_flush_outbox` (la cola `wa_outbox`, por donde salen los avisos): las filas de contexto `order_created`,
+--      `retiro_listo` y `tracking_*` traen en `ref_id` el pedido, y de ahí sale el cliente; las de `recordatorio_dto` (el aviso
+--      de descuento con alias y CBU) traen `cod_cliente|fecha|condición|días`, y el cliente es ese cod. Si cruza, la fila queda en
 --      `held_no_whitelist` con el motivo en `error` (no se reintenta ni se reenvía solo, igual que las retenidas por la llave).
 --   2) `wa_puede_enviar_a(phone, cuit, cod_cliente)`: lo usa `_shared/wa-guard.ts` cuando el productor declara el cliente con el
 --      header `x-lk-cuit` (hoy lk_factura-check). Sin header, `wa-guard` sigue llamando a `wa_puede_enviar` como siempre.
@@ -162,17 +163,22 @@ begin
    where o.status = 'pending'
      and not wa_puede_enviar(o.phone);
 
-  -- Guardrail de cruce de cliente (sql/156): el aviso de un pedido sólo sale a un teléfono de ESE cliente.
+  -- Guardrail de cruce de cliente (sql/156): el aviso de un cliente sólo sale a un teléfono de ESE cliente.
+  --   · avisos de un pedido (order_created, retiro_listo, tracking_*): el cliente sale del pedido (ref_id = orders.id)
+  --   · recordatorio_dto (aviso de descuento con alias y CBU): ref_id = 'cod_cliente|fecha|condición|días', el cliente es el cod LK
   update wa_outbox o
      set status = 'held_no_whitelist',
          error  = x.motivo
     from (
       select o2.id,
-             wa_destino_cruzado(o2.phone, null, null, ord.customer_id) as motivo
+             wa_destino_cruzado(
+               o2.phone, null,
+               case when o2.context = 'recordatorio_dto' then split_part(o2.ref_id, '|', 1) end,
+               ord.customer_id) as motivo
         from wa_outbox o2
-        join orders ord on ord.id = (case when o2.ref_id ~ '^\d{1,15}$' then o2.ref_id::bigint end)
+        left join orders ord on ord.id = (case when o2.context <> 'recordatorio_dto' and o2.ref_id ~ '^\d{1,15}$' then o2.ref_id::bigint end)
        where o2.status = 'pending'
-         and (o2.context in ('order_created', 'retiro_listo') or o2.context like 'tracking\_%')
+         and (o2.context in ('order_created', 'retiro_listo', 'recordatorio_dto') or o2.context like 'tracking\_%')
     ) x
    where o.id = x.id
      and x.motivo is not null;
