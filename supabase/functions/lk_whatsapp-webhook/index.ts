@@ -897,12 +897,15 @@ async function avisarDescartePorWhitelist(
 }
 
 async function estaEnWhitelist(phone: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("wa_envio_contactos")
-    .select("phone")
-    .eq("phone", phone)
-    .maybeSingle();
-  return !!data;
+  // Match por los últimos 10 dígitos (mismo criterio que wa_identify_customer y wa_puede_enviar).
+  // El inbound de Meta llega con el 9 argentino (5491131181027) y la whitelist puede estar cargada
+  // sin él (541131181027): comparar el string completo con .eq("phone") descartaba en silencio a un
+  // número que SÍ estaba en la whitelist, y el bot nunca le contestaba. La tabla es chica, así que
+  // traer todas las filas y comparar normalizado no pesa.
+  const t = (phone ?? "").replace(/\D/g, "").slice(-10);
+  if (t.length < 10) return false;
+  const { data } = await supabase.from("wa_envio_contactos").select("phone");
+  return (data ?? []).some((r) => String(r.phone ?? "").replace(/\D/g, "").slice(-10) === t);
 }
 
 /** Fila de `wa_blacklist` del número, o null si no está. `avisado_at` marca si ya se le
