@@ -20,6 +20,8 @@
 //      elegida se lee del historial (bot_historial_chat), sin tablas nuevas. Si el último mensaje con etiqueta tiene más de 15
 //      minutos, se vuelve a preguntar: ante la duda, se pregunta.
 //
+//   5. (Pablo, 14/10) Un cliente de Loekemeyer con cuenta de Chef pero SIN compras recientes no recibe la pregunta de marca (punto 1). Pero si NOMBRA Chef ("¿qué pedidos tengo en Chef?")
+//      lo atiende el flujo de Chef igual: no tiene que recibir los pedidos de Loekemeyer sin que se diga de qué marca son.
 // Cuando Chef sume una herramienta nueva, entra en atenderClienteChef y la puerta no cambia.
 import { supabase } from "./supabase.ts";
 import { SIM } from "./simulacion.ts";
@@ -123,6 +125,17 @@ export async function cuentaChefDeCliente(customer: NonNullable<Customer>): Prom
   return cuenta;
 }
 
+/** La cuenta de Chef del mismo CUIT aunque NO haya comprado hace poco (cuentaChefDeCliente la descarta si está inactiva). null si el CUIT no tiene cuenta de Chef o no se pudo leer.
+ *  Sirve para el cliente que NOMBRA Chef (Pablo, 14/10): ahí no importa si compró hace poco, pregunta por Chef. */
+export async function cuentaChefPorCuit(customer: NonNullable<Customer>): Promise<CuentaChef | null> {
+  const cuit = cuitNorm((await ctxPagosDeCliente(customer)).cuit);
+  if (!cuit) return null;
+  const { data, error } = await supabase.from("bot_cuentas").select("cod_cliente, razon_social").eq("empresa", "CH").eq("cuit", cuit).order("cod_cliente").limit(1);
+  if (error) { console.error("cuentaChefPorCuit:", error.message); return null; }
+  const r = data?.[0];
+  return r ? { cod_cliente: String(r.cod_cliente), razon_social: String(r.razon_social ?? ""), cuit, fuente: "cuit" } : null;
+}
+
 // ── la puerta ────────────────────────────────────────────────────────────────────────────────────
 export type Puerta =
   | { tipo: "responder"; reply: string; via: string; documentos?: Array<{ url: string; filename: string }>; imagenes?: Array<{ url: string; caption: string }> }
@@ -145,7 +158,15 @@ export async function puertaMarca(phone: string, text: string, customer: NonNull
   const t = text.trim();
   if (!t || esSoloSaludo(t) || esCortesia(t) || esConsultaDePagos(t)) return null;
   const cuenta = await cuentaChefDeCliente(customer);
-  if (!cuenta) return null;
+  if (!cuenta) {
+    // Pablo, 14/10 (Simulador, LK 1987 con cuenta de Chef sin compras en 90 días): «¿qué pedidos tengo en Chef?» recibía los pedidos de LOEKEMEYER sin decir de qué marca eran,
+    // porque la cuenta inactiva cortaba acá antes de mirar si el mensaje nombraba la marca. Si NOMBRA Chef y el CUIT tiene cuenta de Chef (aunque no compre hace poco), lo atiende el
+    // flujo de Chef: lo que Chef sabe, por ejemplo «no veo pedidos de Chef en los últimos 30 días». Sin cuenta de Chef, o sin nombrar la marca, sigue el flujo de siempre.
+    if (marcaNombrada(t) !== "chef") return null;
+    const sinActividad = await cuentaChefPorCuit(customer);
+    if (!sinActividad) return null;
+    return await resolver("chef", t, phone, sinActividad);
+  }
 
   const h = leerHistorial(await filasRecientes(phone));
   // Contesta la pregunta ("Chef", "el de Loeke", "los dos") o, si el mensaje es nuevo, ¿nombra la marca?
