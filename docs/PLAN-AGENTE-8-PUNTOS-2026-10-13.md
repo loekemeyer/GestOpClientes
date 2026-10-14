@@ -104,6 +104,10 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   **Arreglo (commit `d7a6adf`):** `consultar_stock` avisa que la consulta ya quedó en manos de una persona y que no se derive de
   nuevo, y `derivar_a_persona` pide incluir lo ya averiguado. Con Haiku (sí de Pablo, 2 corridas, US$ 0,007163): 2 de 2 sin
   derivar de más, con el stock y la foto (una la mandó con `enviar_fotos_producto`, la otra pasó el link).
+  **Detalles menores arreglados (commits `87a183e` y `9ecb475`):** la razón social se saca del inicio de las pistas (mp07 la
+  copiaba de la respuesta fija), la regla CIERRE prohíbe ofrecer lo que no se pidió y la respuesta fija de stock ya no cierra con
+  «Podés hacer el pedido en loekemeyer.com.» (mp01 la copiaba). Con Haiku (sí de Pablo, 4 corridas, US$ 0,011688): mp01, mp07
+  y mp08 sin saludo con razón social ni ofrecimientos.
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
 - **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
   (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)
