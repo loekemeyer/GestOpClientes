@@ -184,7 +184,7 @@ function navSec(mid, sid) {
 // ── Bitácora de trabajo (v0.29.0) — calendario leído de public.bitacora_dias ──
 // Muestra adelante el resumen en lenguaje simple (lo que se logró); el detalle técnico queda
 // escondido en "ver detalle". La tabla la escribe la Routine diaria vía lk_bitacora-sync.
-var BT = { dias: null };
+var BT = { dias: null, audit: null };
 const BT_DOW = ["L", "M", "M", "J", "V", "S", "D"];
 const BT_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 function btNivel(c) { return c >= 60 ? "l4" : c >= 30 ? "l3" : c >= 10 ? "l2" : c >= 1 ? "l1" : ""; }
@@ -199,6 +199,15 @@ async function btCargar() {
       if (error) throw error;
       BT.dias = data || [];
     } catch (e) { root.innerHTML = `<div class="cm-vacio">No se pudo cargar la bitácora: ${gesc(e.message)}</div>`; return; }
+  }
+  if (!BT.audit) {
+    // Contadores de auditoría EN VIVO desde el proyecto de Gestión (sbAuth), vista
+    // public.v_bitacora_audit_190 (sólo conteos agregados del repo). Si falla, queda el
+    // audit guardado en la tabla.
+    try {
+      const { data, error } = await sbAuth.from("v_bitacora_audit_190").select("dia,abiertos,cerrados");
+      if (!error && data) BT.audit = new Map(data.map((x) => [x.dia, { abiertos: x.abiertos, cerrados: x.cerrados }]));
+    } catch (_) { /* sin live: queda el audit guardado */ }
   }
   btPintar();
 }
@@ -246,8 +255,9 @@ function btDetalle(key) {
   const areas = [["funciones", "el bot"], ["sql", "base de datos"], ["docs", "documentación"], ["scripts", "herramientas"], ["otros", "otros"]]
     .filter(([k]) => ar[k]).map(([k, lbl]) => `<span>${lbl}: ${ar[k]}</span>`).join("");
   const asuntos = (r.asuntos || []).map((s) => `<li>${gesc(s)}</li>`).join("");
-  const aud = r.audit && ((r.audit.abiertos || 0) || (r.audit.cerrados || 0))
-    ? `<div class="bt-kv">Problemas registrados: ${r.audit.abiertos || 0} nuevos · ${r.audit.cerrados || 0} resueltos</div>` : "";
+  const al = (BT.audit && BT.audit.get(key)) || r.audit || {};
+  const aud = ((al.abiertos || 0) || (al.cerrados || 0))
+    ? `<div class="bt-kv">Problemas registrados: ${al.abiertos || 0} nuevos · ${al.cerrados || 0} resueltos</div>` : "";
   modal(`<div class="bt-modal"><h3>${btFecha(key)}</h3>
     <div class="bt-res">${gesc(r.resumen || "Sin resumen.")}</div>
     <div class="bt-kv">${r.commits || 0} cambios · trabajó: ${autores}</div>${aud}
