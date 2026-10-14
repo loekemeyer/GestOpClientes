@@ -13,9 +13,13 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: manda a usar la herramienta ANTES de preguntar`, /usala ANTES de preguntarle al cliente/.test(txt));
   ok(`${modo}: nombra las cuatro herramientas de consulta`, ["consultar_mis_pedidos", "consultar_mi_entrega", "buscar_productos", "consultar_kb"].every((h) => txt.includes(h)));
   ok(`${modo}: no pide la fecha del pedido ni el código ni el nombre completo del artículo`, /No le pidas la fecha del pedido, el c[oó]digo ni el nombre completo de un art[ií]culo si pod[eé]s buscarlos vos/.test(txt));
-  // 13/10, «precio del automate» (m72 en versión corta): Haiku 5.5 acertó 1 de 4 y en 3 pidió el nombre o el código sin llamar a buscar_productos.
-  ok(`${modo}: «el X» / «la X» que podría ser un artículo: busca con buscar_productos antes de preguntar el nombre o el código`, /Si pide el precio, el stock o un dato de «el X» o «la X» y X podr[ií]a ser un art[ií]culo, aunque no lo conozcas, llam[aá] buscar_productos con X ANTES de preguntarle el nombre o el c[oó]digo/.test(txt));
-  ok(`${modo}: la búsqueda reconoce artículos inactivos por nombre y sólo pide el dato si no devuelve nada ni un no_disponibles`, /reconoce tambi[eé]n art[ií]culos inactivos por nombre\. Pedile el nombre o el c[oó]digo s[oó]lo si buscar_productos no devuelve nada ni un no_disponibles/.test(txt));
+  // 13/10, «precio del automate» (m72 en versión corta): Haiku 5.5 acertó 1 de 4 y, con una sola frase de regla, 4 de 10: en el resto pidió el nombre o el código sin llamar a buscar_productos.
+  // 14/10: la regla pasa a llevar un ejemplo (con modelos chicos pesa más que la instrucción sola).
+  ok(`${modo}: «el X» / «la X» que podría ser un artículo, aunque no lo conozca o suene raro: busca con buscar_productos ANTES de preguntar el nombre o el código`, /Si pide el precio, el stock o un dato de «el X» o «la X» y X podr[ií]a ser un art[ií]culo, aunque no lo conozcas o te suene raro, llam[aá] buscar_productos con X ANTES de preguntarle el nombre o el c[oó]digo/.test(txt));
+  ok(`${modo}: la búsqueda reconoce artículos inactivos por nombre y cuesta una sola consulta`, /reconoce tambi[eé]n art[ií]culos inactivos por nombre y cuesta una sola consulta/.test(txt));
+  ok(`${modo}: trae el ejemplo «precio del X» → buscar_productos sin preguntar nada`, /Ejemplo: el cliente escribe «precio del X» → llam[aá]s buscar_productos con query «X» sin preguntarle nada/.test(txt));
+  ok(`${modo}: el ejemplo cubre el artículo inactivo («no está disponible por el momento»)`, /«El X \(c[oó]d\. N\) no est[aá] disponible por el momento» si trae no_disponibles/.test(txt));
+  ok(`${modo}: sólo si la búsqueda no devuelve nada pide otro nombre o el código`, /s[oó]lo si no devuelve nada le ped[ií]s otro nombre o el c[oó]digo/.test(txt));
   ok(`${modo}: pregunta sólo lo que ninguna herramienta puede decir`, /Preguntale s[oó]lo lo que ninguna herramienta te puede decir/.test(txt));
   // 13/10, ronda 2 con Haiku 5.5: m16 («Anulá todo el pedido») y m37 («El jueves lo retiro») seguían preguntando de qué pedido se trataba.
   ok(`${modo}: «el pedido» sin decir cuál: no pregunta de cuál ni la fecha`, /Si habla de «el pedido» sin decir cu[aá]l \(anular, retirar, cambiar, preguntar cu[aá]ndo llega\), NO le preguntes de cu[aá]l se trata ni de qu[eé] fecha es/.test(txt));
