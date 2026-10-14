@@ -264,6 +264,18 @@ const BOT_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "buscar_en_mi_historial",
+    description:
+      "Busca en el historial de WhatsApp del PROPIO cliente (hasta un año atrás) por una palabra o nombre de artículo. Devuelve los mensajes que coinciden, con su fecha y quién lo dijo (cliente o empresa). Usala SÓLO cuando el cliente trae algo viejo que NO está en los mensajes recientes de esta charla (\"lo que te consulté hace meses\", \"el artículo que te pregunté\", \"¿quedó pendiente aquello?\") y necesitás saber de qué habla. NO la uses para datos que tienen su propia herramienta (pedidos, entregas, facturas, stock, precios): eso se consulta con la herramienta que corresponde, no en el historial. Es sólo del cliente que escribe; nunca trae datos de otro.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Palabra o nombre a buscar en su historial (mínimo 3 letras)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "buscar_productos",
     description:
       "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, unidades por caja, precio de lista por UNIDAD y por CAJA (sin descuentos), el precio DEL CLIENTE por caja (con su descuento por volumen, si tiene) y si tiene imagen. Si le decís un precio al cliente, usá precio_cliente_por_caja cuando venga (es el suyo, antes del descuento de la forma de pago); si no viene, el de lista. No confundas los precios.",
@@ -901,6 +913,17 @@ async function executeTool(
       return { data };
     }
 
+    case "buscar_en_mi_historial": {
+      const query = String(input.query ?? "").trim();
+      if (query.length < 3) return { data: { mensaje: "Decime qué palabra buscar (al menos 3 letras)." } };
+      const { data, error } = await supabase.rpc("bot_buscar_mi_historial", {
+        p_telefono: phone, p_query: query, p_limite: 6,
+      });
+      if (error) return { data: { error: error.message } };
+      if (!data?.length) return { data: { mensaje: `No encontré nada sobre "${query}" en tu historial.` } };
+      return { data };
+    }
+
     case "buscar_productos": {
       const { data, error } = await supabase.rpc("bot_buscar_productos", {
         p_query: input.query,
@@ -1274,7 +1297,7 @@ const AUDITABLE_TOOLS = new Set([
   "consultar_kb", "kb_agregar", "kb_eliminar", "kb_listar",
   "inbox_send", "inbox_set_modo", "auto_pausa_humano", "auto_retomar_bot",
   "consultar_mi_historial", "consultar_mis_pedidos", "consultar_detalle_pedido",
-  "consultar_mis_descuentos", "consultar_mis_facturas", "consultar_novedades", "consultar_stock", "consultar_proximos_ingresos",
+  "consultar_mis_descuentos", "consultar_mis_facturas", "consultar_novedades", "consultar_stock", "consultar_proximos_ingresos", "buscar_en_mi_historial",
   "solicitar_agregado_pedido", "solicitar_nueva_sucursal", "solicitar_cambio_mail",
 ]);
 
