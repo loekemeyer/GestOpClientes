@@ -440,6 +440,9 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
       const r = await lookupFacturaReenvio(await ctxPagosDeCliente(customer), text);
       if (r) return { ...r, faq_id: top.faq_id, yaSaluda: yaSaluda(r.reply) };
     } else if (customer) {
+      // Pablo, 14/10: el precio de un artículo lo da la IA (buscar_productos), no la respuesta fija por código. La fija cotizaba un artículo inactivo (el 597) y calculaba por
+      // UNIDAD con un 2 % de descuento web fijo; la IA da el precio por caja con el descuento por volumen del cliente y dice "no disponible por el momento" si está inactivo.
+      if (top.db_lookup_type === "product_price") return null;
       const lookupReply = await handleFaqLookup(top.db_lookup_type, customer, text, top, !!opts.parte);
       if (lookupReply) {
         return {
@@ -450,8 +453,8 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
           yaSaluda: yaSaluda(lookupReply),
         };
       }
-      // Pablo, 06/10 (m72): precio o stock de un artículo que nombró y no se halló por código → lo busca la IA, no la respuesta estática de abajo.
-      if ((top.db_lookup_type === "product_price" || top.db_lookup_type === "product_stock") && hayNombreDeArticulo(text)) return null;
+      // Pablo, 06/10 (m72): stock de un artículo que nombró y no se halló por código → lo busca la IA, no la respuesta estática de abajo.
+      if (top.db_lookup_type === "product_stock" && hayNombreDeArticulo(text)) return null;
       // Si el lookup no aplica, caemos a respuesta estática de más abajo
     }
   }
@@ -540,7 +543,6 @@ async function handleFaqLookup(
   switch (lookupType) {
     case "order_status":       return lookupOrderStatus(customer);
     case "customer_discount":  return lookupCustomerDiscount(customer, faq, message);
-    case "product_price":      return lookupProductPrice(customer, message);
     case "product_stock":      return lookupProductStock(customer, message, sinEfectos);
     case "order_modify":       return lookupOrderModify(customer);
     default:                   return null;
@@ -1408,7 +1410,7 @@ async function pagoDiscountBlock(): Promise<string> {
   } catch { return ""; }
 }
 
-// Artículo mencionado en una frase ("¿tienen stock del 506?", "me pasás el precio del 506?"): sólo por el código que trae la frase.
+// Artículo mencionado en una frase ("¿tienen stock del 506?"): sólo por el código que trae la frase. (El precio ya no pasa por acá: lo da la IA, 14/10.)
 // Por NOMBRE no se busca acá (Pablo, 07/10, m72): la RPC wa_product_match fallaba en CADA llamada (bigint vs uuid) y, arreglada, con limit 1 y sin umbral
 // cotizaba el artículo equivocado (el "automate", inactivo, devolvía la bombilla 654 con score 0,16; "bombilla" y "cuchara" empatan 3 a 3). Si nombró algo
 // y no hay código, `null`: lo resuelve la IA (buscar_productos), que sabe decir que un artículo no está disponible y repreguntar.
@@ -1418,20 +1420,6 @@ async function articuloDeLaFrase(message: string): Promise<{ cod: string; descri
     if (data?.[0]) return data[0];
   }
   return null;
-}
-
-async function lookupProductPrice(customer: NonNullable<Customer>, message: string): Promise<string | null> {
-  const p = await articuloDeLaFrase(message);
-  // Pablo, 06/10 (m72): "Me refiero al automate" → pedía "el código o el nombre" aunque ya lo había dicho. Si nombró un artículo y no se encontró por código
-  // (acá no se busca por nombre), lo toma la IA; sólo se pregunta si no nombró nada.
-  if (!p) return hayNombreDeArticulo(message) ? null : `¿De qué artículo? Pasame el código o el nombre y te digo el precio.`;
-  const basePrice = Number(p.list_price);
-  const iva = basePrice * 0.21;
-  const withIva = basePrice + iva;
-  const webDiscount = 0.02;
-  const finalPrice = withIva * (1 - webDiscount);
-  const $ = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${customer.business_name}, el artículo *${p.description}* (${p.cod}), precio por unidad:\n💰 Precio sin IVA: $${$(basePrice)}\n📊 IVA 21%: $${$(iva)}\n✅ Total con IVA: $${$(withIva)}\n\n🏷️ Tu precio con descuento web (2%): $${$(finalPrice)}\n\n*(Los descuentos por pago se aplican en el carrito)*`;
 }
 
 // `sinEfectos` (08/10): se está armando una pista para el agente (pistasDeLaCapaFija): no se avisa a nadie, la derivación la decide el agente.

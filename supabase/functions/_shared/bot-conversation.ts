@@ -278,7 +278,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "buscar_productos",
     description:
-      "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, unidades por caja, precio de lista por UNIDAD y por CAJA (sin descuentos), el precio DEL CLIENTE por caja (con su descuento por volumen, si tiene) y si tiene imagen. Si le decís un precio al cliente, usá precio_cliente_por_caja cuando venga (es el suyo, antes del descuento de la forma de pago); si no viene, el de lista. No confundas los precios.",
+      "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, unidades por caja, precio de lista por UNIDAD y por CAJA (sin descuentos), el precio DEL CLIENTE por caja (con su descuento por volumen, si tiene) y si tiene imagen. Si le decís un precio al cliente, usá precio_cliente_por_caja cuando venga (es el suyo, antes del descuento de la forma de pago); si no viene, el de lista. No confundas los precios. Todos estos precios son SIN IVA: al decírselos al cliente agregá «+ IVA».",
     input_schema: {
       type: "object",
       properties: {
