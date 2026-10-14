@@ -54,8 +54,11 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
 - **Falta:**
   1. Fichas de los clientes del piloto revisadas a mano (ya está en fase 1 del plan de producción). Criterio: no mezcla
      clientes, sin datos personales ni porcentajes, nada que no salga del historial.
-  2. Historial de WhatsApp Business del 10/06/2026 a hoy: no importado, sin dueño, y el script de la primera carga no
-     está en el repo. Hay que escribirlo con deduplicación (misma charla, fecha y texto) antes de la segunda carga.
+  2. Historial de WhatsApp Business del 10/06/2026 a hoy: no importado. **Decisión de Pablo (14/10): se carga el DÍA
+     del lanzamiento** (si se importa antes, queda desactualizado), y lo hace Claude desde Claude in Chrome. El
+     importador con deduplicación (misma fecha y texto, idempotente) ya está escrito en `sql/150_import_historial_humano.sql`
+     (SIN aplicar) + `docs/RUNBOOK-IMPORT-HISTORIAL.md`. Falta sólo que Pablo diga quién exporta y pase una muestra del
+     formato. La recuperación granular ya anda sobre lo que hay (herramienta `buscar_en_mi_historial`, sql/149).
   3. Llevar al repo el índice `bot_historial_chat_telefono_creado_en_idx` que existe en la base y en ninguna migración
      (`create index if not exists`).
 - **Costo:** 1 y 3, US$ 0. 2: rearmar fichas de los clientes que cambiaron, Haiku, [Probable] US$ 1 a 3 con estimativo
