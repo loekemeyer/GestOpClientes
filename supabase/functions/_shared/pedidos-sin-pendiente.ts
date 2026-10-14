@@ -10,8 +10,8 @@ export const ESTADO_SALIDO = "entregado";
 export const NOTA_SIN_PENDIENTE =
   "Ninguno de estos pedidos está pendiente: todos ya se entregaron o se retiraron. Si el cliente pide cambiar, sacar, agregar " +
   "o anular algo de un pedido, NO derives y NO le digas que no le figura: pasale este listado (cada pedido sólo con su fecha y " +
-  "su estado tal cual, sin importes) y preguntale sólo cuál es: lo demás (artículos, cajas) se aclara después. Si en el mismo mensaje pidió un pedido nuevo, indicale cómo hacerlo en ese mismo " +
-  "mensaje (regla PEDIDOS). Si contesta que no es ninguno de la lista, ahí sí derivá con motivo pedido_no_encontrado.";
+  "su estado tal cual, sin importes) y preguntale sólo cuál es: lo demás (artículos, cajas) se aclara después. Sólo si en el mismo mensaje pidió un pedido nuevo («hacelo de nuevo con 10 cajas»), " +
+  "indicale cómo hacerlo (regla PEDIDOS). Si no lo pidió, NO le ofrezcas hacer un pedido nuevo ni le pases la web: es invasivo (Pablo, 14/10). Si contesta que no es ninguno de la lista, ahí sí derivá con motivo pedido_no_encontrado.";
 
 /** Con algún pedido pendiente devuelve la lista tal cual; si todos salieron, la envuelve con la indicación. */
 export function conAvisoSinPendiente<T extends { estado?: unknown }>(pedidos: T[]): T[] | { pedidos: T[]; ninguno_pendiente: true; indicacion: string } {
