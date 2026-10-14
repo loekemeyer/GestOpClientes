@@ -1,6 +1,7 @@
 // Claude API — Tool-use conversacional para bot WhatsApp Loekemeyer
 // Usa RPCs bot_* existentes como herramientas de Claude
 
+import { conAvisoSinPendiente } from "./pedidos-sin-pendiente.ts";
 import { cacheSettingsTtl, getGestionClient, getSetting, supabase } from "./supabase.ts";
 import { derivaciones, motivosIA } from "./derivaciones.ts";
 import { notificarHumano } from "./alertas.ts";
@@ -775,7 +776,8 @@ async function executeTool(
       const porId = new Map((est ?? []).map((e: any) => [String(e.order_id), e]));
       // deno-lint-ignore no-explicit-any
       const modoPor = new Map((modos ?? []).map((m: any) => [String(m.order_id), modoDeEntrega(m)]));
-      return { data: filas.map((r, i) => {
+      // Pablo, 14/10 (P5, mp03 y mp06): si ninguno está pendiente, la indicación va con los datos (pedidos-sin-pendiente.ts).
+      return { data: conAvisoSinPendiente(filas.map((r, i) => {
         // deno-lint-ignore no-explicit-any
         const e: any = porId.get(String(r.order_id));
         // Pablo, 14/10: `total` de orders es SIN IVA y con descuentos. Se saca el neto pelado y se pasa con IVA y «+ IVA» (importes-pedido.ts), como el aviso de pedido recibido.
@@ -787,7 +789,7 @@ async function executeTool(
         // `fecha_salida`, que el agente traducía como "salió".
         if (modo.entrega === "retira en el depósito") return { indice: i + 1, ...resto, estado, estado_para_el_cliente: estadoRetiroParaIA(estado, e?.fecha_entrega ?? null), ...modo };
         return { indice: i + 1, ...resto, estado, fecha_salida: e?.fecha_entrega ?? null, ...modo };
-      }) };
+      })) };
     }
 
     case "consultar_detalle_pedido": {
