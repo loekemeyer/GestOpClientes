@@ -159,6 +159,18 @@ export const PLANTILLAS: PlantillaMeta[] = [
     body: "Tu pedido del {{1}} fue entregado.\nSi falta algo o llegó algo mal, avisanos por este medio.",
     ejemplos: ["22/09"],
   },
+
+  // ── Pedido retirado (confirmación de retiro). Pablo, 14/10: DEFINIDA PARA ACTIVAR SI HACE FALTA.
+  //    Hoy un retiro no se avisa (se retira en mano). No tiene disparador activo ni se sube a Meta
+  //    hasta que se decida usarla; cuando se active: templates_sync (crea en Meta) + aprobación + disparador.
+  {
+    name: "pedido_retirado",
+    language: ES, category: UT,
+    disparo: "El cliente retira el pedido en depósito. Sin disparador activo: se enciende cuando se decida avisar el retiro.",
+    variables: ["fecha en que hizo el pedido (dd/mm)"],
+    body: "Tu pedido del {{1}} fue retirado.\nSi falta algo o llegó algo mal, avisanos por este medio.",
+    ejemplos: ["22/09"],
+  },
   // Recordatorio de descuento por vencer (Pablo, 30/09, con el OK de Thomy): 2 días hábiles antes de CADA escalón
   // (25→20, 20→15, 15→10, 10→0), sólo si la factura sigue con saldo en Deuda Viva. Lo encola lk_recordatorio-descuento.
   // "compra facturada" y no "factura": un mismo día puede tener varias facturas.
