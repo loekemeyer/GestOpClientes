@@ -317,7 +317,30 @@ serve(async (req) => {
       const agendado = cli?.source === "vinculo";
       // Cadena con lista propia (sql/114): la ficha avisa que el bot le cotiza con la lista general (Pablo, 01/10).
       const cadena = cod ? (await cadenasListaPropia([cod])).get(Number(cod)) ?? null : null;
-      return json({ ok: true, phone, identificado: !!cli, agendado, fuente: cli?.source ?? null, cliente, cadena, entrega, pedidos, avisos: av ?? [], facturas, deuda });
+      // Ficha de memoria del agente (wa_memoria_cliente): el resumen que lee la IA, con si está revisada a mano.
+      let memoria = null;
+      if (cod) {
+        const { data: m } = await sb.from("wa_memoria_cliente")
+          .select("ficha, revisada_por, revisada_en, generada_en")
+          .eq("marca", "LK").eq("cod_cli", Number(cod)).maybeSingle();
+        memoria = m ?? null;
+      }
+      return json({ ok: true, phone, identificado: !!cli, agendado, fuente: cli?.source ?? null, cliente, cadena, entrega, pedidos, avisos: av ?? [], facturas, deuda, memoria });
+    }
+
+    // Marca (o desmarca) como revisada a mano la ficha de memoria de un cliente. Mientras revisada_por esté cargado,
+    // el cron incremental (lk_memoria-cliente) no la pisa (sql/151). marca fija LK: este panel es del proyecto de LK.
+    if (action === "marcar_ficha_revisada") {
+      const codCli = Number(body.cod_cli);
+      if (!Number.isInteger(codCli) || codCli <= 0) return json({ error: "cod_cli requerido" }, 400);
+      const revisar = body.revisar !== false;
+      const upd = revisar
+        ? { revisada_por: gate.email ?? "admin", revisada_en: new Date().toISOString() }
+        : { revisada_por: null, revisada_en: null };
+      const { error } = await sb.from("wa_memoria_cliente").update(upd).eq("marca", "LK").eq("cod_cli", codCli);
+      if (error) return json({ error: error.message }, 500);
+      console.log(`lk_conversaciones: ficha ${codCli} ${revisar ? "revisada" : "des-revisada"} por ${gate.email}`);
+      return json({ ok: true, revisada: revisar, revisada_por: revisar ? (gate.email ?? "admin") : null });
     }
 
     if (action === "buscar_cliente") {

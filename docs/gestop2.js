@@ -687,6 +687,7 @@ async function cmCargarFicha() {
       <section><h4>Pedidos recientes</h4>${(d.pedidos || []).length ? d.pedidos.map((p) =>
         `<div class="it"><span>Pedido del ${fechaCorta(p.creado)}<br><span style="color:var(--g-muted)">${p.fecha_entrega ? `${p.estado === "entregado" ? "entregado el" : "sale el"} ${ddmm(p.fecha_entrega)}` : "todavía sin fecha de salida"}</span></span><span class="est ${EP[p.estado] || "gris"}">${gesc(humanizar(p.estado))}</span></div>`).join("") : `<div style="color:var(--g-muted);font-size:12px">Sin pedidos en la web.</div>`}</section>
       ${fichaSaldo(d.deuda)}${fichaFacturacion(d.facturas)}
+      ${fichaMemoria(d.memoria, c.cod_cliente)}
       ${fichaAvisos(d.avisos)}`;
   } catch (e) { f.innerHTML = `<section><h4>Ficha del cliente</h4><div style="color:var(--g-muted)">No se pudo cargar: ${gesc(e.message)}</div></section>`; }
 }
@@ -744,6 +745,31 @@ function fichaAvisos(av) {
     const e = E[a.status] || [humanizar(a.status), "gris"];
     return `<div class="it"><span>${gesc(humanizar(a.template_name || a.context || "mensaje"))}<br><span style="color:var(--g-muted)">${fechaCorta(a.created_at)} ${hora(a.created_at)}</span></span><span class="est ${e[1]}">${e[0]}</span></div>`;
   }).join("") : `<div style="color:var(--g-muted);font-size:12px">Ninguno.</div>`}</section>`;
+}
+
+// Ficha de MEMORIA del agente (wa_memoria_cliente): el resumen que lee la IA. Con botón para marcarla revisada:
+// mientras esté revisada, el cron incremental no la pisa (sql/151). cod = código de cliente (LK).
+function fichaMemoria(m, cod) {
+  if (!cod) return "";
+  if (!m) return `<section><h4>Memoria del agente</h4><div style="color:var(--g-muted);font-size:12px">Todavía no tiene ficha de memoria.</div></section>`;
+  const rev = !!m.revisada_por;
+  const badge = rev ? `<span class="est ok" title="Revisada el ${fechaCorta(m.revisada_en)} por ${gesc(m.revisada_por)}">✓ Revisada</span>` : "";
+  const btn = rev
+    ? `<button class="g-btn" onclick="cmMarcarRevisada('${gesc(cod)}', false, this)">Quitar revisión</button>`
+    : `<button class="g-btn prim" onclick="cmMarcarRevisada('${gesc(cod)}', true, this)">Marcar revisada</button>`;
+  return `<section><h4>Memoria del agente ${badge}</h4>
+    <div style="white-space:pre-wrap;font-size:12px;line-height:1.45;color:var(--g-text);background:var(--g-card);border:1px solid var(--g-border);border-radius:6px;padding:8px;max-height:220px;overflow:auto">${gesc(m.ficha || "")}</div>
+    <p style="font-size:11px;color:var(--g-muted);margin:6px 0 4px">Revisada = corregida a mano. Mientras lo esté, el bot no la reescribe solo.</p>
+    <div style="margin-top:4px">${btn}</div></section>`;
+}
+async function cmMarcarRevisada(cod, revisar, b) {
+  if (b) { b.disabled = true; b.textContent = revisar ? "Marcando…" : "Quitando…"; }
+  try {
+    const r = await conv({ action: "marcar_ficha_revisada", cod_cli: Number(cod), revisar });
+    if (!r.ok) throw new Error(r.error || "error");
+    toast(revisar ? "Ficha marcada como revisada." : "Revisión quitada.");
+    cmCargarFicha();
+  } catch (e) { if (b) { b.disabled = false; b.textContent = "Reintentar"; } toast("No se pudo: " + e.message); }
 }
 
 // Las alertas (tabla, aviso lateral, link ?charla=) abren la charla en el Centro de mensajes.
