@@ -1,4 +1,5 @@
 import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
+import { headersDestinatario } from "../_shared/wa-guard-destino.ts"; // sql/156: el cliente al que va el aviso, para el guardrail de cruce
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
@@ -213,7 +214,8 @@ async function waPhoneId(): Promise<string> {
   return Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? (await getSetting("wa_phone_number_id")) ?? "";
 }
 // deno-lint-ignore no-explicit-any
-async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null) {
+// `cliente.cuit`: el cliente al que va el aviso, para el guardrail de cruce (sql/156). Sólo el CUIT: el código de cliente es ambiguo entre LK y Chef.
+async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null, cliente?: { cuit?: string | null; codCliente?: string | number | null }) {
   const token = await metaToken(), phoneId = await waPhoneId();
   if (!token) return { error: "sin WHATSAPP_ACCESS_TOKEN" };
   if (!phoneId) return { error: "sin wa_phone_number_id" };
@@ -229,7 +231,7 @@ async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null) {
   };
   try {
     const res = await fetch(`${META_API}/${phoneId}/messages`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...headersDestinatario(cliente) },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -459,7 +461,7 @@ async function handleGrupo(body: any) {
 
     let envio = null;
     if (estado === "delivered") {
-      envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null);
+      envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null, { cuit: body.cuit });
       estado = envio.ok ? "sent_whatsapp" : "error_envio";
       mensaje.envio = { to: redirect, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
       if (estado === "sent_whatsapp") {
@@ -558,7 +560,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
         const mensaje = { ...base };
         let envio = null;
         if (estado === "delivered") {
-          envio = await enviarWhatsapp(to, mensaje, pdf?.url ?? null);
+          envio = await enviarWhatsapp(to, mensaje, pdf?.url ?? null, { cuit });
           estado = envio.ok ? "sent_whatsapp" : "error_envio";
           mensaje.envio = { to, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
           if (estado === "sent_whatsapp") {
@@ -683,7 +685,7 @@ serve(async (req) => {
         if (wl === null) wl = await whitelist();
         if (!wl.includes(destPhone)) estado = "held_no_whitelist";
         else {
-          envio = await enviarWhatsapp(destPhone, mensaje, pdf?.url ?? null);
+          envio = await enviarWhatsapp(destPhone, mensaje, pdf?.url ?? null, { cuit });
           estado = envio.ok ? "sent_whatsapp" : "error_envio";
           mensaje.envio = { to: destPhone, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
           if (estado === "sent_whatsapp") {
