@@ -26,7 +26,7 @@ import { hechosDeLaCharla } from "./hechos-charla.ts";
 import { bloqueMemoria } from "./memoria-cliente.ts";
 import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
-import { type Fila, historialParaElModelo, LECTURA_MAX, marcaDeTramo, sinMarcaDeTramo, VENTANA_MIN } from "./ventana-historial.ts";
+import { type Fila, filtrarDesde, historialParaElModelo, LECTURA_MAX, marcaDeTramo, sinMarcaDeTramo, VENTANA_MIN } from "./ventana-historial.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
@@ -1343,6 +1343,28 @@ export async function loadHistory(
 /** Historial del turno en UNA lectura (filas y total juntos, ventana-historial.ts): `recientes` son los últimos 16, del más nuevo al más
  *  viejo (nota de tiempo y compuertas, como antes); `modelo` es lo que ve el agente (ventana anclada + charla anterior, con marcas).
  *  Mismas filas que bot_leer_historial (rol user/assistant); se lee la tabla porque esa RPC corta en 50. Si falla, los últimos 16. */
+// Desde cuándo el número es de la cuenta actual: created_at del vínculo vivo en bot_customer_whatsapps (el más nuevo si hay varios).
+// Un número reasignado de un cliente a otro no arrastra la charla del dueño anterior al contexto del cliente nuevo (fuga entre cuentas,
+// caso Cuccinarte del 14/10). Se matchea por los últimos 10 dígitos, igual que wa_identify_customer y wa_puede_enviar. Null = no recortar
+// (número sin vínculo, o no se pudo leer): queda el comportamiento de siempre. No frena el turno si falla.
+async function cuentaDesde(phone: string): Promise<string | null> {
+  try {
+    const d10 = String(phone).replace(/\D/g, "").slice(-10);
+    if (d10.length < 10) return null;
+    const { data, error } = await supabase.from("bot_customer_whatsapps").select("whatsapp, created_at")
+      .ilike("whatsapp", `%${d10}%`);
+    if (error || !data?.length) return null;
+    const creadas = (data as Array<{ whatsapp: string; created_at: string | null }>)
+      .filter((r) => String(r.whatsapp ?? "").replace(/\D/g, "").slice(-10) === d10 && r.created_at)
+      .map((r) => r.created_at as string);
+    if (!creadas.length) return null;
+    return creadas.reduce((a, b) => (new Date(a).getTime() >= new Date(b).getTime() ? a : b));
+  } catch (e) {
+    console.error("[cuentaDesde] no se pudo leer el vínculo, no se recorta:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 async function historialDelTurno(phone: string): Promise<{ recientes: Fila[]; modelo: ReturnType<typeof historialParaElModelo> }> {
   let filas: Fila[];
   let total: number | null = null;
@@ -1350,12 +1372,16 @@ async function historialDelTurno(phone: string): Promise<{ recientes: Fila[]; mo
     filas = [...SIM.historial].reverse().slice(0, LECTURA_MAX);
     total = SIM.historial.length;
   } else {
-    const { data, count, error } = await supabase.from("bot_historial_chat").select("rol, contenido, creado_en", { count: "exact" })
-      .eq("telefono", phone).in("rol", ["user", "assistant"])
+    // El corte por cuenta va en el SELECT: así `count` (el total para largoVentana) también queda scopeado al dueño actual.
+    const desde = await cuentaDesde(phone);
+    let q = supabase.from("bot_historial_chat").select("rol, contenido, creado_en", { count: "exact" })
+      .eq("telefono", phone).in("rol", ["user", "assistant"]);
+    if (desde) q = q.gte("creado_en", desde);
+    const { data, count, error } = await q
       .order("creado_en", { ascending: false }).order("id", { ascending: false }).limit(LECTURA_MAX);
     if (error || !data) {
       console.error("[historialDelTurno] sin lectura nueva, quedan los últimos 16:", error?.message);
-      filas = await loadHistory(phone, VENTANA_MIN);
+      filas = filtrarDesde(await loadHistory(phone, VENTANA_MIN), desde);
     } else {
       filas = data as Fila[];
       total = count ?? null;

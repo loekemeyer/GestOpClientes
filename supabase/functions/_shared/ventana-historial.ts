@@ -47,6 +47,20 @@ export function sinMarcaDeTramo(texto: string): string {
 
 const msDe = (f: Fila) => new Date(f.creado_en).getTime();
 
+/** Deja sólo las filas desde que el número es de la cuenta actual (`desde` = created_at del vínculo vivo en bot_customer_whatsapps).
+ *  Si un número se reasignó de un cliente a otro, los mensajes del dueño anterior quedan afuera: no entran al contexto del cliente nuevo.
+ *  `desde` null (número sin vínculo, o no se pudo leer) = no se recorta nada (comportamiento de siempre). Mantiene el orden de entrada.
+ *  En producción el recorte también se hace en el SELECT (así el total para la ventana queda scopeado); esto es la red para SIM y pruebas. */
+export function filtrarDesde(filas: Fila[], desde: string | null): Fila[] {
+  if (!desde) return filas;
+  const d = new Date(desde).getTime();
+  if (isNaN(d)) return filas;
+  return filas.filter((f) => {
+    const t = new Date(f.creado_en).getTime();
+    return isNaN(t) || t >= d;   // una fecha ilegible no se descarta (no la inventó el corte)
+  });
+}
+
 /** Lo que ve el modelo, del más viejo al más nuevo: la ventana anclada y, si no la incluye, la charla anterior (con tope).
  *  `nuevasPrimero`: las últimas filas guardadas (hasta LECTURA_MAX), del más nuevo al más viejo, como bot_leer_historial; `total`: cuántas
  *  hay en total (null si no se pudo contar: ventana de 16). `marcas`: posiciones de `filas` que llevan la marca de tramo (vacío si todo
