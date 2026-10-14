@@ -196,6 +196,10 @@ Sin IA: `_shared/humor.ts` + reglas en `_shared/humor-reglas.ts`.
 cambio/cancelación de pedido, comprobante con error, o texto con apuro/problema ("urgente", "hoy mismo",
 "no me llegó", "vino roto/incompleto", "me cobraron de más", "reclamo"). Lo urgente va siempre a Planify
 con prioridad urgente; el resto, según `app_settings.wa_alertas_planify`, con prioridad normal. En el
+> **Rotura: reclamo sólo si YA pasó (14/10, `faq.ts` `esMercaderiaRota`).** "Me llegó / vino / recibí
+> roto o dañado" abre el reclamo y pide la foto. Una pregunta a futuro ("¿me van a entregar dañados?",
+> "¿puede llegar fallado?", "y si viene roto?") NO es reclamo: cae al agente, que contesta la duda. Ante
+> la duda (futuro + algo ya recibido, "reponer lo que llegó roto") gana el reclamo, para no perder uno real.
 dashboard: aviso "👤 N esperando a una persona" en la barra lateral de todas las páginas (urgentes 🔴
 primero) y marca "urgente" en 🔔 Alertas.
 
