@@ -20,7 +20,7 @@ import { avisaFacturaPorMail, PREGUNTA_MAIL_FACTURAS } from "./mail-facturas.ts"
 import { claseNombrada, derivacionExcel, pideExcel, PREGUNTA_EXCEL } from "./pasar-excel.ts";
 export { pideExcel };
 export { avisaFacturaPorMail };
-import { hayNombreDeArticulo } from "./articulo-nombre.ts";
+import { hayNombreDeArticulo, preguntaPrecioDeArticulo } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
 import { TEXTO_ACCESO_TAPADO, TEXTO_CLAVE_NO_AGENDADO } from "./clave-web.ts";
@@ -349,6 +349,9 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   // micro-desempate por similitud). Umbral 1 = "necesita al menos un keyword
   // sólido o un typo cercano"; si no, lo maneja la IA / el registro.
   if (Number(top.match_score) < 1) return null;
+  // Pablo, 14/10: "¿cuánto sale el automate?" / "precio del 597" no es "pasame la lista de precios" (#11, `consultar_precios`): pide el precio de UN artículo y lo busca la IA
+  // (buscar_productos). #11 le ganaba a #12 por prioridad en el empate y el cliente recibía el link de la web. Sólo cliente identificado: a un no-cliente se le sigue dando el link.
+  if (customer && top.category === "precios_lista" && top.subcategory === "consultar_precios" && preguntaPrecioDeArticulo(text)) return null;
 
   // El saludo de respaldo (category greeting_fallback, keywords "necesito", "puedo", "?"…) atrapaba
   // mensajes con contenido real: "necesito 2000 cajas del 506" recibía "Hola! ¿En qué te puedo ayudar?"

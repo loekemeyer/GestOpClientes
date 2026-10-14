@@ -37,3 +37,21 @@ export function raizDeBusqueda(palabra: string): string {
   const sinS = palabra.replace(/(?<=[a-záéíóúüñ]{4,})s$/, "");
   return /(?:[^aeiou]es)$/.test(palabra) && sinEs.length >= 4 ? sinEs : sinS;
 }
+
+// Pablo Olejavetzky, 14/10/2026: "¿cuánto sale el automate?" recibía el link de la lista de precios (FAQ #11, `consultar_precios`) y nunca llegaba a la IA. Causa: en
+// wa_faq_match "cuanto sale" empata 2 a 2 entre #11 (prioridad 72) y #12 `consulta_precio_articulo` (68) y el desempate por prioridad es para #11; "precio automate" y
+// "qué precio tiene el 597" también las gana #11 (la palabra "precio" sólo la tiene ella). La guarda del m72 sólo mira #12 y #13. Pablo: "la IA tendría que buscar el precio y darlo".
+// Un mensaje es "el precio de un artículo" si pide un precio y, sacadas las palabras de un pedido de LISTA (lista, catálogo, web, vigente, nueva, Chef…), queda un código de
+// artículo o un nombre. "¿Me pasás la lista de precios?", "¿Qué precio tienen?" o "¿cuánto sale la caja de 12 unidades?" no nombran nada: siguen en la respuesta fija.
+const RE_PIDE_PRECIO = /(?<![a-záéíóúüñ])(?:cu[aá]nto\s+(?:sale|salen|cuesta|cuestan|vale|valen)|precios?)(?![a-záéíóúüñ])/i;
+const RE_PALABRAS_DE_LISTA = /(?<![a-záéíóúüñ])(?:listas?|cotizador|cotizaci[oó]n(?:es)?|cat[aá]logos?|p[aá]ginas?|web|vigentes?|actualizad[ao]s?|nuev[ao]s?|complet[ao]s?|[uú]ltim[ao]s?|novedades|productos|art[ií]culos|mercader[ií]a|chef|loekemeyer|pdf|excel|sigue|siguen|hubo|aumentos?|aumentaron|subieron|cambiaron|actualizaron)(?![a-záéíóúüñ])/gi;
+// Igual que articuloDeLaFrase (faq.ts): 3 a 5 caracteres, con una letra al final a lo sumo. Un año (2026) no es un código: ningún artículo de LK empieza con 19 o 20 y tiene 4 dígitos.
+const RE_CODIGO_DE_ARTICULO = /(?<![a-z0-9])(?!(?:19|20)\d\d(?![a-z0-9]))\d{3,5}[a-z]?(?![a-z0-9])/i;
+
+/** true si el mensaje pide el precio de un artículo (por código o por nombre) y no la lista de precios. */
+export function preguntaPrecioDeArticulo(mensaje: string): boolean {
+  const m = mensaje ?? "";
+  if (!RE_PIDE_PRECIO.test(m)) return false;
+  const sinLista = m.replace(RE_PALABRAS_DE_LISTA, " ");
+  return RE_CODIGO_DE_ARTICULO.test(sinLista) || hayNombreDeArticulo(sinLista);
+}
