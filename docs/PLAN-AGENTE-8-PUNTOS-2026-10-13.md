@@ -123,7 +123,11 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   cliente de prueba 4210 no tiene pedidos pendientes, y "el pedido de ayer" no existe. Para eso ya hay regla (NO
   INVENTES TIEMPOS, 07/10): si el cliente nombra un pedido que no aparece, se le dice que no figura y se deriva con
   `pedido_no_encontrado`. Visto así, la primera respuesta de Haiku (derivó, aunque con `cambio_pedido`) estaba más
-  cerca de lo correcto que lo que se juzgó. Pendiente: que Pablo decida qué espera mp06 con este cliente.
+  cerca de lo correcto que lo que se juzgó.
+- **Decisión de Pablo (14/10):** *"tendría que darle un listado de los pedidos que realizó, porque ponele que lo hizo hoy o
+  antes de ayer"*. SIN PEDIDO PENDIENTE suma LISTADO: con una referencia («el de ayer») y sin pendiente que coincida, no
+  dice que no figura ni deriva: lista sus últimos pedidos por fecha con su estado y pregunta cuál (sólo por el pedido).
+  Si no es ninguno, deriva `pedido_no_encontrado`. `nota_esperada` de mp06 actualizada en `wa_agente_evals`.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
