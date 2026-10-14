@@ -343,6 +343,23 @@ serve(async (req) => {
       return json({ ok: true, revisada: revisar, revisada_por: revisar ? (gate.email ?? "admin") : null });
     }
 
+    // Guarda la ficha de memoria corregida a mano. Guardar = corregir: queda revisada (revisada_por) para que el cron
+    // incremental no la pise (sql/151). No crea fichas nuevas: sólo actualiza la de un cliente que ya tiene. marca LK.
+    if (action === "guardar_ficha_memoria") {
+      const codCli = Number(body.cod_cli);
+      const ficha = String(body.ficha ?? "").trim();
+      if (!Number.isInteger(codCli) || codCli <= 0) return json({ error: "cod_cli requerido" }, 400);
+      if (ficha.length < 10) return json({ error: "la ficha no puede quedar vacía" }, 400);
+      if (ficha.length > 4000) return json({ error: "la ficha es demasiado larga" }, 400);
+      const { data: upd, error } = await sb.from("wa_memoria_cliente")
+        .update({ ficha, revisada_por: gate.email ?? "admin", revisada_en: new Date().toISOString() })
+        .eq("marca", "LK").eq("cod_cli", codCli).select("cod_cli");
+      if (error) return json({ error: error.message }, 500);
+      if (!upd?.length) return json({ error: "ese cliente no tiene ficha de memoria" }, 404);
+      console.log(`lk_conversaciones: ficha ${codCli} editada por ${gate.email}`);
+      return json({ ok: true, revisada_por: gate.email ?? "admin" });
+    }
+
     if (action === "buscar_cliente") {
       // Para agendar un número que no se reconoce: busca por código exacto o por razón social.
       const q = String(body.q ?? "").trim();

@@ -754,13 +754,16 @@ function fichaMemoria(m, cod) {
   if (!m) return `<section><h4>Memoria del agente</h4><div style="color:var(--g-muted);font-size:12px">Todavía no tiene ficha de memoria.</div></section>`;
   const rev = !!m.revisada_por;
   const badge = rev ? `<span class="est ok" title="Revisada el ${fechaCorta(m.revisada_en)} por ${gesc(m.revisada_por)}">✓ Revisada</span>` : "";
-  const btn = rev
+  const btnRev = rev
     ? `<button class="g-btn" onclick="cmMarcarRevisada('${gesc(cod)}', false, this)">Quitar revisión</button>`
-    : `<button class="g-btn prim" onclick="cmMarcarRevisada('${gesc(cod)}', true, this)">Marcar revisada</button>`;
+    : `<button class="g-btn" onclick="cmMarcarRevisada('${gesc(cod)}', true, this)">Marcar revisada</button>`;
   return `<section><h4>Memoria del agente ${badge}</h4>
-    <div style="white-space:pre-wrap;font-size:12px;line-height:1.45;color:var(--g-text);background:var(--g-card);border:1px solid var(--g-border);border-radius:6px;padding:8px;max-height:220px;overflow:auto">${gesc(m.ficha || "")}</div>
-    <p style="font-size:11px;color:var(--g-muted);margin:6px 0 4px">Revisada = corregida a mano. Mientras lo esté, el bot no la reescribe solo.</p>
-    <div style="margin-top:4px">${btn}</div></section>`;
+    <textarea id="fmTxt" style="width:100%;min-height:150px;box-sizing:border-box;font-size:12px;line-height:1.45;color:var(--g-text);background:var(--g-card);border:1px solid var(--g-border);border-radius:6px;padding:8px;resize:vertical">${gesc(m.ficha || "")}</textarea>
+    <p style="font-size:11px;color:var(--g-muted);margin:6px 0 4px">Corregila y Guardá: queda revisada y el bot no la reescribe solo. Los descuentos, precios y stock NO van acá (los saca en vivo).</p>
+    <div class="row" style="margin-top:4px;gap:6px;display:flex;flex-wrap:wrap">
+      <button class="g-btn prim" onclick="cmGuardarFicha('${gesc(cod)}', this)">Guardar</button>
+      ${btnRev}
+    </div></section>`;
 }
 async function cmMarcarRevisada(cod, revisar, b) {
   if (b) { b.disabled = true; b.textContent = revisar ? "Marcando…" : "Quitando…"; }
@@ -770,6 +773,19 @@ async function cmMarcarRevisada(cod, revisar, b) {
     toast(revisar ? "Ficha marcada como revisada." : "Revisión quitada.");
     cmCargarFicha();
   } catch (e) { if (b) { b.disabled = false; b.textContent = "Reintentar"; } toast("No se pudo: " + e.message); }
+}
+async function cmGuardarFicha(cod, b) {
+  const t = document.getElementById("fmTxt");
+  if (!t) return;
+  const ficha = (t.value || "").trim();
+  if (ficha.length < 10) { toast("La ficha no puede quedar vacía."); return; }
+  if (b) { b.disabled = true; b.textContent = "Guardando…"; }
+  try {
+    const r = await conv({ action: "guardar_ficha_memoria", cod_cli: Number(cod), ficha });
+    if (!r.ok) throw new Error(r.error || "error");
+    toast("Ficha guardada y marcada como revisada.");
+    cmCargarFicha();
+  } catch (e) { if (b) { b.disabled = false; b.textContent = "Reintentar"; } toast("No se pudo guardar: " + e.message); }
 }
 
 // Las alertas (tabla, aviso lateral, link ?charla=) abren la charla en el Centro de mensajes.
