@@ -1011,6 +1011,8 @@ falten, esas verificaciones avisan pero no rechazan. Ver la auditoría, sección
 
 `wa_envio_contactos` = **lista blanca**: el bot solo envía a estos números. Al 02/10: Thomy (`5491162521635`, canal de prueba) y Damián de Chef S.R.L. (`5491131181594`, real, cliente LK 411). Luis (`5491125608669`) **no** está (verificado el 02/10).
 
+⚠ **Vínculo de PRUEBA (14/10, Pablo O.):** el número `541131181027` (etiqueta "Logistica", en whitelist) quedó vinculado en `bot_customer_whatsapps` (id 227) al cliente **Garbarino Franco Tomas (4210, LK)** con `is_primary=true` y `permiso_ver_pedidos=true`, para las pruebas de plantillas. Es TEMPORAL, patrón Thomy→4028: si `wa_envio_automatico` pasa a `'1'`, los avisos REALES de pedidos de Garbarino 4210 irían a ese número. Sacarlo al terminar las pruebas.
+
 ## Auditoría de seguridad y funcionamiento (2026-09-07)
 
 > **Lo que FALTA está en `docs/PENDIENTES-AUDITORIA-2026-09-07.md`** — 45 puntos
