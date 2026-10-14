@@ -104,6 +104,10 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   `derivar_a_persona` ya no hace repetir "una persona del equipo le escribe" (mp06 lo dijo dos veces). **Pendiente del
   criterio:** la corrida nocturna mide con Gemini, no con Haiku 5.5 (el modelo del piloto): medir con Haiku necesita el
   "sí" de Pablo.
+- **Re-medición tras el arreglo (14/10, Gemini, US$ 0, 1 corrida cada uno):** mp03 bien (dice que el del 30/09 ya se
+  retiró y manda el pedido de 10 cajas a la web, sin derivar). mp06 a medias: dice que ya se retiró pero igual deriva
+  `cambio_pedido` (la regla CAMBIO DE ARTÍCULOS, que manda derivar sin preguntar, le gana a SIN PEDIDO PENDIENTE en
+  Gemini). Se mira en la corrida nocturna antes de tocar más el texto.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
