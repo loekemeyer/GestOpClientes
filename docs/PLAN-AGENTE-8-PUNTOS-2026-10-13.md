@@ -92,6 +92,7 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
 - **Costo:** 1 y 2, US$ 0 (Gemini en la eval nocturna). Medir los casos nuevos con Sonnet 4.6: US$ 0,035 por caso,
   unos US$ 0,35, con estimativo y "sí". **Dueño:** Claude. **Para:** jueves 16/10 (regla y casos), medición fase 1.
 - **Ok cuando:** los casos de varios pasos pasan con el modelo del piloto en la corrida nocturna 3 noches seguidas.
+- **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
