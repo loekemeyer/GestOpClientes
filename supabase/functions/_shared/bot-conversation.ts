@@ -927,6 +927,12 @@ async function executeTool(
       });
       if (error) return { data: { error: error.message } };
       if (!data?.length) return { data: { mensaje: "No se pudieron obtener los descuentos." } };
+      // Gate escala_activa (Pablo, 14/10): un cliente con escala activa va obligado a Contado -25%,
+      // igual que la página (getPaymentDiscount). La RPC devuelve los demás plazos en null; avisamos
+      // al agente para que no ofrezca plazos que ese cliente no tiene.
+      if (data[0] && data[0].pago_15_30 == null) {
+        data[0].nota_escala = "Cliente con escala activa: su primera compra va Contado -25%. Los demás plazos (30/45/60/90 días) no aplican todavía.";
+      }
       return { data };
     }
 
