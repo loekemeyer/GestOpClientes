@@ -237,6 +237,35 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, procesados: salida.length, resultados: salida });
     }
 
+    // Reprocesa las fichas YA guardadas con las reglas de hoy, SIN llamar al modelo (US$ 0): fichaFinal saca las
+    // oraciones con porcentajes o importes (descuentos) que las fichas viejas traían de antes del filtro sinCifras.
+    // Saltea las revisadas a mano y NUNCA deja una ficha vacía. dry_run por defecto: no escribe, sólo cuenta y da muestra.
+    if (body.action === "reprocesar") {
+      const aplicar = body.aplicar === true;
+      const marca = body.marca ? String(body.marca).toUpperCase() : null;
+      let q = supabase.from("wa_memoria_cliente").select("marca, cod_cli, ficha, mensajes, desde, hasta, revisada_por");
+      if (marca === "LK" || marca === "CH") q = q.eq("marca", marca);
+      const { data, error } = await q;
+      if (error) return json({ ok: false, error: error.message }, 500);
+      const rows = (data ?? []) as Array<{ marca: string; cod_cli: number; ficha: string; mensajes: number; desde: string | null; hasta: string | null; revisada_por: string | null }>;
+      let cambiadas = 0, sin_cambio = 0, vacias = 0, saltadas_revisada = 0;
+      // deno-lint-ignore no-explicit-any
+      const muestra: any[] = [];
+      for (const r of rows) {
+        if (r.revisada_por) { saltadas_revisada++; continue; }
+        const nueva = fichaFinal(String(r.ficha ?? ""), Number(r.mensajes ?? 0), r.desde, r.hasta);
+        if (!nueva) { vacias++; continue; }           // nunca blanquear una ficha
+        if (nueva === r.ficha) { sin_cambio++; continue; }
+        cambiadas++;
+        if (muestra.length < 5) muestra.push({ marca: r.marca, cod_cli: r.cod_cli, antes: String(r.ficha).slice(0, 180), despues: nueva.slice(0, 180) });
+        if (aplicar) {
+          const { error: eU } = await supabase.from("wa_memoria_cliente").update({ ficha: nueva }).eq("marca", r.marca).eq("cod_cli", r.cod_cli);
+          if (eU) return json({ ok: false, error: `update ${r.marca}/${r.cod_cli}: ${eU.message}` }, 500);
+        }
+      }
+      return json({ ok: true, dry_run: !aplicar, total: rows.length, cambiadas, sin_cambio, vacias, saltadas_revisada, muestra });
+    }
+
     return json({ ok: false, error: "action desconocida" }, 400);
   } catch (e) {
     console.error("[memoria-cliente]", e);
