@@ -32,6 +32,7 @@ import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { palabraDeBusqueda, raizDeBusqueda } from "./articulo-nombre.ts";
+import { detalleDePedido, type FilaDetallePedido, importesDelTotal } from "./importes-pedido.ts";
 import { REGLA_NO_DISPONIBLE } from "./inactivos.ts";
 import {
   callModel,
@@ -211,7 +212,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_mis_pedidos",
     description:
-      "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total, método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
+      "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total (total_para_el_cliente: con IVA y el neto «+ IVA», pasalo tal cual), método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
     input_schema: {
       type: "object",
       properties: {
@@ -225,7 +226,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_detalle_pedido",
     description:
-      "Muestra el detalle de un pedido: ítems, códigos, cantidades (cajas), precios por línea y total. Se busca por indice (1 = más reciente, el mismo de consultar_mis_pedidos).",
+      "Muestra el detalle de un pedido: ítems, códigos, cantidades (cajas), el importe de cada línea si está cargado y el total (total_para_el_cliente: con IVA y el neto «+ IVA», pasalo tal cual). Se busca por indice (1 = más reciente, el mismo de consultar_mis_pedidos).",
     input_schema: {
       type: "object",
       properties: {
@@ -569,6 +570,14 @@ function modoDeEntrega(m: any): { entrega: string; expreso?: string } {
   return { entrega: "reparto propio" };
 }
 
+/** Detalle de un pedido para la IA (Pablo, 14/10). `bot_detalle_pedido` pone el precio de LISTA × cajas cuando la línea no tiene `line_total` cargado (3 de los 4 pedidos del 14/10): sería un
+ *  importe sin descuentos que no suma con el total. Las líneas con importe cargado se leen de order_items, en el mismo orden (id) con que la RPC devuelve las filas (la parte pura está
+ *  en importes-pedido.ts). El total va con IVA y el neto «+ IVA», como el aviso de pedido recibido. */
+async function detalleParaIA(filas: FilaDetallePedido[], orderId: number) {
+  const { data: its } = await supabase.from("order_items").select("id, line_total").eq("order_id", orderId).order("id", { ascending: true });
+  return detalleDePedido(filas, (its ?? []).map((x: { line_total: unknown }) => Number(x.line_total) > 0));
+}
+
 async function executeTool(
   name: string,
   // deno-lint-ignore no-explicit-any
@@ -764,7 +773,9 @@ async function executeTool(
       return { data: filas.map((r, i) => {
         // deno-lint-ignore no-explicit-any
         const e: any = porId.get(String(r.order_id));
-        const { order_id: _id, ...resto } = r;
+        // Pablo, 14/10: `total` de orders es SIN IVA y con descuentos. Se saca el neto pelado y se pasa con IVA y «+ IVA» (importes-pedido.ts), como el aviso de pedido recibido.
+        const { order_id: _id, total: totalNeto, subtotal: subtotalLista, ...sinTotales } = r;
+        const resto = { ...sinTotales, subtotal_lista_sin_iva_antes_de_descuentos: subtotalLista, ...(importesDelTotal(totalNeto) ?? {}) };
         const modo = modoPor.get(String(r.order_id)) ?? { entrega: "reparto propio" };
         const estado = e?.status ?? "recibido";
         // Pablo, 07/10 (m1, m23): un pedido de RETIRO no "sale": el estado va ya redactado ("facturado y listo para retirar desde el martes 06/10", "retirado el martes 06/10") y sin
@@ -788,8 +799,7 @@ async function executeTool(
         });
         if (error) return { data: { error: error.message } };
         if (!data?.length) return { data: { mensaje: "No se encontró un pedido en esa posición." } };
-        // deno-lint-ignore no-explicit-any
-        return { data: (data as any[]).map(({ order_id: _id, ...resto }) => resto) };
+        return { data: await detalleParaIA(data as FilaDetallePedido[], Number(elegido.order_id)) };
       }
       if (input.order_id) {
         const { data, error } = await supabase.rpc("bot_detalle_pedido", {
@@ -798,7 +808,7 @@ async function executeTool(
         });
         if (error) return { data: { error: error.message } };
         if (!data?.length) return { data: { mensaje: "No se encontró ese pedido o no te pertenece." } };
-        return { data };
+        return { data: await detalleParaIA(data as FilaDetallePedido[], Number(input.order_id)) };
       }
       return { data: { error: "Necesito el índice del pedido (1 = el más reciente)." } };
     }
