@@ -83,7 +83,8 @@ export const PLANTILLAS: PlantillaMeta[] = [
     variables: ["fecha en que hizo el pedido (dd/mm)", "día de salida (día de semana + dd/mm)", "expreso (sin la palabra Expreso)"],
     body: "Tu pedido del {{1}} ya tiene fecha: lo despachamos el {{2}} a Expreso {{3}}.\nTe avisamos cuando lo entreguemos al expreso.",
     ejemplos: ["22/09", "miércoles 30/09", "Arias"],
-    botones: ["Necesito cambiar la fecha"],
+    // Sin botón "Necesito cambiar la fecha" (Pablo, 14/10): en expreso no tiene sentido, el cliente
+    // no controla los tiempos del expreso. El de reparto propio y el de retira sí lo conservan.
   },
   {
     name: "pedido_programado_retira",
