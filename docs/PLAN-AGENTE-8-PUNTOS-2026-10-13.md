@@ -96,6 +96,14 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   unos US$ 0,35, con estimativo y "sí". **Dueño:** Claude. **Para:** jueves 16/10 (regla y casos), medición fase 1.
 - **Ok cuando:** los casos de varios pasos pasan con el modelo del piloto en la corrida nocturna 3 noches seguidas.
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
+- **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
+  (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)
+  y 2 mal con la misma causa (mp03 y mp06: derivaron una anulación y un cambio sobre el pedido del 30/09, que ya se había
+  retirado, y mp03 no encaminó el pedido nuevo). Arreglo: regla **SIN PEDIDO PENDIENTE** en `agente-fijos.ts` (sin pedido
+  que no haya salido no se deriva sobre uno entregado; el pedido nuevo se encamina en el mismo turno) y el texto de
+  `derivar_a_persona` ya no hace repetir "una persona del equipo le escribe" (mp06 lo dijo dos veces). **Pendiente del
+  criterio:** la corrida nocturna mide con Gemini, no con Haiku 5.5 (el modelo del piloto): medir con Haiku necesita el
+  "sí" de Pablo.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 

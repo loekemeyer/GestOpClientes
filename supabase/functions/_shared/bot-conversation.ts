@@ -611,7 +611,7 @@ async function executeTool(
           }
         } catch (e) { console.warn("derivar_a_persona: datos de Cobranzas:", e instanceof Error ? e.message : e); }
       }
-      return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por este medio." } };
+      return { data: { ok: true, mensaje: "Listo: quedó derivado. Si tu respuesta todavía no le avisa que una persona del equipo (o Ventas) le escribe por este medio, decíselo UNA sola vez, tuteándolo: no lo repitas si ya está." } };
     }
 
     case "solicitar_cambio_mail": {
