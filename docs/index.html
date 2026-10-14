@@ -1439,6 +1439,15 @@
               </p>
               <div id="evPilotoTabla"><div class="consulta-meta">Cargando...</div></div>
             </div>
+            <!-- P8.3 (Pablo, 14/10; sql/152 v_wa_charlas_para_revisar): el worklist de la revisión diaria. -->
+            <div class="consulta-card" id="evRevisar" style="max-width:860px">
+              <div class="consulta-q">🔍 Charlas para revisar <span class="hint">derivadas y sin respuesta</span></div>
+              <p class="hint" style="font-size:0.75rem;color:var(--muted);margin:0.1rem 0 0.6rem">
+                Charlas cerradas que pasaron a una persona o se quedaron sin respuesta. En la revisión diaria, a cada una se le da su
+                salida: corregir en el artifact de respuestas, cambiar una respuesta fija, abrir una tarea, o «estuvo bien derivarla».
+              </p>
+              <div id="evRevisarTabla"><div class="consulta-meta">Cargando...</div></div>
+            </div>
             <!-- v0.28.8 (Pablo, 08/10): corrida automática de los casos (sql/133). Cada noche a las 03:15, o con «Correr ahora». -->
             <div class="consulta-card" id="evCorrida" style="max-width:860px">
               <div class="consulta-q">🤖 Corrida automática <span class="hint" id="evCorridaFecha"></span></div>
@@ -3489,6 +3498,7 @@ async function loadEvals() {
   try {
     evCorridaCargar();
     pilotoCargar();
+    revisarCargar();
     const r = await amInvoke({ action: "eval_list" });
     _evals = r.evals || [];
     if (!_evals.length) { cont.innerHTML = '<div class="bl-empty">Sin preguntas de evaluación</div>'; return; }
@@ -3743,6 +3753,31 @@ async function pilotoCargar() {
         '<td>' + seg(w.p50_s) + '</td>' +
         '<td>' + seg(w.p90_s) + '</td>' +
         '<td>' + usd(w.gasto_usd) + '</td></tr>';
+    }
+    h += "</tbody></table>";
+    el.innerHTML = h;
+  } catch (e) {
+    el.innerHTML = '<div class="consulta-meta" style="color:var(--danger)">Error: ' + evEsc(e.message) + "</div>";
+  }
+}
+// P8.3 (sql/152): worklist de la revisión diaria. Lee v_wa_charlas_para_revisar por lk_agente-modelos (admin).
+async function revisarCargar() {
+  const el = document.getElementById("evRevisarTabla");
+  if (!el) return;
+  try {
+    const r = await amInvoke({ action: "charlas_para_revisar" });
+    const ch = r.charlas || [];
+    if (!ch.length) { el.innerHTML = '<div class="consulta-meta">Ninguna charla pendiente de revisar.</div>'; return; }
+    const EST = { derivada: ["🙋 Derivada", "amb"], sin_respuesta: ["⚠️ Sin respuesta", "err"] };
+    const fecha = (s) => { try { return new Date(s).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }); } catch { return "—"; } };
+    let h = '<table class="ev-piloto"><thead><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Motivo</th><th>Último mensaje</th></tr></thead><tbody>';
+    for (const c of ch) {
+      const e = EST[c.estado] || [c.estado, ""];
+      const cli = c.business_name ? evEsc(c.business_name) + (c.cod_cliente ? ' <span class="hint">' + evEsc(c.cod_cliente) + "</span>" : "") : '<span class="hint">+' + evEsc((c.telefono || "").slice(-8)) + "</span>";
+      h += "<tr><td>" + fecha(c.fin) + "</td><td style='text-align:left'>" + cli + "</td>" +
+        "<td>" + e[0] + "</td>" +
+        "<td style='text-align:left;white-space:normal;max-width:180px'>" + (c.motivo ? evEsc(c.motivo) : "—") + "</td>" +
+        "<td style='text-align:left;white-space:normal;max-width:320px'>" + (c.ultimo_cliente ? evEsc(c.ultimo_cliente) : "—") + "</td></tr>";
     }
     h += "</tbody></table>";
     el.innerHTML = h;
@@ -5559,7 +5594,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.29.3</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.29.4</div>
 <script src="gestop2.js?v=0.29.3"></script>
 </body>
 </html>
