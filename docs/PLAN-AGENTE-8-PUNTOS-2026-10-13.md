@@ -101,6 +101,9 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   Haiku, 0 errores, 17 llamadas, US$ 0,007496). 7 bien. mp05 cambió respecto de la medición de la tarde: llamó a
   `derivar_a_persona` y contestó sólo "Una persona del equipo te escribe por este medio para confirmarte la fecha de ingreso",
   sin el link de la foto ni el stock. Detalles: mp07 saludó con la razón social, mp01 y mp08 cierran ofreciendo algo.
+  **Arreglo (commit `d7a6adf`):** `consultar_stock` avisa que la consulta ya quedó en manos de una persona y que no se derive de
+  nuevo, y `derivar_a_persona` pide incluir lo ya averiguado. Con Haiku (sí de Pablo, 2 corridas, US$ 0,007163): 2 de 2 sin
+  derivar de más, con el stock y la foto (una la mandó con `enviar_fotos_producto`, la otra pasó el link).
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
 - **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
   (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)
