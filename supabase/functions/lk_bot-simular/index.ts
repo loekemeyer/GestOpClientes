@@ -360,6 +360,10 @@ serve(async (req) => {
     SIM.activo = true;
     SIM.historial = historialDe(body);
     empezarCharlaSim();   // Pablo, 08/10: "Hechos de esta charla" (hechos-charla.ts) ve lo que pasó en toda la simulación
+    // Pablo, 14/10: { saltear_fija: true } salta la capa fija de FAQ y manda el mensaje al agente IA. Sólo para MEDIR
+    // "¿alcanza con IA?" en el barrido de la capa fija; no cambia nada del webhook de producción. Las respuestas que
+    // deben ser exactas (clave, CBU/datos de pago) igual no las ve la IA: esto mide el resto.
+    const saltearFija = body.saltear_fija === true;
     const salida: Array<Record<string, unknown>> = [];
     const ahora = () => new Date().toISOString();
 
@@ -456,7 +460,7 @@ serve(async (req) => {
       // pedidos va al agente; en los dos casos el agente recibe lo que la capa fija habría dicho como pista (decidirCapaFija).
       let pistas: string[] = [];
       let documentosPistas: Array<{ url: string; filename: string }> = [];
-      if (!reply) {
+      if (!reply && !saltearFija) {
         const enCursoSim = await pedidoEnCurso(telSim);
         const cli = { id: c.id, cod_cliente: customer.cod_cliente, business_name: c.business_name, dto_vol: customer.dto_vol };
         let faq = enCursoSim ? null : await handleFaq(text, cli);
