@@ -33,6 +33,11 @@ const MODULOS = [
   { id: "inf", nombre: "Informes", admin: true, secciones: [
     { id: "proy", nombre: "Proyección de avisos y gasto", abrir: () => irPagina("proyeccion") },
   ] },
+  // Bitácora (v0.29.0): calendario de lo que se trabajó cada día. Visible a todos para que el equipo
+  // vea en qué se está trabajando y cada uno pueda auditarse. Una sola página, sin pestañas.
+  { id: "bit", nombre: "Bitácora", titulo: "Bitácora de trabajo", solo: true, secciones: [
+    { id: "bitacora", nombre: "Bitácora", abrir: () => irPagina("bitacora") },
+  ] },
   { id: "cfg", nombre: "Panel de Control", secciones: [
     { id: "acceso", nombre: "Acceso", abrir: () => cfg("acceso") },
     { id: "limite", nombre: "Rate limit", abrir: () => cfg("limite") },
@@ -79,19 +84,20 @@ function abrirDash(i) {
 const visibles = (m) => m.secciones.filter((s) => !s.admin || esAdmin());
 
 // Página → módulo/sección, así el menú queda sincronizado aunque otra función llame a showPage().
-const PAGINA_A = { inicio: ["ini", "inicio"], conv: ["com", "conv"], tareas: ["com", "tareas"], salientes: ["com", "salientes"], proyeccion: ["inf", "proy"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
+const PAGINA_A = { inicio: ["ini", "inicio"], conv: ["com", "conv"], tareas: ["com", "tareas"], salientes: ["com", "salientes"], proyeccion: ["inf", "proy"], bitacora: ["bit", "bitacora"], alertas: ["com", "tareas"], chat: ["com", "pruebas"], dash: ["dash", null], config: ["cfg", null], agente: ["ag", null] };
 
 // ── showPage extendido: suma la página nueva del Centro de mensajes ─────────
 const _showPageViejo = showPage;
 function irPagina(p) {
   if (p === "proyeccion" && !esAdmin()) return; // el servidor igual exige admin; acá no se muestra una pantalla vacía
-  const nueva = p === "inicio" || p === "conv" || p === "tareas" || p === "salientes" || p === "proyeccion";
+  const nueva = p === "inicio" || p === "conv" || p === "tareas" || p === "salientes" || p === "proyeccion" || p === "bitacora";
   _showPageViejo(nueva ? "__ninguna__" : p);
   document.getElementById("pageInicio")?.classList.toggle("active", p === "inicio");
   document.getElementById("pageConv").classList.toggle("active", p === "conv");
   document.getElementById("pageTareas")?.classList.toggle("active", p === "tareas");
   document.getElementById("pageSalientes")?.classList.toggle("active", p === "salientes");
   document.getElementById("pageProyeccion")?.classList.toggle("active", p === "proyeccion");
+  document.getElementById("pageBitacora")?.classList.toggle("active", p === "bitacora");
   const [m, s] = PAGINA_A[p] || [G.mod, G.sec];
   G.mod = m;
   if (s) G.sec = s;
@@ -101,6 +107,7 @@ function irPagina(p) {
   if (p === "tareas") tkCargar();
   if (p === "salientes") slCargar();
   if (p === "proyeccion") prCargar();
+  if (p === "bitacora") btCargar();
   renderNav();
 }
 // eslint-disable-next-line no-global-assign
@@ -172,6 +179,81 @@ function navSec(mid, sid) {
   G.mod = mid; G.sec = sid;
   s.abrir();
   renderNav();
+}
+
+// ── Bitácora de trabajo (v0.29.0) — calendario leído de public.bitacora_dias ──
+// Muestra adelante el resumen en lenguaje simple (lo que se logró); el detalle técnico queda
+// escondido en "ver detalle". La tabla la escribe la Routine diaria vía lk_bitacora-sync.
+var BT = { dias: null };
+const BT_DOW = ["L", "M", "M", "J", "V", "S", "D"];
+const BT_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+function btNivel(c) { return c >= 60 ? "l4" : c >= 30 ? "l3" : c >= 10 ? "l2" : c >= 1 ? "l1" : ""; }
+function btFecha(s) { const [y, m, d] = String(s).split("-"); return `${d}/${m}/${y}`; }
+async function btCargar() {
+  const root = document.getElementById("btRoot");
+  if (!root) return;
+  if (!BT.dias) {
+    try {
+      const { data, error } = await sb.from("bitacora_dias")
+        .select("dia,commits,autores,areas,asuntos,audit,resumen,fuente").order("dia", { ascending: true });
+      if (error) throw error;
+      BT.dias = data || [];
+    } catch (e) { root.innerHTML = `<div class="cm-vacio">No se pudo cargar la bitácora: ${gesc(e.message)}</div>`; return; }
+  }
+  btPintar();
+}
+function btMes(y, m, mapa) {
+  const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const primero = (new Date(Date.UTC(y, m, 1)).getUTCDay() + 6) % 7; // 0 = lunes
+  let cells = "";
+  for (let i = 0; i < primero; i++) cells += `<div class="bt-dia vacia"></div>`;
+  for (let d = 1; d <= dim; d++) {
+    const key = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const r = mapa.get(key);
+    if (r) {
+      cells += `<div class="bt-dia hay ${btNivel(r.commits || 0)}" title="${gesc(r.resumen || "")}" onclick="btDetalle('${key}')">${d}<span class="c">${r.commits || 0}</span></div>`;
+    } else cells += `<div class="bt-dia">${d}</div>`;
+  }
+  return `<div class="bt-mes"><h3>${BT_MES[m]} ${y}</h3><div class="bt-grid">${BT_DOW.map((x) => `<div class="bt-dow">${x}</div>`).join("")}${cells}</div></div>`;
+}
+function btPintar() {
+  const root = document.getElementById("btRoot");
+  const dias = BT.dias || [];
+  if (!dias.length) { root.innerHTML = `<div class="cm-vacio">Todavía no hay días cargados.</div>`; return; }
+  const mapa = new Map(dias.map((x) => [x.dia, x]));
+  const totC = dias.reduce((n, x) => n + (x.commits || 0), 0);
+  const desde = dias[0].dia, hasta = dias[dias.length - 1].dia;
+  const a = desde.split("-").map(Number), b = hasta.split("-").map(Number);
+  const meses = [];
+  let yy = a[0], mm = a[1] - 1;
+  while (yy < b[0] || (yy === b[0] && mm <= b[1] - 1)) { meses.push([yy, mm]); mm++; if (mm > 11) { mm = 0; yy++; } }
+  meses.reverse(); // el mes más nuevo arriba
+  root.innerHTML = `
+    <div class="bt-top">
+      <h2>Bitácora de trabajo</h2>
+      <span class="bt-sub">Qué se trabajó cada día · ${dias.length} días · ${totC} cambios · del ${btFecha(desde)} al ${btFecha(hasta)} · se actualiza sola cada mañana</span>
+    </div>
+    <div class="bt-meses">${meses.map(([y, m]) => btMes(y, m, mapa)).join("")}</div>
+    <div class="bt-leyenda">Menos
+      <i style="background:#f1f5f9"></i><i style="background:#9db9a6"></i><i style="background:#5e8f6e"></i><i style="background:#3f7350"></i><i style="background:#2d5a3d"></i>
+      Más (cantidad de cambios) · tocá un día para ver qué se hizo</div>`;
+}
+function btDetalle(key) {
+  const r = (BT.dias || []).find((x) => x.dia === key);
+  if (!r) return;
+  const autores = (r.autores || []).map((a) => `${gesc(a.nombre)} (${a.n})`).join(", ") || "—";
+  const ar = r.areas || {};
+  const areas = [["funciones", "el bot"], ["sql", "base de datos"], ["docs", "documentación"], ["scripts", "herramientas"], ["otros", "otros"]]
+    .filter(([k]) => ar[k]).map(([k, lbl]) => `<span>${lbl}: ${ar[k]}</span>`).join("");
+  const asuntos = (r.asuntos || []).map((s) => `<li>${gesc(s)}</li>`).join("");
+  const aud = r.audit && ((r.audit.abiertos || 0) || (r.audit.cerrados || 0))
+    ? `<div class="bt-kv">Problemas registrados: ${r.audit.abiertos || 0} nuevos · ${r.audit.cerrados || 0} resueltos</div>` : "";
+  modal(`<div class="bt-modal"><h3>${btFecha(key)}</h3>
+    <div class="bt-res">${gesc(r.resumen || "Sin resumen.")}</div>
+    <div class="bt-kv">${r.commits || 0} cambios · trabajó: ${autores}</div>${aud}
+    <div class="bt-areas">${areas}</div>
+    <details><summary>Ver detalle técnico (${(r.asuntos || []).length})</summary><ul class="bt-asuntos">${asuntos}</ul></details>
+    <div class="botones" style="margin-top:.8rem"><button class="g-btn" onclick="cerrarModal()">Cerrar</button></div></div>`);
 }
 
 // ── Modo oscuro ─────────────────────────────────────────────────────────────

@@ -1642,6 +1642,37 @@
     <!-- Page: Centro de mensajes › Salientes (rediseño etapa 4, gestop2.js) -->
     <div class="page" id="pageSalientes"><div class="sl" id="slRoot"><div class="cm-vacio">Cargando…</div></div></div>
     <div class="page" id="pageProyeccion"><div class="sl" id="prRoot"><div class="cm-vacio">Cargando…</div></div></div>
+    <!-- Page: Bitácora de trabajo (v0.29.0) — calendario de lo que se trabajó cada día, leído de public.bitacora_dias. -->
+    <style>
+      #pageBitacora .bt-top { display:flex; flex-wrap:wrap; align-items:baseline; gap:.3rem 1rem; margin-bottom:1rem; }
+      #pageBitacora .bt-top h2 { margin:0; font-size:1.1rem; }
+      #pageBitacora .bt-sub { font-size:.8rem; color:var(--g-muted,#64748b); }
+      #pageBitacora .bt-meses { display:flex; flex-wrap:wrap; gap:1.4rem; }
+      #pageBitacora .bt-mes { width:max-content; }
+      #pageBitacora .bt-mes h3 { margin:0 0 .4rem; font-size:.85rem; text-transform:capitalize; }
+      #pageBitacora .bt-grid { display:grid; grid-template-columns:repeat(7, 2.35rem); gap:3px; }
+      #pageBitacora .bt-dow { font-size:.62rem; text-align:center; color:var(--g-muted,#94a3b8); padding-bottom:2px; }
+      #pageBitacora .bt-dia { height:2.35rem; border-radius:5px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:.72rem; background:var(--g-soft,#f1f5f9); color:var(--g-muted,#94a3b8); }
+      #pageBitacora .bt-dia.vacia { background:transparent; }
+      #pageBitacora .bt-dia.hay { cursor:pointer; color:#fff; font-weight:600; }
+      #pageBitacora .bt-dia.hay .c { font-size:.56rem; font-weight:500; opacity:.92; }
+      #pageBitacora .bt-dia.l1 { background:#9db9a6; }
+      #pageBitacora .bt-dia.l2 { background:#5e8f6e; }
+      #pageBitacora .bt-dia.l3 { background:#3f7350; }
+      #pageBitacora .bt-dia.l4 { background:#2d5a3d; }
+      #pageBitacora .bt-dia.hay:hover { outline:2px solid var(--primary,#7a1f2b); }
+      #pageBitacora .bt-leyenda { display:flex; align-items:center; gap:.3rem; font-size:.68rem; color:var(--g-muted,#64748b); margin-top:.9rem; flex-wrap:wrap; }
+      #pageBitacora .bt-leyenda i { width:.9rem; height:.9rem; border-radius:3px; display:inline-block; }
+      .bt-modal .bt-res { font-size:1rem; line-height:1.45; margin:.2rem 0 .8rem; }
+      .bt-modal .bt-kv { font-size:.8rem; color:var(--g-muted,#64748b); margin-bottom:.4rem; }
+      .bt-modal .bt-areas { display:flex; flex-wrap:wrap; gap:.3rem; margin:.5rem 0; }
+      .bt-modal .bt-areas span { font-size:.7rem; background:var(--g-soft,#f1f5f9); border-radius:10px; padding:.1rem .5rem; white-space:nowrap; }
+      .bt-modal details { font-size:.82rem; margin-top:.3rem; }
+      .bt-modal summary { cursor:pointer; color:var(--primary,#7a1f2b); }
+      .bt-modal .bt-asuntos { margin:.5rem 0 0; padding-left:1.1rem; max-height:40vh; overflow:auto; }
+      .bt-modal .bt-asuntos li { margin-bottom:.15rem; }
+    </style>
+    <div class="page" id="pageBitacora"><div class="bt-wrap" id="btRoot"><div class="cm-vacio">Cargando…</div></div></div>
     <!-- Page: Centro de mensajes › Tareas (rediseño etapa 3, gestop2.js) -->
     <div class="page" id="pageTareas">
       <div class="tk" id="tkRoot">
@@ -5528,7 +5559,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.28.10</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.29.0</div>
 <script src="gestop2.js?v=0.28.6"></script>
 </body>
 </html>
