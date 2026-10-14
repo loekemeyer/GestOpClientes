@@ -1014,12 +1014,21 @@ retiraron (2026-09-09, sin uso: 0 dep DB, 0 cron, 0 REST).** Backup restore-read
 - `held_tpl_no_aprobada` — la plantilla de Meta no está en estado APPROVED.
 - `held_multisource` — el grupo mezcla facturas LK y CH; queda para revisión humana.
 
+> **⚠ Incidente 14/10/2026 — freno al barrido (commit `7345568`).** En modo redirect, `handleRealRedirect`
+> consolidaba las facturas reales de TODOS los cuits del día y las mandaba al número de redirección. Reabrir la
+> ventana (`wa_real_redirect_date` a hoy) alcanzó para que el cron `wa_barrido_avisos` (jobid 69, Gestión)
+> despachara 8 grupos de varios clientes a un solo número (Logística `5491131181027`). Fueron al número de prueba,
+> ningún cliente recibió nada. Desde este commit, además de la ventana hace falta la allowlist `wa_real_redirect_cuits`:
+> vacía = no manda nada. `skipped: "redirect_sin_allowlist_cuits"` (lista vacía) y `"cuit_no_en_allowlist"` (cuit fuera
+> de la lista) son los dos nuevos cortes. Reabrir la ventana ya NO dispara nada por sí solo.
+
 ## Flags críticos (`app_settings`, PaginaLK)
 
 | key | qué hace | valor al 2026-09-02 |
 |-----|----------|---------------------|
 | `wa_real_redirect_to` | destino(s) de prueba de las facturas, coma-sep. Deben estar en la whitelist `wa_envio_contactos`. | `5491125608669` (Luis) |
 | `wa_real_redirect_date` | **ventana de 48h**: el envío real ocurre ese día Y el siguiente (`dentroVentana` en `lk_factura-check`). Si la fecha quedó a >1 día, se apaga solo. Rearmar cuando arranca una tanda de prueba. | `2026-09-02` (activo 02 y 03/09) |
+| `wa_real_redirect_cuits` | **allowlist de cuits para el modo redirect** (coma-sep, con o sin guiones). `handleRealRedirect` sólo redirige los cuits listados; **vacía o sin fila = no manda nada** aunque la ventana esté abierta. Freno al barrido (ver abajo). Para probar un cliente: agregar su cuit; al terminar, vaciar. | sin fila (seguro) |
 | `wa_factura_envio_modo` | `modulo` (chat de prueba) / `whatsapp` (real) | `modulo` |
 | `wa_bot_solo_whitelist` | killswitch del bot de chat: `1` = solo responde a `wa_envio_contactos` | `1` |
 | `wa_comprobantes_activo` | flujo de comprobantes entrantes: `0` apagado / `1` on | `0` |
