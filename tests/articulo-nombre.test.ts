@@ -36,12 +36,16 @@ for (const [pl, raiz] of [["tostadores", "tostador"], ["ollas", "olla"], ["cucha
 for (const t of [
   "cuánto sale el automate", "¿Cuánto sale el 505?", "qué precio tiene el 597", "precio automate", "precio pelapapas", "CUÁNTO SALE EL 584E", "Cuánto sale el abrelatas?",
   "cuanto cuesta el tostador enlozado", "me pasás la lista de precios del automate",
+  // Otros tiempos del verbo (Simulador del 14/10: «¿cuánto salió el pelador de mi último pedido?» recibía el link de la lista).
+  "¿cuánto salió el pelador de mi último pedido?", "cuanto salio el 505", "cuánto saldría el automate", "¿cuánto salió el pedido del 15/09?", "cuánto va a salir el 505", "cuánto me salió el 505",
+  "¿cuánto costó el pelapapas?", "cuánto valía el automate",
   "¿Tenés hieleras? Estoy necesitando una hielera. Si tenés hieleras, decime y pasame precio. Y del 505, quiero saber cuántas unidades hay por caja.",
 ]) igual(`precio de un artículo: ${t}`, preguntaPrecioDeArticulo(t), true);
 for (const t of [
   "¿Me pasás la lista de precios?", "Pasame los precios", "¿Qué precio tienen?", "Pasame el precio, por favor.", "¿Cuánto vale?", "¿Cuánto sale la caja de 12 unidades?",
   "Me pasás la lista de precios nueva", "Me pasás la lista de precios actualizada", "¿Los precios de los productos?", "Me pasás la lista de precios de Chef", "¿Me pasás la lista de precios de 2026?",
-  "¿Sigue vigente la lista de precios?", "¿Hubo aumento de precios?", "¿La lista de precios es actual?", "Necesito presupuesto", "¿Cotización de...?", "pasame precios", "Me pasás el catálogo con precios",
+  "¿cuánto salió?", "¿a cuánto me salió?", "¿cuánto costó?", "¿cuánto valía?", "¿Sigue vigente la lista de precios?",
+   "¿Hubo aumento de precios?", "¿La lista de precios es actual?", "Necesito presupuesto", "¿Cotización de...?", "pasame precios", "Me pasás el catálogo con precios",
   "¿Cuánto sale por unidad?", "Hola, ¿me pasás el precio de lista?", "precio de la lista completa", "",
 ]) igual(`lista de precios, no artículo: ${JSON.stringify(t)}`, preguntaPrecioDeArticulo(t), false);
 
