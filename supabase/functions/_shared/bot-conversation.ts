@@ -975,7 +975,10 @@ async function executeTool(
         const mapa = new Map((atrs ?? []).map((a: any) => [String(a.cod), String(a.atributos_texto ?? "")]));
         const conFiltro = rows.filter((r) => {
           const texto = `${mapa.get(String(r.cod)) ?? ""} ${r.description ?? ""} ${r.subcategory ?? ""}`.toLowerCase();
-          return atributos.every((a) => texto.includes(a));
+          // Match por PALABRA entera, no substring: "madera" no debe matchear "espumadera". Un atributo
+          // multi-palabra ("acero inoxidable") exige todas sus palabras presentes.
+          const palabras = new Set(texto.split(/[^0-9a-záéíóúüñ]+/i).filter(Boolean));
+          return atributos.every((a) => a.split(/\s+/).filter(Boolean).every((w) => palabras.has(w)));
         });
         if (!conFiltro.length) {
           return { data: { mensaje: `Encontré ${rows.length} resultado(s) de "${input.query}" pero ninguno que coincida con: ${atributos.join(", ")}. Ofrecé lo que hay sin esa aclaración, o pedile una referencia o el código.` } };
