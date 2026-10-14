@@ -48,5 +48,8 @@ igual("consultar_mis_pedidos saca el neto pelado y arma el total con IVA", /tota
 igual("consultar_detalle_pedido pasa por detalleParaIA (las dos ramas)", (conv.match(/detalleParaIA\(data as FilaDetallePedido\[\]/g) ?? []).length, 2);
 igual("las descripciones de las dos herramientas hablan de total_para_el_cliente", (conv.match(/total_para_el_cliente: con IVA y el neto «\+ IVA», pasalo tal cual/g) ?? []).length, 2);
 
+igual("las dos descripciones prohíben el «+ IVA» en el primer número (Pablo, 14/10)", (conv.match(/sin agregarle «\+ IVA» al primer n[uú]mero/g) ?? []).length, 2);
+igual("la regla TOTAL DE UN PEDIDO dice que el primer número ya incluye el IVA", /El primer n[uú]mero YA incluye el IVA: nunca le pongas «\+ IVA» al lado/.test(REGLAS_OPERATIVAS), true);
+
 if (fallas) { console.error(`\n${fallas} falla(s)`); process.exit(1); }
 console.log("\ntodo bien");

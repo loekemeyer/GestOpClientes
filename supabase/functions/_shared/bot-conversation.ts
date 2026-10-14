@@ -213,7 +213,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_mis_pedidos",
     description:
-      "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total (total_para_el_cliente: con IVA y el neto «+ IVA», pasalo tal cual), método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
+      "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total (total_para_el_cliente: con IVA y el neto «+ IVA», pasalo tal cual, sin agregarle «+ IVA» al primer número), método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
     input_schema: {
       type: "object",
       properties: {
@@ -227,7 +227,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_detalle_pedido",
     description:
-      "Muestra el detalle de un pedido: ítems, códigos, cantidades (cajas), el importe de cada línea si está cargado y el total (total_para_el_cliente: con IVA y el neto «+ IVA», pasalo tal cual). Se busca por indice (1 = más reciente, el mismo de consultar_mis_pedidos).",
+      "Muestra el detalle de un pedido: ítems, códigos, cantidades (cajas), el importe de cada línea si está cargado y el total (total_para_el_cliente: con IVA y el neto «+ IVA», pasalo tal cual, sin agregarle «+ IVA» al primer número). Se busca por indice (1 = más reciente, el mismo de consultar_mis_pedidos).",
     input_schema: {
       type: "object",
       properties: {
