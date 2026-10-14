@@ -140,6 +140,10 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   preguntaba también por el artículo. La indicación ahora pide sólo fecha y estado, sin importes, y preguntar sólo cuál.
   Gemini después del ajuste: mp03 pasa el listado sin importes, mp06 sigue sin listado (0 de 3 con Gemini). La corrida
   nocturna va a marcar mp06 como fallado mientras use Gemini, aunque Haiku lo resuelve.
+- **Total de un pedido con Haiku tras la indicación interna (14/10, sí de Pablo, US$ 0,014126 en 8 llamadas):** 4 de 4
+  con el formato tal cual («$235.442 ($194.580 + IVA)»), ninguna con «+ IVA» en el primer número. Formato sin «con IVA»
+  por decisión de Pablo (commit `2c9668b`). Detalle menor: en 1 de las 2 listas sumó la invitación a hacer un pedido
+  nuevo sin que la pidiera (sale de la indicación de sin pendientes).
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
