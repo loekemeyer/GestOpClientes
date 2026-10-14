@@ -113,7 +113,9 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   sin que lo pidiera) y mp06 mal (otra vez deriva el cambio sobre el pedido retirado). Como los dos fallos se repiten
   con Gemini y con Haiku, son de la regla y no del modelo: CAMBIO DE ARTÍCULOS ahora mira primero los pedidos y, si
   ninguno está sin salir, no deriva (rige SIN PEDIDO PENDIENTE), y PAGOS dice que consultar la deuda, el vencimiento o
-  cómo pagar no se deriva. Detalles menores sin tocar: mp07 saludó con la razón social y mp05 dijo "no tengo la foto"
+  cómo pagar no se deriva. **Corrección de mp04:** la alerta `pago` no la crea el agente, la crea a propósito
+  `consultar_mis_facturas` en cada consulta de saldo (aviso a Cobranzas, una abierta por número): mp04 está bien. Re-medido
+  con Gemini tras el arreglo: mp06 bien (no deriva, manda el pedido nuevo a la web) y mp04 bien. Detalles menores sin tocar: mp07 saludó con la razón social y mp05 dijo "no tengo la foto"
   aunque pasó el link.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
