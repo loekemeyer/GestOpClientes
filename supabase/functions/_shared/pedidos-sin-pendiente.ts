@@ -9,8 +9,8 @@ export const ESTADO_SALIDO = "entregado";
 
 export const NOTA_SIN_PENDIENTE =
   "Ninguno de estos pedidos está pendiente: todos ya se entregaron o se retiraron. Si el cliente pide cambiar, sacar, agregar " +
-  "o anular algo de un pedido, NO derives y NO le digas que no le figura: pasale este listado (cada pedido por su fecha y su " +
-  "estado tal cual) y preguntale cuál es. Si en el mismo mensaje pidió un pedido nuevo, indicale cómo hacerlo en ese mismo " +
+  "o anular algo de un pedido, NO derives y NO le digas que no le figura: pasale este listado (cada pedido sólo con su fecha y " +
+  "su estado tal cual, sin importes) y preguntale sólo cuál es: lo demás (artículos, cajas) se aclara después. Si en el mismo mensaje pidió un pedido nuevo, indicale cómo hacerlo en ese mismo " +
   "mensaje (regla PEDIDOS). Si contesta que no es ninguno de la lista, ahí sí derivá con motivo pedido_no_encontrado.";
 
 /** Con algún pedido pendiente devuelve la lista tal cual; si todos salieron, la envuelve con la indicación. */

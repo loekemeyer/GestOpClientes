@@ -134,6 +134,10 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   indicación. Después, 4 corridas: 0 derivaciones. mp03 bien 2 de 2 (una pasa el listado, otra dice que el último salió
   y manda el pedido nuevo a la web). mp06 sin listado 2 de 2: dice que el último salió y manda a la web, sin preguntar
   cuál. Falta verlo con Haiku.
+- **Con Haiku 5.5 (14/10, sí de Pablo, US$ 0,014613 en 8 llamadas, 2 corridas de mp03 y 2 de mp06):** 4 de 4 pasan el
+  listado de sus últimos 5 pedidos por fecha con su estado y preguntan cuál, 0 derivaciones. Defectos: metía el importe
+  de cada pedido (una vez mal: "$235.442 + IVA, o sea $194.580 + IVA", cuando el primero ya es con IVA) y en mp03
+  preguntaba también por el artículo. La indicación ahora pide sólo fecha y estado, sin importes, y preguntar sólo cuál.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 

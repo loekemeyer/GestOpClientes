@@ -17,6 +17,7 @@ igual("uno pendiente: la lista tal cual", conAvisoSinPendiente([programado, reti
 igual("sin estado cuenta como pendiente (recibido)", conAvisoSinPendiente([{ indice: 1 }]), [{ indice: 1 }]);
 igual("lista vacía: tal cual", conAvisoSinPendiente([]), []);
 igual("la indicación pide el listado y no derivar", /pasale este listado/.test(NOTA_SIN_PENDIENTE) && /NO derives/.test(NOTA_SIN_PENDIENTE) && /pedido_no_encontrado/.test(NOTA_SIN_PENDIENTE), true);
+igual("el listado va sin importes y pregunta sólo cuál (Haiku 14/10 los mezclaba)", /sin importes/.test(NOTA_SIN_PENDIENTE) && /preguntale s[oó]lo cu[aá]l es/.test(NOTA_SIN_PENDIENTE), true);
 igual("sin punto y coma (se escribe por execute_sql en otros lados) ni backticks", /[;`]/.test(NOTA_SIN_PENDIENTE), false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
