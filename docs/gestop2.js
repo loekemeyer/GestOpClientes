@@ -158,6 +158,19 @@ function renderNav() {
 // Barra lateral (Luis, 05/10): arranca abierta en cada entrada; « la pliega a la tira que sale con el mouse y » la fija.
 function sbPlegar() {
   const plegada = document.getElementById("app").classList.toggle("sb-plegada");
+  const sb = document.querySelector(".sidebar.sb2");
+  if (sb) {
+    // Al plegar con el botón, el mouse queda encima de la barra, así que el
+    // :hover la volvía a abrir enseguida y parecía que no pasaba nada. Mientras
+    // dure .sb-forzada la barra se queda plegada aunque el mouse esté encima; se
+    // suelta cuando el mouse sale por primera vez y ahí vuelve el fly-out normal.
+    if (plegada) {
+      sb.classList.add("sb-forzada");
+      sb.addEventListener("mouseleave", () => sb.classList.remove("sb-forzada"), { once: true });
+    } else {
+      sb.classList.remove("sb-forzada");
+    }
+  }
   const b = document.getElementById("sbPlegar");
   if (!b) return;
   b.textContent = plegada ? "»" : "«";

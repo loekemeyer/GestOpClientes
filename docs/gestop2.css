@@ -73,6 +73,9 @@ button, select, input, textarea { font-family: inherit; }
   .app.sb-plegada .sidebar.sb2 { --riel: 12px; position: fixed; top: 0; bottom: 0; left: 0; z-index: 1400;
     transform: translateX(calc(-100% + var(--riel))); transition: transform .18s ease .3s, box-shadow .18s ease .3s; }
   .app.sb-plegada .sidebar.sb2:hover, .app.sb-plegada .sidebar.sb2:has(:focus-visible) { transform: none; box-shadow: 10px 0 40px rgba(0,0,0,.35); transition-delay: .1s; }
+  /* Recién plegada con el botón: queda plegada aunque el mouse siga encima (si no, el :hover de arriba la reabría y parecía que el botón no hacía nada). gestop2.js la saca al primer mouseleave. */
+  .app.sb-plegada .sidebar.sb2.sb-forzada { transform: translateX(calc(-100% + var(--riel))) !important; box-shadow: none !important; transition-delay: 0s; }
+  .app.sb-plegada .sidebar.sb2.sb-forzada::after { opacity: 1 !important; transition-delay: 0s; }
   .app.sb-plegada .sidebar.sb2::after { content: "›"; position: absolute; top: 0; right: 0; bottom: 0; width: var(--riel); display: flex; align-items: center;
     justify-content: center; background: #212122; color: #aba497; font-size: 13px; font-weight: 700; pointer-events: none; transition: opacity .15s ease .3s; }
   .app.sb-plegada .sidebar.sb2.sb-espera::after { background: #8a5a00; color: #f7efdc; }
