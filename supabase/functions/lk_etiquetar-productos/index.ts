@@ -36,6 +36,30 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, "content-type": "application/json" } });
 }
 
+const STORAGE_PUBLICO = `${Deno.env.get("SUPABASE_URL") ?? ""}/storage/v1/object/public/products-images/`;
+
+/** URL de una imagen del producto para VISIÓN. Primero la que se puede ENVIAR por WhatsApp
+ *  (bot_obtener_imagenes_producto: jpeg/png). Si no hay, cae a cualquier objeto del bucket
+ *  —incluido webp, que WhatsApp no envía pero Gemini sí lee—. null si no hay ninguna. */
+async function urlImagenParaVision(cod: string): Promise<string | null> {
+  const { data: img } = await supabase.rpc("bot_obtener_imagenes_producto", { p_cod: cod });
+  const enviable = (img?.[0]?.image_urls ?? [])[0] as string | undefined;
+  if (enviable) return enviable;
+  const nombres = [`${cod}.webp`, `hd/${cod}.jpg`, `hd/${cod}.webp`, `hd/${cod}.png`, `${cod}.png`, `${cod}.jpg`];
+  // deno-lint-ignore no-explicit-any
+  const { data: objs } = await (supabase as any).schema("storage").from("objects")
+    .select("name, metadata").eq("bucket_id", "products-images").in("name", nombres);
+  // deno-lint-ignore no-explicit-any
+  const apto = (o: any) => /^image\/(jpe?g|png|webp)$/.test(String(o?.metadata?.mimetype ?? "")) &&
+    Number(o?.metadata?.size ?? 0) > 0 && Number(o?.metadata?.size ?? 0) <= 5 * 1024 * 1024;
+  for (const n of nombres) {
+    // deno-lint-ignore no-explicit-any
+    const o = (objs ?? []).find((x: any) => x.name === n);
+    if (o && apto(o)) return STORAGE_PUBLICO + n;
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -75,8 +99,7 @@ serve(async (req) => {
 
   for (const cod of tanda) {
     try {
-      const { data: img } = await supabase.rpc("bot_obtener_imagenes_producto", { p_cod: cod });
-      const url = (img?.[0]?.image_urls ?? [])[0] as string | undefined;
+      const url = await urlImagenParaVision(cod);
       if (!url) { saltados.push({ cod, motivo: "sin_imagen" }); continue; }
 
       const r = await fetch(url);
