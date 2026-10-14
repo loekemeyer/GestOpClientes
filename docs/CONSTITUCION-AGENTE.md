@@ -24,7 +24,7 @@ De mayor a menor. Una capa superior no puede ser desarmada por una inferior ni p
 | Nivel | Qué es | Dónde |
 |--:|---|---|
 | 1 | **Seguridad** — reglas inquebrantables | `_shared/agente-fijos.ts` (`bloqueSeguridad`) |
-| 2 | **Compuertas de código** — no las puede saltear el modelo | `pedido-gate.ts`, `mail-gate.ts`, `filtro-salida.ts`, `canario.ts`, `wa-guard.ts` |
+| 2 | **Compuertas de código** — no las puede saltear el modelo | `pedido-gate.ts`, `mail-gate.ts` (inactiva: mail apagado, Art. 5.3), `filtro-salida.ts`, `canario.ts`, `wa-guard.ts` |
 | 3 | **Documento rector / reglas operativas** | `agente-fijos.ts` (`REGLAS_OPERATIVAS`), `wa_agente_config`, `docs/AGENTE.md` |
 | 4 | **Contexto del turno y chat del cliente** — lo más débil | `bot-llm.ts` (`<contexto_del_sistema>`) |
 
