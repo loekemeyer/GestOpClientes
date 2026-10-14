@@ -236,7 +236,7 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   }
   // Pablo, 30/09 (11.1): "Los coladores vinieron todos rotos" → se le pide la foto. La foto que manda después la guarda el
   // webhook (bucket wa-comprobantes) y la suma como reclamo, porque en los 30 min anteriores habló de rotura (RE_ADJ_RECLAMO).
-  if (customer && RE_ROTURA.test(text)) {
+  if (customer && esMercaderiaRota(text)) {
     return { reply: "Disculpá el inconveniente. ¿Nos podés enviar por este medio una foto de la mercadería rota? La guardamos con el reclamo y una persona del equipo te escribe para resolverlo.",
       intent: "mercaderia_rota", automation_level: "needs_human", topic: "Mercadería rota o fallada",
       alerta: { motivo: "reclamo", urgente: true, detalle: `Mercadería rota (se le pidió foto): ${text.slice(0, 200)}` } };
@@ -742,6 +742,19 @@ const RE_PROSPECTO_INTERES = /\b(interesad[oa]s?|nos\s+interesa(n)?|quer[eé]mos
 const RE_PROSPECTO_SIN_RESPUESTA = /\bno\s+(nos\s+|me\s+)?(respond|contest|escribi|volvi)[a-záéíóúñ]*|\bsin\s+(recibir\s+)?respuesta|\bnadie\s+(nos\s+|me\s+)?(respond|contest)[a-záéíóúñ]*|\bno\s+tuvimos\s+(m[aá]s\s+)?(respuesta|novedades)/i;
 export const avisaProspectoSinRespuesta = (text: string): boolean => RE_PROSPECTO_INTERES.test(text) && RE_PROSPECTO_SIN_RESPUESTA.test(text);
 const RE_ROTURA = /\b(rot[oa]s?|fallad[oa]s?|defectuos\w*|da[ñn]ad[oa]s?|golpead\w*|abollad\w*|partid[oa]s|quebrad\w*)\b|\bse\s+(nos\s+|me\s+)?rompieron\b|\ben\s+mal\s+estado\b/i;
+// Pablo, 14/10 (Simulador, 4210): "¿me van a entregar productos dañados?" es un MIEDO a futuro, no un reclamo de algo recibido.
+// Antes abría reclamo urgente y pedía foto de una rotura que todavía no existe. Es reclamo sólo si habla de algo que YA pasó
+// (llegó/vino/recibí/mandaron…). Si es pregunta a futuro (van a entregar/mandar, voy a recibir, "y si…") y no hay marca de
+// recibido, cae al agente, que contesta la duda. Ante la duda (futuro + algo ya recibido) gana el reclamo: no perder uno real.
+// Ojo: sin `\b` de cierre — en JS `\b` no marca frontera después de vocal acentuada ("llegó", "ojalá"), así que romperían el match.
+const RE_ROTURA_PASADO = /\b(?:lleg[oó]|llegaron|lleg[aá]ron|vino|vinieron|recib[ií]\w*|recibid[oa]s?|mandaron|mandad[oa]s?|enviad[oa]s?|entregaron|trajeron|encontr[eé]|vi\s+que)|me\s+di\s+cuenta/i;
+const RE_ROTURA_FUTURO = /\b(?:van?\s+a\s+\w+|me\s+van?\s+a|voy\s+a\s+(?:recibir|tener)|va[ns]?\s+a\s+(?:llegar|venir|entregar|mandar)|(?:pued\w+|podr[ií]a[n]?)\s+(?:llegar|venir|salir)|llegar[aá]n?|vendr[aá]n?|me\s+(?:mandar[aá]n?|entregar[aá]n?)|si\s+(?:llega|viene|me\s+(?:mandan|entregan|traen))|y\s+si|capaz|ojal[aá]|espero\s+que\s+no|no\s+vaya[n]?\s+a)/i;
+/** ¿El cliente reporta mercadería rota/fallada (reclamo), o sólo pregunta si PODRÍA venir dañada (duda a futuro)? */
+export function esMercaderiaRota(text: string): boolean {
+  if (!RE_ROTURA.test(text)) return false;
+  if (RE_ROTURA_FUTURO.test(text) && !RE_ROTURA_PASADO.test(text)) return false; // pregunta a futuro, sin algo ya recibido
+  return true;
+}
 const RE_NRO_FACTURA = /\b(FC?A?\s*)?\d{4}\s*-\s*\d{6,8}\b/i;
 // "Figura programado para el 30/09 pero en el detalle dice 13/10" / "no coinciden las fechas": dos fechas contrapuestas o
 // "no coincide" + fecha.
