@@ -128,6 +128,12 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   antes de ayer"*. SIN PEDIDO PENDIENTE suma LISTADO: con una referencia («el de ayer») y sin pendiente que coincida, no
   dice que no figura ni deriva: lista sus últimos pedidos por fecha con su estado y pregunta cuál (sólo por el pedido).
   Si no es ninguno, deriva `pedido_no_encontrado`. `nota_esperada` de mp06 actualizada en `wa_agente_evals`.
+- **La regla sola no alcanzó con Gemini (14/10, US$ 0):** con la regla LISTADO en el prompt, Gemini Flash Lite derivó 5
+  de 6 veces (mp03 y mp06, 3 corridas cada uno). Se pasó la indicación a la respuesta de `consultar_mis_pedidos`
+  (`_shared/pedidos-sin-pendiente.ts`, commit `5f81ad9`): si ningún pedido está pendiente, la lista viene con la
+  indicación. Después, 4 corridas: 0 derivaciones. mp03 bien 2 de 2 (una pasa el listado, otra dice que el último salió
+  y manda el pedido nuevo a la web). mp06 sin listado 2 de 2: dice que el último salió y manda a la web, sin preguntar
+  cuál. Falta verlo con Haiku.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
