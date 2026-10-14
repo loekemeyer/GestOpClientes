@@ -117,6 +117,13 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   `consultar_mis_facturas` en cada consulta de saldo (aviso a Cobranzas, una abierta por número): mp04 está bien. Re-medido
   con Gemini tras el arreglo: mp06 bien (no deriva, manda el pedido nuevo a la web) y mp04 bien. Detalles menores sin tocar: mp07 saludó con la razón social y mp05 dijo "no tengo la foto"
   aunque pasó el link.
+- **mp06 re-medido con Haiku tras el arreglo (14/10, sí de Pablo, US$ 0,003701 en 2 llamadas):** ya no deriva el cambio,
+  pero tampoco queda bien: pregunta cuál de 4 batidores pera, pregunta en qué pedido y le pregunta al cliente si se
+  refiere a un pedido de la web que no le figura, y le habla de usted. **El caso no mide lo que dice su nota:** el
+  cliente de prueba 4210 no tiene pedidos pendientes, y "el pedido de ayer" no existe. Para eso ya hay regla (NO
+  INVENTES TIEMPOS, 07/10): si el cliente nombra un pedido que no aparece, se le dice que no figura y se deriva con
+  `pedido_no_encontrado`. Visto así, la primera respuesta de Haiku (derivó, aunque con `cambio_pedido`) estaba más
+  cerca de lo correcto que lo que se juzgó. Pendiente: que Pablo decida qué espera mp06 con este cliente.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
