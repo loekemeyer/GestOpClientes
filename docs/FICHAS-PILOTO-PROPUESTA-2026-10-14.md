@@ -1,6 +1,6 @@
 # Fichas de memoria del piloto: propuesta de textos (14/10/2026)
 
-> **PROPUESTA. No se escribió nada en `wa_memoria_cliente`.** Pablo Olejavetzky, 14/10/2026: *«Sí, prepará los textos de las fichas»*.
+> **EJECUTADO el 14/10/2026** (Pablo: *«Sí, ejecutalos»*, después de ver los textos exactos). Verificado con `SELECT`: 3790 y 3969 con el texto nuevo y `generada_en` intacto, respaldo con 2 filas y RLS prendida, ninguna de las frases retiradas sigue en la ficha viva. Antes: *«Sí, prepará los textos de las fichas»*.
 > Se compararon las fichas de LK 3790, 3969 y 1987 contra el historial original (`Wpp_Historial_Clientes`, solo lectura).
 > Criterio de Pablo: sacar solo lo que no sale de ningún mensaje. Hoja de ruta: [`PILOTO-LISTA-CLIENTES-2026-10-13.md`](PILOTO-LISTA-CLIENTES-2026-10-13.md), sección 5.
 
@@ -63,7 +63,7 @@ Con las mismas funciones que usa el bot (`_shared/memoria-cliente.ts`), corridas
 3. **Respaldo con RLS** (`zz_backups.bkp_wa_memoria_cliente_20261014`) en el mismo paso, como pide `CLAUDE.md`. Rollback: `update` desde esa copia.
 4. `wa_memoria_cliente` no tiene disparadores. Ninguna otra tabla se toca.
 
-## 7. SQL exacto (todavía no ejecutado)
+## 7. SQL exacto (ejecutado el 14/10, una sentencia por llamada; los dos `UPDATE` afectaron 1 fila cada uno)
 
 Cuatro sentencias, una por llamada. Después de ejecutarlas: `select cod_cli, generada_en, left(ficha, 60) from wa_memoria_cliente where marca = 'LK' and cod_cli in (3790, 3969)`
 y `select count(*) from zz_backups.bkp_wa_memoria_cliente_20261014` (esperado 2).
@@ -98,4 +98,6 @@ Historial: 134 mensajes, de agosto 2025 a mayo 2026.'
 ```
 
 Autorización: esta escritura entra en la excepción de BD de Pablo para este repo (`wa_memoria_cliente` es una tabla del bot de PaginaLK y no hay borrados),
-pero Pablo pidió ver el texto exacto antes, así que no se ejecuta sin su confirmación.
+pero Pablo pidió ver el texto exacto antes y dio su «sí» sobre ese texto.
+
+**Rollback:** `update public.wa_memoria_cliente w set ficha = b.ficha from zz_backups.bkp_wa_memoria_cliente_20261014 b where w.marca = b.marca and w.cod_cli = b.cod_cli`.
