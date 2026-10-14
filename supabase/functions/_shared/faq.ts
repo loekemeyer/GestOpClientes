@@ -455,9 +455,9 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
           automation_level: "semi_auto",
           faq_id: top.faq_id,
           yaSaluda: yaSaluda(lookupReply),
-          // Pablo, 14/10: estado/fecha de pedido migra a IA — el lookup exacto va como pista y redacta el agente. El resto de los lookups
-          // (descuento, stock, modificar) siguen fijos: son otras causas, se migran aparte.
-          comoPista: top.db_lookup_type === "order_status",
+          // Pablo, 14/10: migración capa fija → IA por causa. El lookup exacto va como pista y redacta el agente (no inventa números: los
+          // tiene en la pista). Migradas: estado/fecha de pedido (order_status) y descuentos (customer_discount). Stock y modificar siguen fijos.
+          comoPista: top.db_lookup_type === "order_status" || top.db_lookup_type === "customer_discount",
         };
       }
       // Pablo, 06/10 (m72): stock de un artículo que nombró y no se halló por código → lo busca la IA, no la respuesta estática de abajo.
