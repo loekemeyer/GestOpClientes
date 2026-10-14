@@ -82,6 +82,13 @@ for (const t of ["el 505", "entrega inmediata", "el viernes 10"]) igual(`no es c
 
 // ── Pistas para el agente ─────────────────────────────────────────────────────────────────────────────────────────
 igual("sin pistas, bloque vacío", mc.bloquePistas([]), "");
+// Pablo, 14/10 (P5, mp07): la razón social al inicio de una respuesta fija no pasa a la pista.
+igual("sin la razón social al inicio de la pista", mc.sinNombreAlInicio("- Para «x», la respuesta fija aprobada es: «Garbarino Franco Tomas, todos tus pedidos están entregados.»", "Garbarino Franco Tomas"),
+  "- Para «x», la respuesta fija aprobada es: «Todos tus pedidos están entregados.»");
+igual("la razón social en medio del texto queda", mc.sinNombreAlInicio("Hola, Garbarino Franco Tomas, todo bien", "Garbarino Franco Tomas"), "Hola, Garbarino Franco Tomas, todo bien");
+igual("razón social con punto (S.R.L.) se escapa", mc.sinNombreAlInicio("Chef S.R.L., tu última factura", "Chef S.R.L."), "Tu última factura");
+igual("sin nombre: tal cual", mc.sinNombreAlInicio("Garbarino, hola", ""), "Garbarino, hola");
+igual("bloquePistas aplica el recorte", mc.bloquePistas(["- «Garbarino Franco Tomas, todos tus pedidos»"], "Garbarino Franco Tomas").includes("«Todos tus pedidos»"), true);
 const b = mc.bloquePistas([mc.pistaDeParte("pasame precio", LISTA, null), mc.pistaRepetida(LISTA)]);
 igual("el bloque dice que conteste todo en un mensaje", b.includes("contestá TODO lo que el cliente pide en este mensaje, en UN solo mensaje"), true);
 igual("el bloque pide no saltear partes (Chef 411 con Haiku: 'cuándo sale mi pedido' quedó sin contestar)",

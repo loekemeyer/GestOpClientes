@@ -22,6 +22,7 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: si no es ninguno de la lista, deriva pedido_no_encontrado`, /Si dice que no es ninguno de la lista, deriv[aá] con derivar_a_persona \(motivo «pedido_no_encontrado»/.test(txt));
   ok(`${modo}: PAGOS, consultar la deuda no se deriva (mp04)`, /preguntar cu[aá]nto debe, cu[aá]ndo vence o c[oó]mo pagar NO se deriva/.test(txt));
   ok(`${modo}: no deriva sobre un pedido ya entregado y encamina el pedido nuevo en el mismo turno`, /no derives sobre uno ya entregado/.test(txt) && /encaminalo en ESE mismo turno seg[uú]n la regla PEDIDOS/.test(txt));
+  ok(`${modo}: CIERRE sin ofrecimientos que no pidió (Pablo, 14/10)`, /Tampoco cierres ofreciendo algo que no pidi[oó]/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
 }
 ok("SIN PEDIDO PENDIENTE es UNA sola línea", reglasOperativas(false).split("\n").filter((l) => l.startsWith("- SIN PEDIDO PENDIENTE")).length === 1);

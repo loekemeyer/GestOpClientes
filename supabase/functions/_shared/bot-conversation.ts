@@ -1671,7 +1671,7 @@ export async function runConversation(
   // anterior completa (con tope: ventana-historial.ts); la nota de tiempo y las compuertas de pedido y de mail siguen viendo los últimos 16.
   const rawHistory = historial.recientes;
   const bloqueAprobados = bloqueEjemplos(elegirEjemplos(userText, ejemplos));
-  const pistas = bloquePistas(opciones.pistas ?? []);
+  const pistas = bloquePistas(opciones.pistas ?? [], customerName);
   // Pablo, 08/10: el prompt va en dos partes para el caché de Anthropic (bot-llm.ts): la base (reglas y datos del cliente) es igual en todas las
   // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, hechos, ejemplos, pistas) va
   // dentro del último mensaje del cliente, después del historial (contextoEnElTurno), para no cambiarle el prefijo al historial.

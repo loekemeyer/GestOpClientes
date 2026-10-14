@@ -107,9 +107,20 @@ export function pistaRepetida(respuesta: string): string {
     `${MINUTOS_SIN_REPETIR} minutos (está en el historial). No se la repitas igual.`;
 }
 
-/** Bloque que se suma al final del prompt del agente. Vacío si no hay pistas. */
-export function bloquePistas(pistas: string[]): string {
+/** Pablo, 14/10 (P5, caso mp07 con Haiku 5.5): varias respuestas fijas de faq.ts arrancan con la razón social («Garbarino Franco Tomas, todos
+ *  tus pedidos…») y el agente la copiaba de la pista, contra la regla de no saludar con la razón social. Se saca de la pista (la respuesta fija que
+ *  sale directo no cambia): «Nombre, todos…» queda «Todos…». */
+export function sinNombreAlInicio(texto: string, nombre: string | null | undefined): string {
+  const n = (nombre ?? "").trim();
+  if (!n) return texto;
+  const esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return texto.replace(new RegExp(`(^|«|\\n)${esc},\\s*(\\p{L})`, "gu"), (_m, antes: string, letra: string) => antes + letra.toUpperCase());
+}
+
+/** Bloque que se suma al final del prompt del agente. Vacío si no hay pistas. `nombre`: la razón social del cliente, que se saca del inicio de las pistas. */
+export function bloquePistas(pistas: string[], nombre?: string | null): string {
   if (!pistas.length) return "";
+  pistas = pistas.map((p) => sinNombreAlInicio(p, nombre));
   return "PISTAS DE LAS RESPUESTAS FIJAS PARA ESTE MENSAJE (salen de palabras clave, por eso este mensaje no se contestó con una respuesta fija):\n" +
     pistas.join("\n") + "\n" +
     "Cómo usarlas: contestá TODO lo que el cliente pide en este mensaje, en UN solo mensaje natural y en el orden en que lo pidió, " +
