@@ -144,6 +144,8 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   con el formato tal cual («$235.442 ($194.580 + IVA)»), ninguna con «+ IVA» en el primer número. Formato sin «con IVA»
   por decisión de Pablo (commit `2c9668b`). Detalle menor: en 1 de las 2 listas sumó la invitación a hacer un pedido
   nuevo sin que la pidiera (sale de la indicación de sin pendientes).
+  Pablo: *"sacala si no lo pidió, me parece muy invasivo"* (commit `b98d9e4`). Gemini después: 2 de 2 consultas de
+  pedidos sin la invitación. mp03 con Gemini volvió a derivar la anulación (1 corrida), con Haiku había pasado 2 de 2.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
