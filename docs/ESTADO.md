@@ -1013,7 +1013,7 @@ falten, esas verificaciones avisan pero no rechazan. Ver la auditoría, sección
 
 ⚠ **Match de whitelist por últimos 10 dígitos (14/10, Pablo O. · problema auditoría 771).** El gate de entrada (`estaEnWhitelist`) y el de salida (`wa_puede_enviar`, sql/151) comparaban el teléfono por dígitos completos: un número cargado sin el 9 argentino (`541131181027`) no matcheaba el inbound de Meta (`5491131181027`) y el bot lo descartaba en silencio (alerta `wa_alertas_humano` 871). Ahora ambos comparan `right(digits,10)`, como `wa_identify_customer`.
 
-⚠ **Vínculo de PRUEBA (14/10, Pablo O.):** `5491131181027` (etiqueta "Logistica", en whitelist) está vinculado en `bot_customer_whatsapps` (id 227) al cliente **Garbarino Franco Tomas (4210, LK)** con `is_primary=true` y `permiso_ver_pedidos=true`, para las pruebas de plantillas. TEMPORAL, patrón Thomy→4028: con `wa_envio_automatico='prueba'` un pedido de 4210 dispara el aviso real a ese número. Sacarlo al terminar.
+⚠ **Vínculo de PRUEBA (14/10, Pablo O.):** `5491131181027` (etiqueta "Logistica", en whitelist) está vinculado en `bot_customer_whatsapps` (id 227) al cliente **Garbarino Franco Tomas (4210, LK)** con `is_primary=true` y `permiso_ver_pedidos=true`, para las pruebas de plantillas. **Fijo por el momento para pruebas** (Pablo O., 14/10), patrón Thomy→4028: con `wa_envio_automatico='prueba'` cada pedido real de 4210 dispara el aviso real a ese número. Se saca cuando Pablo lo pida.
 
 ## Auditoría de seguridad y funcionamiento (2026-09-07)
 
