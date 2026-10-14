@@ -14,6 +14,7 @@ export const pesos = (n: number): string => "$" + String(Math.round(n)).replace(
 export interface ImportesDelTotal { total_sin_iva: number; total_con_iva: number; total_para_el_cliente: string }
 
 /** Total de un pedido (neto de IVA, con descuentos) → el neto, el total con IVA y el texto "$896.732 ($741.100 + IVA)". null si no hay un total válido. */
+// Pablo, 14/10: el formato «$235.442 ($194.580 + IVA)» queda así, SIN agregar «con IVA» al primer número (se le propuso y dijo que no).
 export function importesDelTotal(neto: unknown): ImportesDelTotal | null {
   const n = Number(neto);
   if (neto === null || neto === undefined || neto === "" || !Number.isFinite(n) || n <= 0) return null;
