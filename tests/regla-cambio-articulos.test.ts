@@ -17,7 +17,8 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: responde sólo el texto aprobado`, /Respondele s[oó]lo esto, casi literal/.test(txt));
   ok(`${modo}: el texto que aprobó Pablo`, txt.includes("«Le paso el cambio a Ventas: si tu pedido del 02/10 todavía no salió, sacan la paleta batidora y suman el batidor pera, y te confirman por este medio.»"));
   // P5 (14/10, mp03 y mp06): sin pedido pendiente no se deriva un cambio ni una anulación sobre uno ya entregado.
-  ok(`${modo}: SIN PEDIDO PENDIENTE está y la nombra CAMBIO`, /- SIN PEDIDO PENDIENTE \(Pablo, 14\/10, P5/.test(txt) && /rige SIN PEDIDO PENDIENTE/.test(txt));
+  ok(`${modo}: SIN PEDIDO PENDIENTE está y la nombra CAMBIO`, /- SIN PEDIDO PENDIENTE \(Pablo, 14\/10, P5/.test(txt) && /si ninguno est[aá] todav[ií]a sin salir \(todos entregados o retirados\), NO derives ni uses el texto de abajo, rige SIN PEDIDO PENDIENTE/.test(txt));
+  ok(`${modo}: PAGOS, consultar la deuda no se deriva (mp04)`, /preguntar cu[aá]nto debe, cu[aá]ndo vence o c[oó]mo pagar NO se deriva/.test(txt));
   ok(`${modo}: no deriva sobre un pedido ya entregado y encamina el pedido nuevo en el mismo turno`, /no derives sobre uno ya entregado/.test(txt) && /encaminalo en ESE mismo turno seg[uú]n la regla PEDIDOS/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
 }

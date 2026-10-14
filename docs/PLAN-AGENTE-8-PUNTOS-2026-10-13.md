@@ -108,6 +108,13 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   retiró y manda el pedido de 10 cajas a la web, sin derivar). mp06 a medias: dice que ya se retiró pero igual deriva
   `cambio_pedido` (la regla CAMBIO DE ARTÍCULOS, que manda derivar sin preguntar, le gana a SIN PEDIDO PENDIENTE en
   Gemini). Se mira en la corrida nocturna antes de tocar más el texto.
+- **Medición con Haiku 5.5, el modelo del piloto (14/10, con el "sí" de Pablo, US$ 0,020514 en 17 llamadas):** 6 de 8
+  bien (mp01, mp02, mp03, mp05, mp07, mp08), mp04 a medias (otra vez la alerta `pago` y "Cobranzas ya quedó al tanto"
+  sin que lo pidiera) y mp06 mal (otra vez deriva el cambio sobre el pedido retirado). Como los dos fallos se repiten
+  con Gemini y con Haiku, son de la regla y no del modelo: CAMBIO DE ARTÍCULOS ahora mira primero los pedidos y, si
+  ninguno está sin salir, no deriva (rige SIN PEDIDO PENDIENTE), y PAGOS dice que consultar la deuda, el vencimiento o
+  cómo pagar no se deriva. Detalles menores sin tocar: mp07 saludó con la razón social y mp05 dijo "no tengo la foto"
+  aunque pasó el link.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
