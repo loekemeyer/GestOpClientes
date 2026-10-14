@@ -51,17 +51,19 @@ quien conoce al cliente (hoy, el vendedor 7 para tres de los cuatro):
 
 ## 5. Revisión de las fichas (Fase 1 punto 2, hecha el 13/10 sobre estos 4)
 
-Ninguna ficha tiene porcentajes, teléfonos, mails ni documentos. Lo que sí hay que mirar antes de que las lea el agente:
+Ninguna ficha tiene porcentajes, teléfonos, mails ni documentos. **Actualizado el 14/10 contra el historial original** (`FICHAS-PILOTO-PROPUESTA-2026-10-14.md`, que trae
+los textos exactos): lo que sigue reemplaza los hallazgos del 13/10, que eran una primera lectura de las fichas sin mirar los mensajes.
 
-1. **3790 Schell:** dice «Productos defectuosos (junio 2026 y después)». El historial termina el 09/06/2026, así que «y después» no sale de
-   ningún mensaje: es una afirmación sin respaldo. Además fija una «demora habitual entre 7 y 15 días», que el bot podría repetir como promesa de entrega.
-2. **3969 Rodriguez:** el cliente figura como Jonatan pero la ficha dice «Nicolás, de Nuevo Haedo». Puede ser otra persona del mismo negocio o una
-   mezcla: confirmar que el teléfono cargado es el de quien escribe. Menciona «garantía de por vida» con nota de crédito, que el bot no debería afirmar.
-3. **1987 Bertotto:** relata deudas de diciembre 2025 y febrero 2026 regularizadas con Cobranzas. Es un dato de saldo viejo dentro de la memoria:
-   los saldos se consultan en su fuente (plan, sección 7), no se recuerdan.
-4. **3790 y 3969** además cuentan acuerdos de pago excepcionales (cheques fuera de plazo, cheques pendientes registrados como deuda): el bot no
-   tiene que tomarlos como derecho vigente.
-5. **3848 Kourvelis:** sin hallazgos de fondo. «Le hablaron sobre el pago en mayo de 2026» es vago pero inofensivo.
+1. **3790 Schell: se propone corregir 3 líneas.** El retiro en el depósito y su horario no salen de ningún mensaje del cliente. El «7 a 15 días» es un aviso de la
+   empresa del 08/10/2025, no un hábito, y el bot podría repetirlo como promesa de entrega. El «y después» de los defectuosos no sale de ningún mensaje (el historial termina el
+   09/06/2026): los casos son abril y junio 2026. El acuerdo de los dos cheques pasó una sola vez (octubre 2025).
+2. **3969 Rodriguez: se propone corregir 2 líneas.** La «garantía de por vida» la dijo una persona de la empresa en septiembre 2025: el bot no debería afirmarla como regla.
+   El rango de cajas es de 2 a 15, no de 3 a 15.
+3. **1987 Bertotto: sin cambios.** *Retirado el hallazgo del 13/10 («saldo viejo dentro de la memoria»):* las deudas de diciembre 2025 y febrero 2026 salen de dos avisos
+   automáticos de la empresa y la ficha no tiene importes.
+4. **3969, retirados dos hallazgos del 13/10:** (a) «Nicolás vs Jonatan, puede ser una mezcla»: Nicolás escribe desde esta cuenta y en el mismo chat da el nombre de Jonatan
+   Rodríguez (09/02/2026); (b) «cheques pendientes registrados como deuda» no es un acuerdo excepcional: es la explicación de Cobranzas del 02/02/2026 y la línea de la ficha es exacta.
+5. **3848 Kourvelis:** sin hallazgos de fondo (no se revisó contra el historial). «Le hablaron sobre el pago en mayo de 2026» es vago pero inofensivo.
 
 ## 6. Cómo se corta si algo sale mal
 
