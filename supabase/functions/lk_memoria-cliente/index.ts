@@ -121,7 +121,14 @@ async function sumarCharla(p: { telefono: string; desde: string | null; hasta: s
   if (!nuevos.length) { await marcar("sin_mensajes"); return { cod_cli: cod, ok: true, saltado: "sin_mensajes" }; }
 
   const { data: prev } = await supabase.from("wa_memoria_cliente")
-    .select("ficha, mensajes, desde, charlas_excluidas").eq("marca", "LK").eq("cod_cli", cod).maybeSingle();
+    .select("ficha, mensajes, desde, charlas_excluidas, revisada_por").eq("marca", "LK").eq("cod_cli", cod).maybeSingle();
+  // Ficha revisada a mano: NO la pisa el incremental (quedaría a merced de Haiku). Se congela hasta que alguien
+  // borre revisada_por. El corte va ANTES de llamar al modelo, así saltarla no gasta. La memoria del año a demanda
+  // (buscar_en_mi_historial) igual ve las charlas nuevas en bot_historial_chat.
+  if (prev?.revisada_por) {
+    await marcar("revisada_congelada");
+    return { cod_cli: cod, ok: true, saltado: "revisada", revisada_por: prev.revisada_por };
+  }
   const { texto } = textoHistorial(nuevos, EMPRESA.LK, 30_000);
   const r = await pedirFicha(apiKey, sistemaActualizacion(EMPRESA.LK),
     `FICHA ACTUAL:\n${prev?.ficha ?? "(todavía no tiene ficha)"}\n\nCHARLA NUEVA CON EL BOT DE WHATSAPP:\n${texto}`, "memoria_incremental", p.telefono);
