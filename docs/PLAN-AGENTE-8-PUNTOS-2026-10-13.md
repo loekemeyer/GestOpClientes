@@ -138,6 +138,8 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   listado de sus últimos 5 pedidos por fecha con su estado y preguntan cuál, 0 derivaciones. Defectos: metía el importe
   de cada pedido (una vez mal: "$235.442 + IVA, o sea $194.580 + IVA", cuando el primero ya es con IVA) y en mp03
   preguntaba también por el artículo. La indicación ahora pide sólo fecha y estado, sin importes, y preguntar sólo cuál.
+  Gemini después del ajuste: mp03 pasa el listado sin importes, mp06 sigue sin listado (0 de 3 con Gemini). La corrida
+  nocturna va a marcar mp06 como fallado mientras use Gemini, aunque Haiku lo resuelve.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
