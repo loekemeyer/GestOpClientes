@@ -1466,7 +1466,8 @@ async function lookupProductStock(customer: NonNullable<Customer>, message: stri
           razon_social: customer.business_name },
       });
     }
-    return textoStock(p.description, p.cod, st) + (st.nivel === "hay" ? "\n\nPodés hacer el pedido en loekemeyer.com." : "");
+    // Pablo, 14/10 (P5, mp01): ya no cierra con «Podés hacer el pedido en loekemeyer.com.» si el cliente sólo preguntó el stock («muy invasivo»).
+    return textoStock(p.description, p.cod, st);
   } catch (e) {
     console.error("lookupProductStock:", e);
     return null; // sin dato → sigue el flujo normal (agente), que deriva

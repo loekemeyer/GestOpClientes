@@ -182,8 +182,9 @@ procesa el texto como un mensaje escrito (FAQ, agente, "ya pagué", pedidos). Ap
 
 **Pedidos por WhatsApp apagados (28/09, Pablo):** el agente no toma ni ofrece pedidos; los deriva a la
 web loekemeyer.com → "Pedidos Mayorista". Sin la herramienta `enviar_pedido` (flag `PEDIDOS_POR_WHATSAPP`
-en `_shared/bot-conversation.ts`) y con la regla fija en `agente-fijos.ts`. Stock "hay" cierra con
-"Podés hacer el pedido en loekemeyer.com."
+en `_shared/bot-conversation.ts`) y con la regla fija en `agente-fijos.ts`. ~~Stock "hay" cierra con
+"Podés hacer el pedido en loekemeyer.com."~~ Retirado el 14/10 (Pablo: *"sacala si no lo pidió, me parece muy invasivo"*):
+la respuesta de stock termina en el stock, y la regla CIERRE prohíbe ofrecer lo que el cliente no pidió.
 
 **Cliente molesto (28/09):** antes que cualquier otra respuesta, si el mensaje trae insultos, quejas
 fuertes ("una vergüenza", "nadie me contesta", "estoy harto") o gritos (MAYÚSCULAS con signos, 4+ signos
