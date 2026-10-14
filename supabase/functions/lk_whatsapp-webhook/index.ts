@@ -43,6 +43,9 @@ import { contextoAlertaTope, mensajeTope } from "../_shared/tope-ia.ts";
 import {
   CACHE_GASTO_MS, contextoAlertaGasto, FUNCION_CLIENTES, inicioDiaArgentina, MSG_TOPE_GASTO, type NivelGasto, nivelDeGasto, sumarGasto, type Topes, topesDeSettings,
 } from "../_shared/tope-gasto.ts";
+import {
+  contextoAlertaPresupuesto, inicioMesArgentina, pctDelMes, pozoDeSettings, presupuestoDeSettings, sumarGastoMes, umbralCruzado, umbralesDeSettings,
+} from "../_shared/presupuesto-ia.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
@@ -1065,6 +1068,61 @@ async function pasoElTopeDeGasto(
   return "tope";
 }
 
+/**
+ * Medidor de PRESUPUESTO MENSUAL del pozo de IA (Pablo, 14/10: US$ 100/mes, avisos al 25/50/75/90/100%, "sólo avisa"). A diferencia del tope diario de
+ * arriba, cuenta TODO el gasto del mes (no sólo clientes) porque el pozo de Anthropic se agota con todo, y NO corta nada: sólo deja una alerta para una
+ * persona, una vez por umbral por mes. Detalle y por qué en _shared/presupuesto-ia.ts. Cacheado como el gasto diario (CACHE_GASTO_MS).
+ */
+let cacheGastoMes: { hasta: number; usd: number } | null = null;
+async function gastoMesTotal(): Promise<number | null> {
+  if (cacheGastoMes && cacheGastoMes.hasta > Date.now()) return cacheGastoMes.usd;
+  const desde = new Date(inicioMesArgentina(Date.now())).toISOString();
+  // Sólo las filas con costo (las del modelo gratis son US$ 0 y la mayoría): así la suma del mes se arma con pocas filas. TODOS los function_name.
+  const { data, error } = await supabase.from("bot_token_usage").select("estimated_cost_usd").gt("estimated_cost_usd", 0).gte("created_at", desde).limit(50000);
+  if (error) { console.error("[presupuesto] no pude leer el gasto del mes:", error.message); return null; }
+  const usd = sumarGastoMes(data ?? []);
+  cacheGastoMes = { hasta: Date.now() + CACHE_GASTO_MS, usd };
+  return usd;
+}
+
+/** ¿Ya se avisó este mes por ESE umbral? (alerta `tope_gasto` nivel `presupuesto` con ese `umbral`, desde el inicio del mes ART). Ante un error dice que sí. */
+async function avisoPresupuestoHecho(umbral: number): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("wa_alertas_humano").select("id")
+      .eq("contexto->>motivo", "tope_gasto").eq("contexto->>nivel", "presupuesto").eq("contexto->>umbral", String(umbral))
+      .gte("created_at", new Date(inicioMesArgentina(Date.now())).toISOString()).limit(1);
+    if (error) { console.error("[presupuesto] no pude leer los avisos del mes:", error.message); return true; }
+    return (data ?? []).length > 0;
+  } catch (e) {
+    console.error("[presupuesto] falló la lectura de los avisos del mes:", e instanceof Error ? e.message : e);
+    return true;
+  }
+}
+
+/**
+ * Si el gasto del mes cruzó un umbral nuevo, deja UNA alerta para una persona (nivel `presupuesto`). Sólo avisa: no corta ni cambia la respuesta al
+ * cliente. Nunca lanza hacia arriba (se llama sin bloquear el flujo). El presupuesto en 0 apaga todo: ni se lee el gasto.
+ */
+async function avisarPresupuesto(phone: string, customer: { customer_id?: string | null; business_name?: string | null } | null): Promise<void> {
+  try {
+    const presupuesto = presupuestoDeSettings(await getSetting("ia_presup_mensual_usd"));
+    if (!(presupuesto > 0)) return; // apagado
+    const gasto = await gastoMesTotal();
+    if (gasto === null) return;
+    const umbrales = umbralesDeSettings(await getSetting("ia_presup_umbrales"));
+    const umbral = umbralCruzado(pctDelMes(gasto, presupuesto), umbrales);
+    if (umbral === null) return; // todavía no se cruzó ningún umbral (lo normal casi todo el mes)
+    if (await avisoPresupuestoHecho(umbral)) return; // ya se avisó por ese umbral este mes
+    const pozo = pozoDeSettings(await getSetting("ia_presup_pozo_usd"));
+    await notificarHumano({
+      tipo: "otro", phone, customerId: customer?.customer_id ?? null,
+      contexto: contextoAlertaPresupuesto(umbral, gasto, presupuesto, pozo),
+    });
+  } catch (e) {
+    console.error("[presupuesto] falló el aviso de presupuesto, se sigue normal:", e instanceof Error ? e.message : e);
+  }
+}
+
 
 /**
  * Envío de texto que NO tumba el webhook. Devuelve true si Meta lo aceptó.
@@ -1617,6 +1675,10 @@ async function handleMessage(
   // 6a2. Tope de gasto global diario de IA (Pablo, 07/10: US$ 2, aviso a US$ 1; sólo cuenta a los clientes). Con el tope no se llama al agente: el cliente
   //      recibe un aviso fijo una vez por día y una persona le contesta (alerta `tope_gasto`). Las FAQ y los flujos sin IA ya contestaron arriba.
   if ((await pasoElTopeDeGasto(cfg, phone, customer, text)) === "tope") return;
+
+  // 6a3. Medidor de presupuesto MENSUAL del pozo de IA (Pablo, 14/10: US$ 100/mes, avisos al 25/50/75/90/100%, "sólo avisa"). No corta nada: sólo deja
+  //      una alerta para una persona si el mes cruzó un umbral nuevo. Cuenta TODO el gasto del mes (no sólo clientes). No bloquea el flujo.
+  await avisarPresupuesto(phone, customer);
 
   iaEmpieza(phone); // tiempo de la IA dentro del turno (sql/136)
   const result = await runConversation(

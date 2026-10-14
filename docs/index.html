@@ -916,6 +916,9 @@
               <div class="ia-stat"><div class="ia-stat-lbl">Gratis (calls)</div><div class="ia-stat-val" id="iaFreeCalls">—</div></div>
             </div>
 
+            <!-- Presupuesto mensual del pozo de IA (sql/154, Pablo 14/10): US$ gastado / US$ presupuesto, con los umbrales de aviso. No depende de filtros ni Rango. -->
+            <div id="iaPresup" style="margin-bottom:0.9rem;"></div>
+
             <!-- Gasto acumulado mes actual vs mes anterior (respeta Proveedor y Tier; no depende de Rango) -->
             <div class="ia-comp" id="iaComp"></div>
 
@@ -5302,6 +5305,7 @@ function renderIaTable() {
   for (const k of ["prev_month", "month", "week", "session"]) for (const r of (_iaLastData.by_model?.[k] || [])) info[r.model] = r;
   const okModelo = (m) => info[m] ? pasa(info[m]) : (!prov && tier !== "free");
   renderIaComp(okModelo);
+  renderIaPresup();
   renderIaTok(rng, okModelo, (m) => !!info[m]?.is_free_tier);
   // Totales
   const tot = rows.reduce((a, r) => ({
@@ -5346,6 +5350,44 @@ function iaAcum(porModelo, dias, ok, hasta) {
   let acc = 0;
   return s.slice(0, hasta ?? dias).map((v) => (acc += v));
 }
+// Presupuesto mensual del pozo de IA (sql/154, _shared/presupuesto-ia.ts · Pablo 14/10): barra US$ gastado / US$ presupuesto del mes, con los umbrales
+// de aviso (25/50/75/90/100) marcados. El gasto es month.cost (total del mes, SIN filtrar por proveedor: el pozo se agota con todo). No depende de Rango.
+function renderIaPresup() {
+  const box = document.getElementById("iaPresup");
+  if (!box) return;
+  const p = _iaLastData?.presupuesto;
+  const gasto = Number(_iaLastData?.month?.cost || 0);
+  if (!p || !(Number(p.mensual_usd) > 0)) { box.innerHTML = ""; return; } // sin presupuesto configurado: no se muestra
+  const presup = Number(p.mensual_usd), pozo = Number(p.pozo_usd) || 0;
+  const umbrales = (Array.isArray(p.umbrales) && p.umbrales.length ? p.umbrales : [25, 50, 75, 90, 100]).slice().sort((a, b) => a - b);
+  const pct = presup > 0 ? (gasto / presup) * 100 : 0;
+  // Color por tramo: normal hasta 75%, amarillo 75-90%, rojo desde 90%.
+  const col = pct >= 90 ? "var(--danger, #e5484d)" : pct >= 75 ? "var(--warn, #f5a623)" : "var(--accent-tx, var(--primary))";
+  const lleno = Math.max(0, Math.min(100, pct));
+  const ticks = umbrales.map((u) => `<div style="position:absolute;left:${Math.min(100, u)}%;top:0;bottom:0;width:1px;background:var(--border);"></div>`
+    + `<div style="position:absolute;left:${Math.min(100, u)}%;bottom:-1.1rem;transform:translateX(-50%);font-size:0.62rem;color:var(--muted);white-space:nowrap;">${iaUsd2(u)}</div>`).join("");
+  const alertados = umbrales.filter((u) => pct >= u);
+  const prox = umbrales.find((u) => pct < u);
+  const estado = alertados.length
+    ? `avisado hasta el ${iaUsd2(alertados[alertados.length - 1])}` + (prox ? `, próximo al ${iaUsd2(prox)}` : ", en el tope")
+    : (prox ? `sin avisos aún, próximo al ${iaUsd2(prox)}` : "");
+  const lineaPozo = pozo > 0
+    ? `<span style="color:var(--muted);">Pozo: <b>${iaUsd(gasto)}</b> de ${iaUsd(pozo)} usados este mes</span>` : "";
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.3rem;">
+      <span style="font-size:0.82rem;">Presupuesto del mes: <b>${iaUsd(gasto)}</b> / ${iaUsd(presup)}
+        <b style="color:${col};">(${pct.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%)</b></span>
+      ${lineaPozo}
+    </div>
+    <div style="position:relative;height:0.7rem;background:var(--bg);border:1px solid var(--border);border-radius:0.35rem;overflow:hidden;">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:${lleno}%;background:${col};transition:width 0.3s;"></div>
+      ${ticks}
+    </div>
+    <div style="height:1.1rem;position:relative;"></div>
+    ${estado ? `<div style="font-size:0.72rem;color:var(--muted);">Avisos (${umbrales.map(iaUsd2).join(", ")}): ${estado}. Sólo avisa, no corta.</div>` : ""}`;
+}
+function iaUsd2(u) { return (Math.round(Number(u) * 10) / 10).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "%"; }
+
 function renderIaComp(ok) {
   const box = document.getElementById("iaComp");
   const c = _iaLastData?.comparacion;
@@ -5594,7 +5636,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.29.4</div>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.29.5</div>
 <script src="gestop2.js?v=0.29.3"></script>
 </body>
 </html>
