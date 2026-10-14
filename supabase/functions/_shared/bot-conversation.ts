@@ -626,7 +626,7 @@ async function executeTool(
           }
         } catch (e) { console.warn("derivar_a_persona: datos de Cobranzas:", e instanceof Error ? e.message : e); }
       }
-      return { data: { ok: true, mensaje: "Listo: quedó derivado. Si tu respuesta todavía no le avisa que una persona del equipo (o Ventas) le escribe por este medio, decíselo UNA sola vez, tuteándolo: no lo repitas si ya está." } };
+      return { data: { ok: true, mensaje: "Listo: quedó derivado. Tu respuesta tiene que incluir TAMBIÉN todo lo que ya averiguaste para el cliente en este turno (stock, links de fotos, precios, estados): no lo reemplaces por el aviso. Avisale UNA sola vez, tuteándolo, que una persona del equipo (o Ventas) le escribe por este medio, y no lo repitas si ya está." } };
     }
 
     case "solicitar_cambio_mail": {
@@ -1013,7 +1013,8 @@ async function executeTool(
         const cajas = Number(input.cajas) > 0 ? Number(input.cajas) : null;
         const st = await stockArticulo(p.cod);
         if (!st) return { data: { mensaje: "No pude consultar el stock. Ofrecé derivar a ventas." } };
-        if (stockNecesitaHumano(st, cajas)) {
+        const avisado = stockNecesitaHumano(st, cajas);
+        if (avisado) {
           const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
           await notificarHumano({
             tipo: "escalation", phone, customerId: cli?.[0]?.customer_id ?? null,
@@ -1027,7 +1028,9 @@ async function executeTool(
           try { ing = await ingresoEstimado(p.cod); } catch (e) { console.error("ingresoEstimado:", e); }
         }
         return { data: { texto_para_el_cliente: textoStock(p.description, p.cod, st, cajas) + textoIngreso(ing),
-          regla: "Pasale este texto tal cual; no agregues cantidades ni otras fechas. La fecha de ingreso siempre es estimada." } };
+          regla: "Pasale este texto tal cual; no agregues cantidades ni otras fechas. La fecha de ingreso siempre es estimada." +
+            // Pablo, 14/10 (P5, mp05 con Haiku): además de este aviso llamaba a derivar_a_persona y contestaba sólo «una persona te escribe», sin el stock ni la foto.
+            (avisado ? " Esta consulta YA quedó avisada a una persona: NO llames a derivar_a_persona por el stock, y en la respuesta incluí también lo demás que pidió (por ejemplo el link de la foto)." : "") } };
       } catch (e) {
         console.error("consultar_stock:", e);
         return { data: { mensaje: "No pude consultar el stock ahora. Decile que un asesor le confirma y ofrecé derivar." } };
