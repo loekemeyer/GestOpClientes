@@ -349,13 +349,13 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "enviar_fotos_producto",
     description:
-      "Envía las fotos de un producto específico al cliente por WhatsApp. Necesita el código del producto.",
+      "Envía por WhatsApp una foto de uno o varios productos (hasta 10), una por producto. Pasá los códigos de los que querés mostrar. Usala cuando el cliente pide ver las fotos de los artículos que le ofreciste (ej: buscó 'pelapapas' sin código, le mostraste varias opciones y pide las fotos): mandá los códigos de todos los que le ofreciste.",
     input_schema: {
       type: "object",
       properties: {
-        cod: { type: "string", description: "Código del producto (ej: '505')" },
+        cods: { type: "array", items: { type: "string" }, description: "Códigos de los productos a mostrar, hasta 10 (ej: ['505','506','510'])" },
+        cod: { type: "string", description: "Código de un solo producto (alternativa a cods, para un único artículo)" },
       },
-      required: ["cod"],
     },
   },
   {
@@ -1039,28 +1039,30 @@ async function executeTool(
     }
 
     case "enviar_fotos_producto": {
-      const { data, error } = await supabase.rpc("bot_obtener_imagenes_producto", {
-        p_cod: input.cod,
-      });
-      if (error || !data?.length) {
-        return { data: { error: "Producto no encontrado o sin imágenes disponibles." } };
+      // Acepta varios códigos (cods) o uno solo (cod). Manda UNA foto por producto, hasta 10:
+      // el caso típico es que el cliente pidió un artículo sin código, se le ofrecieron varios y
+      // ahora pide ver las fotos de todos ellos (Pablo, 14/10).
+      const codsRaw = Array.isArray(input.cods) ? input.cods : (input.cod != null ? [input.cod] : []);
+      const cods = [...new Set(codsRaw.map((c: unknown) => String(c).trim()).filter(Boolean))].slice(0, 10);
+      if (!cods.length) {
+        return { data: { error: "Indicá al menos un código de producto." } };
       }
-      const product = data[0];
-      const images: string[] = product.image_urls ?? [];
-      if (!images.length) {
-        return { data: { error: `El producto ${product.cod} no tiene fotos cargadas.` } };
+      const resultados = await Promise.all(cods.map((c) =>
+        supabase.rpc("bot_obtener_imagenes_producto", { p_cod: c }).then((r) => ({ c, data: r.data }))));
+      const medias: MediaAction[] = [];
+      const sinFoto: string[] = [];
+      for (const { c, data } of resultados) {
+        const prod = data?.[0];
+        const url: string | undefined = prod?.image_urls?.[0];
+        if (url) medias.push({ type: "image" as const, url, caption: `${prod.cod} — ${prod.description}` });
+        else sinFoto.push(c);
+      }
+      if (!medias.length) {
+        return { data: { error: "Ninguno de esos productos tiene fotos cargadas." } };
       }
       return {
-        data: {
-          cod: product.cod,
-          description: product.description,
-          cantidad_fotos: images.length,
-        },
-        media: images.map((url: string) => ({
-          type: "image" as const,
-          url,
-          caption: `${product.cod} — ${product.description}`,
-        })),
+        data: { cantidad_fotos: medias.length, sin_foto: sinFoto },
+        media: medias,
       };
     }
 
