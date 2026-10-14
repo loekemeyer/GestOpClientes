@@ -48,6 +48,10 @@ export interface FaqResult {
   /** Pablo y Thomy, 07/10: `reply` va con la clave tapada; el webhook la completa con el PIN del cliente al mandarla y guarda
    *  la versión tapada (_shared/clave-web.ts). El Simulador y el chat de prueba muestran `reply` tal cual. */
   conClave?: boolean;
+  /** Pablo, 14/10: en vez de salir como respuesta fija, `reply` se le pasa al agente como PISTA — la IA redacta, pero con el dato
+   *  EXACTO del lookup (no recalcula fechas relativas tipo "hace 10 días", que es el bug que la capa fija vino a tapar el 30/09).
+   *  Lo convierte decidirCapaFija. Primer paso de la migración capa fija → IA: estado/fecha de pedido. */
+  comoPista?: boolean;
 }
 
 // Pablo, 28/09: al cliente NUNCA se le muestra el número de pedido (se nombra por la fecha) y cada pedido
@@ -299,14 +303,14 @@ export async function handleFaq(text: string, customer: Customer, opts: { parte?
   // pedidos que faltan entregar; con fecha ("el pedido del 17/9") sigue la IA, que lo busca.
   if (customer && RE_ESTADO_PEDIDO.test(text) && !RE_FECHA_EXPLICITA.test(text)) {
     // Pablo, 07/10 (m2): si pregunta si está confirmado, la lista abre con "tu pedido está confirmado:".
-    return { reply: (await lookupOrderStatus(customer, { confirma: pideConfirmacionPedido(text) })) ?? "", intent: "faq", automation_level: "semi_auto", faq_id: 1 };
+    return { reply: (await lookupOrderStatus(customer, { confirma: pideConfirmacionPedido(text) })) ?? "", intent: "faq", automation_level: "semi_auto", faq_id: 1, comoPista: true };
   }
   // Pablo, 30/09 (1.8): "¿qué plazo de entrega están manejando?" → sus pedidos por entregar con estado y entrega estimada.
   // Sin pedidos por entregar sigue el flujo normal (plazo general). "No me llegó" es reclamo: lo ve la IA.
   if (customer && RE_PLAZO_ENTREGA.test(text) && !/\bno\s+(me\s+|nos\s+)?(lleg|entreg)/i.test(text)) {
     const r = await lookupOrderStatus(customer, { plazo: true });
     // Pablo, 06/10 (m61): "hoy son 14 días hábiles". El plazo general va primero (antes sólo mostraba sus pedidos y no lo decía); sus pedidos, debajo.
-    return { reply: textoPlazo() + (r ? `\n\n${r}` : ""), intent: "faq", automation_level: "semi_auto", faq_id: 1 };
+    return { reply: textoPlazo() + (r ? `\n\n${r}` : ""), intent: "faq", automation_level: "semi_auto", faq_id: 1, comoPista: true };
   }
   if (customer && RE_DIRECCION_ENTREGA.test(text)) {
     const r = await destinoPedidos(customer);
@@ -527,6 +531,11 @@ export async function decidirCapaFija(text: string, customer: Customer, faq: Faq
   Promise<{ faq: FaqResult | null; pistas: string[]; documentos: Documento[] }> {
   if (!customer) return { faq, pistas: [], documentos: [] };
   if (faq && !faq.conClave && yaLoDijo(faq.reply, recientes)) return { faq: null, pistas: [pistaRepetida(faq.reply)], documentos: [] };
+  // Pablo, 14/10: estado/fecha de pedido migra a IA — el dato exacto del lookup va como pista y el agente redacta (migración capa fija → IA).
+  if (faq?.comoPista && !faq.conClave) {
+    const deriva = faq.alerta?.motivo ?? (faq.automation_level === "needs_human" ? (faq.topic ?? "consulta") : null);
+    return { faq: null, pistas: faq.reply.trim() ? [pistaDeParte(text, faq.reply, deriva)] : [], documentos: faq.documentos ?? [] };
+  }
   if (!faq && mensajeCompuesto(text)) return { faq: null, ...(await pistasDeLaCapaFija(text, customer)) };
   return { faq, pistas: [], documentos: [] };
 }
