@@ -314,9 +314,25 @@ Loekemeyer y nunca dice ni insinúa que es una persona. No deriva por esa pregun
 > contesta la busca el agente). El entregado al expreso sigue en la lista 7 días, porque al cliente puede no haberle
 > llegado, y todo pedido por expreso lleva "la fecha en que te llega puede diferir según el expreso". Si están todos
 > entregados, nombra el último con su fecha de entrega.
-> "Hace 10 días hice un pedido, quería saber el estado" / "¿está confirmado mi pedido?" van a esta respuesta fija
-> (`RE_ESTADO_PEDIDO`) y no a la IA, que convertía "hace 10 días" en una fecha equivocada. Con fecha explícita ("el
-> pedido del 17/9") sigue la IA, que tiene prohibido convertir referencias relativas en fechas (`agente-fijos.ts`).
+> **14/10 (Pablo) — estado/fecha ahora lo redacta la IA.** "Hace 10 días hice un pedido…" / "¿está confirmado?" /
+> "¿cuándo me entregan?" ya NO salen como respuesta fija: el lookup exacto (`lookupOrderStatus`) se le pasa al agente
+> como PISTA (`comoPista`, `decidirCapaFija`) y la IA redacta. Así no se pierde el dato real ni se recalcula "hace 10
+> días" (la IA tiene el estado ya computado en la pista; igual tiene prohibido convertir referencias relativas,
+> `agente-fijos.ts`). Entra por las dos puertas: las ramas regex (`RE_ESTADO_PEDIDO`, `RE_PLAZO_ENTREGA`) y el lookup
+> de catálogo (`db_lookup order_status`).
+
+### Migración capa fija → IA por causa (14/10/2026, Pablo) — estado FINAL
+El lookup exacto va como pista y la IA redacta (no inventa números: los tiene en la pista). Se cerró con 3 causas migradas.
+
+- **Van a la IA (con pista de dato exacto):** estado/fecha de pedido (`order_status`), descuentos (`customer_discount`),
+  stock (`product_stock`; el stock por nombre ya iba a IA). Más todo lo conversacional/ambiguo que ya caía en el agente.
+- **Siguen FIJAS (dato exacto / seguro / estructurado / alto volumen):** clave de la web (el PIN sólo lo da la capa fija,
+  la IA ni lo ve), CBU/datos de transferencia, reenvío de factura (manda PDF, a veces con alias/CBU de Chef), NC/faltante
+  (reclamo: pide el nº de factura y deriva), alta paso a paso, vigencia de precios + "sin IVA", y saludo + presentación
+  (alto volumen / cero comprensión el saludo; copy de marca aprobado la presentación).
+
+Palanca: `FaqResult.comoPista` en `faq.ts`; lo convierte `decidirCapaFija`. Para migrar otra causa: marcar su lookup/rama
+con `comoPista` y validar las dos puertas en el Simulador (`saltear_fija` fuerza IA para medir).
 > "¿Qué plazo de entrega manejan?" (`RE_PLAZO_ENTREGA`) → desde el 06/10 (m61) primero el plazo general, **"14 días hábiles desde que hacés el pedido"**
 > (fijo, `_shared/plazo-entrega.ts`), y debajo la lista con la *entrega estimada* de la confirmación
 > (`wa_fecha_estimada`) en los pedidos sin fecha; sin pedidos por entregar, sólo el plazo general. No se pregunta si le
