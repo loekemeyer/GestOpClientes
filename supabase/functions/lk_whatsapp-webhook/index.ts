@@ -55,6 +55,7 @@ import { ALTA_INTRO, crearLead, esAfirmacion, extractCuit, getPendingLead, handl
 import { leerConstancia } from "../_shared/constancia.ts";
 import { lineaSegura } from "../_shared/dato-externo.ts";
 import { contextoAlertaArchivo, MOTIVO_ARCHIVO_SOSPECHOSO, VENTANA_AVISO_MS } from "../_shared/archivo-sospechoso.ts";
+import { describirFotoProducto } from "../_shared/vision-producto.ts";
 
 // Auditoría de performance (02/10/2026): este webhook leía app_settings ~17 veces por mensaje, un viaje a la base cada una
 // (3 ó 4 sólo en loadConfig, antes de mirar el mensaje). Ahora la tabla (40 filas, 8 KB) se lee ENTERA una vez por mensaje
@@ -692,6 +693,38 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
     } catch (e) {
       console.error("[adjunto] constancia:", e instanceof Error ? e.message : e);
     }
+  }
+
+  // Pablo, 14/10 (Fase A): una FOTO de un cliente que no es reclamo ni pago se pasa primero por visión (_shared/vision-producto.ts,
+  // modelo propio app_settings.wa_vision_modelo = Gemini free, US$0; sin setear, visión dormida). Según lo que ve:
+  //  · producto dañado → reclamo (no se lee como pedido);
+  //  · un producto → el agente lo busca y le ofrece opciones con fotos (reusa buscar_productos + enviar_fotos_producto);
+  //  · una LISTA escrita o no se pudo ver (sin_vision) → sigue el flujo de pedido por archivo de abajo, como siempre.
+  // Antes toda foto de cliente caía en leerPedidoArchivo (esArchivoDePedido matchea image/*): una foto de un solo artículo salía mal leída.
+  if (clase === "otro" && customer && esFoto && archivo) {
+    const vista = await describirFotoProducto(archivo.bytes, archivo.mime);
+    if (vista.tipo === "danado") {
+      await responder(MSG_ADJUNTO_RECLAMO);
+      await alerta("reclamo", { motivo: "reclamo", visto: "producto_danado", comprobante_id: comprobanteId, mime });
+      return;
+    }
+    // El agente es producción (modelo real): respeta el tope de gasto diario. Con el tope alcanzado cae al flujo de abajo (lo ve una persona).
+    if (vista.tipo === "busqueda" && (await nivelGastoDiario()).nivel !== "tope") {
+      iaEmpieza(phone);
+      const result = await runConversation(
+        `Te mando una foto de un producto que estoy buscando. En la foto se ve: ${vista.terminos}. ¿Qué tenés parecido? Mostrame opciones con la foto.`,
+        phone, customer.business_name, customer.cod_cliente, customer.dto_vol, cfg.anthropicKey, "lk_whatsapp-webhook",
+      ).finally(() => iaTermina(phone));
+      if (result.timeout || result.llmError) {
+        await avisarIaCaida(cfg, phone);
+        return;
+      }
+      if (result.media.length) await sendMediaActions(result.media, phone, cfg);
+      if (result.reply?.trim()) await responder(result.reply);
+      await alerta("adjunto_recibido", { motivo: "foto_producto", vision: vista.terminos, comprobante_id: comprobanteId, mime });
+      return;
+    }
+    // "lista" / "sin_vision" (o "busqueda" con el tope de gasto alcanzado): sigue el flujo de pedido por archivo de abajo.
   }
 
   // Pablo, 29/09: un Excel, CSV, foto o PDF de un cliente que no es reclamo ni pago se lee como PEDIDO: la IA arma la lista,
