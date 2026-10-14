@@ -1,6 +1,6 @@
 // Pruebas de la lista de modelos de prueba (supabase/functions/_shared/modelos-prueba.ts). Sin red, sin IA.
 // Correr: deno run tests/modelos-prueba.test.ts   (sale con código 1 si algo falla)
-import { esperaPorCuotaDePrueba, idModeloPrueba, listaModelosPrueba, MAX_MODELOS_PRUEBA, PRESUPUESTO_TURNO_PRUEBA_MS, soloModelosGratis } from "../supabase/functions/_shared/modelos-prueba.ts";
+import { esperaPorCuotaDePrueba, idModeloPrueba, listaModelosPrueba, MAX_MODELOS_PRUEBA, PRESUPUESTO_TURNO_PRUEBA_MS, soloModelosGratis, modeloEvalPermitido } from "../supabase/functions/_shared/modelos-prueba.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -44,5 +44,11 @@ igual("otros errores (500, 503, timeout): no espera", [esperaPorCuotaDePrueba(50
 let transcurrido = 12_000, esperas = 0;
 for (let i = 0; i < 10; i++) { const e = esperaPorCuotaDePrueba(429, "retry in 30s", transcurrido); if (!e) break; esperas++; transcurrido += e + 10_000; }
 igual("esperas repetidas: el presupuesto las corta (una sola con 12 s ya pasados)", esperas, 1);
+
+// Pablo, 14/10 (P5): corrida semanal con Haiku. Sólo modelos de la lista y sólo desde una llamada interna.
+igual("modelo_eval: Haiku 5.5 desde el cron, permitido", modeloEvalPermitido("claude-haiku-5-5", true), "claude-haiku-5-5");
+igual("modelo_eval: desde el dashboard (no interna), ignorado", modeloEvalPermitido("claude-haiku-5-5", false), null);
+igual("modelo_eval: Sonnet no está en la lista", modeloEvalPermitido("claude-sonnet-4-6", true), null);
+igual("modelo_eval: ausente", modeloEvalPermitido(undefined, true), null);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); const g = globalThis as { Deno?: { exit(c: number): never }; process?: { exit(c: number): never } }; (g.Deno ?? g.process)!.exit(1); }

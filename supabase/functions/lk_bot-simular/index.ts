@@ -1,3 +1,4 @@
+import { modeloEvalPermitido } from "../_shared/modelos-prueba.ts";
 import "../_shared/wa-guard.ts"; // D007: por las dudas — igual no manda nada (teléfono ficticio)
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, getIsisClient, getSetting, supabase } from "../_shared/supabase.ts";
@@ -294,7 +295,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const body = await req.json();
-    if (!(await esLlamadaInterna(req))) {
+    const interna = await esLlamadaInterna(req);
+    if (!interna) {
       const gate = await requireAdmin(body);
       if (!gate.ok) return json({ error: gate.error }, gate.status);
     }
@@ -485,7 +487,7 @@ serve(async (req) => {
       // 6. agente IA
       SIM.historial.push({ rol: "user", contenido: text, creado_en: ahora() });
       if (!reply) {
-        const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular", { pistas, soloGratis: body.solo_gratis === true });
+        const r = await runConversation(text, telSim, customer.business_name, customer.cod_cliente, customer.dto_vol, apiKey, "lk_bot-simular", { pistas, soloGratis: body.solo_gratis === true, modeloEval: modeloEvalPermitido(body.modelo_eval, interna) });
         via = r.timeout ? "agente (timeout: en producción no se contesta nada)" : r.llmError ? "agente (error: en producción no se contesta nada)"
           : pistas.length ? `agente IA con ${pistas.length} pista${pistas.length > 1 ? "s" : ""} de la capa fija` : "agente IA";
         reply = marcaLk && r.reply ? conEtiqueta("lk", r.reply) : r.reply;

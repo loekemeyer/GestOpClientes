@@ -94,7 +94,9 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
      bajo, commit `974b634`). Con Sonnet 4.6 no hay nada que prender.
 - **Costo:** 1 y 2, US$ 0 (Gemini en la eval nocturna). Medir los casos nuevos con Sonnet 4.6: US$ 0,035 por caso,
   unos US$ 0,35, con estimativo y "sí". **Dueño:** Claude. **Para:** jueves 16/10 (regla y casos), medición fase 1.
-- **Ok cuando:** los casos de varios pasos pasan con el modelo del piloto en la corrida nocturna 3 noches seguidas.
+- **Ok cuando:** ~~los casos de varios pasos pasan con el modelo del piloto en la corrida nocturna 3 noches seguidas~~.
+  **Desde el 14/10 (Pablo: *"Cambialo a Haiku, medición semanal"*):** los 8 casos de varios pasos pasan con Haiku 5.5 en la
+  corrida semanal (`lk_eval-semanal-haiku`, lunes 10:15, `sql/153`). La nocturna con Gemini sigue corriendo, pero ya no decide P5.
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
 - **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
   (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)

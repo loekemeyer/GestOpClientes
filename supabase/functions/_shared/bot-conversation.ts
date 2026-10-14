@@ -1644,7 +1644,7 @@ export async function runConversation(
   // Pablo, 08/10: lo que la capa fija contestaría a un mensaje compuesto o repetido (faq.ts decidirCapaFija). Va al final del prompt.
   // Pablo, 08/10: soloGratis (la corrida automática de evaluación, sql/133) descarta todo modelo que no sea is_free_tier, aunque alguien haya
   // dejado uno pago en llm_modelo_pruebas mientras el caso estaba en el Simulador.
-  opciones: { pistas?: string[]; soloGratis?: boolean } = {},
+  opciones: { pistas?: string[]; soloGratis?: boolean; modeloEval?: string | null } = {},
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
@@ -1697,7 +1697,13 @@ export async function runConversation(
   // por coma, en orden: Pablo, 08/10, ver modelos-prueba.ts): si fallan todos, la prueba falla (llmError) y NO cae a la cadena, para que
   // una caída no se pague en otro modelo sin que nadie se entere (Pablo, 01/10).
   let soloPruebas = false;
-  if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
+  // Pablo, 14/10 (P5): la corrida semanal de evaluación pide un modelo pago puntual (modeloEvalPermitido, modelos-prueba.ts) sin tocar
+  // llm_modelo_pruebas. Sólo ese modelo: si falla, el caso falla y se reintenta en la corrida, nunca cae a otro.
+  if (apiKey && fuente === "lk_bot-simular" && opciones.modeloEval) {
+    candidates.length = 0;
+    candidates.push({ id: idModeloPrueba(0), provider: "anthropic", model: opciones.modeloEval, key: apiKey, isFreeTier: false });
+    soloPruebas = true;
+  } else if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
     const modelosPrueba = listaModelosPrueba(await getSetting("llm_modelo_pruebas"));
     if (modelosPrueba.length) {
       candidates.length = 0;

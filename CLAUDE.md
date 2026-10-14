@@ -437,6 +437,12 @@ SET value='claude-haiku-5-5' WHERE key='llm_modelo_pruebas'`; (3) correr los cas
 y su restitución, ninguna otra escritura en la base. **No cubre Sonnet:** su tope es el de US$ 1 en total dicho el 05/10 (*"Podes usar si queres Sonnet siempre y cuando sea medido el gasto,
 tope un dolar en total"*), **gastado y pasado**: US$ 0,88 antes y US$ 1,10 al 07/10 (US$ 0,218913 de m1 y m8 con Sonnet 4.6, con el «sí» de Pablo a ese estimativo, que pasaba el tope). Sonnet de nuevo sólo con estimativo y «sí» (regla de arriba). Pablo no fijó un tope para Haiku: si una tanda va a pasar de unos US$ 0,50, se avisa antes (criterio mío, no de Pablo).
 
+
+**Excepción — corrida semanal con Haiku de los casos de varios pasos (Pablo Olejavetzky, 14/10/2026: *"Cambialo a Haiku, medición semanal"*,
+sobre un estimativo de unos US$ 0,03 por corrida):** el cron `lk_eval-semanal-haiku` (lunes 10:15 de Argentina, `sql/153`) corre los 8 casos
+`origen = 'multipaso'` con `claude-haiku-5-5` **sin pedir el "sí" cada semana**. Tope: 8 casos con 2 reintentos, unos US$ 0,09 en el peor caso. No
+toca `llm_modelo_pruebas`: el modelo va en `body.modelo_eval` y el Simulador sólo lo acepta desde el cron y si está en `MODELOS_EVAL_PAGOS`
+(`_shared/modelos-prueba.ts`). **Cubre sólo esa corrida**: sumar casos, otro modelo u otra frecuencia vuelve a la regla de arriba (estimativo + "sí").
 ## Reglas
 
 - NUNCA hardcodear anon key ni service role key en el código fuente
