@@ -20,6 +20,8 @@ import { armarDtoCfg, cuentasFactura, ddmm, diasDelPlazo, type DtoCfg, type FacM
 // app_settings.wa_factura_envio_modo ('modulo' = chat de prueba | 'whatsapp' = real).
 // Hoy sólo procesa clientes de PRUEBA (cuit 30999…); datos reales quedan dormant.
 // verify_jwt=false (lo llama pg_net desde ISIS). Gate de secreto x-lk-secret: ver gate.ts (llave wa_factura_check_gate).
+// Modo redirect (envío real desviado a un número de prueba): además de la ventana (wa_real_redirect_date), exige una
+// allowlist de cuits en app_settings.wa_real_redirect_cuits; vacía = no manda nada. Ver handleRealRedirect (freno 14/10).
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -489,6 +491,19 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
   const wl = await whitelist();
   const redirects = raw.split(",").map((s) => s.replace(/\D/g, "")).filter(Boolean).filter((p) => wl.includes(p));
   if (!redirects.length) return json({ skipped: "redirect_no_whitelist", cuit });
+
+  // ── Freno al barrido (incidente 14/10/2026) ──
+  // En modo redirect cada factura real del día se consolida y va al número de redirección. El cron wa_barrido_avisos
+  // (jobid 69, Gestión) recorre TODOS los cuits facturados hoy: reabrir la ventana disparaba un envío masivo de
+  // facturas de muchos clientes a un solo número (pasó: 8 grupos de varios clientes a Logística). Por eso, además de
+  // la ventana, hace falta una ALLOWLIST EXPLÍCITA de cuits: app_settings.wa_real_redirect_cuits (coma-separado, con o
+  // sin guiones). Sólo se redirige lo que esté listado. Lista vacía (o sin fila) = NO se manda nada aunque la ventana
+  // esté abierta: el default es seguro. Para probar un cliente se agrega su cuit a la lista; terminada la prueba se
+  // vacía. Es el mismo criterio "corte quirúrgico" de la vasectomía (CLAUDE.md).
+  const allow = ((await getSetting("wa_real_redirect_cuits")) || "").split(",").map((s) => s.replace(/\D/g, "")).filter(Boolean);
+  const cuitN = cuit.replace(/\D/g, "");
+  if (!allow.length) return json({ skipped: "redirect_sin_allowlist_cuits", cuit });
+  if (!allow.includes(cuitN)) return json({ skipped: "cuit_no_en_allowlist", cuit });
 
   // Grupos del día por EMPRESA + DIRECCIÓN (LK y CH nunca juntas).
   const { data: grupos } = await g.rpc("wa_grupos_dia_cuit", { p_cuit: cuit, p_fecha: fecha });
