@@ -282,3 +282,28 @@ Fuentes: [Meta Calling](https://developers.facebook.com/documentation/business-m
 [360dialog Calling](https://docs.360dialog.com/docs/messaging/calling.md) · [LiveKit Pricing](https://livekit.com/pricing) ·
 [LiveKit y WhatsApp](https://community.livekit.io/t/whatsapp-calls-inbound/1153) ·
 [Deepgram 2026](https://diyai.io/ai-tools/speech-to-text/deepgram-pricing-2026/) · [TTS 2026](https://blogs.novita.ai/best-text-to-speech-api-2026/)
+
+---
+
+## D011 — Apertura gradual: la primera cohorte son los clientes 4000 y 4289 (2026-10-15)
+
+**Registro (Pablo Olejavetzky, 15/10):** los vínculos 225 (cliente 4000 Gasparri Claudio Emilio Suc, …6963, cargado el 25/09, no principal) y 228
+(cliente 4289 Romagar S.R.L., …2300, cargado el 14/10, principal) de `bot_customer_whatsapps` son la **primera cohorte** de la apertura gradual del bot.
+Pablo: los sugirió una sesión anterior de Claude cuando se habló de abrir el bot de a poco, y él los aceptó. De esa conversación no hay rastro en el
+repo y `bot_customer_whatsapps` no guarda quién carga cada fila: esta entrada es el registro.
+
+**Cómo funciona abrir de a poco (medido el 15/10):** los productores de avisos de pedido que van por la cola (`trg_notify_order_created`,
+`trg_order_tracking_notify`, `wa_avisos_en_viaje_web`, `wa_avisos_retiro_web`) leen `bot_customer_whatsapps`: con la llave `wa_envio_automatico` en `1`
+reciben avisos los clientes con vínculo y ningún otro. El guardrail de cruce de cliente (sql/156) retiene un aviso de un cliente a un teléfono vinculado a
+otro. No se midió hoy qué leen `notify-order-created` y `notify-tracking-status` (leen `customers.whatsapp`, con 8 clientes el 25/09).
+
+**Estado al 15/10:** la llave está en `prueba` y esos dos teléfonos no están en la lista blanca: no salió ni se encoló nada a ellos (0 filas en
+`wa_outbox`). El 4000 tiene 1 pedido en los últimos 30 días y 4 mensajes en el historial; el 4289, ninguno.
+
+**Qué es «de prueba» hoy (Pablo, 15/10: «hoy todo teléfono en la whitelist es de prueba»):** la lista blanca tiene 3 teléfonos, todos internos: Thomy
+(…1635), Damián (…1594, **dueño de Loekemeyer y de Chef**, de prueba pero el más importante) y Logística (…1027). Los vínculos 224 (cliente 4028 con el teléfono
+de Thomy) y 227 (cliente 4210 con el de Logística) son de prueba y quedan hasta el go-live.
+
+**Antes de pasar la llave a `1`:** (1) avisar a Luis y a Thomas de los vínculos 225 y 228: D006 y `CLAUDE.md` piden que los teléfonos de clientes los
+cargue quien ellos pidan, y estos salieron de una sugerencia de Claude con el OK de Pablo; (2) sacar los vínculos 224 y 227 (un borrado: pide el «sí»
+de Pablo con el SQL exacto); (3) en el primer envío real, mirar que no aparezca un 403 `LkWaGuard` en los logs del webhook. Tareas de Planify 5852 y 5747.
