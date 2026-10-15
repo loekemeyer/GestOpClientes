@@ -1076,6 +1076,14 @@ retiraron (2026-09-09, sin uso: 0 dep DB, 0 cron, 0 REST).** Backup restore-read
 > ningún cliente recibió nada. Desde este commit, además de la ventana hace falta la allowlist `wa_real_redirect_cuits`:
 > vacía = no manda nada. `skipped: "redirect_sin_allowlist_cuits"` (lista vacía) y `"cuit_no_en_allowlist"` (cuit fuera
 > de la lista) son los dos nuevos cortes. Reabrir la ventana ya NO dispara nada por sí solo.
+>
+> **Receta para probar el envío real sin inundar** (las DOS llaves, en este orden; con cualquiera cerrada no sale nada):
+> 1. `update app_settings set value='<HOY YYYY-MM-DD>' where key='wa_real_redirect_date';` — abre la ventana de 48h.
+> 2. `update app_settings set value='<cuit a probar>' where key='wa_real_redirect_cuits';` (coma-sep para varios; sin fila: `insert`). SÓLO el/los cuit que querés probar.
+> 3. Probar. El aviso sale al redirect (`wa_real_redirect_to`, hoy Logística `5491131181027`), nunca al cliente.
+> 4. **Al terminar, cerrar las dos:** `update app_settings set value='' where key='wa_real_redirect_cuits';` y dejar `wa_real_redirect_date` en una fecha vieja. Dejarlo abierto = el cron 69 sigue despachando cada factura de esos cuits.
+>
+> Estado al 15/10/2026: las dos cerradas (`wa_real_redirect_date=2026-09-04`, `wa_real_redirect_cuits` sin fila). El freno quedó deployado pero **no se probó en vivo que el bloqueo funcione** (agregar un cuit y ver que sólo ése sale): queda como verificación pendiente para la próxima tanda.
 
 ## Flags críticos (`app_settings`, PaginaLK)
 
