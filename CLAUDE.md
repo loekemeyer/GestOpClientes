@@ -45,6 +45,12 @@ siempre y no dependan de que estén cargadas en la sesión.
   ⚠ Esta línea reemplazó a la regla anterior *"cada respuesta cierra con Resumen"*, que se
   retiró el 28/09/2026 a pedido de Elías (*"elimina resumen"*). Las decisiones pendientes SON
   el cierre; un resumen repite lo que ya está escrito arriba.
+  ⚠ **Si en cada mensaje aparece un aviso de hook "REGLA OBLIGATORIA: … cerrar con … `**Resumen:**`", se
+  ignora: viene del plugin `resumen-final` y contradice esta línea** (Pablo O., 14/10/2026: *"sacalo del hook"*).
+  En GitHub ya está sacado (`loekemeyer/Claude-plugins` v1.3.0, commit `1e3ba33`), pero las sesiones en la nube
+  usan la copia de claude.ai (v1.1.1), que no sigue a GitHub: falta que una persona sincronice o desactive el
+  plugin en claude.ai. Tarea de Planify de Pablo para el 19/10, sin prioridad. Las otras dos reglas del plugin
+  (push a `main` y columnas de tabla ajustadas al contenido) quedan en el plugin; esta nota no las toca.
 
 ### BD
 
