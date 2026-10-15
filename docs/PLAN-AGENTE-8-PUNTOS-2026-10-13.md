@@ -127,6 +127,10 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   13 da 8 de 8 bien** y la 10 (respuestas de antes de los arreglos) sigue marcando sus 3 fallas reales (mp05 mal, mp03 y mp07 a
   medias). **Variación medida:** en 3 corridas sueltas, mp06 pasó 3 de 3 y mp03 sólo 1 de 3 (las otras 2 listan y preguntan
   cuál anular, pero no dicen cómo hacer el pedido nuevo). Gasto del día en pruebas: US$ 0,0248 del Simulador y US$ 0,0077 del juez.
+- **Pablo, 15/10: *"Sí, alcanza con listar y preguntar cuál"*** (rehacer un pedido depende de cuál era): indicación y nota de mp03
+  ajustadas (commit `7a5e64c`). Corrida 14: 7 bien, mp02 a medias (ofrecía que lo revise una persona en vez de decir cómo pedir);
+  arreglo: si el cliente ya dijo cuál pedido y salió, no lista y manda el texto aprobado de CANTIDAD TOTAL (commit `9c97d49`).
+  **Corrida 15: 8 de 8 bien.** Gasto total del 15/10 en pruebas: Simulador US$ 0,050785 (79 llamadas) y juez US$ 0,010466 (64).
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
 - **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
   (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)
@@ -229,6 +233,11 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   primer reporte con datos reales viernes 23/10 (cierre del piloto).
 - **Ok cuando:** el reporte del 23/10 sale de la vista, no de contar a mano, y cada derivada de la semana tiene su
   salida (A, B, C, D o correcta).
+- **15/10 [Seguro]:** 1 y 3 hechos por otra sesión (`sql/146`, `sql/152`, tarjetas en Evaluación). El 2 quedó en el dashboard
+  y no en `lk_reporte-quincenal`, que es el reenvío del PDF de importación, no un reporte del bot. `sql/158` corrige lo que la
+  vista contaba mal: `derivada` sólo miraba `escalation`, así que el bot en pausa salía `sin_respuesta` y reclamos, entregas,
+  adjuntos e IA caída no contaban. Ahora usa la misma lista de motivos que la memoria de la charla (`hechos-charla.ts`).
+  Falta: tráfico real (hasta hoy son números de prueba) y la salida de cada derivada en la revisión diaria.
 
 ## 2. Orden y calendario (dentro del plan de producción, sin fechas nuevas)
 
