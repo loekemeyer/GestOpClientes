@@ -30,6 +30,7 @@ import {
 } from "../_shared/bot-conversation.ts";
 import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
+import { esConsultaDeDisponibilidad } from "../_shared/consulta-disponibilidad.ts";
 import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { pareceAtaqueEntrada } from "../_shared/ataque-entrada.ts";
@@ -1555,7 +1556,9 @@ async function handleMessage(
         .gt("first_seen", new Date(new Date(visto).getTime() - 6000).toISOString());
       rafaga = (previos ?? 0) > 0;
     }
-    if (visto && (rafaga || RE_ITEMS.test(text) || await enCursoLazy())) {
+    // Pablo, 15/10 (tanda de pruebas, mensajes 2 y 3): «Tiene stock del 586?» y «Si quiero 30 cajas hay?» esperaban 5 s sin ser un pedido. Una pregunta de disponibilidad sin intención de
+    // pedir (consulta-disponibilidad.ts) no espera por sí sola; sigue esperando si llegó otro mensaje hace menos de 6 s o hay un pedido en curso.
+    if (visto && (rafaga || (RE_ITEMS.test(text) && !esConsultaDeDisponibilidad(text)) || await enCursoLazy())) {
       await new Promise((r) => setTimeout(r, 5000));
       const { count } = await supabase.from("wa_inbound_seen").select("wamid", { count: "exact", head: true })
         .eq("phone", phone).gt("first_seen", visto);

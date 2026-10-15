@@ -26,6 +26,9 @@ const PIDEN = [
   "Necesito pedir 20 cajas del 501",
 ];
 for (const t of PIDEN) igual(`va al modelo fijo: ${t.slice(0, 55)}`, esTurnoDePedido(t, sinHistorial, AHORA), true);
+// Pablo, 15/10 (tanda de pruebas, mensaje 3): un pedido dicho con una pregunta de stock sigue en el modelo fijo si tiene verbo de pedir (consulta-disponibilidad.ts).
+for (const t of ["Tienen 30 cajas del 505? las quiero", "Hay stock del 505, mandame 10 cajas", "Necesito 30 cajas del 505, hay?", "Si hay stock, quiero 30 cajas del 505", "Agregá 10 cajas del 505 si hay"])
+  igual(`pedido con pregunta de stock, va al modelo fijo: ${t}`, esTurnoDePedido(t, sinHistorial, AHORA), true);
 
 // ── Consultas que NO son de pedido (estado, facturas, stock…): siguen por la cadena ──
 const NO_PIDEN = [
@@ -42,6 +45,9 @@ const NO_PIDEN = [
   "Hola, sí, sí, lo pueden reemplazar",
 ];
 for (const t of NO_PIDEN) igual(`sigue por la cadena: ${t.slice(0, 55)}`, esTurnoDePedido(t, sinHistorial, AHORA), false);
+// Pablo, 15/10 (tanda de pruebas, mensaje 3): «Si quiero 30 cajas hay?» costó US$ 0,0974 en Sonnet por decir «30 cajas». Una pregunta de disponibilidad sin intención de pedir va por la cadena.
+for (const t of ["Si quiero 30 cajas hay?", "Hay 30 cajas del 505?", "Tienen stock para 50 cajas?", "Quiero saber si tienen 20 cajas del 505"])
+  igual(`pregunta de stock con cantidad, sigue por la cadena: ${t}`, esTurnoDePedido(t, sinHistorial, AHORA), false);
 
 // ── Un "sí" o "contado" es de pedido si lo último que dijo el bot fue parte de la toma de un pedido (en la última hora) ──
 const botPregunta = (c: string, min: number) => [{ rol: "user", contenido: "dale", creado_en: hace(0) }, { rol: "assistant", contenido: c, creado_en: hace(min) }];
