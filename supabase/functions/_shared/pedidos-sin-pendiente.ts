@@ -12,6 +12,9 @@ export const ESTADO_SALIDO = "entregado";
 export const NOTA_SIN_PENDIENTE =
   "Ninguno de estos pedidos está pendiente: todos ya se entregaron o se retiraron. Si el cliente pide cambiar, sacar, agregar " +
   "o anular algo de un pedido, armá la respuesta con estos pasos, en este orden: " +
+  "0) Si ya dijo cuál pedido («mi último pedido», «el del 30/09») y ese ya salió, no listes ni preguntes cuál: decile que ese ya se entregó o se retiró y, " +
+  "si quería sumarle artículos, cómo pedirlos en un pedido nuevo (texto aprobado de la regla CANTIDAD TOTAL: «hacé un pedido nuevo en la web (loekemeyer.com › " +
+  "Pedidos Mayorista) o indicame cuántas y lo tomo por este medio»), sin derivar. Si no dijo cuál o lo ubicó con una referencia que no coincide («el de ayer»), seguí: " +
   "1) pasale este listado (cada pedido sólo con su fecha y su estado tal cual, sin importes), escrito en tu respuesta, no lo des por visto. " +
   "2) preguntale sólo cuál es: NO le preguntes todavía por artículos, variantes ni cajas, eso se aclara después. " +
   "3) NO derives y NO le digas que no le figura. " +
