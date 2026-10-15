@@ -665,7 +665,7 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 
 **Qué se hizo**: `_shared/articulo-en-curso.ts` (bloque «Artículo en curso» en la parte variable del prompt; `cajasRespaldadas`), conectado en `_shared/bot-conversation.ts`; `tests/articulo-en-curso.test.ts`. Detalle, causa probable y límites en la entrada del 15/10 de `docs/ESTADO.md`. Auditoría 828, tarea de Planify 5969.
 
-**Lo que NO se decidió**: no se tocaron las reglas PEDIDO SIN ERRORES, COLORES ni TIPO DE ARTÍCULO (Pablo las pidió el 15/10 y siguen). Tampoco se cambió el modelo del agente (D032 sigue sólo anotado). Falta comprobar con Haiku 5.5 que sigue la pista: requiere estimativo y «sí» de Pablo.
+**Lo que NO se decidió**: no se tocaron las reglas PEDIDO SIN ERRORES, COLORES ni TIPO DE ARTÍCULO (Pablo las pidió el 15/10 y siguen). Tampoco se cambió el modelo del agente (D032 sigue sólo anotado). Comprobado en producción el 15/10 en 1 caso real (Pablo repitió «Tenes stock para 30 cajas?» desde Logística: consultó el 586 con 30 cajas sin repreguntar, US$ 0,00096); la variante «Del art que te pregunte antes» queda sin probar. Auditoría 828 cerrada con esas salvedades.
 
 ---
 
@@ -675,4 +675,4 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 
 **Por qué** [Seguro]: el paso 3b' del webhook (`atenderMalHumor`) responde y deriva ANTES del agente, sin IA; un mensaje cortés con varias preguntas es lo normal de un mayorista y quedaba sin contestar. Regla vieja del 28/09 (`docs/FLUJOS.md`).
 
-**Qué se hizo**: `humor-reglas.ts`, `tests/humor-reglas.test.ts` (19 chequeos), línea de `docs/FLUJOS.md`. Auditoría 829. **No se tocó**: la cláusula de MAYÚSCULAS (un cliente que escribe todo en mayúsculas sigue marcado como grito; sin caso real que lo pida).
+**Qué se hizo**: `humor-reglas.ts`, `tests/humor-reglas.test.ts` (19 chequeos), línea de `docs/FLUJOS.md`. Auditoría 829. **No se tocó**: la cláusula de MAYÚSCULAS (un cliente que escribe todo en mayúsculas sigue marcado como grito; sin caso real que lo pida). Verificado en producción el 15/10: el mismo mensaje de Logística llegó al agente (deploy de la corrida 474) y contestó stock y precio sin alerta. Auditoría 829 cerrada.
