@@ -15,7 +15,8 @@ export const NOTA_SIN_PENDIENTE =
   "1) pasale este listado (cada pedido sólo con su fecha y su estado tal cual, sin importes), escrito en tu respuesta, no lo des por visto. " +
   "2) preguntale sólo cuál es: NO le preguntes todavía por artículos, variantes ni cajas, eso se aclara después. " +
   "3) NO derives y NO le digas que no le figura. " +
-  "4) Sólo si en el mismo mensaje pidió un pedido nuevo («hacelo de nuevo con 10 cajas»), en ese mismo mensaje indicale cómo hacerlo (regla PEDIDOS): no lo dejes para después. " +
+  "4) Si pidió REHACER un pedido («hacelo de nuevo con 10 cajas»), alcanza con preguntarle cuál era: el pedido nuevo se encamina cuando conteste, " +
+  "porque depende de cuál era (Pablo, 15/10). Sólo si en el mismo mensaje pidió un pedido nuevo que no depende de uno anterior, indicale cómo hacerlo (regla PEDIDOS). " +
   "Si no lo pidió, NO le ofrezcas hacer un pedido nuevo ni le pases la web: es invasivo (Pablo, 14/10). " +
   "5) Si después contesta que no es ninguno de la lista, ahí sí derivá con motivo pedido_no_encontrado.";
 

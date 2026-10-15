@@ -19,6 +19,7 @@ igual("lista vacía: tal cual", conAvisoSinPendiente([]), []);
 igual("la indicación pide el listado y no derivar", /pasale este listado/.test(NOTA_SIN_PENDIENTE) && /NO derives/.test(NOTA_SIN_PENDIENTE) && /pedido_no_encontrado/.test(NOTA_SIN_PENDIENTE), true);
 igual("el listado va sin importes y pregunta sólo cuál (Haiku 14/10 los mezclaba)", /sin importes/.test(NOTA_SIN_PENDIENTE) && /preguntale s[oó]lo cu[aá]l es/.test(NOTA_SIN_PENDIENTE), true);
 igual("no ofrece un pedido nuevo si no lo pidió (Pablo, 14/10: muy invasivo)", /S[oó]lo si en el mismo mensaje pidi[oó] un pedido nuevo/.test(NOTA_SIN_PENDIENTE) && /Si no lo pidi[oó], NO le ofrezcas hacer un pedido nuevo/.test(NOTA_SIN_PENDIENTE), true);
+igual("rehacer un pedido: alcanza con preguntar cuál era (Pablo, 15/10)", /Si pidi[oó] REHACER un pedido/.test(NOTA_SIN_PENDIENTE) && /alcanza con preguntarle cu[aá]l era/.test(NOTA_SIN_PENDIENTE), true);
 igual("sin punto y coma (se escribe por execute_sql en otros lados) ni backticks", /[;`]/.test(NOTA_SIN_PENDIENTE), false);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
