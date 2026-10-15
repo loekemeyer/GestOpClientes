@@ -1032,7 +1032,7 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
     const cuerpo = facturasBlock.replace("*Tus facturas abiertas:*\n", "");
     const m = cuerpo.match(/\n\n(Tenés además [^\n]+)$/);
     const ultima = m ? cuerpo.slice(0, m.index) : cuerpo;
-    return `${customer.business_name}, tu última factura:\n${ultima}\n\nTu descuento por volumen (${volumeDiscount}%) ya viene en los precios. ` +
+    return `Tu última factura:\n${ultima}\n\nTu descuento por volumen (${volumeDiscount}%) ya viene en los precios. ` +
       `El de pago no figura en la factura: se te reconoce cuando pagás, según los días que pasaron.${m ? `\n\n${m[1]}` : ""}${extraChef}`;
   }
 
@@ -1051,7 +1051,7 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
   }
   const pago = pagoBlock ? `\n💰 *Por pago*, contando desde la fecha de la factura:\n${pagoBlock}` : "";
   const fac = facturasBlock ? `\n\n${facturasBlock}` : "";
-  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}% (ya incluido en tus precios de la web)\n💻 *Por compra web*: 2% adicional${pago}${fac}\n\nLa factura sale con el total lleno: el descuento por pago se te reconoce cuando pagás, según los días que pasaron.${extraChef}`;
+  return `Tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}% (ya incluido en tus precios de la web)\n💻 *Por compra web*: 2% adicional${pago}${fac}\n\nLa factura sale con el total lleno: el descuento por pago se te reconoce cuando pagás, según los días que pasaron.${extraChef}`;
 }
 
 // Facturas abiertas del cliente con las fechas REALES de cada descuento (Pablo, 30/09: "si ya tiene una factura
