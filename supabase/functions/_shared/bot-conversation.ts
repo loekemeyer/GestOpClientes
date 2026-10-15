@@ -1673,7 +1673,9 @@ export async function runConversation(
   // Pablo, 08/10: lo que la capa fija contestaría a un mensaje compuesto o repetido (faq.ts decidirCapaFija). Va al final del prompt.
   // Pablo, 08/10: soloGratis (la corrida automática de evaluación, sql/133) descarta todo modelo que no sea is_free_tier, aunque alguien haya
   // dejado uno pago en llm_modelo_pruebas mientras el caso estaba en el Simulador.
-  opciones: { pistas?: string[]; soloGratis?: boolean; modeloEval?: string | null } = {},
+  // `degradado` (Pablo, 14/10): pasó el tope BLANDO de gasto diario (tope-gasto.ts, nivel `degradar`). El agente sigue, pero sólo con modelos
+  // gratis; si ninguno responde, Haiku 5.5 barato. Lo decide el webhook; el corte duro lo corta antes de llegar acá. No toca la toma de pedidos.
+  opciones: { pistas?: string[]; soloGratis?: boolean; modeloEval?: string | null; degradado?: boolean } = {},
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
@@ -1764,6 +1766,15 @@ export async function runConversation(
     }
     candidates.length = 0;
     candidates.push(...gratis);
+  }
+  // Tope de gasto degradado (Pablo, 14/10: «degradá, pero no cortes del todo» y «que no corte»). Pasó el tope: el agente sigue pero SÓLO con modelos
+  // gratis; si ninguno está disponible —el caso que quema el presupuesto, Gemini gratis caído— cae a Haiku 5.5 barato como último recurso (nunca a Sonnet).
+  // El agente NUNCA se corta por gasto; el webhook decide el nivel (`degradar`/`escalar`). No toca la toma de pedidos (turnoPedido va con su modelo fijo) ni las pruebas.
+  if (opciones.degradado && !soloPruebas && !turnoPedido) {
+    const gratis = soloModelosGratis(candidates);
+    candidates.length = 0;
+    if (gratis.length) candidates.push(...gratis);
+    else if (apiKey) candidates.push({ id: 0, provider: "anthropic", model: "claude-haiku-5-5", key: apiKey, isFreeTier: false });
   }
   if (!candidates.length) {
     await notificarHumano({ tipo: "llm_error", phone, contexto: { userText, error: "Sin modelos en la cadena ni ANTHROPIC_API_KEY" } });
