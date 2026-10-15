@@ -471,6 +471,36 @@ toca `llm_modelo_pruebas`: el modelo va en `body.modelo_eval` y el Simulador só
 (`_shared/modelos-prueba.ts`). **Cubre sólo esa corrida**: sumar casos, otro modelo u otra frecuencia vuelve a la regla de arriba (estimativo + "sí").
 Cubre también el **juez** de esa corrida (`lk_eval-juez`, sql/157, Pablo 15/10: *"Sí, armá el juez automático con Haiku"*): una llamada
 a Haiku por caso, unos US$ 0,01 por corrida.
+## Controles de gasto de IA en PRODUCCIÓN (runtime) — distinto del gasto de pruebas de arriba
+
+La sección de arriba es sobre el gasto de las PRUEBAS (Simulador / chat de prueba, auditado por Pablo). Esto es
+sobre el gasto de los CLIENTES reales (filas de `bot_token_usage` con `function_name = 'lk_whatsapp-webhook'`).
+Detalle vivo en `docs/ESTADO.md` y en `MEDIDAS_SEGURIDAD` (`_shared/agente-fijos.ts`); acá SÓLO el mapa, para no
+reconstruirlo ni duplicar reglas (que divergen: pozo de Matricería).
+
+⚠ **Decisión fija (Pablo Olejavetzky, 14/10/2026): el tope de gasto NO corta al agente, DEGRADA.** Textual:
+*"degradá, pero no cortes del todo"* y *"que no corte en 5, sino que dé un aviso a un humano si está dentro del
+horario de atención"*. Se eliminó el corte duro viejo (`MSG_TOPE_GASTO`, que dejaba mudo al cliente). No volver a
+ponerlo sin que Pablo lo pida.
+
+Cinco capas, de la más fina a la más gruesa:
+1. **Por número y hora:** `wa_check_rate_limit` (20/h) → cooldown (`_shared/tope-ia.ts`, sql/012).
+2. **Por acción cara y número:** `wa_accion_tope` (derivar, armar pedido, sucursal… `_shared/tope-accion.ts`, sql/142).
+3. **Tope de gasto diario GLOBAL** (`_shared/tope-gasto.ts`, `lk_whatsapp-webhook` `pasoElTopeDeGasto`): tres niveles y
+   NUNCA corta — `aviso` (alerta, cadena normal) → `degradar` (sólo modelos gratis `is_free_tier`; si ninguno
+   responde, `claude-haiku-5-5` barato; el filtro vive en `runConversation`, opción `degradado`) → `escalar` (no
+   corta, sigue degradado; sólo suma una alerta a una persona SI estamos en horario de atención, `_shared/horario.ts`).
+   Settings sin deploy: `ia_aviso_gasto_usd`, `ia_tope_gasto_usd`, `ia_tope_escalar_usd`. Vivos al 15/10: **2,5 / 3 / 5**.
+   La toma de pedidos NO se degrada (va con su modelo fijo Sonnet).
+4. **Tope de gasto POR CLIENTE** (`_shared/tope-cliente.ts`, `pasoElTopeCliente`): US$ 2/día y US$ 5/semana por
+   teléfono; frena SÓLO a ese cliente, los demás siguen. Es la capa que aísla al abusador sin tocar a nadie más.
+5. **Presupuesto MENSUAL del pozo** (`_shared/presupuesto-ia.ts`, `ia_presup_mensual_usd`): sólo avisa (25/50/75/90/100%).
+
+⚠ **"Distinguir un cliente malicioso de uno activo" NO se hace con un clasificador por contenido** (un mayorista con
+pedido grande pregunta igual que un abusador; un falso positivo bloquea a quien paga). Se resuelve presupuestando:
+la capa 4 corta al abusador puntual por su propio gasto, y la capa 3 mantiene a todos los demás servidos barato
+(gratis/Haiku) en vez de mudos. La señal de inyección/jailbreak es aparte (`_shared/ataque-entrada.ts`, sql/143).
+
 ## Reglas
 
 - NUNCA hardcodear anon key ni service role key en el código fuente
