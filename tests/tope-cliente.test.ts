@@ -1,7 +1,7 @@
 // Pruebas puras del tope de gasto por cliente (_shared/tope-cliente.ts). Sin red, sin IA, sin base.
-// Correr: deno run --allow-env tests/tope-cliente.test.ts   (sale con código 1 si algo falla)
+// Correr: deno run --allow-env --allow-read --allow-run tests/tope-cliente.test.ts   (sale con código 1 si algo falla)
 import {
-  contextoAlertaCliente, inicioSemanaArgentina, nivelClienteGasto, TOPE_CLIENTE_DIA_USD_DEFAULT, TOPE_CLIENTE_SEMANA_USD_DEFAULT, topesClienteDeSettings,
+  contextoAlertaCliente, inicioSemanaArgentina, MSG_TOPE_CLIENTE, nivelClienteGasto, TOPE_CLIENTE_DIA_USD_DEFAULT, TOPE_CLIENTE_SEMANA_USD_DEFAULT, topesClienteDeSettings,
 } from "../supabase/functions/_shared/tope-cliente.ts";
 
 let fallas = 0;
@@ -41,6 +41,22 @@ igual("nivel cliente (no se confunde con el global aviso/tope ni con presupuesto
 igual("lleva el límite que saltó", ctxSem.limite, "semana");
 igual("guarda la razón social para el Panel", ctxSem.razon_social, "Bazar Farimar");
 igual("el detalle es texto no vacío", typeof ctxSem.detalle === "string" && (ctxSem.detalle as string).length > 0, true);
+
+// ── Problema 812 (15/10): pasoElTopeCliente mandaba MSG_TOPE_GASTO, que el commit f13fd4d había borrado: ReferenceError atrapado, el cliente sin aviso ──
+igual("el aviso del tope por cliente es el texto de siempre y no lleva montos",
+  [MSG_TOPE_CLIENTE, /\d|\$|US/.test(MSG_TOPE_CLIENTE)],
+  ["En este momento no podemos responder tu consulta de forma automática. Ya le avisamos a una persona del equipo para que te escriba en cuanto pueda.", false]);
+const webhookUrl = new URL("../supabase/functions/lk_whatsapp-webhook/index.ts", import.meta.url);
+const webhook = Deno.readTextFileSync(webhookUrl);
+igual("el webhook importa MSG_TOPE_CLIENTE y lo manda y lo guarda", [
+  /import \{[^}]*\bMSG_TOPE_CLIENTE\b[^}]*\} from "\.\.\/_shared\/tope-cliente\.ts";/.test(webhook),
+  webhook.includes("await enviarTexto(cfg, phone, MSG_TOPE_CLIENTE);"), webhook.includes('await saveMessage(phone, "assistant", MSG_TOPE_CLIENTE);'),
+], [true, true, true]);
+igual("el webhook ya no nombra MSG_TOPE_GASTO (se borró en f13fd4d)", webhook.includes("MSG_TOPE_GASTO"), false);
+// Guarda general: ningún identificador sin definir en el webhook. Es lo que habría atrapado el bug: `deno lint` con la regla no-undef.
+const lint = new Deno.Command(Deno.execPath(), { args: ["lint", "--rules-include=no-undef", "--json", decodeURIComponent(webhookUrl.pathname)], stdout: "piped", stderr: "piped" }).outputSync();
+const diag = (JSON.parse(new TextDecoder().decode(lint.stdout)).diagnostics ?? []) as Array<{ code?: string; message?: string }>;
+igual("el webhook no usa identificadores sin definir (deno lint no-undef)", diag.filter((d) => d.code === "no-undef").map((d) => d.message), []);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo ok");

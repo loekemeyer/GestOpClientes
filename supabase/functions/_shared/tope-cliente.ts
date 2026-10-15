@@ -13,13 +13,19 @@
 // se pasó la semana, así que el semanal corta antes que el diario en casi todos los casos. El diario queda como sub-límite para una explosión en un
 // solo día. Si se quiere que el diario pese por sí solo, el semanal tiene que ser >= 7 x el diario.
 //
-// Qué hace al cortar: a ese cliente NO se le llama al agente; recibe el mismo aviso fijo que el tope diario (MSG_TOPE_GASTO, sin montos) y se deja UNA
-// alerta para una persona, una vez por día por teléfono (igual que el tope diario). Las FAQ y los flujos sin IA siguen contestando.
+// Qué hace al cortar: a ese cliente NO se le llama al agente; recibe un aviso fijo (MSG_TOPE_CLIENTE, sin montos) y se deja UNA alerta para una
+// persona, una vez por día por teléfono. Las FAQ y los flujos sin IA siguen contestando.
+// Problema 812 (15/10): el aviso era MSG_TOPE_GASTO, del tope global, y el commit f13fd4d lo borró (el tope global ya no corta) sin sacar este uso: el envío
+// lanzaba un ReferenceError. Se restituyó el MISMO texto con este nombre, que es de este módulo y no depende del tope global.
 //
 // Se cambia sin deploy en app_settings: `ia_tope_cliente_dia_usd` (defecto 2; 0 apaga el diario) y `ia_tope_cliente_semana_usd` (defecto 5; 0 apaga el
 // semanal). Los dos en 0 apagan la capa entera. Módulo PURO (sin red ni base). Se prueba en tests/tope-cliente.test.ts.
 
 import { inicioDiaArgentina } from "./tope-gasto.ts";
+
+/** El aviso fijo que recibe el cliente que pasó su tope: el texto de siempre (el de antes del tope global que degrada), sin montos y sin prometer un horario. */
+export const MSG_TOPE_CLIENTE =
+  "En este momento no podemos responder tu consulta de forma automática. Ya le avisamos a una persona del equipo para que te escriba en cuanto pueda.";
 
 export const TOPE_CLIENTE_DIA_USD_DEFAULT = 2;
 export const TOPE_CLIENTE_SEMANA_USD_DEFAULT = 5;

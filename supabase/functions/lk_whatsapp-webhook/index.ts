@@ -47,7 +47,7 @@ import {
 import {
   contextoAlertaPresupuesto, inicioMesArgentina, pctDelMes, pozoDeSettings, presupuestoDeSettings, sumarGastoMes, umbralCruzado, umbralesDeSettings,
 } from "../_shared/presupuesto-ia.ts";
-import { contextoAlertaCliente, inicioSemanaArgentina, nivelClienteGasto, topesClienteDeSettings } from "../_shared/tope-cliente.ts";
+import { contextoAlertaCliente, inicioSemanaArgentina, MSG_TOPE_CLIENTE, nivelClienteGasto, topesClienteDeSettings } from "../_shared/tope-cliente.ts";
 import { conCalendario, dentroDeHorario, leerHorario } from "../_shared/horario.ts";
 import { cargarCalendario } from "../_shared/feriados.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
@@ -1198,8 +1198,8 @@ async function pasoElTopeCliente(
     if (!(await alertaClienteDeHoy(phone))) {
       const razon = customer?.business_name ?? null, cid = customer?.customer_id ?? null;
       await notificarHumano({ tipo: "otro", phone, customerId: cid, contexto: contextoAlertaCliente(r.limite!, gastoDia, gastoSemana, topes, text, razon) });
-      await enviarTexto(cfg, phone, MSG_TOPE_GASTO);
-      await saveMessage(phone, "assistant", MSG_TOPE_GASTO);
+      await enviarTexto(cfg, phone, MSG_TOPE_CLIENTE);
+      await saveMessage(phone, "assistant", MSG_TOPE_CLIENTE);
     }
     return "tope";
   } catch (e) {
