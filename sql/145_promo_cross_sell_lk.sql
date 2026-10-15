@@ -102,3 +102,8 @@ select g.cod_cliente,
 from gap g
 join promo.clientes cl on cl.cod_cliente=g.cod_cliente
 left join cand_cat cc on cc.categoria=g.categoria;
+
+-- Cron de refresco: diario 08:20 UTC (~05:20 AR). Idempotente (cron.schedule hace upsert por jobname en
+-- pg_cron >= 1.4). Esta línea SÍ se aplica por MCP: el comando no tiene `;` adentro. Corre en rojo hasta
+-- que exista promo.refresh_ventas_12m() (crearla desde el SQL editor). Armado el 2026-10-15 como jobid 87.
+select cron.schedule('promo_refresh_ventas_12m', '20 8 * * *', 'select promo.refresh_ventas_12m()');

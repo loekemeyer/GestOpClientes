@@ -89,9 +89,12 @@ el mensaje borrador. El texto es borrador, no la plantilla final de Meta.
 
 1. **Definir las reglas de qué ofrecer** (categoría vs afinidad, margen, estacionalidad, excluir lo
    devuelto, topes). Con eso se ajusta el ranking.
-2. **Crear y aplicar la función de refresco** `promo.refresh_ventas_12m()` desde el SQL editor del
-   dashboard (no por MCP: su cuerpo tiene `;` dentro del literal `$$…$$` y eso cuelga el MCP). Después
-   correrla server-side (cron). El resto de la migración ya está aplicado; la función no, al 2026-10-15.
+2. **Crear la función de refresco** `promo.refresh_ventas_12m()` desde el SQL editor del dashboard
+   (no por MCP: su cuerpo tiene `;` dentro del literal `$$…$$` y eso cuelga el MCP, tanto `execute_sql`
+   como `apply_migration`). El resto de la migración ya está aplicado; la función no, al 2026-10-15.
+   El **cron ya está armado** (`cron.job` jobid 87, `promo_refresh_ventas_12m`, diario 08:20 UTC /
+   ~05:20 AR, llama a la función): corre en rojo hasta que la función exista, y pasa a verde solo apenas
+   se cree.
 3. **Plantilla MARKETING de Meta** (una promo es marketing, no utility: ~US$ 0,0618/mensaje, aprobación
    1-3 días).
 4. **Opt-in** por cliente (no hay campo hoy).
