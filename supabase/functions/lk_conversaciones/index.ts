@@ -422,9 +422,10 @@ serve(async (req) => {
       }
       const antes = (await getSetting("wa_envio_automatico")) ?? "0";
       const quien = await nombreUsuario(gate.email);
-      const { error: eAud } = await sb.from("wa_llave_cambios").insert({ modo_anterior: antes, modo_nuevo: modo, usuario: quien, email: gate.email });
-      if (eAud) return json({ error: "No se pudo registrar el cambio (auditoría): " + eAud.message }, 500);
-      const { error } = await sb.from("app_settings").upsert({ key: "wa_envio_automatico", value: modo }, { onConflict: "key" });
+      // El trigger trg_wa_llave_log (sql/158) registra TODO cambio de la llave, venga de la edge o de SQL directo.
+      // La RPC deja el actor (email + nombre) por GUC en la misma transacción para que el registro quede con quién
+      // lo hizo. Antes se insertaba a mano en wa_llave_cambios acá, pero eso no capturaba los cambios por SQL directo.
+      const { error } = await sb.rpc("wa_llave_set", { p_modo: modo, p_email: gate.email, p_usuario: quien });
       if (error) return json({ error: error.message }, 500);
       console.log(`lk_conversaciones: llave ${antes} → ${modo} por ${gate.email}`);
       return json({ ok: true, ...(await llaveEstado()) });
