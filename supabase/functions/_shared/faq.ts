@@ -822,6 +822,9 @@ async function pedidosDuplicados(customer: NonNullable<Customer>): Promise<{ can
   return null;
 }
 
+/** Pablo, 15/10 (tanda de pruebas, mensaje 1): las respuestas de estado de pedidos ya no empiezan con la razón social, así que el título («este es tu pedido…») pasa a ser el inicio de la frase. */
+const conMayuscula = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
 async function destinoPedidos(customer: NonNullable<Customer>): Promise<string | null> {
   const { data: crudos } = await supabase.from("orders").select("id, created_at, total").eq("customer_id", customer.id)
     .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString()).order("created_at", { ascending: false }).limit(10);
@@ -902,7 +905,7 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
   if (!orders?.length) {
     if (opts.plazo) return null;
     // Pedidos por WhatsApp apagados (28/09): se lo manda a la web, no "decime".
-    return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, entrá a loekemeyer.com → "Pedidos Mayorista".`;
+    return `No tenés pedidos recientes (últimos 90 días). Si querés hacer uno, entrá a loekemeyer.com → "Pedidos Mayorista".`;
   }
   // Estado real del pedido en Gestión Virgilio (RPC bot_estado_pedidos_gv, sql/066). Para
   // los pedidos anteriores a Gestión cae sola a order_tracking. Antes se leía order_tracking
@@ -958,7 +961,7 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     const m = modoOf(o);
     const cuando = t?.fecha_entrega ? ` el ${conDia(t.fecha_entrega)}` : "";
     const donde = m.modo === "expreso" ? ` en el expreso *${m.expreso}*` : "";
-    return `${customer.business_name}, todos tus pedidos están entregados. El último, del ${ddmm(o.created_at)}, se entregó${donde}${cuando}.${m.modo === "expreso" ? notaExpresoTxt : ""}\n\n${cierre}`;
+    return `Todos tus pedidos están entregados. El último, del ${ddmm(o.created_at)}, se entregó${donde}${cuando}.${m.modo === "expreso" ? notaExpresoTxt : ""}\n\n${cierre}`;
   }
 
   const estimada = new Map<string, string>();
@@ -1000,7 +1003,7 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     : (tituloPorRetiro(visibles.map((o) => modoOf(o).modo === "retira"), unoSolo)
       ?? (unoSolo ? "este es tu pedido que falta entregar" : "estos son tus pedidos que faltan entregar"));
   const resto = hayOcultos ? "Los demás pedidos ya están entregados. " : "";
-  return `${customer.business_name}, ${titulo}:\n\n${lines.join("\n")}${notaExpreso}\n\n${resto}${cierre}`;
+  return `${conMayuscula(titulo)}:\n\n${lines.join("\n")}${notaExpreso}\n\n${resto}${cierre}`;
 }
 
 // deno-lint-ignore no-explicit-any

@@ -48,5 +48,14 @@ const faq = leer("supabase/functions/_shared/faq.ts");
 igual("faq.ts: «Tu última factura:» sin razón social", faq.includes("return `Tu última factura:\\n${ultima}") && !faq.includes("${customer.business_name}, tu última factura"), true);
 igual("faq.ts: texto por defecto «Tus descuentos son:» sin razón social", faq.includes("return `Tus descuentos son:\\n📦 *Por volumen*") && !faq.includes("${customer.business_name}, tus descuentos son"), true);
 
+// ── Las 3 respuestas de estado de pedidos que arma el código tampoco empiezan con la razón social (Pablo: «Sí, sacala también de esas 3») ──
+igual("faq.ts: «No tenés pedidos recientes…» sin razón social", faq.includes('return `No tenés pedidos recientes (últimos 90 días).') && !faq.includes("${customer.business_name}, no tenés pedidos recientes"), true);
+igual("faq.ts: «Todos tus pedidos están entregados…» sin razón social", faq.includes("return `Todos tus pedidos están entregados. El último,") && !faq.includes("${customer.business_name}, todos tus pedidos"), true);
+igual("faq.ts: el listado de pedidos arranca con el título con mayúscula, sin razón social",
+  faq.includes('return `${conMayuscula(titulo)}:\\n\\n${lines.join("\\n")}${notaExpreso}') && !faq.includes("${customer.business_name}, ${titulo}"), true);
+igual("conMayuscula sólo sube la primera letra", faq.includes("const conMayuscula = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);"), true);
+// Ninguna respuesta que arma faq.ts empieza con la razón social del cliente.
+igual("faq.ts: ninguna respuesta empieza con ${customer.business_name}", /return `\$\{customer\.business_name\}/.test(faq), false);
+
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");
