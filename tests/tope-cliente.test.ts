@@ -1,5 +1,5 @@
 // Pruebas puras del tope de gasto por cliente (_shared/tope-cliente.ts). Sin red, sin IA, sin base.
-// Correr: deno run --allow-env --allow-read --allow-run tests/tope-cliente.test.ts   (sale con código 1 si algo falla)
+// Correr: deno run --allow-env --allow-read tests/tope-cliente.test.ts   (sale con código 1 si algo falla)
 import {
   contextoAlertaCliente, inicioSemanaArgentina, MSG_TOPE_CLIENTE, nivelClienteGasto, TOPE_CLIENTE_DIA_USD_DEFAULT, TOPE_CLIENTE_SEMANA_USD_DEFAULT, topesClienteDeSettings,
 } from "../supabase/functions/_shared/tope-cliente.ts";
@@ -53,10 +53,15 @@ igual("el webhook importa MSG_TOPE_CLIENTE y lo manda y lo guarda", [
   webhook.includes("await enviarTexto(cfg, phone, MSG_TOPE_CLIENTE);"), webhook.includes('await saveMessage(phone, "assistant", MSG_TOPE_CLIENTE);'),
 ], [true, true, true]);
 igual("el webhook ya no nombra MSG_TOPE_GASTO (se borró en f13fd4d)", webhook.includes("MSG_TOPE_GASTO"), false);
-// Guarda general: ningún identificador sin definir en el webhook. Es lo que habría atrapado el bug: `deno lint` con la regla no-undef.
-const lint = new Deno.Command(Deno.execPath(), { args: ["lint", "--rules-include=no-undef", "--json", decodeURIComponent(webhookUrl.pathname)], stdout: "piped", stderr: "piped" }).outputSync();
-const diag = (JSON.parse(new TextDecoder().decode(lint.stdout)).diagnostics ?? []) as Array<{ code?: string; message?: string }>;
-igual("el webhook no usa identificadores sin definir (deno lint no-undef)", diag.filter((d) => d.code === "no-undef").map((d) => d.message), []);
+// Guarda general (sin permiso de ejecutar procesos: el CI corre cada prueba sin --allow-run): todo `MSG_*` que usa el webhook tiene que
+// estar definido en él o exportado por algún _shared/*.ts. Es lo que habría atrapado el bug: la constante estaba borrada y nada lo revisaba.
+const sharedDir = new URL("../supabase/functions/_shared/", import.meta.url);
+let definidos = webhook;
+for (const e of Deno.readDirSync(sharedDir)) if (e.isFile && e.name.endsWith(".ts")) definidos += "\n" + Deno.readTextFileSync(new URL(e.name, sharedDir));
+const usados = [...new Set(webhook.match(/\bMSG_[A-Z0-9_]+\b/g) ?? [])];
+const sinDefinir = usados.filter((n) => !new RegExp(`\\b(?:const|let|var|function)\\s+${n}\\b`).test(definidos));
+igual("el webhook no usa constantes MSG_* sin definir", sinDefinir, []);
+igual("la guarda mira constantes MSG_* de verdad (el webhook usa al menos una)", usados.length > 0, true);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo ok");
