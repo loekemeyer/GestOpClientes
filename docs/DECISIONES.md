@@ -370,3 +370,54 @@ cuando venían hablando de los pelapapas.
 `image/webp`). Se prepararon 5 JPEG RGB para subir a `products-images/hd/` como `.jpg` (no como `.webp`: la base sólo acepta `image/jpeg` o `png`): 599E, 936E, 938E, 067 y 537.
 Tareas de Planify 5897 y 5916. **Verificado en el Simulador** (7 y 9 con Gemini gratis, 8 con Haiku 5.5 por US$ 0,004256).
 **Pendiente:** la subida de las 5 fotos es de Pablo (ya pidió autorización: esta sesión no tiene credenciales de Storage) y repetir 7, 8 y 9 por WhatsApp real, porque el Simulador no manda fotos.
+
+---
+
+## D015 — El webhook de WhatsApp corre en sa-east-1 (2026-10-14, cargada el 15/10)
+
+**Decisión (Pablo, 14/10: «Decime como hacerlo y que afecta en el resto»; lo ejecutó él, guiado paso a paso):** forzar la región del webhook agregando `?forceFunctionRegion=sa-east-1` a la
+«URL de devolución de llamada» de la app **«Gestion Operativa Clientes»** de Meta (ID `1413675673939456`, la única con nuestra URL y con `messages` suscripto):
+`https://kwkclwhmoygunqmlegrg.supabase.co/functions/v1/lk_whatsapp-webhook?forceFunctionRegion=sa-east-1`. Para guardarla Meta pide el token de verificación, y como el viejo no se
+podía leer ni recuperar, Pablo aceptó **reemplazar el secreto `LK_WA_VERIFY_TOKEN`** por uno nuevo (lo cargó en el panel de Supabase y en Meta). El valor no se documenta.
+
+**Razón (medido):** la base está en sa-east-1 y la función se servía desde EE. UU.: cada consulta REST costaba 145 a 585 ms y un turno hacía unas 16 seguidas. Los ~7 s de un
+turno que no son del modelo se iban ahí. Con la región forzada, las consultas bajaron a 27-40 ms.
+
+**Por qué no rompe nada más:** el token sólo se compara en el GET de verificación (`lk_whatsapp-webhook/index.ts`); los mensajes entrantes se validan con la firma (`META_APP_SECRET`,
+sin tocar) y ninguna otra función lee `LK_WA_VERIFY_TOKEN`.
+
+**Resultado:** mediana de respuesta **4,6 s contra 10,3 s antes** (12 turnos reales, del 14/10 19:18 al 15/10 12:24), fuera del agente 1,6 s (antes 6,7 s). Consulta:
+`select percentile_cont(0.5) within group (order by respuesta_s) from v_wa_turno_tiempos where recibido_at > '2026-10-14 19:15+00' and respuesta_s is not null`.
+
+**Cosas a saber:** (1) **sin reruteo si sa-east-1 se cae** (doc de Supabase): para volver atrás se saca `?forceFunctionRegion=sa-east-1` de la URL en Meta y se guarda con el token vigente.
+(2) La URL del webhook es configuración de Meta: un deploy de la función no la toca. (3) El botón «Probar» de Meta deja una fila en `wa_turno_tiempos` con `llegada_s` absurdo: al medir,
+filtrar `respuesta_s is not null`. (4) El cartel de Meta dice que una app «En desarrollo» no recibe datos de producción y aun así recibe los de este número: no se tocó el modo de la app.
+
+**Dónde quedó:** todo fuera del repo, ninguna línea de código. Documentado en las entradas del 14/10 y del 15/10 de `docs/ESTADO.md` (commits `c116313`, `62b75b4`, `6744403` y `8a99de4`).
+
+---
+
+## D016 — Guardrail de cruce de cliente en el corte de salida (2026-10-14, cargada el 15/10)
+
+**Decisión (Pablo, 14/10: «Sí, atacá el guardrail hoy», requisito del go-live; el mismo día «Sí, sumalo ahora al guardrail» para el aviso de descuento):** un aviso de un cliente no sale al
+teléfono de OTRO cliente real. Se **retiene** sólo si el teléfono está vinculado a algún cliente real y a **ninguno** de los clientes del mensaje (se compara por CUIT, así el mismo cliente
+con código LK y Chef cuenta como uno). Se **permite** si el teléfono es de alguno de esos clientes, si no es de ningún cliente, si es teléfono de prueba (`wa_real_redirect_to`,
+`wa_envio_test_phone` o `wa_gerencia_phones`), si el mensaje no dice a qué cliente va o si es simulado (cuit 30999…).
+
+**Razón:** la llave `wa_puede_enviar` sólo dice si un número puede recibir, no si es del cliente al que va el mensaje. El 14/10 el barrido de `lk_factura-check` mandó las facturas de 8 grupos de
+varios clientes a un solo número (Logística): era un número de prueba y nadie las recibió, pero con la llave en `1` el mismo error pone el CBU y las facturas de un cliente en el chat de otro.
+
+**Dónde corre (sin tocar a los productores de la cola):** (1) `bot_flush_outbox` retiene las filas de contexto `order_created`, `retiro_listo`, `tracking_*` (el cliente sale del pedido en `ref_id`)
+y `recordatorio_dto` (el cliente es el código LK de `ref_id`): quedan en `held_no_whitelist` con `error = 'cruce_cliente: el teléfono pertenece a otro cliente'`, sin reintento. (2) `wa-guard`: si el
+productor declara el cliente con los headers `x-lk-cuit` / `x-lk-cod-cliente`, pregunta `wa_puede_enviar_a` en lugar de `wa_puede_enviar`; hoy lo declara `lk_factura-check` en sus 3 envíos, sólo con el CUIT.
+
+**Medido antes de activarlo:** 17 casos con datos reales; sobre los 20 envíos históricos de la cola con pedido, 11 pasan (todos teléfonos de prueba) y 9 se habrían retenido (todos de agosto y
+septiembre, a teléfonos que hoy pertenecen a otro CUIT); y una prueba punta a punta sin enviar nada, en una transacción deshecha.
+
+**Límites, a saber antes del go-live:** (a) protege contra un productor que elige mal el teléfono y contra vínculos que cambian entre que se encola y se despacha; **no detecta un dato maestro mal cargado**:
+si el teléfono equivocado sólo está vinculado al cliente al que va el aviso, pasa. (b) No cubre las filas de la cola cuyo `ref_id` no identifica al cliente (`lk_notif-facturado`, no versionada acá), ni las
+respuestas del webhook, ni los envíos directos de `notify-order-created` y `notify-tracking-status`. (c) **Los teléfonos de `wa_real_redirect_to` y `wa_gerencia_phones` quedan exentos**: la revisión
+del 15/10 (tarea de Planify 5852) encontró 2, Logística y Thomy, ambos de prueba; ver D011 para lo que falta antes de pasar la llave a `1`.
+
+**Dónde quedó:** `sql/156_wa_guardrail_cruce_cliente.sql` (aplicada en vivo en PaginaLK; rollback en `sql/rollback/156_…`; 5 funciones nuevas sólo para `service_role`), `_shared/wa-guard.ts`,
+`_shared/wa-guard-destino.ts`, `lk_factura-check`; prueba `tests/wa-guard-destino.test.ts`. Commits `c729253` y `d9b4b67`. Tarea de Planify 5801.
