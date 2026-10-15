@@ -609,3 +609,16 @@ bot halló «Rompenueces Inox» (507); en SQL ese término da **0** por la vía 
 ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`). Misma firma y retorno: `_shared/bot-conversation.ts` no cambió. Entrada del 15/10 en `docs/ESTADO.md`
 (commit `329a548`). Tarea de Planify 5924. Backend puro: la versión visible del dashboard no cambia.
 
+---
+
+## D031 — Vistas SECURITY DEFINER pasan a security_invoker; `estadistica_madre` queda abierta (2026-10-15)
+
+**Decisión (Pablo, 15/10: «Dale, el "sí" para el flip de las 6»):** se pasan a `security_invoker = on` las 6 vistas `SECURITY DEFINER` de PaginaLK que tienen fix limpio: `v_clientes_arca`, `leads_overview`, `v_orders_origen`, `expo_dashboard_stats`, `v_wa_faq_summary` y `v_customer_item_month`. La 7ª, **`estadistica_madre`, NO se toca** hasta saber qué app la consume y con qué clave.
+
+**Razón:** las vistas corrían con el default definer de Postgres (dueño `postgres`), así que salteaban la RLS de sus tablas madre. Como 1264 clientes reales se loguean (rol `authenticated`), cualquier cliente podía leer datos de todos los demás: `v_clientes_arca` exponía CUIT, estado AFIP y deuda BCRA de todos los clientes, y `leads_overview` el whatsapp, email, IP y notas de todos los leads. Era el advisor `security_definer_view` (ERROR) de Supabase.
+
+**Por qué el flip es seguro y no rompe los paneles admin:** con `security_invoker=on` la vista corre como quien consulta, así aplica la RLS de las tablas madre. Esas tablas ya tienen policies que cubren a admin/staff/service_role (`admins`, `is_staff()`, fila propia), y `wa_faq` tiene la policy `anon_read` para las FAQ activas. `v_customer_item_month` ya se auto-filtraba por `auth.uid()`, así que no cambia de resultado.
+
+**Por qué `estadistica_madre` queda abierta:** su cache `estadistica_madre_cache` tiene RLS con 0 policies (deny-all). Con `security_invoker=on`, todo lo que no sea `service_role` leería 0 filas y rompería el widget que la consuma. El frontend que la lee está en otro repo (PaginaLK) que no se ve desde acá, así que no se sabe con qué clave pega. La fuga real ahí es que `anon` la lee (internet público ve proyecciones de ventas). Pendiente: identificar el consumidor y, según eso, revocar `anon` sobre la vista (si es interna) o agregar una policy de staff al cache. Hasta entonces no se toca.
+
+**Dónde quedó:** `sql/161_vistas_security_invoker.sql` (aplicada en vivo en PaginaLK). Commit `d005b40`. Auditoría `github_repo_problemas` #825 (`seguridad`/`critico`, estado `corregido`). El advisor `security_definer_view` baja de 7 a 1.
