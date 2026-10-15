@@ -538,3 +538,8 @@ circuito del 14/10 tampoco quedó escrita). El markdown ya existía a medias; fa
 
 **Límite:** si una charla no anota, el hook no la puede mostrar — el candado es la disciplina de escribir, igual que con los commits. Lo de las bases (tareas abiertas, auditoría) lo
 consulta Claude con el MCP cuando hace falta; el hook no tiene credenciales para eso.
+
+## D026 — Alarmas: se cierran con evidencia, no por el puntaje del juez (2026-10-15)
+
+**Quién:** Pablo Olejavetzky. **Qué:** *«Chequeá a fondo qué alarmas cerrar»*. **Criterio aplicado:** una respuesta marcada por el puntaje de IA se cierra como `falsa_alarma` sólo si la queja del juez se contradice con la base (alerta de `wa_alertas_humano` a esa hora, regla vigente de pedidos por WhatsApp, charla real en `bot_historial_chat`) y como `bien_marcada` si la respuesta rompe una regla vigente o contradice la base. Lo ambiguo queda abierto para Pablo. **Resultado:** 29 de 35 cerradas, 6 abiertas (13, 21, 23, 30, 31, 36). Detalle y los dos defectos del juez: entrada del 15/10 en `docs/ESTADO.md`. **Dónde:** `wa_ia_puntajes` (PaginaLK), tarea 5939 de Planify (64).
+
