@@ -498,3 +498,14 @@ Se retiró lo que decía `PILOTO-LISTA-CLIENTES-2026-10-13.md`: LK 1987 se atien
 el resto era otra cosa (D015). **Rechazo real de Meta (tarea 5630):** el 14/10 15:25 UTC Meta rechazó la foto del 599E enviada al 4210 (131053); quedó `envio_no_llego` en `bot_auditoria`, la alerta `envio_fallido` y el bloque «Hechos de esta charla» se lo dice al agente.
 **Planify (Pablo: «solamente las mías, de Pablo, trabajá con mi usuario»):** de 10 tareas abiertas quedaron 5 y ninguna vencida; de las 442 abiertas y 121 vencidas del total, casi todas de otros repos y de otras personas, no se tocó ninguna. **Auditoría del repo:** en 0 abiertos (45 corregidos y 1 descartado) tras cerrar «Respuestas fijas por palabra clave contestan otra cosa…» (656) y «Programación no web nunca marca "Retira"…» (614).
 **Pendiente:** el prompt de la Routine «Bitácora diaria GestOpClientes» lleva el secreto `x-bitacora-secret` en texto plano; si importa, rotarlo en `app_settings` y en la Routine.
+
+## D023 — Planify: en este repo sólo se carga en el Planify de Pablo (64) (2026-10-15)
+
+**Quién:** Pablo Olejavetzky. **Qué:** *«No cargues nunca nada en otro planify sino te lo digo yo, cada uno esta trabajando en sus proyectos»*.
+Las tareas de este repo van al 64 o no se cargan, aunque el pedido dependa de otra persona o sea de otra área, y tampoco se ofrece cargarlas en
+otro Planify. Le gana al punto 3 de la regla general (pedidos de Thomas al área o a `Tareas T`). **Por qué:** el 15/10 se ofreció cargar en el
+Planify de Luis (52) la decisión de abrir el piloto a clientes reales (no se cargó). **Dónde:** `CLAUDE.md`, sección «En ESTE repo, las tareas de
+Planify van SÓLO al Planify de Pablo Olejavetzky (64)», commit `fe18637`.
+
+**También del 15/10 (P8):** `v_wa_resultado_charla` cuenta como `derivada` todo pase a una persona con la lista de motivos de `hechos-charla.ts`
+(`sql/158`, commit `4702895`), y el error quedó registrado y cerrado en la auditoría. Pablo dijo «Sí, registralo en la auditoría y cerralo».
