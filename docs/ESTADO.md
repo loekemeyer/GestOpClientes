@@ -1806,3 +1806,23 @@ Un commit que sólo toca docs NO dispara deploy.
   28/09). ⚠ `isis_export_pedidos` todavía no tiene ningún acuse con nro de comprobante, y Gestión mezcla empresa
   (hay NP "LK 0089" con empresa CH): por eso no se muestra número/total de factura por NP.
   Plantillas desde el chat con ventana 24 h cerrada: todavía no.
+
+## Bitácora de trabajo — calendario en el dashboard (v0.29.x, 14/10/2026)
+
+Pestaña **Bitácora** en el dashboard (`docs/index.html` + `docs/gestop2.js`, módulo `bit`): calendario mensual, una celda por día con el `resumen` en lenguaje simple (no técnico) adelante y el detalle (áreas, autores, asuntos) detrás de "ver detalle". Visible a todos los usuarios logueados.
+
+- **Datos**: tabla `public.bitacora_dias` en PaginaLK (`kwkclwhmoygunqmlegrg`): `dia` (PK), `commits`, `autores`, `areas`, `asuntos` (jsonb), `audit`, `resumen`, `fuente`, `updated_at`. RLS: `anon` sólo SELECT (lo lee el dashboard con la clave publishable), escritura sólo `service_role`.
+- **Puente de escritura**: edge function `lk_bitacora-sync` (service-role, upsert por `on_conflict=dia`). Protegida por el header `x-bitacora-secret`, cuyo valor vive en `app_settings` key `bitacora_sync_secret` (NO en el repo; `anon` no lo puede leer por la policy de secrets de `app_settings`). Acepta el documento de un día o `{dias:[...]}`.
+- **Carga diaria**: Routine `Bitácora diaria GestOpClientes (08:00 ART)` (`trig_012KVxRd3PrbzyGfys5hAnTn`), sesión nueva 08:07 ART, procesa AYER y escribe en los DOS lados: el Artifact `https://claude.ai/artifact/MrKAWMDAPZAoAJBCM6rVBT` (como siempre) y un POST con `curl` a `lk_bitacora-sync` (eso es lo que lo hace aparecer en el calendario). El script git es `scripts/reporte-diario/reporte-dia.mjs`.
+- **Backfill**: los 28 días históricos (25/08 → 13/10) se cargaron desde el Artifact. El 14/10 se cargó a mano (parcial) hasta que la Routine lo completó.
+- **Contadores de auditoría EN VIVO**: el modal de cada día lee los problemas detectados/resueltos desde Gestión (`hrxfctzncixxqmpfhskv`), vista `public.v_bitacora_audit_190` (agregada, sólo repo 190, `anon` SELECT), vía el cliente `sbAuth` del dashboard, con fallback a lo guardado en la tabla. NO depende del connector de la Routine (la organización tiene deshabilitado adjuntar connectors a Routines, por API y por UI).
+- **Cargar un día a mano**: `node scripts/reporte-diario/reporte-dia.mjs --dia YYYY-MM-DD`, agregarle `resumen` (lenguaje simple) y `audit`, y POST a `lk_bitacora-sync` con el header del secreto.
+
+## Seguridad: IDOR en funciones bot_* por EXECUTE a `authenticated` (14/10/2026)
+
+Las funciones `bot_*` de PaginaLK son `SECURITY DEFINER` y reciben el teléfono como parámetro sin atarlo al que llama. Tenían EXECUTE para el rol `authenticated`, así que cualquier cliente logueado al sitio (1298 en `auth.users`) podía, desde la consola, llamar con OTRO teléfono y leer pedidos/descuentos/historial ajenos (`bot_mis_pedidos` y hermanas) o escribir/controlar conversaciones. La clave pública `anon` NO estaba afectada (sólo 2 funciones de texto inofensivas).
+
+- **Causa raíz**: NO es una migración del repo (todas grantean sólo a `service_role`). Es el **default privilege de Supabase**: toda función nueva en `public` queda ejecutable por `anon`/`authenticated`/`service_role` salvo que se revoque explícito.
+- **Arreglo**: la parte de lectura la corrigió un deploy externo (esas funciones dejaron de ser ejecutables por `authenticated`). La parte de escritura/control se cerró el 14/10 revocando EXECUTE a `authenticated` de 7 funciones: `bot_inbox_enviar_mensaje`, `bot_guardar_mensaje`, `bot_conv_set_modo`, `bot_kb_agregar`, `bot_kb_eliminar`, `bot_auditar_tool`, `bot_inbox_log_acceso`. Quedaron con `authenticated` sólo 5 inofensivas (texto + catálogo).
+- **Auditoría**: registrada en `github_repo_problemas` (repo 190), severidad crítico, título "IDOR en bot_* SECURITY DEFINER: un cliente logueado lee y controla datos de otro cambiando el telefono".
+- **PENDIENTE**: (1) el revoke se hizo en la base en vivo — falta capturarlo en una migración `sql/` para que un `DROP+CREATE` futuro no lo reintroduzca; (2) barrer el resto de funciones `SECURITY DEFINER` (`wa_*`, etc.) con el mismo default; (3) cerrar la auditoría con el SHA del deploy que arregló la lectura.

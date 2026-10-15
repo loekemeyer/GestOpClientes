@@ -765,6 +765,18 @@ Cuando revocar: esperar el tiempo de expiracion del access token + 15 min (1 h 1
 **Al tocar cualquier archivo con una clave de Supabase, dejarlo en el sistema nuevo. Nunca
 escribir codigo nuevo con la clave legacy.**
 
+## REGLA: funciones `SECURITY DEFINER` en `public` nacen ejecutables por `anon`/`authenticated`
+
+**Vale para todos los repos con Supabase.** El privilegio por defecto de Supabase grantea EXECUTE a `anon`, `authenticated` y `service_role` en TODA función nueva de `public` (no aparece en ninguna migración). Una función `SECURITY DEFINER` que recibe un identificador (teléfono, CUIT, `customer_id`) y devuelve o toca datos de ESE cliente, sin atarlo al que llama, es un **IDOR**: cualquier usuario logueado (`authenticated`) la llama desde la consola con otro valor y opera sobre datos ajenos.
+
+Al crear una función `bot_*` / `wa_*` (o cualquier RPC con datos de negocio) que sólo debe llamar el webhook o un cron, en la MISMA migración revocar el acceso y dejar sólo `service_role`:
+
+```sql
+revoke execute on function public.<fn>(<args>) from anon, authenticated;
+```
+
+⚠ **Caso real 14/10/2026** (detalle y pendientes en `docs/ESTADO.md` › *Seguridad: IDOR en funciones bot_*)*: ~20 `bot_*` quedaron ejecutables por `authenticated`; un cliente logueado del sitio leía los pedidos de otro cambiando el teléfono. Se revocó a mano en la base, falta capturarlo en una migración y barrer el resto de las `SECURITY DEFINER`.
+
 ## REGLA: toda copia de respaldo nace sin RLS
 
 **Vale para TODOS los repos** (igual que las reglas de Planify y de auditoria: copiar este bloque
