@@ -584,3 +584,28 @@ así que el reporte del 23/10 no mide el objetivo y P8 no puede llegar a ok. Abr
 
 **Quién:** Pablo Olejavetzky. **Qué:** probé agendar el recordatorio del ensayo de pausa P7 como un scheduled trigger de una sola vez (dispara mañana 09:00 Argentina en esta sesión). Pablo prefirió *«ponerla en el dashboard ahora y que venza mañana»* y, al preguntar cuál dashboard, confirmó **Planify**. **Por qué:** el scheduled trigger sólo avisa cuando dispara y en la sesión de Claude; una tarea de Planify queda visible en su agenda con fecha de vencimiento y la cierra él o Claude cuando el ensayo esté hecho. **Cómo quedó:** tarea 5948 de Planify (empleado 64), fecha 16/10, `done=false`, nota con los pasos del ensayo (apagar/prender `wa_envio_automatico` desde «Envíos a clientes», verificar la fila en `public.wa_llave_cambios`, hoy 0 filas); borré el trigger `trig_01GDFvHq3Nmi6rSdF8jXKqj2`. **Contexto:** P7 (Límites) sigue «parcial»: para pasar a «ok» faltan el ensayo de pausa y recalibrar el tope de gasto el 23/10 con tráfico real (`docs/PLAN-AGENTE-8-PUNTOS-2026-10-13.md`, `docs/RUNBOOK-PAUSA-P7.md`). **Regla confirmada de paso:** un recordatorio con vencimiento se carga como tarea de Planify, no como scheduled trigger.
 
+---
+
+## D030 — Búsqueda de productos del bot: insensible a grafía, plural y typos (wa_norm + wa_fon) (2026-10-15)
+
+**Decisión (Pablo O., 15/10):** la búsqueda del agente (`bot_buscar_productos`, PaginaLK) deja de comparar texto crudo. Dos capas:
+1. **Normalización + plural (`wa_norm`):** compara ambos lados en minúsculas, sin acentos, sin espacios ni signos, y pliega el plural. El `-es` se pliega **sólo** tras `r l n d z j`
+   (las consonantes que en español toman `-es`): `exprimidores→exprimidor`, `cucharones→cucharon`, pero `mates→mate` y **no** `mat`.
+2. **Fonética de respaldo (`wa_fon`):** clave determinística que pliega el seseo (z y c-ante-e/i→s), b/v→b, ll/y→y, h muda, qu/c→k y letras repetidas. Entra **sólo si la búsqueda
+   normal da 0**, más un escalón fonético en el lookup de `bot_sinonimos`. Colisión exacta entre grafías equivalentes, sin umbral.
+
+**Razón (medido):** [plural] `exprimidores`/`cucharones` daban 0 por no tener categoría plural en el catálogo; un strip `-es` genérico arrastraba «Prensa Matambre» (cód. 246) al pedir
+mates. [fonética] se descartó pg_trgm porque `cuchara~cuchillo` 0,31 supera a `valde~balde` 0,33: ningún umbral separa un typo de una palabra distinta. Con `wa_fon`, 9/9 pares de typo
+reales colisionan y 0 falsos.
+
+**Hallazgo clave:** el valor de `wa_fon` **no** son los typos obvios —el LLM los corrige solo antes de llamar la tool (`zacacorchos→sacacorchos`, `yaveros→llaveros`,
+`espumaderaz→espumadera`, los tres verificados en Simulador)— sino las **brechas legítimas entre cómo habla el cliente y cómo está escrito el catálogo**, que el LLM no corrige porque el
+cliente ya escribió bien. Verificado en vivo (Simulador cliente 4028, Gemini gratis, gasto US$ 0): «hola, necesito un rompe nuez» → el LLM mandó `query:"rompenuez"` (no lo corrigió) y el
+bot halló «Rompenueces Inox» (507); en SQL ese término da **0** por la vía normalizada sola y **507** por la función completa. El seseo cubre de paso `nuez/nueces`, sin regla z→c aparte.
+
+**No se hizo:** levenshtein para typos no fonéticos (transposición «sacocrchos», letra de más): choca en palabras cortas y la fonética cubre el grueso. Si aparece un caso real, se reevalúa.
+
+**Dónde quedó:** `sql/159_bot_buscar_productos_normalizado.sql` (wa_norm + plural, commit `7c1c694`) y `sql/160_bot_busqueda_fonetica.sql` (wa_fon + tier de respaldo, commit `bb48823`),
+ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`). Misma firma y retorno: `_shared/bot-conversation.ts` no cambió. Entrada del 15/10 en `docs/ESTADO.md`
+(commit `329a548`). Tarea de Planify 5924. Backend puro: la versión visible del dashboard no cambia.
+
