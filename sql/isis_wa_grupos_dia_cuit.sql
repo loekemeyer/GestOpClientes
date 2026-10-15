@@ -14,8 +14,12 @@
 -- con 3 días de margen. docs (fecha = p_fecha) y el cruce 1:1 garantizan que sólo se mande la
 -- factura emitida ese día.
 
-create or replace function public.wa_grupos_dia_cuit(p_cuit text, p_fecha date)
- returns table(empresa text, destino text, cod_cliente text, razon_social text, n_facturas integer, comprobantes text[], storage_paths text[], totales numeric[], metodos text[], metodos_fac text[])
+-- order_ids: order_id (orders.id de PaginaLK) por factura, alineado con comprobantes. Lo usa la
+-- edge para cruzar contra order_tracking.status='entregado' y recién ahí mandar la factura. null si
+-- la NP no es web (ISIS directo) — ésas no tienen señal de despacho y el gate las deja pendientes.
+drop function if exists public.wa_grupos_dia_cuit(text, date);
+create function public.wa_grupos_dia_cuit(p_cuit text, p_fecha date)
+ returns table(empresa text, destino text, cod_cliente text, razon_social text, n_facturas integer, comprobantes text[], storage_paths text[], totales numeric[], metodos text[], metodos_fac text[], order_ids bigint[])
  language sql stable security definer set search_path to 'public'
 as $function$
   with cods as (
@@ -49,7 +53,7 @@ as $function$
   ),
   base as (
     select cr.empresa, cr.np, cr.comprobante_id, cr.storage_path, cr.factura_total, d.condicion_venta cond,
-      fn.cod_cliente,
+      fn.cod_cliente, wp.order_id,
       coalesce(sn.razon_social, wp.razon_social, pp.razon_social, fn.razon_social) razon_social,
       public.wa_destino_norm(sn.sucursal_entrega, coalesce(sn.direccion, wp.direccion, pp.direccion)) destino
     from cruce cr
@@ -57,8 +61,11 @@ as $function$
     left join public."Facturacion_NP" fn on fn.np = cr.np
     left join public.wa_np_snapshot sn on sn.np = cr.np
     left join lateral (
-      select w.razon_social, w.direccion from public."PPP_Web_Programacion" w
-      where cr.np ~* '^(lk|ch) ' and w.empresa = lower(split_part(cr.np,' ',1))
+      -- PPP_Web_Programacion guarda la empresa como 'lk'/'chef' (no 'ch'): se empareja con cr.empresa,
+      -- que el cruce ya deriva como 'lk'/'chef'. Antes usaba lower(split_part(np,' ',1)) = 'ch' y Chef
+      -- nunca matcheaba (perdía order_id y dirección web).
+      select w.razon_social, w.direccion, w.order_id from public."PPP_Web_Programacion" w
+      where cr.np ~* '^(lk|ch) ' and w.empresa = cr.empresa
         and w.np = nullif(regexp_replace(split_part(cr.np,' ',2),'\D','','g'),'')::int
       limit 1) wp on true
     left join lateral (
@@ -70,6 +77,7 @@ as $function$
     array_agg(storage_path order by comprobante_id),
     array_agg(factura_total order by comprobante_id),
     array_agg(distinct public.wa_metodo_norm(cond)),
-    array_agg(public.wa_metodo_norm(cond) order by comprobante_id)
-  from base group by empresa, destino;
+    array_agg(public.wa_metodo_norm(cond) order by comprobante_id),
+    array_agg(order_id order by comprobante_id)
+  from base group by empresa, destino
 $function$;
