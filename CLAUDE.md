@@ -362,6 +362,19 @@ pierde tiempo re-descubriendo (y mirando la base equivocada).
 **Al cerrar, si cambiaste flags, flujos, arquitectura o estado operativo,
 actualizá `docs/ESTADO.md`** (y la fecha de "última actualización").
 
+### 📓 Las decisiones se anotan en el MISMO turno (Pablo Olejavetzky, 15/10/2026) — sólo en ESTE repo
+
+Pablo: *«¿debería hacer un documento que deje asentado cada cosa que hablo en varias conversaciones?»*. No hace falta uno nuevo: ya existe
+`docs/DECISIONES.md`. Lo que faltaba es que cada sesión lo use. Caso real del 15/10: los vínculos 225 y 228 de la apertura gradual salieron de una
+charla que no dejó nada escrito, y esa misma tarde había textos viejos que contradecían lo hablado (uno, la sección de la whitelist de este mismo archivo).
+
+1. **Cuando Pablo cierra algo** (dice «sí», «no», «dejalo así» o elige una opción), la sesión lo anota en `docs/DECISIONES.md` **en ese mismo turno**:
+   entrada `D0NN` con fecha, quién decidió, qué, por qué y dónde quedó (commit, sql, tarea de Planify). Si el tema ya tiene entrada, se agrega ahí.
+2. **Si Pablo corrige un dato o una regla escrita**, se corrige el texto viejo (`CLAUDE.md`, `docs/ESTADO.md`) en ese turno y se le dice qué se corrigió.
+3. **Antes de proponer algo** sobre un tema (apertura de clientes, saludos, modelos, llave de envío, teléfonos), buscalo con `grep -i` en
+   `docs/DECISIONES.md` y en `docs/ESTADO.md`: lo ya decidido no se vuelve a proponer.
+4. Una charla que no deja nada escrito no existe para la próxima sesión.
+
 ## Qué es este proyecto
 
 Bot WhatsApp para clientes mayoristas de Loekemeyer. Corre como Supabase Edge Function

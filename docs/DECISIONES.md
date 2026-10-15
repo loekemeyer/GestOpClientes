@@ -307,3 +307,66 @@ de Thomy) y 227 (cliente 4210 con el de Logística) son de prueba y quedan hasta
 **Antes de pasar la llave a `1`:** (1) avisar a Luis y a Thomas de los vínculos 225 y 228: D006 y `CLAUDE.md` piden que los teléfonos de clientes los
 cargue quien ellos pidan, y estos salieron de una sugerencia de Claude con el OK de Pablo; (2) sacar los vínculos 224 y 227 (un borrado: pide el «sí»
 de Pablo con el SQL exacto); (3) en el primer envío real, mirar que no aparezca un 403 `LkWaGuard` en los logs del webhook. Tareas de Planify 5852 y 5747.
+
+---
+
+## D012 — El bot no saluda ni arranca respuestas con la razón social del cliente (2026-10-15)
+
+**Decisión (Pablo, 15/10, tanda de pruebas de 10 mensajes, mensaje 1):** el saludo del primer contacto del día es **«¡Hola!» sin nombre** («Sí, cambialo a «¡Hola!» sin
+nombre»). Lo mismo en las respuestas fijas: `wa_faq` #41 pasa a «¡Hola! ¿En qué te puedo ayudar?», #8 a «Tus descuentos son:» y #42 a «Estos son los datos para
+transferir:» («Sí, cambiá también la #41 sin nombre» y «Sí, sacala también de #8 y #42»), y las 3 respuestas de estado de pedidos que arma `faq.ts` («No tenés pedidos
+recientes…», «Todos tus pedidos están entregados…» y el listado de pedidos) y las dos variantes de #8 que arma el código tampoco empiezan con la razón social
+(«Sí, sacala también de esas 3»).
+**Se dejan CON la razón social, por decisión de Pablo («Dejalos ahí y sigamos con otra cosa»; no volver a proponerlo):** la pregunta de marca de `marca.ts`
+(«{nombre}, compraste en Loekemeyer y en Chef…»), los listados de pedidos de Chef y marca de `pedidos-marca.ts` y el saludo de vinculación del webhook
+(«¡Hola {razón social}!» al vincular un teléfono por CUIT).
+
+**Razón:** la base sólo tiene la razón social, no el nombre de quien escribe. De 1.264 clientes, 447 (35 %) llevan sigla de empresa y casi todo el resto son personas con el
+apellido primero («¡Hola Quispe Gabriel Dario Josue!»), y reordenar apellido y nombre no es confiable. Además el saludo contradecía la regla del agente del 30/09
+(«no hace falta saludar con la razón social»; el saludo lo pone el sistema).
+
+**Dónde quedó:** `conSaludoSiCorresponde` (webhook, `4e0d158`); `sql/161` (#41) y `sql/162` (#8 y #42), con rollback en `sql/rollback/`, aplicadas en vivo; `faq.ts`
+(`6ed4577` y `1830f96`); pruebas `tests/saludo-primer-contacto.test.ts` y `tests/faq-sin-razon-social.test.ts`. Tarea de Planify 5926.
+**Verificado en el Simulador** (respuestas fijas y estado de pedidos, gasto US$ 0). **Pendiente:** el saludo del primer contacto no se replica en el Simulador: se ve por WhatsApp
+real, el primer mensaje después de 6 horas sin escribir.
+
+---
+
+## D013 — Una pregunta de stock con cantidad no es un pedido: ni espera de 5 s ni Sonnet (2026-10-15)
+
+**Decisión (Pablo, 15/10, mensaje 3 de la tanda):** «Si quiero 30 cajas hay?» es una consulta de disponibilidad y no la toma de un pedido («Sí, sacalo con pruebas»). Un mensaje que
+habla de si hay mercadería (hay, tienen, stock, disponible, quedan) y **no** trae un verbo de pedir sin condicional (quiero, necesito, mandame, llevo, dame, anotame, cargame,
+agregá…) ni «pedido», «pedir», «comprar» o «cotizador» ya no espera los 5 s del webhook ni va a Sonnet 4.6 fijo; «si quiero…», «si me llevo…» y «quiero saber si…» no cuentan como pedir.
+**La regla del 05/10 de Pablo («la toma de pedidos siempre con un modelo fijo, Sonnet: no podemos fallar ahí») sigue igual para los pedidos**, incluido un pedido con una
+pregunta de stock mezclada («tienen 30 cajas del 505? las quiero») y cualquier mensaje con un pedido en curso.
+
+**Razón (medido):** ese mensaje tardó 11,49 s (5 s de espera + 4,94 s de IA) y costó US$ 0,0974 (Sonnet 4.6 con 23.563 tokens de entrada), contra unos US$ 0,0005 de un turno
+normal con Haiku 5.5. «Tiene stock del 586?» también esperaba 5 s por el «del 586» (7,8 s con 1 s de IA).
+
+**Dónde quedó:** `_shared/consulta-disponibilidad.ts` usado por `esTurnoDePedido` (`pedido-turno.ts`) y por la espera del webhook (`e9676b8`); pruebas
+`tests/consulta-disponibilidad.test.ts` (75 chequeos) y `tests/pedido-turno.test.ts`. Tarea de Planify 5922.
+**Límites conocidos:** un pedido dicho sin verbo («¿Tienen el 505? 20 cajas») se lee como consulta, y un «dale, cargámelas» sin cantidad no se detecta como pedido (ya pasaba antes).
+**Pendiente:** el Simulador no pasa por Sonnet fijo ni por la espera: se verifica por WhatsApp real (esperado: sin los 5 s y con Haiku, unos US$ 0,0005 por mensaje).
+
+---
+
+## D014 — Precios, lista de precios y fotos de producto en las respuestas del bot (2026-10-15)
+
+**Decisión (Pablo, 15/10, mensajes 7, 8 y 9 de la tanda):**
+1. **Lista de precios (7):** «Me podes mandar la lista de precios?» sale por la respuesta fija #11 con el enlace a la web (loekemeyer.com | chefsrl.com, «Pedidos Mayorista» con CUIT y
+   clave). El agente **nunca** dice que no hay una lista de precios.
+2. **Precio y fotos (8):** si el cliente pide precio y fotos de uno o varios artículos, el texto lleva el precio de **cada** artículo por caja + IVA, una línea por artículo; las fotos no
+   llevan precio, así que nunca se contesta sólo «te envié las fotos».
+3. **«y los precios?» (9):** dicho después de hablar de artículos (código, precio por caja, foto o stock en los últimos 30 minutos), lo contesta el agente con el historial y no el
+   enlace; sin charla previa, o sin artículos en ella, sigue el enlace.
+4. **Fotos:** Meta acepta el mensaje de una foto JPEG en CMYK y después lo rechaza (131053), así que el bot no manda fotos CMYK ni WebP reales y le dice al cliente cuáles no tienen foto.
+   Las fotos del bucket tienen que ser JPEG RGB o PNG. Pablo: «Sí, convertila a RGB»; con **400 px alcanza** para el 067 y el 537, **no se piden fotos nuevas**.
+
+**Razón:** en la tanda, el 7 contestó «No tengo una lista de precios», el 8 mandó 10 fotos sin precios y dijo que mandó las 10 aunque la del 599E (CMYK) no llegó, y el 9 mandó el enlace
+cuando venían hablando de los pelapapas.
+
+**Dónde quedó:** `b82f92c` (7, 8 y la detección de CMYK en `_shared/imagen-enviable.ts`) y `c5370ea` (9); pruebas `tests/imagen-enviable.test.ts`, `tests/precios-y-fotos.test.ts` y
+`tests/articulo-nombre.test.ts`. Escaneo de las 197 fotos activas: 2 CMYK (599E y 936E en `hd/`) y 3 sin foto que la base acepte (067 y 537 en WebP real de 400 px, 938E con tipo
+`image/webp`). Se prepararon 5 JPEG RGB para subir a `products-images/hd/` como `.jpg` (no como `.webp`: la base sólo acepta `image/jpeg` o `png`): 599E, 936E, 938E, 067 y 537.
+Tareas de Planify 5897 y 5916. **Verificado en el Simulador** (7 y 9 con Gemini gratis, 8 con Haiku 5.5 por US$ 0,004256).
+**Pendiente:** la subida de las 5 fotos es de Pablo (ya pidió autorización: esta sesión no tiene credenciales de Storage) y repetir 7, 8 y 9 por WhatsApp real, porque el Simulador no manda fotos.
