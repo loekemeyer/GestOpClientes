@@ -161,8 +161,8 @@ export const PLANTILLAS: PlantillaMeta[] = [
   },
 
   // ── Pedido retirado (confirmación de retiro). Pablo, 14/10: DEFINIDA PARA ACTIVAR SI HACE FALTA.
-  //    Hoy un retiro no se avisa (se retira en mano). No tiene disparador activo ni se sube a Meta
-  //    hasta que se decida usarla; cuando se active: templates_sync (crea en Meta) + aprobación + disparador.
+  //    Creada en Meta el 15/10 (templates_sync, PENDING, id 2529181834243049), SIN disparador activo todavía:
+  //    se enciende cuando Virgilio exponga la marca del remito del retiro (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md.
   {
     name: "pedido_retirado",
     language: ES, category: UT,
@@ -176,8 +176,9 @@ export const PLANTILLAS: PlantillaMeta[] = [
   //    el aviso lo gatilla el remito marcado en Virgilio cuando el expreso recibe la mercadería. Distinto de
   //    pedido_en_viaje_expreso (ese dice "ya salió HACIA el expreso"); éste confirma que el expreso YA LO RECIBIÓ.
   //    Texto NEUTRO a propósito: la entrega final (retiro en sucursal del expreso o reparto a domicilio) la maneja
-  //    el expreso, LK no tiene ese dato, así que no se promete modalidad (Pablo, 15/10). SIN disparador activo:
-  //    espera el contrato de Virgilio (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md.
+  //    el expreso, LK no tiene ese dato, así que no se promete modalidad (Pablo, 15/10). Creada en Meta el 15/10
+  //    (templates_sync, PENDING, id 2318701338906372), SIN disparador activo: espera el contrato de Virgilio
+  //    (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md.
   {
     name: "pedido_en_expreso",
     language: ES, category: UT,

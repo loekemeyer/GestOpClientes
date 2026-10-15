@@ -636,3 +636,15 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Qué falta para aplicarla (NO hecho a propósito):** hoy el #1 de la cadena del agente es Haiku 5.5 (`wa_agente_modelos`, tarea `general`, puesto el 13/10 — D del plan de los 8 puntos y entrada del 13/10 en `docs/ESTADO.md`). Aplicar esta decisión = un `UPDATE public.wa_agente_modelos` que ponga Sonnet 4.6 de prioridad 1. Es una escritura en la base: en este repo va sin "sí" previo por la excepción de BD, pero Pablo pidió explícitamente dejarlo **sólo anotado hasta el lanzamiento**, así que no se corre hasta que él lo pida.
 
 **Dónde quedó:** `docs/COSTOS-PROYECCION-AGENTE.md` › Decisión tomada, y entrada del 15/10 en `docs/ESTADO.md` (commit `7242a77`). Sólo documentación: no cambia código ni base, la versión visible del dashboard no cambia.
+
+---
+
+## D033 — Plantillas del remito: `pedido_retirado` y `pedido_en_expreso` subidas a Meta (2026-10-15)
+
+**Decisión (Pablo, 15/10):** *«Subí pedido_en_expreso y pedido_retirado a Meta»*. Se crearon las dos en Meta con `lk_templates` action `templates_sync` (`aplicar`, `solo:[pedido_en_expreso,pedido_retirado]`), categoría UTILITY, idioma es_AR. Quedaron `PENDING` (en revisión de Meta): `pedido_retirado` id 2529181834243049, `pedido_en_expreso` id 2318701338906372.
+
+**Qué NO cambia (vasectomía intacta):** crear plantillas en Meta no manda ningún mensaje ni cuesta. Las dos siguen SIN disparador (`estado: sin_disparador` en `disparadores.json`): el reenganche del trigger `trg_order_tracking_notify` sigue bloqueado hasta que Virgilio exponga la marca del remito (lado de Luis, ver D ... y `docs/REENGANCHE-REMITO-VIRGILIO.md`). Aunque Meta las apruebe, no sale nada hasta que (a) haya disparador y (b) `wa_envio_automatico` pase de `0`.
+
+**Por qué se subieron ahora, antes del trigger:** aprobar en Meta tarda y es independiente del contrato de Virgilio. Subirlas ya adelanta la cola crítica: cuando llegue lo de Luis sólo falta el cambio del trigger, no esperar la revisión de Meta.
+
+**Dónde quedó:** textos en `_shared/plantillas-meta.ts` (sin cambio de texto, sólo se corrigieron los comentarios que decían «sin subir a Meta»), `scripts/plantillas-artifact/disparadores.json` (las dos pasan a «creada en Meta, PENDING, sin disparador»), `docs/REENGANCHE-REMITO-VIRGILIO.md` (paso 2 marcado hecho) y el puntero del índice de `CLAUDE.md`. Tarea de Planify 5890 (Pablo). Backend puro: la versión visible del dashboard no cambia.
