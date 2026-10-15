@@ -370,6 +370,7 @@ cuando venían hablando de los pelapapas.
 `image/webp`). Se prepararon 5 JPEG RGB para subir a `products-images/hd/` como `.jpg` (no como `.webp`: la base sólo acepta `image/jpeg` o `png`): 599E, 936E, 938E, 067 y 537.
 Tareas de Planify 5897 y 5916. **Verificado en el Simulador** (7 y 9 con Gemini gratis, 8 con Haiku 5.5 por US$ 0,004256).
 **Pendiente:** la subida de las 5 fotos es de Pablo (ya pidió autorización: esta sesión no tiene credenciales de Storage) y repetir 7, 8 y 9 por WhatsApp real, porque el Simulador no manda fotos.
+**Cierre de la tarea 5897 (Pablo, 15/10: «Ya las están subiendo, así que marcalo como terminado»):** se cerró con las fotos todavía subiéndose. **Sin verificar [Seguro, leído en Storage a las 15:51 UTC]:** en `products-images/hd/` sólo estaban `599E.jpg` y `936E.jpg`, con fecha 10/09 y unos 900 KB (los anteriores, no los RGB nuevos), y faltaban `938E`, `067` y `537`. Si la subida no pisa los archivos que ya existen, `599E` y `936E` pueden seguir como estaban y Meta rechaza un JPEG CMYK (131053). Repetir 7, 8 y 9 por WhatsApp real sigue sin hacerse.
 
 ---
 
