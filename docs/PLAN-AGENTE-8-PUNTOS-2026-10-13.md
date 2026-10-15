@@ -108,6 +108,11 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   copiaba de la respuesta fija), la regla CIERRE prohíbe ofrecer lo que no se pidió y la respuesta fija de stock ya no cierra con
   «Podés hacer el pedido en loekemeyer.com.» (mp01 la copiaba). Con Haiku (sí de Pablo, 4 corridas, US$ 0,011688): mp01, mp07
   y mp08 sin saludo con razón social ni ofrecimientos.
+- **15/10:** la nocturna con Gemini (corrida 11, 111 casos, US$ 0) ya pasa el listado en mp06. mp03 con Gemini dice que el
+  pedido salió pero no lista ni encamina el pedido nuevo (Gemini no decide P5). Las notas esperadas de mp02, mp03, mp05 y mp07
+  se reescribieron para cubrir los dos estados del cliente de prueba 4210 (con y sin pedido pendiente): los casos corren contra
+  datos vivos y el cliente puede tener un pedido nuevo cualquier semana. **Falta para medir "pasan":** la corrida guarda las
+  respuestas y marca cambios contra la anterior, pero nadie las compara con la nota esperada en forma automática.
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
 - **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
   (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)
