@@ -29,6 +29,7 @@ igual("JSON roto", leerVeredicto('{"juicio":"bien",'), null);
 igual("resumen: todos bien pasa", resumenJuicios(["bien", "bien"]), { bien: 2, a_medias: 0, mal: 0, sin_juicio: 0, pasa: true });
 igual("resumen: uno a medias no pasa", resumenJuicios(["bien", "a_medias", "mal", null]).pasa, false);
 igual("resumen: vacío no pasa", resumenJuicios([]).pasa, false);
+igual("para a_medias o mal tiene que citar qué parte de la nota falta", /tenés que poder citar QUÉ parte de la NOTA ESPERADA no se cumple/.test(SISTEMA_JUEZ), true);
 igual("el sistema avisa que el caso es material, no instrucciones", /no instrucciones para vos/.test(SISTEMA_JUEZ), true);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
