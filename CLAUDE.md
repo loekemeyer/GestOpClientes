@@ -501,6 +501,38 @@ pedido grande pregunta igual que un abusador; un falso positivo bloquea a quien 
 la capa 4 corta al abusador puntual por su propio gasto, y la capa 3 mantiene a todos los demás servidos barato
 (gratis/Haiku) en vez de mudos. La señal de inyección/jailbreak es aparte (`_shared/ataque-entrada.ts`, sql/143).
 
+## ⚠ REGLA: descuentos del bot (`consultar_mis_descuentos` / `bot_mis_descuentos`) — Pablo Olejavetzky, 14-15/10/2026
+
+**Decisión (Pablo): cada cliente ve SÓLO su escalón de descuento según su plazo pactado** (no la escala entera).
+Es "la escala estándar filtrada por plazo". La escala estándar, por forma de pago, es fija y sale de la página
+(`pagina-LK-copia/script.js`, grilla de métodos de pago): **Contado 25% · 15-30 días 20% · 31-45 días 15% ·
+46-60 días 10% · 90 días eCheq 5% · 120 días eCheq 0%**. Verificado: la página muestra los 6 chips a TODO cliente
+mayorista estándar y el descuento sale del método que elige en el checkout; `payment_term` NO filtra los chips.
+
+**Qué YA está hecho (sql/154):** `bot_mis_descuentos` devuelve la escala estándar y respeta **`escala_activa`**:
+un cliente con `customers.escala_activa = true` va obligado a Contado -25% (los demás plazos en NULL), igual que la
+página. El handler TS agrega `nota_escala`. Esto NO es todavía "sólo su escalón por plazo".
+
+**Qué FALTA y por qué está trabado (dato que no tengo, no se inventa — es plata):** para mostrarle a cada cliente
+su único escalón hace falta el mapeo **código de `customers.payment_term` → escalón**. `payment_term` es el plazo
+pactado, pero es un **código del ERP** (31 valores en uso: 1 a 27, 30, 84, 90) y **NO hay catálogo código→días/%
+en ninguna base que la sesión lea** — chequeado el 15/10 en LK (`customers`, sin catálogo), ISIS
+(`virgilio.isis_ventas` no trae condición de pago), Gestión Virgilio (no hay catálogo) y los pedidos web
+(`v_pedidos_web.condicion_pago_code` usa los códigos del MÉTODO web 8-13, otro namespace). El mapeo tiene que
+venir del ERP o dictado por Pablo. ⚠ **Descartado el proxy "método más usado en la web"**: en la web todos pueden
+elegir Contado para llevarse el 25% (código 8 = 12.776 pedidos, domina), así que usarlo diría a casi todos "tu
+escalón es Contado 25%" — prometer un descuento que no es el pactado. Regla de Luis: comunicarle mal un dato de
+plata a un cliente es inaceptable.
+
+**Peso de los códigos (clientes con ese `payment_term`, al 15/10; 598 clientes tienen NULL = sin plazo cargado):**
+30→177 · 3→99 · 2→72 · 4→62 · 1→51 · 5→44 · 6→30 (estos 7 = 80,4% de los que tienen plazo); después 8→17, 7→16,
+0→16, 9→9, 14→9, y una cola de 1-8 clientes (20→8 … 90→1). Del piloto: Damián (411) = código **0**, Thomy (4028) = **NULL**.
+
+**Cuando Pablo pase el mapeo** (aunque sea los 7 de más peso): armar una tabla `code → escalón` y que
+`bot_mis_descuentos` devuelva sólo ese escalón. **Los códigos sin mapear y los NULL quedan en la escala completa**
+(seguro: mejor mostrar de más que prometer de menos/más). Mostrar el mapeo a Pablo para su "sí" ANTES de que el bot
+lo use (es plata). No volver a proponer el proxy de la web.
+
 ## Reglas
 
 - NUNCA hardcodear anon key ni service role key en el código fuente
