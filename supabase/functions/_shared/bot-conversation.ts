@@ -34,6 +34,7 @@ import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from 
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { palabraDeBusqueda, raizDeBusqueda } from "./articulo-nombre.ts";
 import { detalleDePedido, type FilaDetallePedido, importesDelTotal } from "./importes-pedido.ts";
+import { imagenEnviable } from "./imagen-enviable.ts";   // 15/10: no se manda una foto que Meta va a rechazar (JPEG CMYK)
 import { REGLA_NO_DISPONIBLE } from "./inactivos.ts";
 import {
   callModel,
@@ -356,7 +357,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "enviar_fotos_producto",
     description:
-      "Envía por WhatsApp una foto de uno o varios productos (hasta 10), una por producto. Pasá los códigos de los que querés mostrar. Usala cuando el cliente pide ver las fotos de los artículos que le ofreciste (ej: buscó 'pelapapas' sin código, le mostraste varias opciones y pide las fotos): mandá los códigos de todos los que le ofreciste.",
+      "Envía por WhatsApp una foto de uno o varios productos (hasta 10), una por producto. Pasá los códigos de los que querés mostrar. Usala cuando el cliente pide ver las fotos de los artículos que le ofreciste (ej: buscó 'pelapapas' sin código, le mostraste varias opciones y pide las fotos): mandá los códigos de todos los que le ofreciste. Si el cliente también pidió los precios, dáselos en el texto de la respuesta (uno por artículo, de buscar_productos): las fotos no llevan el precio.",
     input_schema: {
       type: "object",
       properties: {
@@ -1110,19 +1111,30 @@ async function executeTool(
       }
       const resultados = await Promise.all(cods.map((c) =>
         supabase.rpc("bot_obtener_imagenes_producto", { p_cod: c }).then((r) => ({ c, data: r.data }))));
-      const medias: MediaAction[] = [];
+      const candidatas: Array<{ c: string; url: string; caption: string }> = [];
       const sinFoto: string[] = [];
       for (const { c, data } of resultados) {
         const prod = data?.[0];
         const url: string | undefined = prod?.image_urls?.[0];
-        if (url) medias.push({ type: "image" as const, url, caption: `${prod.cod} — ${prod.description}` });
+        if (url) candidatas.push({ c, url, caption: `${prod.cod} — ${prod.description}` });
         else sinFoto.push(c);
       }
+      // Pablo, 15/10: la foto del 599E es un JPEG CMYK y Meta la rechaza siempre (131053) después de aceptarla; el bot había dicho que mandó las 10.
+      // Se mira el encabezado de cada foto antes de mandarla: la que Meta no va a aceptar queda en sin_foto y el agente se lo dice al cliente.
+      const veredictos = await Promise.all(candidatas.map((x) => imagenEnviable(x.url)));
+      const medias: MediaAction[] = [];
+      candidatas.forEach((x, k) => {
+        if (veredictos[k].ok) medias.push({ type: "image" as const, url: x.url, caption: x.caption });
+        else { sinFoto.push(x.c); console.warn(`[fotos] ${x.c} no se manda: ${veredictos[k].motivo}`); }
+      });
       if (!medias.length) {
-        return { data: { error: "Ninguno de esos productos tiene fotos cargadas." } };
+        return { data: { error: "Ninguno de esos productos tiene fotos que se puedan mandar por WhatsApp.", sin_foto: sinFoto } };
       }
       return {
-        data: { cantidad_fotos: medias.length, sin_foto: sinFoto },
+        data: {
+          cantidad_fotos: medias.length, sin_foto: sinFoto,
+          ...(sinFoto.length ? { nota: "De los códigos de sin_foto no se pudo mandar foto: decile al cliente cuáles son, sin explicar el motivo técnico." } : {}),
+        },
         media: medias,
       };
     }

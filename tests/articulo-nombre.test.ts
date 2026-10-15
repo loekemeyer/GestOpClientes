@@ -47,7 +47,16 @@ for (const t of [
   "¿cuánto salió?", "¿a cuánto me salió?", "¿cuánto costó?", "¿cuánto valía?", "¿Sigue vigente la lista de precios?",
    "¿Hubo aumento de precios?", "¿La lista de precios es actual?", "Necesito presupuesto", "¿Cotización de...?", "pasame precios", "Me pasás el catálogo con precios",
   "¿Cuánto sale por unidad?", "Hola, ¿me pasás el precio de lista?", "precio de la lista completa", "",
+  // Pablo, 15/10 (tanda de pruebas, mensaje 7): «Me podes mandar la lista de precios?» iba a la IA y contestaba «No tengo una lista de precios»: «podes» y «mandar» contaban como nombre de artículo.
+  "Me podes mandar la lista de precios?", "Me podés mandar la lista de precios", "Podrías enviarme la lista de precios", "Mandame la lista de precios actualizada", "Necesito la lista de precios",
+  "Me das la lista de precios por favor", "Quiero el listado de precios", "Tienen lista de precios?", "Pasame el precio de lista", "Me podés decir cuánto sale?", "¿Me enviás la lista de precios?",
+  "Me compartís la lista de precios", "Avisame cuando tengas la lista de precios", "Dame la tarifa de precios", "Me pasan la planilla de precios?", "Hola buen día, me podrían pasar la lista de precios? Gracias",
 ]) igual(`lista de precios, no artículo: ${JSON.stringify(t)}`, preguntaPrecioDeArticulo(t), false);
+// Los verbos de pedir ya no cuentan como artículo, pero un artículo con nombre parecido sí (se compara palabra entera).
+for (const t of [
+  "Dame el precio de todos los pelapapas que tengas y fotos", "Me mandás el precio de la mandolina?", "¿Cuánto sale el envasador?", "Podés pasarme el precio del pelador de papas",
+  "Me podes mandar la lista de precios de los coladores?", "Quiero el precio de las tijeras",
+]) igual(`precio de un artículo con verbos de pedir: ${t}`, preguntaPrecioDeArticulo(t), true);
 
 // Guarda: handleFaq tiene que usar la detección en la FAQ #11 (consultar_precios) y sólo con cliente identificado.
 const faqFuente = readFileSync(new URL("../supabase/functions/_shared/faq.ts", import.meta.url), "utf8");
