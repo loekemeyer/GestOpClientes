@@ -543,3 +543,33 @@ consulta Claude con el MCP cuando hace falta; el hook no tiene credenciales para
 
 **Quién:** Pablo Olejavetzky. **Qué:** *«Chequeá a fondo qué alarmas cerrar»*. **Criterio aplicado:** una respuesta marcada por el puntaje de IA se cierra como `falsa_alarma` sólo si la queja del juez se contradice con la base (alerta de `wa_alertas_humano` a esa hora, regla vigente de pedidos por WhatsApp, charla real en `bot_historial_chat`) y como `bien_marcada` si la respuesta rompe una regla vigente o contradice la base. Lo ambiguo queda abierto para Pablo. **Resultado:** 29 de 35 cerradas, 6 abiertas (13, 21, 23, 30, 31, 36). Detalle y los dos defectos del juez: entrada del 15/10 en `docs/ESTADO.md`. **Dónde:** `wa_ia_puntajes` (PaginaLK), tarea 5939 de Planify (64).
 
+
+## D027 — P5: cómo contesta el agente sin pedido pendiente, formato del total y juez (2026-10-14 y 15/10, sesión del plan de los 8 puntos)
+
+**Quién:** Pablo Olejavetzky. Cargada el 15/10 a pedido suyo al cerrar la charla: *«Que de todo haya registro»*.
+
+**Decisiones, en el orden en que las dijo:**
+1. **Sin pedido pendiente, listar y preguntar cuál** (14/10): *«Tendria que darle un listado de los pedidos que realizo, por que ponele que lo hizo hoy u antes de ayer»*.
+   Si el cliente pide cambiar, sacar, agregar o anular algo y ningún pedido está pendiente, el agente le pasa la lista (fecha y estado, sin importes) y le
+   pregunta cuál es, sin derivar y sin decirle que no le figura. Si ya dijo cuál y ese salió, se le dice y se le indica cómo pedir de nuevo. Sólo si
+   contesta que no es ninguno se deriva (`pedido_no_encontrado`). Va en la regla SIN PEDIDO PENDIENTE (`_shared/agente-fijos.ts`) y en la respuesta de
+   `consultar_mis_pedidos` (`_shared/pedidos-sin-pendiente.ts`), porque en el prompt solo los modelos chicos la salteaban.
+2. **No ofrecer lo que no pidió** (14/10): *«Sí, sacala si no lo pidió, me parece muy invasivo»*. Ni pedido nuevo ni la web si no lo pidió (regla CIERRE),
+   y la respuesta fija de stock ya no cierra con «Podés hacer el pedido en loekemeyer.com» (`_shared/faq.ts`).
+3. **Total sin la frase «con IVA»** (14/10): *«Nono, me gusta asi como quedo, Que no tenga la frase "con IVA"»*. Formato `$235.442 ($194.580 + IVA)`: el primer
+   número ya incluye el IVA y nunca lleva «+ IVA» al lado (regla TOTAL DE UN PEDIDO y descripciones de las herramientas).
+4. **Rehacer un pedido: alcanza con listar y preguntar cuál** (15/10): *«Sí, alcanza con listar y preguntar cuál»*. El pedido nuevo se encamina cuando conteste.
+5. **Medición semanal con Haiku** (14/10, *«Cambialo a Haiku, medición semanal»*) y **juez automático con Haiku** (15/10, *«Sí, armá el juez automático con Haiku»*):
+   `sql/153`, `sql/157`, `lk_eval-juez`, `_shared/eval-juez.ts`. El juez marca `a_medias` o `mal` sólo si puede citar qué parte de la nota esperada falta.
+   Con créditos de prueba disponibles Pablo autorizó usarlos (*«tenemos creditos de apis disponibles para pruebas, asi que a usarlos»*, 15/10).
+
+**Otros arreglos del mismo trabajo:** `derivar_a_persona` ya no hace que el agente reemplace lo que averiguó por el aviso (mp05), PAGOS no deriva preguntas
+de cuánto debe o cómo pagar, y la consulta de stock que ya avisó a una persona no se vuelve a derivar. Las notas esperadas de mp01 a mp08 se reescribieron
+para que el juez no marque mal respuestas correctas.
+
+**Resultado:** corrida 13 (re-juzgada) y corrida 15 dieron 8 de 8 con Haiku y juez. P5 queda en «parcial» hasta la corrida automática del lunes 19/10
+10:15; si da 8 de 8, pasa a ok (tablero p5, tarea de Planify 5796). Commits en `main` del 14 y 15/10, de `dadf901` a `0a3b83b`. Plan:
+`docs/PLAN-AGENTE-8-PUNTOS-2026-10-13.md`.
+
+**Pregunta abierta (sin respuesta al cerrar la charla del 15/10):** ¿el piloto del 19 al 23/10 incluye clientes reales? Hoy toda la whitelist es de prueba,
+así que el reporte del 23/10 no mide el objetivo y P8 no puede llegar a ok. Abrir el bot a clientes lo deciden Luis o Thomas (principio de la vasectomía).
