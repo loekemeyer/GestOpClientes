@@ -1,0 +1,3 @@
+-- Rollback de sql/157: wa_eval_tick vuelve a la de sql/153 (correrla de nuevo). Las columnas de juicio quedan (nullable, nadie más
+-- las lee): borrarlas sería DDL que borra datos.
+-- \i sql/153_wa_eval_semanal_haiku.sql   (sólo la parte de wa_eval_tick)

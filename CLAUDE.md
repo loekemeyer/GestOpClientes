@@ -443,6 +443,8 @@ sobre un estimativo de unos US$ 0,03 por corrida):** el cron `lk_eval-semanal-ha
 `origen = 'multipaso'` con `claude-haiku-5-5` **sin pedir el "sí" cada semana**. Tope: 8 casos con 2 reintentos, unos US$ 0,09 en el peor caso. No
 toca `llm_modelo_pruebas`: el modelo va en `body.modelo_eval` y el Simulador sólo lo acepta desde el cron y si está en `MODELOS_EVAL_PAGOS`
 (`_shared/modelos-prueba.ts`). **Cubre sólo esa corrida**: sumar casos, otro modelo u otra frecuencia vuelve a la regla de arriba (estimativo + "sí").
+Cubre también el **juez** de esa corrida (`lk_eval-juez`, sql/157, Pablo 15/10: *"Sí, armá el juez automático con Haiku"*): una llamada
+a Haiku por caso, unos US$ 0,01 por corrida.
 ## Reglas
 
 - NUNCA hardcodear anon key ni service role key en el código fuente
