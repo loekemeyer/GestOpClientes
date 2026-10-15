@@ -233,6 +233,11 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   primer reporte con datos reales viernes 23/10 (cierre del piloto).
 - **Ok cuando:** el reporte del 23/10 sale de la vista, no de contar a mano, y cada derivada de la semana tiene su
   salida (A, B, C, D o correcta).
+- **15/10 [Seguro]:** 1 y 3 hechos por otra sesión (`sql/146`, `sql/152`, tarjetas en Evaluación). El 2 quedó en el dashboard
+  y no en `lk_reporte-quincenal`, que es el reenvío del PDF de importación, no un reporte del bot. `sql/158` corrige lo que la
+  vista contaba mal: `derivada` sólo miraba `escalation`, así que el bot en pausa salía `sin_respuesta` y reclamos, entregas,
+  adjuntos e IA caída no contaban. Ahora usa la misma lista de motivos que la memoria de la charla (`hechos-charla.ts`).
+  Falta: tráfico real (hasta hoy son números de prueba) y la salida de cada derivada en la revisión diaria.
 
 ## 2. Orden y calendario (dentro del plan de producción, sin fechas nuevas)
 
