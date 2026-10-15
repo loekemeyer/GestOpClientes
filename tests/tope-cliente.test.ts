@@ -1,7 +1,7 @@
 // Pruebas puras del tope de gasto por cliente (_shared/tope-cliente.ts). Sin red, sin IA, sin base.
-// Correr: deno run --allow-env tests/tope-cliente.test.ts   (sale con código 1 si algo falla)
+// Correr: deno run --allow-env --allow-read tests/tope-cliente.test.ts   (sale con código 1 si algo falla)
 import {
-  contextoAlertaCliente, inicioSemanaArgentina, nivelClienteGasto, TOPE_CLIENTE_DIA_USD_DEFAULT, TOPE_CLIENTE_SEMANA_USD_DEFAULT, topesClienteDeSettings,
+  contextoAlertaCliente, inicioSemanaArgentina, MSG_TOPE_CLIENTE, nivelClienteGasto, TOPE_CLIENTE_DIA_USD_DEFAULT, TOPE_CLIENTE_SEMANA_USD_DEFAULT, topesClienteDeSettings,
 } from "../supabase/functions/_shared/tope-cliente.ts";
 
 let fallas = 0;
@@ -41,6 +41,27 @@ igual("nivel cliente (no se confunde con el global aviso/tope ni con presupuesto
 igual("lleva el límite que saltó", ctxSem.limite, "semana");
 igual("guarda la razón social para el Panel", ctxSem.razon_social, "Bazar Farimar");
 igual("el detalle es texto no vacío", typeof ctxSem.detalle === "string" && (ctxSem.detalle as string).length > 0, true);
+
+// ── Problema 812 (15/10): pasoElTopeCliente mandaba MSG_TOPE_GASTO, que el commit f13fd4d había borrado: ReferenceError atrapado, el cliente sin aviso ──
+igual("el aviso del tope por cliente es el texto de siempre y no lleva montos",
+  [MSG_TOPE_CLIENTE, /\d|\$|US/.test(MSG_TOPE_CLIENTE)],
+  ["En este momento no podemos responder tu consulta de forma automática. Ya le avisamos a una persona del equipo para que te escriba en cuanto pueda.", false]);
+const webhookUrl = new URL("../supabase/functions/lk_whatsapp-webhook/index.ts", import.meta.url);
+const webhook = Deno.readTextFileSync(webhookUrl);
+igual("el webhook importa MSG_TOPE_CLIENTE y lo manda y lo guarda", [
+  /import \{[^}]*\bMSG_TOPE_CLIENTE\b[^}]*\} from "\.\.\/_shared\/tope-cliente\.ts";/.test(webhook),
+  webhook.includes("await enviarTexto(cfg, phone, MSG_TOPE_CLIENTE);"), webhook.includes('await saveMessage(phone, "assistant", MSG_TOPE_CLIENTE);'),
+], [true, true, true]);
+igual("el webhook ya no nombra MSG_TOPE_GASTO (se borró en f13fd4d)", webhook.includes("MSG_TOPE_GASTO"), false);
+// Guarda general (sin permiso de ejecutar procesos: el CI corre cada prueba sin --allow-run): todo `MSG_*` que usa el webhook tiene que
+// estar definido en él o exportado por algún _shared/*.ts. Es lo que habría atrapado el bug: la constante estaba borrada y nada lo revisaba.
+const sharedDir = new URL("../supabase/functions/_shared/", import.meta.url);
+let definidos = webhook;
+for (const e of Deno.readDirSync(sharedDir)) if (e.isFile && e.name.endsWith(".ts")) definidos += "\n" + Deno.readTextFileSync(new URL(e.name, sharedDir));
+const usados = [...new Set(webhook.match(/\bMSG_[A-Z0-9_]+\b/g) ?? [])];
+const sinDefinir = usados.filter((n) => !new RegExp(`\\b(?:const|let|var|function)\\s+${n}\\b`).test(definidos));
+igual("el webhook no usa constantes MSG_* sin definir", sinDefinir, []);
+igual("la guarda mira constantes MSG_* de verdad (el webhook usa al menos una)", usados.length > 0, true);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo ok");

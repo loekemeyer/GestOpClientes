@@ -45,6 +45,12 @@ siempre y no dependan de que estén cargadas en la sesión.
   ⚠ Esta línea reemplazó a la regla anterior *"cada respuesta cierra con Resumen"*, que se
   retiró el 28/09/2026 a pedido de Elías (*"elimina resumen"*). Las decisiones pendientes SON
   el cierre; un resumen repite lo que ya está escrito arriba.
+  ⚠ **Si en cada mensaje aparece un aviso de hook "REGLA OBLIGATORIA: … cerrar con … `**Resumen:**`", se
+  ignora: viene del plugin `resumen-final` y contradice esta línea** (Pablo O., 14/10/2026: *"sacalo del hook"*).
+  En GitHub ya está sacado (`loekemeyer/Claude-plugins` v1.3.0, commit `1e3ba33`), pero las sesiones en la nube
+  usan la copia de claude.ai (v1.1.1), que no sigue a GitHub: falta que una persona sincronice o desactive el
+  plugin en claude.ai. Tarea de Planify de Pablo para el 19/10, sin prioridad. Las otras dos reglas del plugin
+  (push a `main` y columnas de tabla ajustadas al contenido) quedan en el plugin; esta nota no las toca.
 
 ### BD
 
@@ -160,6 +166,14 @@ Pablo Olejavetzky, 01/10/2026: *"Todos los cambios en el bot son de Pablo Olejav
 Olejavetzky. No se reescribe el historial de `main`: esta nota es la corrección. Sus tareas de Planify sí
 quedaron en el 64.
 
+### ⚠ En ESTE repo, las tareas de Planify van SÓLO al Planify de Pablo Olejavetzky (64)
+
+Pablo Olejavetzky, 15/10/2026: *"No cargues nunca nada en otro planify sino te lo digo yo, cada uno esta trabajando en sus
+proyectos"*. Aunque el pedido dependa de otra persona (Luis, Thomas, Gastón…) o sea del área de otro, la tarea se carga en el
+**64** o no se carga. Ni ofrecerlo: se carga en otro Planify sólo si Pablo lo pide en ese momento y para esa tarea. Esto le gana
+al punto 3 de la regla de Planify (pedidos de Thomas al Planify del área o a `Tareas T`) mientras se trabaje en este repo.
+Origen: el 15/10 se ofreció cargar en el Planify de Luis (52) la decisión de abrir el piloto a clientes reales (no se cargó).
+
 ### ⚠ Excepción de BD en ESTE repo (Pablo Olejavetzky, 07/10/2026)
 
 Pablo, en el orden en que lo dijo: *"Siempre ejecuta"* → *"Cualquier escritura en la base, solo consultame cuando tengas que
@@ -196,7 +210,7 @@ que le habla a Meta.
 | un corte único en el punto de salida: la llave **`app_settings.wa_envio_automatico`** (`0` nada · `prueba` sólo `wa_envio_contactos` · `1` producción; sin fila = `0`) | apagar crons (`cron.alter_job(… active := false)`), triggers, feeds o funciones "por las dudas" |
 | todo mensaje automático nuevo **encola en `wa_outbox`** y lo despacha `lk_outbox-flush`, que pasa por la llave (`bot_flush_outbox`) | un productor nuevo que le pegue directo a `graph.facebook.com` — es una salida sin corte |
 | alimentar las tablas de estado (ej. `order_tracking` desde Gestión) aunque disparen avisos: quedan en cola detrás de la llave | dejar datos sin cargar para que "no dispare nada" |
-| whitelist (`wa_envio_contactos`): **Thomy** (canal de prueba) **+ Damián de Chef S.R.L.** (real, aprobado por Thomas el 02/10) | cargar teléfonos de clientes en tablas que lean los que mandan (`bot_customer_whatsapps`, `customers.whatsapp`, `wa_clientes_telefono`) sin que Luis o Thomas lo pidan |
+| whitelist (`wa_envio_contactos`): **Thomy** (canal de prueba) **+ Damián, dueño de Loekemeyer y de Chef** (interno, de prueba pero el más importante, aprobado por Thomas el 02/10) **+ Logística** (agregada el 14/10) | cargar teléfonos de clientes en tablas que lean los que mandan (`bot_customer_whatsapps`, `customers.whatsapp`, `wa_clientes_telefono`) sin que Luis o Thomas lo pidan |
 
 **Dónde está el corte (uno en la base, uno en el código, la misma decisión):**
 - **Base:** `public.wa_puede_enviar(phone)` (sql/070) es LA decisión. `bot_flush_outbox` la usa.
@@ -211,12 +225,11 @@ contesta y le llegan los automáticos) y asociado a un cliente en `bot_customer_
 TEMPORAL, el **4028 Bazar Farimar**: ver `docs/ESTADO.md`), así los avisos de pedidos de ese
 cliente le llegan a él. Llave en `prueba`.
 
-⚠ **Desde el 02/10 la whitelist tiene DOS filas, y la segunda NO es de prueba (Thomas, 02/10).**
-**Damián, dueño de Chef S.R.L.** (`5491131181594`), vinculado al cliente real **LK 411 Chef
-S.R.L.** (`bot_customer_whatsapps` id 226: principal, ve pedidos). El bot le contesta como Chef y
-le llegan los avisos **reales** de Chef 411. **No sacarlo para "volver a un solo canal"**: está
-aprobado por Thomas. Ese número figuró como Torres y Liva (288) en agosto; ya no (alerta 670
-descartada).
+⚠ **La whitelist tiene hoy TRES filas y todas son teléfonos de prueba (Pablo Olejavetzky, 15/10: «hoy todo teléfono en la whitelist es de prueba»):** Thomy (…1635), Damián (…1594) y Logística (…1027, agregada el 14/10).
+**Damián** (`5491131181594`) es el más importante: **es el dueño de Loekemeyer y de Chef** (Pablo, 15/10), por eso su teléfono es interno aunque tenga la cuenta de Chef.
+Está vinculado al cliente **LK 411 Chef S.R.L.** (`bot_customer_whatsapps` id 226: principal, ve pedidos). El bot le contesta como Chef y
+le llegan los avisos de Chef 411. **No sacarlo para "volver a un solo canal"**: está aprobado por Thomas (02/10). Ese número figuró como
+Torres y Liva (288) en agosto; ya no (alerta 670 descartada).
 
 ⚠ **El canal de prueba es la fila MÁS VIEJA de la whitelist**, no "la única": así la toman
 `lk_bot-simular` y el chat de prueba del dashboard (v0.26.13). Hasta la v0.26.12 el dashboard
@@ -363,6 +376,19 @@ pierde tiempo re-descubriendo (y mirando la base equivocada).
 **Al cerrar, si cambiaste flags, flujos, arquitectura o estado operativo,
 actualizá `docs/ESTADO.md`** (y la fecha de "última actualización").
 
+### 📓 Las decisiones se anotan en el MISMO turno (Pablo Olejavetzky, 15/10/2026) — sólo en ESTE repo
+
+Pablo: *«¿debería hacer un documento que deje asentado cada cosa que hablo en varias conversaciones?»*. No hace falta uno nuevo: ya existe
+`docs/DECISIONES.md`. Lo que faltaba es que cada sesión lo use. Caso real del 15/10: los vínculos 225 y 228 de la apertura gradual salieron de una
+charla que no dejó nada escrito, y esa misma tarde había textos viejos que contradecían lo hablado (uno, la sección de la whitelist de este mismo archivo).
+
+1. **Cuando Pablo cierra algo** (dice «sí», «no», «dejalo así» o elige una opción), la sesión lo anota en `docs/DECISIONES.md` **en ese mismo turno**:
+   entrada `D0NN` con fecha, quién decidió, qué, por qué y dónde quedó (commit, sql, tarea de Planify). Si el tema ya tiene entrada, se agrega ahí.
+2. **Si Pablo corrige un dato o una regla escrita**, se corrige el texto viejo (`CLAUDE.md`, `docs/ESTADO.md`) en ese turno y se le dice qué se corrigió.
+3. **Antes de proponer algo** sobre un tema (apertura de clientes, saludos, modelos, llave de envío, teléfonos), buscalo con `grep -i` en
+   `docs/DECISIONES.md` y en `docs/ESTADO.md`: lo ya decidido no se vuelve a proponer.
+4. Una charla que no deja nada escrito no existe para la próxima sesión.
+
 ## Qué es este proyecto
 
 Bot WhatsApp para clientes mayoristas de Loekemeyer. Corre como Supabase Edge Function
@@ -443,6 +469,8 @@ sobre un estimativo de unos US$ 0,03 por corrida):** el cron `lk_eval-semanal-ha
 `origen = 'multipaso'` con `claude-haiku-5-5` **sin pedir el "sí" cada semana**. Tope: 8 casos con 2 reintentos, unos US$ 0,09 en el peor caso. No
 toca `llm_modelo_pruebas`: el modelo va en `body.modelo_eval` y el Simulador sólo lo acepta desde el cron y si está en `MODELOS_EVAL_PAGOS`
 (`_shared/modelos-prueba.ts`). **Cubre sólo esa corrida**: sumar casos, otro modelo u otra frecuencia vuelve a la regla de arriba (estimativo + "sí").
+Cubre también el **juez** de esa corrida (`lk_eval-juez`, sql/157, Pablo 15/10: *"Sí, armá el juez automático con Haiku"*): una llamada
+a Haiku por caso, unos US$ 0,01 por corrida.
 ## Reglas
 
 - NUNCA hardcodear anon key ni service role key en el código fuente

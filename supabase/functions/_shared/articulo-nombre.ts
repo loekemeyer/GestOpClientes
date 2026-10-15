@@ -16,6 +16,19 @@ const PALABRAS_DE_LA_PREGUNTA = new Set([
   "día", "dias", "días", "tarde", "tardes", "noche", "noches", "gracias", "refiero", "referis", "referís", "es", "son", "el", "la", "los", "las", "un", "una", "unos",
   "unas", "de", "del", "al", "a", "en", "y", "o", "con", "para", "queda", "quedan", "quedaron", "todavia", "todavía", "articulo", "artículo", "producto", "codigo", "código",
   "numero", "número", "mas", "más", "actual", "actualizado", "sin", "iva", "unidad", "caja", "cajas", "unidades",
+  // Pedidos de "mandame la lista" (Pablo, 15/10: «Me podes mandar la lista de precios?» iba a la IA y contestaba «No tengo una lista de precios»): los verbos de pedir,
+  // mandar y avisar, los modales de cortesía y los pronombres no nombran un artículo. Sólo palabras enteras: «mandolina» o «envasador» siguen siendo artículos.
+  "podes", "podés", "puede", "pueden", "podria", "podría", "podrias", "podrías", "podrian", "podrían", "podemos", "mandar", "mandas", "mandás", "mandame", "mandanos", "mandanme",
+  "mándame", "mandeme", "mándeme", "enviar", "envias", "enviás", "enviame", "enviarme", "enviarnos", "envíame", "envieme", "envíeme", "pasarme", "pasarnos", "pasarle", "pasarlo",
+  "pasenme", "pásenme", "compartir", "compartime", "compartis", "compartís", "dame", "darme", "darnos", "dar", "daria", "daría", "darias", "darías", "decir", "decirle", "decirme", "decirnos",
+  "avisame", "avisar", "avisarme", "avisen", "informame", "informar", "informarme", "informan", "confirmame", "confirmar", "confirmarme", "solicito", "solicitar", "pido", "pedir",
+  "pediria", "pediría", "necesitaria", "necesitaría", "necesitamos", "quisieramos", "quisiéramos", "gustaria", "gustaría", "tengas", "tengan", "tendras", "tendrás", "tendran",
+  "tendrán", "tendria", "tendría", "manejan", "manejas", "manejás", "ofrecen", "ofreces", "ofrecés", "venden", "vendes", "vendés", "ayuda", "ayudar", "ayudame", "ayudarme",
+  "disculpa", "disculpame", "perdon", "perdón", "urgente", "ahora", "hoy", "tengo", "tenemos", "todos", "todo", "toda", "todas", "algun", "algún", "alguna", "algunos", "algunas",
+  "esto", "eso", "ese", "esa", "esos", "esas", "este", "esta", "estos", "estas", "otro", "otra", "otros", "otras", "mismo", "misma", "puntual", "puntuales", "solo", "sólo",
+  "solamente", "tambien", "también", "ademas", "además", "mis", "tus", "sus", "mio", "mío", "nuestro", "nuestra", "ver", "mirar", "tener",
+  "cuando", "cuándo", "donde", "dónde", "como", "cómo", "porque", "pero", "desde", "hasta", "entre", "sobre", "pasan", "pasen", "pasaron", "manden", "mandan", "envien", "envíen",
+  "envian", "envían",
 ]);
 
 /** true si, sacadas las palabras de la pregunta, queda alguna palabra de 4 letras o más que no sea un número (un código ya se busca aparte). */
@@ -46,7 +59,7 @@ export function raizDeBusqueda(palabra: string): string {
 // Los tiempos del verbo cuentan: wa_faq_match engancha "cuánto salió", "cuanto salio el 505" y "cuánto saldría" con la FAQ #11 por el rescate difuso (puntaje 1,001), así que
 // "¿cuánto salió el pelador de mi último pedido?" (Simulador, 14/10) recibía el link de la lista. Con "me" o "nos" en el medio ("cuánto me salió") la FAQ no puntúa, pero se acepta igual.
 const RE_PIDE_PRECIO = /(?<![a-záéíóúüñ])(?:cu[aá]nto\s+(?:me\s+|nos\s+)?(?:sal(?:e|en|i[oó]|ieron|dr[ií]a|dr[ií]an)|va(?:n)?\s+a\s+salir|cuest(?:a|an)|cost[oó]|costaron|val(?:e|en|[ií]a|[ií]an))|precios?)(?![a-záéíóúüñ])/i;
-const RE_PALABRAS_DE_LISTA = /(?<![a-záéíóúüñ])(?:listas?|cotizador|cotizaci[oó]n(?:es)?|cat[aá]logos?|p[aá]ginas?|web|vigentes?|actualizad[ao]s?|nuev[ao]s?|complet[ao]s?|[uú]ltim[ao]s?|novedades|productos|art[ií]culos|mercader[ií]a|chef|loekemeyer|pdf|excel|sigue|siguen|hubo|aumentos?|aumentaron|subieron|cambiaron|actualizaron|sali[oó]|salieron|saldr[ií]an?|cost[oó]|costaron|val[ií]an?)(?![a-záéíóúüñ])/gi;
+const RE_PALABRAS_DE_LISTA = /(?<![a-záéíóúüñ])(?:listas?|listados?|tarifas?|planillas?|cotizador|cotizaci[oó]n(?:es)?|cat[aá]logos?|p[aá]ginas?|web|vigentes?|actualizad[ao]s?|nuev[ao]s?|complet[ao]s?|[uú]ltim[ao]s?|novedades|productos|art[ií]culos|mercader[ií]a|chef|loekemeyer|pdf|excel|sigue|siguen|hubo|aumentos?|aumentaron|subieron|cambiaron|actualizaron|sali[oó]|salieron|saldr[ií]an?|cost[oó]|costaron|val[ií]an?)(?![a-záéíóúüñ])/gi;
 // Igual que articuloDeLaFrase (faq.ts): 3 a 5 caracteres, con una letra al final a lo sumo. Un año (2026) no es un código: ningún artículo de LK empieza con 19 o 20 y tiene 4 dígitos.
 const RE_CODIGO_DE_ARTICULO = /(?<![a-z0-9])(?!(?:19|20)\d\d(?![a-z0-9]))\d{3,5}[a-z]?(?![a-z0-9])/i;
 
@@ -56,4 +69,14 @@ export function preguntaPrecioDeArticulo(mensaje: string): boolean {
   if (!RE_PIDE_PRECIO.test(m)) return false;
   const sinLista = m.replace(RE_PALABRAS_DE_LISTA, " ");
   return RE_CODIGO_DE_ARTICULO.test(sinLista) || hayNombreDeArticulo(sinLista);
+}
+
+/** Pablo Olejavetzky, 15/10/2026 (tanda de pruebas, mensaje 9): «y los precios?», dicho justo después de pedir precio y fotos de los pelapapas, recibió el enlace a la web
+ *  (FAQ #11) porque la respuesta fija decide sólo por el texto del mensaje y «y los precios?» no nombra nada ni pide una lista. true si pide un precio sin nombrar un artículo
+ *  (ni su código) y sin palabras de un pedido de LISTA (lista, catálogo, web, vigente…): «y los precios?», «¿y el precio?», «¿cuánto sale?». Sola no alcanza para derivar a la IA:
+ *  decidirCapaFija (faq.ts) también mira que en la charla reciente se haya hablado de artículos. */
+export function preguntaPrecioSinReferencia(mensaje: string): boolean {
+  const m = mensaje ?? "";
+  if (!RE_PIDE_PRECIO.test(m) || m.search(RE_PALABRAS_DE_LISTA) >= 0) return false;
+  return !preguntaPrecioDeArticulo(m);
 }

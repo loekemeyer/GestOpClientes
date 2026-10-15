@@ -20,11 +20,11 @@ import { avisaFacturaPorMail, PREGUNTA_MAIL_FACTURAS } from "./mail-facturas.ts"
 import { claseNombrada, derivacionExcel, pideExcel, PREGUNTA_EXCEL } from "./pasar-excel.ts";
 export { pideExcel };
 export { avisaFacturaPorMail };
-import { hayNombreDeArticulo, preguntaPrecioDeArticulo } from "./articulo-nombre.ts";
+import { hayNombreDeArticulo, preguntaPrecioDeArticulo, preguntaPrecioSinReferencia } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
 import { TEXTO_ACCESO_TAPADO, TEXTO_CLAVE_NO_AGENDADO } from "./clave-web.ts";
-import { mensajeCompuesto, pedidosDelMensaje, pistaDeParte, pistaRepetida, RE_CANTIDAD_CON_UNIDAD, yaLoDijo } from "./mensaje-compuesto.ts";
+import { mensajeCompuesto, pedidosDelMensaje, pistaDeParte, pistaPrecioConContexto, pistaRepetida, RE_CANTIDAD_CON_UNIDAD, recientesHablanDeArticulos, yaLoDijo } from "./mensaje-compuesto.ts";
 import { preguntaQueEs, TEXTO_PRESENTACION } from "./presentacion.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -534,6 +534,12 @@ export async function pistasDeLaCapaFija(text: string, customer: NonNullable<Cus
 export async function decidirCapaFija(text: string, customer: Customer, faq: FaqResult | null, recientes: string[]):
   Promise<{ faq: FaqResult | null; pistas: string[]; documentos: Documento[] }> {
   if (!customer) return { faq, pistas: [], documentos: [] };
+  // Pablo, 15/10 (tanda de pruebas, mensaje 9): «y los precios?» después de hablar de artículos (pidió precio y fotos de los pelapapas) recibió el enlace a la lista de precios (#11).
+  // Un pedido de precio sin artículo ni palabras de lista, con artículos en la charla de los últimos MINUTOS_SIN_REPETIR minutos, lo contesta el agente (lee el historial) con la
+  // respuesta fija como pista. Sin charla previa (o sin artículos en ella) sigue saliendo la respuesta fija. Va antes del chequeo de repetidas: esa pista no dice a qué precio se refiere.
+  if (faq && !faq.conClave && faq.topic === "consultar_precios" && preguntaPrecioSinReferencia(text) && recientesHablanDeArticulos(recientes)) {
+    return { faq: null, pistas: [pistaPrecioConContexto(text, faq.reply)], documentos: [] };
+  }
   if (faq && !faq.conClave && yaLoDijo(faq.reply, recientes)) return { faq: null, pistas: [pistaRepetida(faq.reply)], documentos: [] };
   // Pablo, 14/10: estado/fecha de pedido migra a IA — el dato exacto del lookup va como pista y el agente redacta (migración capa fija → IA).
   if (faq?.comoPista && !faq.conClave) {
@@ -816,6 +822,9 @@ async function pedidosDuplicados(customer: NonNullable<Customer>): Promise<{ can
   return null;
 }
 
+/** Pablo, 15/10 (tanda de pruebas, mensaje 1): las respuestas de estado de pedidos ya no empiezan con la razón social, así que el título («este es tu pedido…») pasa a ser el inicio de la frase. */
+const conMayuscula = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
 async function destinoPedidos(customer: NonNullable<Customer>): Promise<string | null> {
   const { data: crudos } = await supabase.from("orders").select("id, created_at, total").eq("customer_id", customer.id)
     .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString()).order("created_at", { ascending: false }).limit(10);
@@ -896,7 +905,7 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
   if (!orders?.length) {
     if (opts.plazo) return null;
     // Pedidos por WhatsApp apagados (28/09): se lo manda a la web, no "decime".
-    return `${customer.business_name}, no tenés pedidos recientes (últimos 90 días). Si querés hacer uno, entrá a loekemeyer.com → "Pedidos Mayorista".`;
+    return `No tenés pedidos recientes (últimos 90 días). Si querés hacer uno, entrá a loekemeyer.com → "Pedidos Mayorista".`;
   }
   // Estado real del pedido en Gestión Virgilio (RPC bot_estado_pedidos_gv, sql/066). Para
   // los pedidos anteriores a Gestión cae sola a order_tracking. Antes se leía order_tracking
@@ -952,7 +961,7 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     const m = modoOf(o);
     const cuando = t?.fecha_entrega ? ` el ${conDia(t.fecha_entrega)}` : "";
     const donde = m.modo === "expreso" ? ` en el expreso *${m.expreso}*` : "";
-    return `${customer.business_name}, todos tus pedidos están entregados. El último, del ${ddmm(o.created_at)}, se entregó${donde}${cuando}.${m.modo === "expreso" ? notaExpresoTxt : ""}\n\n${cierre}`;
+    return `Todos tus pedidos están entregados. El último, del ${ddmm(o.created_at)}, se entregó${donde}${cuando}.${m.modo === "expreso" ? notaExpresoTxt : ""}\n\n${cierre}`;
   }
 
   const estimada = new Map<string, string>();
@@ -994,7 +1003,7 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     : (tituloPorRetiro(visibles.map((o) => modoOf(o).modo === "retira"), unoSolo)
       ?? (unoSolo ? "este es tu pedido que falta entregar" : "estos son tus pedidos que faltan entregar"));
   const resto = hayOcultos ? "Los demás pedidos ya están entregados. " : "";
-  return `${customer.business_name}, ${titulo}:\n\n${lines.join("\n")}${notaExpreso}\n\n${resto}${cierre}`;
+  return `${conMayuscula(titulo)}:\n\n${lines.join("\n")}${notaExpreso}\n\n${resto}${cierre}`;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -1026,7 +1035,7 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
     const cuerpo = facturasBlock.replace("*Tus facturas abiertas:*\n", "");
     const m = cuerpo.match(/\n\n(Tenés además [^\n]+)$/);
     const ultima = m ? cuerpo.slice(0, m.index) : cuerpo;
-    return `${customer.business_name}, tu última factura:\n${ultima}\n\nTu descuento por volumen (${volumeDiscount}%) ya viene en los precios. ` +
+    return `Tu última factura:\n${ultima}\n\nTu descuento por volumen (${volumeDiscount}%) ya viene en los precios. ` +
       `El de pago no figura en la factura: se te reconoce cuando pagás, según los días que pasaron.${m ? `\n\n${m[1]}` : ""}${extraChef}`;
   }
 
@@ -1045,7 +1054,7 @@ async function lookupCustomerDiscount(customer: NonNullable<Customer>, faq?: any
   }
   const pago = pagoBlock ? `\n💰 *Por pago*, contando desde la fecha de la factura:\n${pagoBlock}` : "";
   const fac = facturasBlock ? `\n\n${facturasBlock}` : "";
-  return `${customer.business_name}, tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}% (ya incluido en tus precios de la web)\n💻 *Por compra web*: 2% adicional${pago}${fac}\n\nLa factura sale con el total lleno: el descuento por pago se te reconoce cuando pagás, según los días que pasaron.${extraChef}`;
+  return `Tus descuentos son:\n📦 *Por volumen*: ${volumeDiscount}% (ya incluido en tus precios de la web)\n💻 *Por compra web*: 2% adicional${pago}${fac}\n\nLa factura sale con el total lleno: el descuento por pago se te reconoce cuando pagás, según los días que pasaron.${extraChef}`;
 }
 
 // Facturas abiertas del cliente con las fechas REALES de cada descuento (Pablo, 30/09: "si ya tiene una factura

@@ -34,6 +34,7 @@ import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from 
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { palabraDeBusqueda, raizDeBusqueda } from "./articulo-nombre.ts";
 import { detalleDePedido, type FilaDetallePedido, importesDelTotal } from "./importes-pedido.ts";
+import { imagenEnviable } from "./imagen-enviable.ts";   // 15/10: no se manda una foto que Meta va a rechazar (JPEG CMYK)
 import { REGLA_NO_DISPONIBLE } from "./inactivos.ts";
 import {
   callModel,
@@ -356,7 +357,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "enviar_fotos_producto",
     description:
-      "Envía por WhatsApp una foto de uno o varios productos (hasta 10), una por producto. Pasá los códigos de los que querés mostrar. Usala cuando el cliente pide ver las fotos de los artículos que le ofreciste (ej: buscó 'pelapapas' sin código, le mostraste varias opciones y pide las fotos): mandá los códigos de todos los que le ofreciste.",
+      "Envía por WhatsApp una foto de uno o varios productos (hasta 10), una por producto. Pasá los códigos de los que querés mostrar. Usala cuando el cliente pide ver las fotos de los artículos que le ofreciste (ej: buscó 'pelapapas' sin código, le mostraste varias opciones y pide las fotos): mandá los códigos de todos los que le ofreciste. Si el cliente también pidió los precios, dáselos en el texto de la respuesta (uno por artículo, de buscar_productos): las fotos no llevan el precio.",
     input_schema: {
       type: "object",
       properties: {
@@ -972,17 +973,18 @@ async function executeTool(
       }
       // deno-lint-ignore no-explicit-any
       let rows = data as any[];
+      // Rasgos visuales por producto (color/material) que sacó la visión del catálogo (wa_producto_atributos, Fase B).
+      // Sirven para DOS cosas: filtrar por atributo y DEVOLVERLE el color al agente, así no lo inventa (ej. "colores surtidos").
+      const codsAll = rows.map((r) => String(r.cod));
+      const { data: atrs } = await supabase.from("wa_producto_atributos").select("cod, atributos_texto, datos").in("cod", codsAll);
+      // deno-lint-ignore no-explicit-any
+      const mapaAtr = new Map((atrs ?? []).map((a: any) => [String(a.cod), a]));
       // Fase B: filtro por rasgo visual. Deja sólo los productos cuyo atributos_texto (+ descripción/subcategoría)
-      // contiene TODOS los términos pedidos. Si ninguno coincide, se le dice al agente para que ofrezca lo que hay.
+      // contiene TODOS los términos pedidos, por PALABRA entera (no substring: "madera" no matchea "espumadera";
+      // un atributo multi-palabra como "acero inoxidable" exige todas sus palabras). Si ninguno coincide, se le dice al agente.
       if (atributos.length) {
-        const cods = rows.map((r) => String(r.cod));
-        const { data: atrs } = await supabase.from("wa_producto_atributos").select("cod, atributos_texto").in("cod", cods);
-        // deno-lint-ignore no-explicit-any
-        const mapa = new Map((atrs ?? []).map((a: any) => [String(a.cod), String(a.atributos_texto ?? "")]));
         const conFiltro = rows.filter((r) => {
-          const texto = `${mapa.get(String(r.cod)) ?? ""} ${r.description ?? ""} ${r.subcategory ?? ""}`.toLowerCase();
-          // Match por PALABRA entera, no substring: "madera" no debe matchear "espumadera". Un atributo
-          // multi-palabra ("acero inoxidable") exige todas sus palabras presentes.
+          const texto = `${String(mapaAtr.get(String(r.cod))?.atributos_texto ?? "")} ${r.description ?? ""} ${r.subcategory ?? ""}`.toLowerCase();
           const palabras = new Set(texto.split(/[^0-9a-záéíóúüñ]+/i).filter(Boolean));
           return atributos.every((a) => a.split(/\s+/).filter(Boolean).every((w) => palabras.has(w)));
         });
@@ -1002,11 +1004,18 @@ async function executeTool(
       const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
       const dto = Number(cli?.[0]?.cod_cliente) === 5000 ? 0 : Number(cli?.[0]?.dto_vol ?? 0);
       // deno-lint-ignore no-explicit-any
-      const res = (rows as any[]).map(({ list_price, uxb, ...r }, i) => ({ ...r, unidades_por_caja: uxb, ...(fotos[i] ? { foto: fotos[i] } : {}),
-        precio_lista_por_unidad: Math.round(Number(list_price || 0)),
-        precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
-        ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
-          descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) }));
+      const res = (rows as any[]).map(({ list_price, uxb, ...r }, i) => {
+        // color/material de la visión (campo que el agente usa tal cual; cada código es de UN color, el de su foto).
+        const d = (mapaAtr.get(String(r.cod))?.datos ?? {}) as Record<string, unknown>;
+        const color = Array.isArray(d.colores) ? (d.colores as unknown[]).filter((x) => typeof x === "string").join(", ") : "";
+        const material = typeof d.material === "string" ? d.material : "";
+        return { ...r, unidades_por_caja: uxb, ...(fotos[i] ? { foto: fotos[i] } : {}),
+          ...(color ? { color } : {}), ...(material ? { material } : {}),
+          precio_lista_por_unidad: Math.round(Number(list_price || 0)),
+          precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
+          ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
+            descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) };
+      });
       return { data: inactivos.length ? { productos: res, no_disponibles: inactivos, regla: REGLA_NO_DISPONIBLE } : res };
     }
 
@@ -1102,19 +1111,30 @@ async function executeTool(
       }
       const resultados = await Promise.all(cods.map((c) =>
         supabase.rpc("bot_obtener_imagenes_producto", { p_cod: c }).then((r) => ({ c, data: r.data }))));
-      const medias: MediaAction[] = [];
+      const candidatas: Array<{ c: string; url: string; caption: string }> = [];
       const sinFoto: string[] = [];
       for (const { c, data } of resultados) {
         const prod = data?.[0];
         const url: string | undefined = prod?.image_urls?.[0];
-        if (url) medias.push({ type: "image" as const, url, caption: `${prod.cod} — ${prod.description}` });
+        if (url) candidatas.push({ c, url, caption: `${prod.cod} — ${prod.description}` });
         else sinFoto.push(c);
       }
+      // Pablo, 15/10: la foto del 599E es un JPEG CMYK y Meta la rechaza siempre (131053) después de aceptarla; el bot había dicho que mandó las 10.
+      // Se mira el encabezado de cada foto antes de mandarla: la que Meta no va a aceptar queda en sin_foto y el agente se lo dice al cliente.
+      const veredictos = await Promise.all(candidatas.map((x) => imagenEnviable(x.url)));
+      const medias: MediaAction[] = [];
+      candidatas.forEach((x, k) => {
+        if (veredictos[k].ok) medias.push({ type: "image" as const, url: x.url, caption: x.caption });
+        else { sinFoto.push(x.c); console.warn(`[fotos] ${x.c} no se manda: ${veredictos[k].motivo}`); }
+      });
       if (!medias.length) {
-        return { data: { error: "Ninguno de esos productos tiene fotos cargadas." } };
+        return { data: { error: "Ninguno de esos productos tiene fotos que se puedan mandar por WhatsApp.", sin_foto: sinFoto } };
       }
       return {
-        data: { cantidad_fotos: medias.length, sin_foto: sinFoto },
+        data: {
+          cantidad_fotos: medias.length, sin_foto: sinFoto,
+          ...(sinFoto.length ? { nota: "De los códigos de sin_foto no se pudo mandar foto: decile al cliente cuáles son, sin explicar el motivo técnico." } : {}),
+        },
         media: medias,
       };
     }
@@ -1653,7 +1673,9 @@ export async function runConversation(
   // Pablo, 08/10: lo que la capa fija contestaría a un mensaje compuesto o repetido (faq.ts decidirCapaFija). Va al final del prompt.
   // Pablo, 08/10: soloGratis (la corrida automática de evaluación, sql/133) descarta todo modelo que no sea is_free_tier, aunque alguien haya
   // dejado uno pago en llm_modelo_pruebas mientras el caso estaba en el Simulador.
-  opciones: { pistas?: string[]; soloGratis?: boolean; modeloEval?: string | null } = {},
+  // `degradado` (Pablo, 14/10): pasó el tope BLANDO de gasto diario (tope-gasto.ts, nivel `degradar`). El agente sigue, pero sólo con modelos
+  // gratis; si ninguno responde, Haiku 5.5 barato. Lo decide el webhook; el corte duro lo corta antes de llegar acá. No toca la toma de pedidos.
+  opciones: { pistas?: string[]; soloGratis?: boolean; modeloEval?: string | null; degradado?: boolean } = {},
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
@@ -1744,6 +1766,15 @@ export async function runConversation(
     }
     candidates.length = 0;
     candidates.push(...gratis);
+  }
+  // Tope de gasto degradado (Pablo, 14/10: «degradá, pero no cortes del todo» y «que no corte»). Pasó el tope: el agente sigue pero SÓLO con modelos
+  // gratis; si ninguno está disponible —el caso que quema el presupuesto, Gemini gratis caído— cae a Haiku 5.5 barato como último recurso (nunca a Sonnet).
+  // El agente NUNCA se corta por gasto; el webhook decide el nivel (`degradar`/`escalar`). No toca la toma de pedidos (turnoPedido va con su modelo fijo) ni las pruebas.
+  if (opciones.degradado && !soloPruebas && !turnoPedido) {
+    const gratis = soloModelosGratis(candidates);
+    candidates.length = 0;
+    if (gratis.length) candidates.push(...gratis);
+    else if (apiKey) candidates.push({ id: 0, provider: "anthropic", model: "claude-haiku-5-5", key: apiKey, isFreeTier: false });
   }
   if (!candidates.length) {
     await notificarHumano({ tipo: "llm_error", phone, contexto: { userText, error: "Sin modelos en la cadena ni ANTHROPIC_API_KEY" } });

@@ -181,6 +181,17 @@ async function whitelist(): Promise<string[]> {
   return (data ?? []).map((r: { phone: string }) => r.phone);
 }
 
+// ── Señal de despacho: pedidos que YA salieron (order_tracking.status='entregado', PaginaLK). ──
+// El aviso de factura se ancla en el despacho real, no en el impacto de la factura: así, si facturan
+// y después anulan por nota de crédito, todavía no se mandó nada. order_tracking.np_number = order_id.
+// Cubre LK y Chef (sql/158 habilitó Chef en el sync; wa_grupos_dia_cuit_v2 trae el order_id por factura).
+async function ordersEntregados(orderIds: Array<number | null>): Promise<Set<string>> {
+  const ids = Array.from(new Set(orderIds.filter((x): x is number => x != null).map(String)));
+  if (!ids.length) return new Set<string>();
+  const { data } = await paginalk.from("order_tracking").select("np_number").in("np_number", ids).eq("status", "entregado");
+  return new Set((data ?? []).map((r: { np_number: string }) => r.np_number));
+}
+
 // ── Combinación REAL por lista explícita de paths (grupos reales linkeados) ──
 // deno-lint-ignore no-explicit-any
 async function combinarPaths(g: any, source: string, paths: string[], outName: string) {
@@ -521,12 +532,23 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
     const totales = (gr.totales ?? []) as number[];
     const storagePaths = (gr.storage_paths ?? []) as string[];
     const comprobantes = (gr.comprobantes ?? []) as string[];
+    const orderIds = (gr.order_ids ?? []) as Array<number | null>;
     // Método por factura (alineado con totales/paths/comprobantes por comprobante_id).
     const metodosFac = (gr.metodos_fac ?? gr.metodos ?? []) as string[];
-    const facMin: FacMin[] = totales.map((t, i) => ({
-      total: Number(t || 0), metodo: metodosFac[i] || metodosFac[0] || "no_decidido",
-      storage_path: storagePaths[i] ?? null, comprobante_id: comprobantes[i] ?? null,
-    }));
+    // GATE DE DESPACHO: sólo entra la factura cuyo pedido ya salió (order_tracking.status='entregado').
+    // order_ids viene alineado por factura; null = NP sin pedido web (ISIS directo) → sin señal, no se manda.
+    // Idempotencia por conjunto que CRECE: a medida que más pedidos se entregan, el grupo suma facturas y
+    // se reenvía (wa_shadow_log compara n_facturas). Nunca manda una factura de algo que sigue en depósito.
+    const entregadas = await ordersEntregados(orderIds);
+    const facMin: Array<FacMin & { order_id: number | null }> = totales
+      .map((t, i) => ({
+        total: Number(t || 0), metodo: metodosFac[i] || metodosFac[0] || "no_decidido",
+        storage_path: storagePaths[i] ?? null, comprobante_id: comprobantes[i] ?? null,
+        order_id: orderIds[i] ?? null,
+      }))
+      .filter((f) => f.order_id != null && entregadas.has(String(f.order_id)));
+    // Nada despachado todavía → no se manda nada de este grupo (queda para el próximo barrido).
+    if (!facMin.length) { out.push({ empresa: gr.empresa, destino, skipped: "pendiente_despacho" }); continue; }
     // Excepción por cliente: fuerza el método (ignora la condición de venta / método mixto).
     const ov = metodoExcepcion(cfg, cuit, gr.razon_social);
     const subgrupos = planMetodos(facMin, cfg, ov);
@@ -678,6 +700,8 @@ serve(async (req) => {
       const pdf = await combinarPaths(g, srcUsado, sub.facturas.map((f) => f.storage_path).filter(Boolean) as string[], `${grupoKey}|${sub.metodo}`.replace(/[^0-9a-zA-Z]+/g, "_"));
       mensaje.pdf_combinado = pdf ? { path: pdf.path, n: pdf.n, ok: !!pdf.url } : null;
 
+      // Guardrail cruce de cliente (auditoría #808): la decisión vive en el corte único `_shared/wa-guard.ts` + `wa_puede_enviar_a`
+      // (sql/156); acá sólo hay que DECLARAR a qué cliente va el aviso, con `{ cuit }` en enviarWhatsapp (headersDestinatario).
       // ── Envío REAL por WhatsApp — SÓLO a números de la lista blanca (imperativo de seguridad) ──
       // Sin dest_phone (ej. Avisos automáticos) NUNCA se envía: queda en el módulo.
       let envio = null;

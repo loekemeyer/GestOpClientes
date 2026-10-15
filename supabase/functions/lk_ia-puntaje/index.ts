@@ -13,7 +13,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getSetting, supabase } from "../_shared/supabase.ts";
 import { requireAdmin } from "../_shared/admin-gate.ts";
-import { REGLAS_OPERATIVAS } from "../_shared/agente-fijos.ts";
+import { armarCharlaPrevia, pedidosWaParaFila, sistema } from "./juez.ts";
 import { extrasAnthropic, textoAnthropic } from "../_shared/anthropic-extras.ts";
 
 const CORS = {
@@ -42,27 +42,19 @@ async function esLlamadaInterna(req: Request): Promise<boolean> {
   return esperado.length > 0 && recibido === esperado;
 }
 
-const SISTEMA = `Sos un evaluador de calidad de un bot de WhatsApp de Loekemeyer Hnos (mayorista de artículos de cocina y bazar).
-Te paso la charla previa, el último mensaje del cliente, las herramientas que usó el bot con lo que devolvieron, y la respuesta del bot.
-Puntuá la RESPUESTA DEL BOT de 1 (muy mal) a 5 (perfecta) en 5 criterios:
-- correcta: los datos que da (fechas, importes, estados, stock, precios) coinciden con lo que devolvieron las herramientas; no inventa nada. Si no da datos, 5.
-- resolvio: contesta lo que el cliente preguntó o pidió (no otra cosa, no lo deja sin respuesta).
-- derivo: derivó a una persona cuando hacía falta (reclamo, pago que no coincide, cambio que no puede resolver, pidió una persona) y NO derivó lo que podía resolver solo. Si no hacía falta derivar y no derivó, 5.
-- reglas: respeta las reglas del bot que están abajo (no pide ni da número de pedido ni CUIT, no toma pedidos por WhatsApp, no manda a otro mail o teléfono, stock sin números, formato WhatsApp, etc.).
-- tono: breve, amable, claro, en español argentino, sin repetirse.
-Respondé SOLO un JSON: {"correcta":n,"resolvio":n,"derivo":n,"reglas":n,"tono":n,"comentario":"una frase: qué estuvo mal, o 'bien' si todo 4 o más"}
-
-Reglas del bot:
-${REGLAS_OPERATIVAS}`;
-
 // deno-lint-ignore no-explicit-any
-async function evaluarUna(fila: any, apiKey: string): Promise<{ ok: boolean; error?: string }> {
-  // Charla previa: los 6 mensajes anteriores de ese número (sin el turno evaluado).
+async function evaluarUna(fila: any, apiKey: string, cfgPedidos: any): Promise<{ ok: boolean; error?: string }> {
+  // Charla previa: los 6 mensajes anteriores de ese número (sin el turno evaluado), de bot_historial_chat (problema 819: antes se leía de
+  // wa_conversations, sin filas desde el 05/10).
   const tel10 = String(fila.phone ?? "").replace(/\D/g, "").slice(-10);
-  const { data: prev } = await supabase.from("wa_conversations").select("direction, body, created_at")
-    .like("phone", `%${tel10}`).lt("created_at", new Date(new Date(fila.created_at).getTime() - 60_000).toISOString())
-    .order("created_at", { ascending: false }).limit(6);
-  const charla = (prev ?? []).reverse().map((m) => `${m.direction === "in" ? "Cliente" : "Bot"}: ${String(m.body ?? "").slice(0, 500)}`).join("\n") || "(sin charla previa)";
+  let hist: Array<{ rol: string; contenido: string | null; creado_en: string }> = [];
+  if (tel10) {
+    const { data } = await supabase.from("bot_historial_chat").select("rol, contenido, creado_en")
+      .like("telefono", `%${tel10}`).lte("creado_en", new Date(new Date(fila.created_at).getTime() + 10_000).toISOString())
+      .order("creado_en", { ascending: false }).limit(30);
+    hist = data ?? [];
+  }
+  const charla = armarCharlaPrevia(hist, String(fila.pregunta ?? ""), fila.created_at);
   const herr = (Array.isArray(fila.herramientas) ? fila.herramientas : [])
     // deno-lint-ignore no-explicit-any
     .map((h: any) => `- ${h.nombre}(${JSON.stringify(h.input ?? {}).slice(0, 200)}) → ${String(h.resultado ?? "").slice(0, 1200)}`).join("\n") || "(no usó herramientas)";
@@ -71,7 +63,7 @@ async function evaluarUna(fila: any, apiKey: string): Promise<{ ok: boolean; err
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODELO, max_tokens: 300, system: SISTEMA, messages: [{ role: "user", content: usuario }], ...extrasAnthropic(MODELO) }),
+    body: JSON.stringify({ model: MODELO, max_tokens: 300, system: sistema(pedidosWaParaFila(cfgPedidos, fila.prueba === true)), messages: [{ role: "user", content: usuario }], ...extrasAnthropic(MODELO) }),
     signal: AbortSignal.timeout(25_000),
   });
   if (!res.ok) return { ok: false, error: `Anthropic ${res.status}: ${(await res.text()).slice(0, 200)}` };
@@ -109,12 +101,16 @@ serve(async (req) => {
     if (body.action === "evaluar") {
       const apiKey = (await getSetting("ANTHROPIC_API_KEY")) ?? Deno.env.get("ANTHROPIC_API_KEY") ?? "";
       if (!apiKey) return json({ ok: false, error: "Falta ANTHROPIC_API_KEY" }, 200);
+      // Problema 818: el juez usa las mismas reglas que el agente, y eso depende de wa_pedidos_cfg. Si no se puede leer no se evalúa nada
+      // (las filas quedan pendientes y sin gastar un intento): con las reglas equivocadas volverían las falsas alarmas.
+      const { data: cfgPedidos, error: errCfg } = await supabase.rpc("wa_pedidos_cfg");
+      if (errCfg || cfgPedidos == null) return json({ ok: false, error: "No se pudo leer wa_pedidos_cfg" }, 200);
       const { data: pend } = await supabase.from("wa_ia_puntajes").select("*")
         .is("evaluado_at", null).lt("intentos", 3).order("created_at", { ascending: true }).limit(POR_CORRIDA);
       let ok = 0; const errores: string[] = [];
       for (const f of pend ?? []) {
         let r: { ok: boolean; error?: string };
-        try { r = await evaluarUna(f, apiKey); } catch (e) { r = { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+        try { r = await evaluarUna(f, apiKey, cfgPedidos); } catch (e) { r = { ok: false, error: e instanceof Error ? e.message : String(e) }; }
         if (r.ok) ok++;
         else {
           errores.push(`${f.id}: ${r.error}`);
