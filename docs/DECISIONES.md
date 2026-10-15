@@ -687,4 +687,16 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 
 **Qué se hizo**: `_shared/compuerta-stock.ts`, cableado en `runConversation`, una sola vez por turno, hasta 4 artículos, fuera de la toma de pedidos. Marca `_compuerta: true` en el `input` para contarla. `tests/compuerta-stock.test.ts`. Auditoría 834, tarea 5976. Detalle y límites en la entrada del 15/10 de `docs/ESTADO.md`.
 
-**Lo que NO se decidió**: los precios traídos del historial de otro día («los otros artículos que me ofreciste») quedan como problema aparte en la auditoría, sin arreglo. Pedir el código cuando se podía mirar el stock de los candidatos es una observación sin decidir: PEDIDO SIN ERRORES (preguntar de más) y CONSULTÁ ANTES DE PREGUNTAR dicen cosas distintas para una consulta de stock. Tampoco se tocó `bot_auditar_tool`.
+**Lo que NO se decidió**: los precios traídos del historial de otro día («los otros artículos que me ofreciste») quedan como problema aparte en la auditoría, sin arreglo. Pedir el código cuando se podía mirar el stock de los candidatos quedó decidido en D037. Tampoco se tocó `bot_auditar_tool`.
+
+---
+
+## D037 — Ante un artículo que no está claro, el agente pregunta; no adivina ni da stock o precio de todos los candidatos (2026-10-15)
+
+**Decisión**: Pablo, sobre qué manda cuando el cliente no es claro con un artículo («preguntar para no equivocarse» o «mirar el stock de los candidatos y contestar todos»): *«Que mande preguntar y no adivinar»*. Gana PEDIDO SIN ERRORES (preguntar de más) sobre CONSULTÁ ANTES DE PREGUNTAR cuando hay varios artículos posibles.
+
+**Por qué** [Seguro]: dos reglas del 15/10 se pisaban para una consulta de stock («tenes stock del pelapapas con mango rojo comun?» → listó 586, 505 y 587 y pidió el código: era lo correcto). Un stock o un precio dado para el artículo equivocado es una promesa equivocada.
+
+**Qué se hizo**: dos cláusulas en `_shared/agente-fijos.ts`: la excepción en CONSULTÁ ANTES DE PREGUNTAR (un artículo pedido con varios candidatos: se pregunta cuál; si pide «todos», se dan todos) y la de CHARLAS ANTERIORES (lo ofrecido en otra charla no es «lo que te ofrecí» en esta; ante «los otros» poco claro se pregunta a cuáles). `tests/regla-preguntar-no-adivinar.test.ts`. Auditoría 835 abierta hasta verlo en una charla real.
+
+**Lo que NO se decidió**: no se tocó PRECIOS Y FOTOS (pedir «todos» sigue dando todos). No se midió con el modelo si Haiku 5.5 sigue las cláusulas (requiere estimativo y «sí» de Pablo).
