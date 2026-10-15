@@ -175,7 +175,7 @@ dice que habla otra persona, no rige) **y** escrituras que son del repo: la base
 **NO cubre, y sigue pidiendo el "sí" con el SQL exacto antes:**
 1. **Borrados**: `DELETE`, `DROP`, `TRUNCATE` y cualquier DDL que borre datos o columnas.
 2. **Fuera del repo**: otro repo, otro proyecto de Supabase, tablas de Gestión que no sean las tareas o el semáforo de Planify.
-3. **Auditoría** (`github_repo_problemas`): sigue "sin excepción", Pablo no la nombró.
+3. ~~**Auditoría** (`github_repo_problemas`): sigue "sin excepción", Pablo no la nombró.~~ **Actualizado 15/10/2026 (Pablo Olejavetzky):** *"vos siempre registrá todo, no preguntes tema auditoría, siempre cualquier cosa que haga registralo"*. Ahora, en ESTE repo y con Pablo, `registrar_problema`, `cerrar_problema` y `agregar_commit` se ejecutan **sin pedir el "sí" antes** (igual que los INSERT/UPDATE del repo). Se sigue informando el título al registrar y cerrar, y leyendo `v_problemas` para verificar. Sigue sin excepción para OTRA persona (si el mensaje dice que habla otro, vuelve el "sí") y para los borrados (el rol `anon` no tiene DELETE igual). Al copiar el bloque global de BD a otro repo, esta línea NO se copia: es sólo de este repo.
 4. **Gastos**: tienen su propia regla (estimativo + "sí"), más abajo.
 
 Primer uso (07/10): el semáforo fijo de `anulacion_pedido` y, antes, las reglas de Derivaciones (`docs/ESTADO.md`).
