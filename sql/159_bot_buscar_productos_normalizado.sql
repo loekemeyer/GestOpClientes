@@ -6,8 +6,13 @@
 -- grafía no escala (es whack-a-mole).
 --
 -- Fix de raíz: se normaliza AMBOS lados antes de comparar — minúsculas, sin acentos, sin espacios
--- ni signos — y se pliega la "s" final del término buscado (singular/plural). Una sola normalización
--- cubre espacios, acentos, mayúsculas, guiones y singular/plural. NO cubre typos (eso sería trigram).
+-- ni signos — y se pliega el plural del término buscado. El plegado es en dos pasos: primero
+-- "<consonante r/l/n/d/z/j>es" -> esa consonante (exprimidores->exprimidor, cucharones->cucharon,
+-- tenedores->tenedor), después la "s" final (cucharas->cuchara, mates->mate). Se pliega "-es" SÓLO
+-- tras esas consonantes porque son las que en español toman "-es": así "mates" cae a "mate" (y no a
+-- "mat", que arrastraría "Prensa Matambre" — medido el 15/10). Una sola normalización cubre espacios,
+-- acentos, mayúsculas, guiones y singular/plural. NO cubre typos (eso sería trigram) ni cambios de raíz
+-- z->c (nuez/nueces), irrelevantes en bazar.
 --
 -- Se dejó de matchear por categoría? NO: es load-bearing (medido el 15/10: 29 de 31 matches
 -- solo-por-categoría son legítimos — "abrelatas" halla "Abrelata Uña", "colador" halla "Filtro de
@@ -41,7 +46,7 @@ as $func$
     ) as terms
   ),
   nts as (
-    select distinct regexp_replace(public.wa_norm(t),'s$','') as nt
+    select distinct regexp_replace(regexp_replace(public.wa_norm(t),'([rlndzj])es$','\1'),'s$','') as nt
     from syn, unnest(syn.terms) as t
     where t is not null
   )
