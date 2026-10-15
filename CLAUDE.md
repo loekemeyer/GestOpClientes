@@ -462,6 +462,14 @@ SET value='claude-haiku-5-5' WHERE key='llm_modelo_pruebas'`; (3) correr los cas
 (4) volver `llm_modelo_pruebas` al valor que tenía y verificarlo con un `SELECT`; (5) informar el gasto real (después − antes) y que el modelo quedó restaurado. Cubre **ese** `UPDATE`
 y su restitución, ninguna otra escritura en la base. **No cubre Sonnet:** su tope es el de US$ 1 en total dicho el 05/10 (*"Podes usar si queres Sonnet siempre y cuando sea medido el gasto,
 tope un dolar en total"*), **gastado y pasado**: US$ 0,88 antes y US$ 1,10 al 07/10 (US$ 0,218913 de m1 y m8 con Sonnet 4.6, con el «sí» de Pablo a ese estimativo, que pasaba el tope). Sonnet de nuevo sólo con estimativo y «sí» (regla de arriba). Pablo no fijó un tope para Haiku: si una tanda va a pasar de unos US$ 0,50, se avisa antes (criterio mío, no de Pablo).
+El 08/10 se gastaron US$ 0,133525 más en Sonnet 4.6 (11 llamadas, prueba de la compuerta de pedidos), con el «sí» de Pablo al estimativo.
+
+⚠ **`llm_modelo_pruebas` es UNA fila compartida por todas las sesiones y por la evaluación nocturna (medido el 08/10).** Antes de cambiarla:
+(a) mirar que no haya una corrida corriendo (`select id, estado from wa_agente_eval_corridas where estado = 'corriendo'`): la corrida manda
+`solo_gratis` y con un modelo pago sus casos dan error en vez de gastar, o sea que se le falsean los resultados a otra sesión; si hay una, esperar a
+que termine. (b) Reponer con guarda, `UPDATE … SET value = '<el de antes>' WHERE key = 'llm_modelo_pruebas' AND value = '<el que puse yo>'`, y
+mirar cuántas filas tocó: el 08/10 otra sesión lo cambió a Gemini en medio de una prueba con Haiku, la guarda no pisó su cambio y se dejó el suyo.
+(c) Al leer el gasto, filtrar `bot_token_usage` por `model`: si otra sesión cambió el modelo a mitad de la prueba, parte de las llamadas no son tuyas.
 
 
 **Excepción — corrida semanal con Haiku de los casos de varios pasos (Pablo Olejavetzky, 14/10/2026: *"Cambialo a Haiku, medición semanal"*,
