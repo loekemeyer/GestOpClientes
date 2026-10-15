@@ -10,7 +10,7 @@ on:
   workflow_dispatch:  # permite disparo manual desde la UI de Actions
     inputs:
       funciones:
-        description: "Funciones a desplegar separadas por espacio, o 'todas'. Vacío = las que cambiaron en el último commit."
+        description: "Funciones a desplegar separadas por espacio, o 'todas'. Vacío = las que cambiaron desde el último push que salió verde (lo que un push rojo dejó sin desplegar)."
         required: false
         default: ""
 
@@ -43,17 +43,18 @@ jobs:
     needs: pruebas
     runs-on: ubuntu-latest
     permissions:
-      contents: read      # sólo para que setup-cli consulte releases autenticado
+      contents: read      # para que setup-cli consulte releases autenticado
+      actions: read       # para buscar el último push que salió verde (base del diff, problema 813)
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_ID: kwkclwhmoygunqmlegrg
     steps:
       - uses: actions/checkout@v4
         with:
-          # Historia completa: el diff se hace contra el commit que había ANTES del push
-          # (github.event.before), no contra HEAD^. Con HEAD^ un push de varios commits sólo
-          # miraba el último: el 24/09 un cambio en _shared/faq.ts no se desplegó porque el
-          # commit de arriba era de docs ("Sin cambios").
+          # Historia completa: el diff se hace contra el último push que salió verde (o, si no se lo
+          # encuentra, contra el commit que había ANTES del push: github.event.before), no contra HEAD^.
+          # Con HEAD^ un push de varios commits sólo miraba el último: el 24/09 un cambio en
+          # _shared/faq.ts no se desplegó porque el commit de arriba era de docs ("Sin cambios").
           fetch-depth: 0
 
       # Versión FIJA del CLI (Pablo, 13/10/2026). Con `version: latest`, setup-cli le pregunta a la API de GitHub
@@ -79,13 +80,17 @@ jobs:
       # cambió.
       - name: Detectar funciones a desplegar
         id: detect
+        env:
+          MANUAL: ${{ github.event.inputs.funciones }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -e
           # Todas las funciones bajo supabase/functions/ (menos _shared)
           ALL_FNS=$(ls supabase/functions | grep -v '^_shared$' || true)
 
           # Disparo manual con lista explícita
-          MANUAL="${{ github.event.inputs.funciones }}"
           if [ -n "$MANUAL" ]; then
             if [ "$MANUAL" = "todas" ]; then MANUAL="$ALL_FNS"; fi
             FNS=$(echo $MANUAL | xargs)
@@ -94,13 +99,40 @@ jobs:
             exit 0
           fi
 
-          # Diff contra lo que había en main ANTES del push (todos los commits del push)
-          BASE="${{ github.event.before }}"
-          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
-             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+          # Base del diff = lo último que se sabe desplegado. Problema 813 (15/10/2026): la base era sólo
+          # github.event.before (el main anterior a ESTE push). Si ese push anterior había salido rojo
+          # (pruebas caídas, deploy sin correr) y éste no tocaba funciones, el diff daba vacío, el deploy
+          # se salteaba y el CI terminaba verde con producción desactualizada: el fix de f03f3b4 estuvo
+          # 8 minutos sin desplegar así (corridas 464 y 465). Un push verde despliega todo lo que cambió
+          # desde su propia base, así que por inducción todo lo anterior a su commit está desplegado: la
+          # base es el commit del último push verde. Los disparos manuales no cuentan: pueden desplegar
+          # sólo algunas funciones.
+          NULL_SHA="0000000000000000000000000000000000000000"
+          OK_SHA=$(gh api "repos/${REPO}/actions/workflows/deploy-edge-functions.yml/runs?branch=main&event=push&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null || true)
+          if [ -n "$OK_SHA" ] && { ! git cat-file -e "$OK_SHA^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$OK_SHA" HEAD; }; then
+            echo "Se ignora el último push verde ($OK_SHA): no está en la historia de HEAD."
+            OK_SHA=""
+          fi
+          BEFORE=""
+          if [ -n "$EVENT_BEFORE" ] && [ "$EVENT_BEFORE" != "$NULL_SHA" ] && git cat-file -e "$EVENT_BEFORE^{commit}" 2>/dev/null; then
+            BEFORE="$EVENT_BEFORE"
+          fi
+
+          # Si hay dos candidatas gana la más vieja: desplegar de más es inofensivo, de menos no.
+          if [ -n "$OK_SHA" ] && [ -n "$BEFORE" ]; then
+            if git merge-base --is-ancestor "$OK_SHA" "$BEFORE"; then BASE="$OK_SHA"; else BASE="$BEFORE"; fi
+          elif [ -n "$OK_SHA" ]; then
+            BASE="$OK_SHA"
+          elif [ -n "$BEFORE" ]; then
+            BASE="$BEFORE"
+          else
             BASE="HEAD^"
           fi
-          echo "Base del diff: $BASE"
+          echo "Base del diff: $BASE (último push verde: ${OK_SHA:-ninguno}, antes del push: ${BEFORE:-ninguno})"
+          if [ -n "$BEFORE" ] && [ "$BASE" != "$BEFORE" ]; then
+            echo "Aviso: hay commits sin desplegar de un push anterior que no salió verde: se despliegan ahora."
+          fi
           CHANGED=$(git diff --name-only "$BASE" HEAD -- supabase/functions/ || true)
 
           # ¿Cambió shared?

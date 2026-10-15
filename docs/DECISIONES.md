@@ -509,3 +509,16 @@ Planify van SÓLO al Planify de Pablo Olejavetzky (64)», commit `fe18637`.
 
 **También del 15/10 (P8):** `v_wa_resultado_charla` cuenta como `derivada` todo pase a una persona con la lista de motivos de `hechos-charla.ts`
 (`sql/158`, commit `4702895`), y el error quedó registrado y cerrado en la auditoría. Pablo dijo «Sí, registralo en la auditoría y cerralo».
+
+## D024 — Deploy: la base del diff es el último push verde, no `github.event.before` (2026-10-15)
+
+**Quién:** Pablo Olejavetzky. **Qué:** *«Sí, registralo en la auditoría»* (problema 813) y, al ofrecerle el arreglo, *«Sí, arreglá el workflow ahora»*.
+**Por qué:** `f03f3b4` (fix del problema 812) salió rojo en el CI (corrida 464, mi prueba pedía `--allow-run`) y el push siguiente (corrida 465) no tocaba
+funciones: el diff contra `github.event.before` dio vacío, el paso «Deploy» se salteó y el CI terminó verde con el bug en producción de las 15:20 a las 15:28 UTC.
+**Cómo quedó:** `.github/workflows/deploy-edge-functions.yml` busca con `gh api` el commit del último push de `main` que terminó en `success` (los disparos manuales no
+cuentan: pueden desplegar sólo algunas funciones) y diffea contra ése; con dos candidatas gana la más vieja, y si la API falla o el commit no está en la historia
+cae a `github.event.before` y después a `HEAD^`. El job `deploy` pidió `actions: read`. El disparo manual con la lista vacía ahora despliega lo pendiente desde el
+último verde (antes: lo del último commit). **Prueba:** `tests/workflow-deploy.test.ts` (7 chequeos estáticos: 6 fallan con el workflow anterior) y el script corrido a mano
+con un `gh` falso en 7 escenarios. **Costo conocido:** el script ya redeployaba todas las funciones que importan algo de `_shared/` cuando cambia cualquier archivo
+de `_shared/`, así que un push que recupere el fix de `tope-cliente.ts` despliega 25 funciones y no sólo el webhook (es la regla vieja, no se tocó).
+**Dónde:** commit del arreglo (ver `git log` de ese archivo), problema 813 de la auditoría, tarea 5936 de Planify (64).
