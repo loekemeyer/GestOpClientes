@@ -160,6 +160,14 @@ Pablo Olejavetzky, 01/10/2026: *"Todos los cambios en el bot son de Pablo Olejav
 Olejavetzky. No se reescribe el historial de `main`: esta nota es la corrección. Sus tareas de Planify sí
 quedaron en el 64.
 
+### ⚠ En ESTE repo, las tareas de Planify van SÓLO al Planify de Pablo Olejavetzky (64)
+
+Pablo Olejavetzky, 15/10/2026: *"No cargues nunca nada en otro planify sino te lo digo yo, cada uno esta trabajando en sus
+proyectos"*. Aunque el pedido dependa de otra persona (Luis, Thomas, Gastón…) o sea del área de otro, la tarea se carga en el
+**64** o no se carga. Ni ofrecerlo: se carga en otro Planify sólo si Pablo lo pide en ese momento y para esa tarea. Esto le gana
+al punto 3 de la regla de Planify (pedidos de Thomas al Planify del área o a `Tareas T`) mientras se trabaje en este repo.
+Origen: el 15/10 se ofreció cargar en el Planify de Luis (52) la decisión de abrir el piloto a clientes reales (no se cargó).
+
 ### ⚠ Excepción de BD en ESTE repo (Pablo Olejavetzky, 07/10/2026)
 
 Pablo, en el orden en que lo dijo: *"Siempre ejecuta"* → *"Cualquier escritura en la base, solo consultame cuando tengas que
