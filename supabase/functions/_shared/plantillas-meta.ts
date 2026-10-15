@@ -171,6 +171,21 @@ export const PLANTILLAS: PlantillaMeta[] = [
     body: "Tu pedido del {{1}} fue retirado.\nSi falta algo o llegó algo mal, avisanos por este medio.",
     ejemplos: ["22/09"],
   },
+
+  // ── Pedido recibido por el expreso (confirmación de que el expreso ya lo tiene). Pablo Olejavetzky, 15/10:
+  //    el aviso lo gatilla el remito marcado en Virgilio cuando el expreso recibe la mercadería. Distinto de
+  //    pedido_en_viaje_expreso (ese dice "ya salió HACIA el expreso"); éste confirma que el expreso YA LO RECIBIÓ.
+  //    Texto NEUTRO a propósito: la entrega final (retiro en sucursal del expreso o reparto a domicilio) la maneja
+  //    el expreso, LK no tiene ese dato, así que no se promete modalidad (Pablo, 15/10). SIN disparador activo:
+  //    espera el contrato de Virgilio (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md.
+  {
+    name: "pedido_en_expreso",
+    language: ES, category: UT,
+    disparo: "El expreso recibe la mercadería y quien despacha marca el remito en Virgilio. SIN disparador activo: espera el contrato de Virgilio (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md.",
+    variables: ["fecha en que hizo el pedido (dd/mm)", "expreso (sin la palabra Expreso)"],
+    body: "Tu pedido del {{1}} ya fue recibido por Expreso {{2}}.\nDesde ahí la entrega sigue con los tiempos del expreso.\nCuando lo recibas, si falta algo o llegó algo mal, avisanos por este medio.",
+    ejemplos: ["22/09", "Arias"],
+  },
   // Recordatorio de descuento por vencer (Pablo, 30/09, con el OK de Thomy): 2 días hábiles antes de CADA escalón
   // (25→20, 20→15, 15→10, 10→0), sólo si la factura sigue con saldo en Deuda Viva. Lo encola lk_recordatorio-descuento.
   // "compra facturada" y no "factura": un mismo día puede tener varias facturas.
