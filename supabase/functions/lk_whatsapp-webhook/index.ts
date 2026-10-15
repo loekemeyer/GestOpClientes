@@ -450,18 +450,18 @@ async function esPrimerContacto(phone: string, umbralHoras: number): Promise<boo
   return (count ?? 0) <= 1;
 }
 
-/** Wrapping opcional del reply con saludo cuando hay primer contacto. */
+/** Wrapping opcional del reply con saludo cuando hay primer contacto. Pablo, 15/10 (tanda de pruebas, mensaje 1): «¡Hola!» sin nombre. Antes decía «¡Hola {razón social}!»
+ *  y la base sólo tiene la razón social (1.264 clientes, 35 % con sigla de empresa y el resto casi todo personas con el apellido primero: «¡Hola Quispe Gabriel Dario Josue!»). */
 async function conSaludoSiCorresponde(
   reply: string,
   phone: string,
-  businessName: string,
 ): Promise<string> {
   const raw = await getSetting("wa_saludo_umbral_horas");
   const umbral = Number(raw) || 6;
   if (umbral <= 0) return reply; // saludo desactivado
   const primero = await esPrimerContacto(phone, umbral);
   if (!primero) return reply;
-  return `¡Hola ${businessName}!\n\n${reply}`;
+  return `¡Hola!\n\n${reply}`;
 }
 
 // ─── Statuses de Meta (delivery reports) ───────────────────────────
@@ -1521,7 +1521,7 @@ async function handleMessage(
   if (chef) {
     await saveMessage(phone, "user", text);
     const r = await atenderClienteChef(phone, text, chef);
-    const reply = r.yaSaluda ? r.reply : await conSaludoSiCorresponde(r.reply, phone, chef.razon_social);
+    const reply = r.yaSaluda ? r.reply : await conSaludoSiCorresponde(r.reply, phone);
     await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", reply);
     // Fase 3: reenvío de la factura de Chef (PDF del bucket isis-ch). Mismo camino que el de LK más abajo.
@@ -1621,7 +1621,7 @@ async function handleMessage(
     });
     if (g?.tipo === "responder") {
       await saveMessage(phone, "user", text);
-      const reply = await conSaludoSiCorresponde(g.reply, phone, faqCustomer.business_name);
+      const reply = await conSaludoSiCorresponde(g.reply, phone);
       await enviarTexto(cfg, phone, reply);
       await saveMessage(phone, "assistant", reply);
       for (const d of g.documentos ?? []) {
@@ -1678,7 +1678,7 @@ async function handleMessage(
     // Sin ese chequeo el cliente recibía el saludo dos veces seguidas.
     const cuerpo = marcaLk ? conEtiqueta("lk", textoFaq) : textoFaq;
     const reply = customer && !faq.yaSaluda
-      ? await conSaludoSiCorresponde(cuerpo, phone, customer.business_name)
+      ? await conSaludoSiCorresponde(cuerpo, phone)
       : cuerpo;
     await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", faq.conClave ? taparClave(reply) : reply);
@@ -1801,7 +1801,7 @@ async function handleMessage(
   }
 
   // 8. Enviar respuesta de texto (con saludo si es primer contacto)
-  const reply = await conSaludoSiCorresponde(marcaLk ? conEtiqueta("lk", result.reply) : result.reply, phone, customer.business_name);
+  const reply = await conSaludoSiCorresponde(marcaLk ? conEtiqueta("lk", result.reply) : result.reply, phone);
   await enviarTexto(cfg, phone, reply);
 
   // 9. Guardar respuesta en historial.
