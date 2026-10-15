@@ -24,6 +24,7 @@ import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { hechosDeLaCharla } from "./hechos-charla.ts";
+import { articuloEnCurso, cajasRespaldadas } from "./articulo-en-curso.ts";
 import { bloqueMemoria } from "./memoria-cliente.ts";
 import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
@@ -309,12 +310,12 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_stock",
     description:
-      "Disponibilidad real de UN artículo (stock en depósito menos pedidos ya hechos). Devuelve un texto listo para el cliente (hay / stock limitado / sin stock, sin números). Usala SIEMPRE antes de decir que hay o no hay stock. Si el cliente pregunta en general (\"¿tienen todo el stock?\"), pedile qué artículos le interesan.",
+      "Disponibilidad real de UN artículo (stock en depósito menos pedidos ya hechos). Devuelve un texto listo para el cliente (hay / stock limitado / sin stock, sin números). Usala SIEMPRE antes de decir que hay o no hay stock. Si el cliente pregunta en general (\"¿tienen todo el stock?\") y no hay un artículo en curso en la charla (bloque \"Artículo en curso\"), pedile qué artículos le interesan.",
     input_schema: {
       type: "object",
       properties: {
-        cod: { type: "string", description: "Código del producto (ej: '506'). Si no lo tenés, buscalo antes con buscar_productos." },
-        cajas: { type: "integer", description: "Cajas que quiere el cliente, si las dijo." },
+        cod: { type: "string", description: "Código del producto (ej: '506'). Si no lo tenés, buscalo antes con buscar_productos. Si el cliente no nombra el artículo pero hay uno en curso en la charla, usá su código." },
+        cajas: { type: "integer", description: "Cajas que el cliente ESCRIBIÓ (ej.: «30 cajas»). Si no dijo un número de cajas, NO mandes este campo: no pongas 1, 2 ni ningún número por tu cuenta." },
       },
       required: ["cod"],
     },
@@ -1025,7 +1026,10 @@ async function executeTool(
       const p = prods?.[0];
       if (!p) return { data: { mensaje: `No encontré el código ${cod}. Buscalo con buscar_productos.` } };
       try {
-        const cajas = Number(input.cajas) > 0 ? Number(input.cajas) : null;
+        // Auditoría 828 (15/10): Haiku mandaba cajas=2 sin que el cliente lo dijera y el bot contestaba «stock para las 2 cajas» (y con stock justo, avisaba a una persona por ese 2).
+        // Sólo vale un número que el cliente escribió (articulo-en-curso.ts, cajasRespaldadas).
+        const cajas = cajasRespaldadas(input.cajas, ctx.userText, ctx.historial);
+        if (Number(input.cajas) > 0 && cajas === null) console.warn(`consultar_stock: cajas=${input.cajas} no está en lo que escribió el cliente, se ignora`);
         const st = await stockArticulo(p.cod);
         if (!st) return { data: { mensaje: "No pude consultar el stock. Ofrecé derivar a ventas." } };
         const avisado = stockNecesitaHumano(st, cajas);
@@ -1697,7 +1701,9 @@ export async function runConversation(
   // Pablo, 08/10: el prompt va en dos partes para el caché de Anthropic (bot-llm.ts): la base (reglas y datos del cliente) es igual en todas las
   // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, hechos, ejemplos, pistas) va
   // dentro del último mensaje del cliente, después del historial (contextoEnElTurno), para no cambiarle el prefijo al historial.
-  const promptVariable = notaDeTiempo(rawHistory, userText) + (hechos ? "\n\n" + hechos : "") +
+  // Pablo, 15/10 (auditoría 828, Logística …1027): «¿tenés stock para 30 cajas?» después de hablar del 586 repreguntaba el artículo. El último artículo de la charla lo arma el código.
+  const articulo = articuloEnCurso(rawHistory, userText);
+  const promptVariable = notaDeTiempo(rawHistory, userText) + (hechos ? "\n\n" + hechos : "") + (articulo ? "\n\n" + articulo : "") +
     (bloqueAprobados ? "\n\n" + bloqueAprobados : "") + (pistas ? "\n\n" + pistas : "");
   const systemPrompt = promptBase + "\n\n" + promptVariable;
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`

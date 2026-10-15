@@ -654,3 +654,15 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Discrepancia a resolver antes de pisar datos**: el script full-history cuenta 94 commits para el 14/10; la carga manual tenía 16. Hay que decidir cuál es el válido.
 
 **Dónde quedó**: nota del 15/10 arriba de todo en `docs/ESTADO.md`, corrección de la línea vieja de la entrada 5664, y auditoría `github_repo_problemas` problema 826 (ABIERTO, no cerrado: el fix no terminó de funcionar). El secreto `x-bitacora-secret` sigue en texto plano en el prompt de la Routine.
+
+---
+
+## D034 — El artículo en curso de la charla lo arma el código, y las cajas de `consultar_stock` sólo valen si el cliente las escribió (2026-10-15)
+
+**Decisión**: Pablo, probando desde Logística (…1027): *«no me gustan las respuestas que está dando. No recuerda lo que le estoy consultando el mensaje anterior»*, y ante el diagnóstico, *«Sí, aplicá el fix»*. El agente repreguntaba el artículo que el cliente ya había nombrado en el turno anterior y mandaba `cajas` inventadas a `consultar_stock`.
+
+**Por qué** [Seguro]: el historial sí le llegaba al modelo; el fallo era de comportamiento de Haiku 5.5 con las reglas del 15/10 que empujan a «preguntar de más». Mismo criterio que el caso Cuccinarte (`docs/FUGA-CUENTA-HISTORIAL-2026-10-14.md`): lo exacto lo arma el código, no el modelo.
+
+**Qué se hizo**: `_shared/articulo-en-curso.ts` (bloque «Artículo en curso» en la parte variable del prompt; `cajasRespaldadas`), conectado en `_shared/bot-conversation.ts`; `tests/articulo-en-curso.test.ts`. Detalle, causa probable y límites en la entrada del 15/10 de `docs/ESTADO.md`. Auditoría 828, tarea de Planify 5969.
+
+**Lo que NO se decidió**: no se tocaron las reglas PEDIDO SIN ERRORES, COLORES ni TIPO DE ARTÍCULO (Pablo las pidió el 15/10 y siguen). Tampoco se cambió el modelo del agente (D032 sigue sólo anotado). Falta comprobar con Haiku 5.5 que sigue la pista: requiere estimativo y «sí» de Pablo.
