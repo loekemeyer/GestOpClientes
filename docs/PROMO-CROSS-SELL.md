@@ -43,10 +43,9 @@ MCP.
 ## Qué quedó armado (PaginaLK, schema `promo`, todo con RLS)
 
 - `promo.isis_documentos`, `promo.isis_documento_items` — foreign tables vía `virgilio_db` a `isis_lk`.
-- `promo.ventas_raw` — **foto local** de las ventas de los últimos 12 meses (42.930 filas; 39.017 con
-  categoría, 91%). Es estática: se refresca recargándola.
-- `promo.clientes` — 599 clientes (cod_cliente + razón social).
-- `promo.v_promo_gap_12m` — **la vista del recomendador** (4.162 huecos, 592 clientes).
+- `promo.mv_ventas_12m` — **vista materializada** con la foto de ventas de los últimos 12 meses
+  (factura_venta), con la categoría de `products` y la razón social ya limpia. La refresca el cron.
+- `promo.v_promo_gap_12m` — **la vista del recomendador** (lee de la matview).
 
 El SQL completo y reproducible está en `sql/145_promo_cross_sell_lk.sql`.
 
@@ -89,12 +88,11 @@ el mensaje borrador. El texto es borrador, no la plantilla final de Meta.
 
 1. **Definir las reglas de qué ofrecer** (categoría vs afinidad, margen, estacionalidad, excluir lo
    devuelto, topes). Con eso se ajusta el ranking.
-2. **Crear la función de refresco** `promo.refresh_ventas_12m()` desde el SQL editor del dashboard
-   (no por MCP: su cuerpo tiene `;` dentro del literal `$$…$$` y eso cuelga el MCP, tanto `execute_sql`
-   como `apply_migration`). El resto de la migración ya está aplicado; la función no, al 2026-10-15.
-   El **cron ya está armado** (`cron.job` jobid 87, `promo_refresh_ventas_12m`, diario 08:20 UTC /
-   ~05:20 AR, llama a la función): corre en rojo hasta que la función exista, y pasa a verde solo apenas
-   se cree.
+2. ~~Función de refresco~~ — resuelto sin función. El refresco es una **vista materializada**
+   (`promo.mv_ventas_12m`) que refresca el **cron `promo_refresh_ventas_12m`** (diario 08:20 UTC /
+   ~05:20 AR, `refresh materialized view`). Todo armado por MCP. Se descartó la función plpgsql porque el
+   MCP no la puede crear (`;` en el literal `$$…$$`). El refresh hace un pull completo por FDW (~43k
+   filas) server-side, sin el límite de 60 s del MCP.
 3. **Plantilla MARKETING de Meta** (una promo es marketing, no utility: ~US$ 0,0618/mensaje, aprobación
    1-3 días).
 4. **Opt-in** por cliente (no hay campo hoy).

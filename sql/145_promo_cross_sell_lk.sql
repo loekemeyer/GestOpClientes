@@ -7,15 +7,13 @@
 -- Se aplica en PaginaLK (kwkclwhmoygunqmlegrg). Lee ISIS (hrxfctzncixxqmpfhskv, schema isis_lk) por el
 -- FDW virgilio_db ya existente. Idempotente.
 --
--- ⚠ El FDW es lento para transferir filas (un COUNT se empuja al remoto y vuelve al instante, pero traer
--- ~43k filas se pasa de los 60 s del MCP). Por eso la foto de ventas (promo.ventas_raw) se carga con la
--- función promo.refresh_ventas_12m(), que inserta mes por mes y DEBE correr server-side (cron), no por MCP.
--- El primer load de 2026-10 se hizo a mano por tandas trimestrales con el mismo criterio.
---
--- ⚠ La función promo.refresh_ventas_12m() NO se puede crear por el MCP de Supabase: su cuerpo tiene `;`
--- dentro del literal $$...$$ y eso cuelga el MCP hasta el timeout (bug documentado en CLAUDE.md). Hay que
--- crearla desde el SQL editor del dashboard. El resto de esta migración (schema, foreign tables, tablas,
--- vista) sí se aplica por MCP. Al 2026-10-15 todo está aplicado MENOS la función.
+-- Diseño: una VISTA MATERIALIZADA (promo.mv_ventas_12m) guarda la foto de ventas de 12 meses, y un cron
+-- la refresca. Se usa matview y NO una función de refresco a propósito: una función plpgsql no se puede
+-- crear por el MCP de Supabase (su cuerpo lleva `;` dentro del literal $$...$$, que cuelga execute_sql y
+-- apply_migration), mientras que `refresh materialized view` es una sola sentencia sin `;` y el cron sí
+-- se arma por MCP. El refresh hace un pull completo por FDW (~43k filas): va server-side por el cron, sin
+-- el límite de 60 s del MCP. Por eso la matview se crea WITH NO DATA (instantáneo) y se puebla en la
+-- primera corrida del cron.
 --
 -- Nada de esto envía mensajes: es análisis, detrás de la llave wa_envio_automatico.
 
@@ -32,50 +30,31 @@ create foreign table if not exists promo.isis_documento_items (
   cantidad numeric, cantidad_caja numeric, importe numeric
 ) server virgilio_db options (schema_name 'isis_lk', table_name 'documento_items');
 
--- Foto local de ventas de los últimos 12 meses (nace con RLS: regla de respaldos).
-create table if not exists promo.ventas_raw (
-  cod_cliente text, cod text, cantidad_caja numeric, importe numeric, mes date, categoria text
-);
-alter table promo.ventas_raw enable row level security;
-create index if not exists ix_vr_cli on promo.ventas_raw(cod_cliente);
-create index if not exists ix_vr_cat on promo.ventas_raw(categoria);
-create index if not exists ix_vr_cod on promo.ventas_raw(cod);
+-- Foto de ventas de los últimos 12 meses (factura_venta), con la categoría de products y la razón social
+-- ya limpia. WITH NO DATA: se puebla en la primera corrida del cron (el pull por FDW tarda más de 60 s).
+create materialized view if not exists promo.mv_ventas_12m as
+select d.contraparte_codigo as cod_cliente,
+       btrim(regexp_replace(regexp_replace(d.contraparte_nombre,'[\r\n]+',' ','g'),'\s+',' ','g')) as cliente,
+       di.codigo_articulo as cod,
+       p.category as categoria,
+       di.cantidad_caja, di.importe,
+       date_trunc('month', d.fecha)::date as mes
+from promo.isis_documento_items di
+join promo.isis_documentos d on d.id = di.documento_id
+left join public.products p on p.cod = di.codigo_articulo
+where d.familia = 'factura_venta'
+  and d.fecha >= current_date - interval '1 year'
+  and d.contraparte_codigo is not null
+with no data;
 
-create table if not exists promo.clientes (cod_cliente text, cliente text);
-alter table promo.clientes enable row level security;
-
--- Refresco: recarga ventas_raw (factura_venta, 12m, con categoría de products) y clientes.
--- Mes por mes para no saturar el FDW. CORRER SERVER-SIDE (cron), no por MCP (timeout a los 60 s).
-create or replace function promo.refresh_ventas_12m() returns void
-language plpgsql security definer set search_path = promo, public as $$
-declare m int;
-begin
-  truncate promo.ventas_raw;
-  for m in 0..12 loop
-    insert into promo.ventas_raw(cod_cliente, cod, cantidad_caja, importe, mes, categoria)
-    select d.contraparte_codigo, di.codigo_articulo, di.cantidad_caja, di.importe,
-           date_trunc('month', d.fecha)::date, p.category
-    from promo.isis_documento_items di
-    join promo.isis_documentos d on d.id = di.documento_id
-    left join public.products p on p.cod = di.codigo_articulo
-    where d.familia = 'factura_venta'
-      and d.fecha >= date_trunc('month', current_date) - make_interval(months => m)
-      and d.fecha <  date_trunc('month', current_date) - make_interval(months => m) + interval '1 month'
-      and d.contraparte_codigo is not null;
-  end loop;
-  delete from promo.ventas_raw where mes < date_trunc('month', current_date - interval '1 year');
-
-  truncate promo.clientes;
-  insert into promo.clientes(cod_cliente, cliente)
-  select distinct on (contraparte_codigo) contraparte_codigo, contraparte_nombre
-  from promo.isis_documentos
-  where familia='factura_venta' and fecha >= current_date - interval '1 year' and contraparte_codigo is not null
-  order by contraparte_codigo, fecha desc;
-end $$;
+create index if not exists ix_mv_cli on promo.mv_ventas_12m(cod_cliente);
+create index if not exists ix_mv_cat on promo.mv_ventas_12m(categoria);
+create index if not exists ix_mv_cod on promo.mv_ventas_12m(cod);
 
 -- Recomendador: por cliente, categoría que compran los pares y él no, con el mejor producto activo.
 create or replace view promo.v_promo_gap_12m as
-with lineas as (select cod_cliente, cod, categoria from promo.ventas_raw where categoria is not null),
+with lineas as (select cod_cliente, cod, categoria from promo.mv_ventas_12m where categoria is not null),
+nombres as (select cod_cliente, max(cliente) cliente from promo.mv_ventas_12m group by cod_cliente),
 cli_cat as (select distinct cod_cliente, categoria from lineas),
 universo as (select distinct cod_cliente from lineas),
 total_cli as (select count(*) n from universo),
@@ -94,16 +73,13 @@ gap as (
   select u.cod_cliente, cp.categoria, cp.pct_pares, cp.clientes_cat
   from universo u cross join cat_pen cp
   where not exists (select 1 from cli_cat c where c.cod_cliente=u.cod_cliente and c.categoria=cp.categoria))
-select g.cod_cliente,
-       btrim(regexp_replace(regexp_replace(cl.cliente,'[\r\n]+',' ','g'),'\s+',' ','g')) as cliente,
-       g.categoria, g.pct_pares, g.clientes_cat,
+select g.cod_cliente, n.cliente, g.categoria, g.pct_pares, g.clientes_cat,
        cc.cand_cod, cc.cand_desc, cc.cand_precio,
        row_number() over (partition by g.cod_cliente order by g.pct_pares desc, g.clientes_cat desc) rank_cliente
 from gap g
-join promo.clientes cl on cl.cod_cliente=g.cod_cliente
-left join cand_cat cc on cc.categoria=g.categoria;
+join nombres n on n.cod_cliente = g.cod_cliente
+left join cand_cat cc on cc.categoria = g.categoria;
 
--- Cron de refresco: diario 08:20 UTC (~05:20 AR). Idempotente (cron.schedule hace upsert por jobname en
--- pg_cron >= 1.4). Esta línea SÍ se aplica por MCP: el comando no tiene `;` adentro. Corre en rojo hasta
--- que exista promo.refresh_ventas_12m() (crearla desde el SQL editor). Armado el 2026-10-15 como jobid 87.
-select cron.schedule('promo_refresh_ventas_12m', '20 8 * * *', 'select promo.refresh_ventas_12m()');
+-- Cron de refresco: diario 08:20 UTC (~05:20 AR). Idempotente (upsert por jobname en pg_cron >= 1.4).
+-- El comando no tiene `;` adentro, así que se arma por MCP. Armado el 2026-10-15.
+select cron.schedule('promo_refresh_ventas_12m', '20 8 * * *', 'refresh materialized view promo.mv_ventas_12m');
