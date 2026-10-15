@@ -676,3 +676,15 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Por qué** [Seguro]: el paso 3b' del webhook (`atenderMalHumor`) responde y deriva ANTES del agente, sin IA; un mensaje cortés con varias preguntas es lo normal de un mayorista y quedaba sin contestar. Regla vieja del 28/09 (`docs/FLUJOS.md`).
 
 **Qué se hizo**: `humor-reglas.ts`, `tests/humor-reglas.test.ts` (19 chequeos), línea de `docs/FLUJOS.md`. Auditoría 829. **No se tocó**: la cláusula de MAYÚSCULAS (un cliente que escribe todo en mayúsculas sigue marcado como grito; sin caso real que lo pida). Verificado en producción el 15/10: el mismo mensaje de Logística llegó al agente (deploy de la corrida 474) y contestó stock y precio sin alerta. Auditoría 829 cerrada.
+
+---
+
+## D036 — Compuerta de stock: si la respuesta habla de stock y no se llamó a `consultar_stock`, la llamada la hace el código (2026-10-15)
+
+**Decisión**: Pablo, ante «Del ergonomico, de ese tenes 30 cajas?» contestado «tiene stock para las 30 cajas» sin herramienta (puntaje 74): *«Sí, arreglalo con la compuerta»*. Cuando el modelo termina sin herramientas y su texto dice o niega stock, el código consulta `consultar_stock` por él y le devuelve la palabra para que rehaga la respuesta con el texto de la herramienta.
+
+**Por qué** [Seguro]: la regla STOCK de prompt ya lo prohibía y Haiku 5.5 la salteó dos veces el mismo día (filas 60 y 74). Un stock repetido de memoria es una promesa a un cliente. Mismo criterio que D034 y el caso Cuccinarte: lo exacto lo arma el código.
+
+**Qué se hizo**: `_shared/compuerta-stock.ts`, cableado en `runConversation`, una sola vez por turno, hasta 4 artículos, fuera de la toma de pedidos. Marca `_compuerta: true` en el `input` para contarla. `tests/compuerta-stock.test.ts`. Auditoría 834, tarea 5976. Detalle y límites en la entrada del 15/10 de `docs/ESTADO.md`.
+
+**Lo que NO se decidió**: los precios traídos del historial de otro día («los otros artículos que me ofreciste») quedan como problema aparte en la auditoría, sin arreglo. Pedir el código cuando se podía mirar el stock de los candidatos es una observación sin decidir: PEDIDO SIN ERRORES (preguntar de más) y CONSULTÁ ANTES DE PREGUNTAR dicen cosas distintas para una consulta de stock. Tampoco se tocó `bot_auditar_tool`.

@@ -27,12 +27,12 @@ const RE_CODIGO_CLIENTE =
 // Un código en lo que contesta el BOT: «*Pelapapas Mgo Ergonomico* (cód. 586)» o «cód. 123 · Nombre: $12.345 por caja». El nombre, si viene entre asteriscos justo antes.
 const RE_CODIGO_BOT = /(?:\*([^*\n]{2,80})\*\s*)?\(?c[óo]d\.?\s*(\d{3,5}[a-z]?)(?![a-z0-9])/gi;
 
-interface Mencion { cod: string; nombre: string | null }
+export interface Mencion { cod: string; nombre: string | null }
 
-function codigosDelCliente(texto: string): Mencion[] {
+export function codigosDelCliente(texto: string): Mencion[] {
   return [...String(texto ?? "").matchAll(RE_CODIGO_CLIENTE)].map((m) => ({ cod: m[1].toUpperCase(), nombre: null }));
 }
-function codigosDelBot(texto: string): Mencion[] {
+export function codigosDelBot(texto: string): Mencion[] {
   return [...String(texto ?? "").matchAll(RE_CODIGO_BOT)].map((m) => ({ cod: m[2].toUpperCase(), nombre: m[1]?.trim() || null }));
 }
 const distintos = (ms: Mencion[]) => new Set(ms.map((m) => m.cod));
@@ -47,11 +47,14 @@ function sinElMensajeDeAhora(historial: FilaCharla[], userText: string): FilaCha
   return historial.filter((h, i) => !(i === 0 && h.rol === "user" && h.contenido === userText));
 }
 
-/** El bloque para el prompt, o "" si no hay un artículo en curso claro. `ahora` es parámetro para poder probarlo. */
-export function articuloEnCurso(historial: FilaCharla[], userText: string, ahora = new Date()): string {
-  if (codigosDelCliente(userText).length) return "";   // ya nombra un artículo por su código: nada que suplir
+export interface ArticuloEnCurso { cod: string; nombre: string | null; ms: number }
+
+/** El último artículo de la charla, si es uno solo (código, nombre si se conoce y hace cuánto se habló). null si no hay uno claro. Lo usa el bloque del prompt
+ *  y la compuerta de stock (compuerta-stock.ts). Si el mensaje de ahora ya trae un código, devuelve null: ese código manda. */
+export function buscarArticuloEnCurso(historial: FilaCharla[], userText: string, ahora = new Date()): ArticuloEnCurso | null {
+  if (codigosDelCliente(userText).length) return null;   // ya nombra un artículo por su código: nada que suplir
   const filas = sinElMensajeDeAhora(historial, userText).slice(0, MAX_FILAS);
-  let hallado: { cod: string; nombre: string | null; ms: number } | null = null;
+  let hallado: ArticuloEnCurso | null = null;
   for (const f of filas) {
     const t = Date.parse(f.creado_en);
     if (!Number.isFinite(t) || ahora.getTime() - t > HORAS_ARTICULO_EN_CURSO * 3600_000) break;   // lo que sigue es todavía más viejo
@@ -59,21 +62,27 @@ export function articuloEnCurso(historial: FilaCharla[], userText: string, ahora
     const menciones = f.rol === "user" ? codigosDelCliente(f.contenido) : codigosDelBot(f.contenido);
     if (!menciones.length) continue;
     const cods = distintos(menciones);
-    if (cods.size > 1) return "";   // una lista de artículos: no se sabe a cuál se refiere
+    if (cods.size > 1) return null;   // una lista de artículos: no se sabe a cuál se refiere
     hallado = { cod: menciones[0].cod, nombre: menciones.find((m) => m.nombre)?.nombre ?? null, ms: ahora.getTime() - t };
     break;
   }
-  if (!hallado) return "";
+  if (!hallado) return null;
   // El nombre, si el mensaje que lo trae no lo tenía (lo dijo el cliente por código), se busca en una respuesta del bot sobre el mismo código.
-  let nombre = hallado.nombre;
-  if (!nombre) {
+  if (!hallado.nombre) {
     for (const f of filas) {
       if (f.rol !== "assistant") continue;
       const m = codigosDelBot(f.contenido).find((x) => x.cod === hallado!.cod && x.nombre);
-      if (m) { nombre = m.nombre; break; }
+      if (m) { hallado.nombre = m.nombre; break; }
     }
   }
-  const quien = nombre ? `${nombre} (cód. ${hallado.cod})` : `el cód. ${hallado.cod}`;
+  return hallado;
+}
+
+/** El bloque para el prompt, o "" si no hay un artículo en curso claro. `ahora` es parámetro para poder probarlo. */
+export function articuloEnCurso(historial: FilaCharla[], userText: string, ahora = new Date()): string {
+  const hallado = buscarArticuloEnCurso(historial, userText, ahora);
+  if (!hallado) return "";
+  const quien = hallado.nombre ? `${hallado.nombre} (cód. ${hallado.cod})` : `el cód. ${hallado.cod}`;
   return [
     "## Artículo en curso",
     `El último artículo del que hablaron en esta charla es ${quien}, de hace ${hace(hallado.ms)}.`,

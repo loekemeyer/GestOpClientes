@@ -25,6 +25,7 @@ import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { hechosDeLaCharla } from "./hechos-charla.ts";
 import { articuloEnCurso, cajasRespaldadas } from "./articulo-en-curso.ts";
+import { debeForzarStock, llamadasDeStock } from "./compuerta-stock.ts";
 import { bloqueMemoria } from "./memoria-cliente.ts";
 import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
@@ -1794,6 +1795,8 @@ export async function runConversation(
   const registrarUsos = () => { const m = motivoDelTurno(usadas); for (const u of usos) logUsage(u.res, u.free, phone, fuente, m); };
   const downThisTurn = new Set<number>(); // modelos que ya fallaron en este turno
   const tTurno = performance.now();
+  // Auditoría 834 (15/10): una sola vez por turno la compuerta de stock puede forzar consultar_stock (compuerta-stock.ts).
+  let compuertaStockUsada = false;
 
   for (let iter = 0; iter < 5; iter++) {
     let res = null as Awaited<ReturnType<typeof callModel>> | null;
@@ -1869,7 +1872,28 @@ export async function runConversation(
     // Log de tokens/costo (alimenta el panel "IA — gastos y uso").
     usos.push({ res, free: used.isFreeTier });
 
-    if (!res.toolCalls.length) {
+    // Compuerta de stock (Pablo, 15/10, auditoría 834): si el modelo termina afirmando o negando stock sin haber llamado a consultar_stock, la llamada la hace el
+    // código y el modelo rehace la respuesta con su texto. Una sola vez por turno, y no en la toma de pedidos (tiene sus propias compuertas).
+    let toolCalls = res.toolCalls;
+    let forzada = false;
+    if (!toolCalls.length && !compuertaStockUsada) {
+      const enPedidoCompuerta = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
+      const borrador = sinMarcaDeTramo(res.text ?? "");
+      if (debeForzarStock(borrador, usadas.map((u) => u.nombre), enPedidoCompuerta)) {
+        const llamadas = llamadasDeStock(borrador, userText, rawHistory);
+        if (llamadas.length) {
+          compuertaStockUsada = true;
+          forzada = true;
+          // `_compuerta: true` queda en el registro de herramientas del turno (wa_ia_puntajes.herramientas): así se cuenta cuántas veces saltó. executeTool lo ignora.
+          toolCalls = llamadas.map((l, i) => ({ id: `compuerta_stock_${i + 1}`, name: "consultar_stock", input: { ...l, _compuerta: true } }));
+          console.warn(`[compuerta-stock] la respuesta hablaba de stock sin consultar_stock: se consulta ${llamadas.map((l) => `${l.cod}${l.cajas ? `x${l.cajas}` : ""}`).join(", ")} …${phone.slice(-4)}`);
+        } else {
+          console.warn(`[compuerta-stock] la respuesta habla de stock sin consultar_stock pero no se sabe de qué artículo: sale igual …${phone.slice(-4)}`);
+        }
+      }
+    }
+
+    if (!toolCalls.length) {
       registrarUsos();
       // Pablo, 05/10: sin cierres de cortesía ("¿Necesitás algo más?"): ver _shared/cierre.ts y la regla CIERRE de agente-fijos.ts.
       // El texto de respaldo (la IA no devolvió nada) tampoco cierra con "¿en qué más…?": pide que cuente la consulta (o, si derivó, dice que una persona escribe).
@@ -1884,10 +1908,11 @@ export async function runConversation(
     }
 
     // El modelo pidió herramientas: las ejecutamos y devolvemos los resultados.
-    history.push({ role: "assistant", text: res.text, toolCalls: res.toolCalls, ...(res.bloques ? { bloques: res.bloques, bloquesModelo: res.model } : {}) });
+    // Forzada por la compuerta: el borrador del modelo se descarta (no entra al historial) y sus bloques tampoco: la llamada no la pidió él.
+    history.push({ role: "assistant", text: forzada ? "" : res.text, toolCalls, ...(!forzada && res.bloques ? { bloques: res.bloques, bloquesModelo: res.model } : {}) });
 
     const results: { id: string; name: string; content: string }[] = [];
-    for (const tc of res.toolCalls) {
+    for (const tc of toolCalls) {
       // Tope por acción y por número (riesgo 3): que un cliente o un loop no inunde al equipo con derivaciones,
       // agregados, sucursales o pedidos. El contador vive en la base (bot_accion_tope). El Simulador no topea.
       // Si el contador falla, NO bloquea (nunca dejar al cliente sin acción por un error del tope).
