@@ -196,7 +196,7 @@ que le habla a Meta.
 | un corte único en el punto de salida: la llave **`app_settings.wa_envio_automatico`** (`0` nada · `prueba` sólo `wa_envio_contactos` · `1` producción; sin fila = `0`) | apagar crons (`cron.alter_job(… active := false)`), triggers, feeds o funciones "por las dudas" |
 | todo mensaje automático nuevo **encola en `wa_outbox`** y lo despacha `lk_outbox-flush`, que pasa por la llave (`bot_flush_outbox`) | un productor nuevo que le pegue directo a `graph.facebook.com` — es una salida sin corte |
 | alimentar las tablas de estado (ej. `order_tracking` desde Gestión) aunque disparen avisos: quedan en cola detrás de la llave | dejar datos sin cargar para que "no dispare nada" |
-| whitelist (`wa_envio_contactos`): **Thomy** (canal de prueba) **+ Damián de Chef S.R.L.** (real, aprobado por Thomas el 02/10) | cargar teléfonos de clientes en tablas que lean los que mandan (`bot_customer_whatsapps`, `customers.whatsapp`, `wa_clientes_telefono`) sin que Luis o Thomas lo pidan |
+| whitelist (`wa_envio_contactos`): **Thomy** (canal de prueba) **+ Damián, dueño de Loekemeyer y de Chef** (interno, de prueba pero el más importante, aprobado por Thomas el 02/10) **+ Logística** (agregada el 14/10) | cargar teléfonos de clientes en tablas que lean los que mandan (`bot_customer_whatsapps`, `customers.whatsapp`, `wa_clientes_telefono`) sin que Luis o Thomas lo pidan |
 
 **Dónde está el corte (uno en la base, uno en el código, la misma decisión):**
 - **Base:** `public.wa_puede_enviar(phone)` (sql/070) es LA decisión. `bot_flush_outbox` la usa.
@@ -211,12 +211,11 @@ contesta y le llegan los automáticos) y asociado a un cliente en `bot_customer_
 TEMPORAL, el **4028 Bazar Farimar**: ver `docs/ESTADO.md`), así los avisos de pedidos de ese
 cliente le llegan a él. Llave en `prueba`.
 
-⚠ **Desde el 02/10 la whitelist tiene DOS filas, y la segunda NO es de prueba (Thomas, 02/10).**
-**Damián, dueño de Chef S.R.L.** (`5491131181594`), vinculado al cliente real **LK 411 Chef
-S.R.L.** (`bot_customer_whatsapps` id 226: principal, ve pedidos). El bot le contesta como Chef y
-le llegan los avisos **reales** de Chef 411. **No sacarlo para "volver a un solo canal"**: está
-aprobado por Thomas. Ese número figuró como Torres y Liva (288) en agosto; ya no (alerta 670
-descartada).
+⚠ **La whitelist tiene hoy TRES filas y todas son teléfonos de prueba (Pablo Olejavetzky, 15/10: «hoy todo teléfono en la whitelist es de prueba»):** Thomy (…1635), Damián (…1594) y Logística (…1027, agregada el 14/10).
+**Damián** (`5491131181594`) es el más importante: **es el dueño de Loekemeyer y de Chef** (Pablo, 15/10), por eso su teléfono es interno aunque tenga la cuenta de Chef.
+Está vinculado al cliente **LK 411 Chef S.R.L.** (`bot_customer_whatsapps` id 226: principal, ve pedidos). El bot le contesta como Chef y
+le llegan los avisos de Chef 411. **No sacarlo para "volver a un solo canal"**: está aprobado por Thomas (02/10). Ese número figuró como
+Torres y Liva (288) en agosto; ya no (alerta 670 descartada).
 
 ⚠ **El canal de prueba es la fila MÁS VIEJA de la whitelist**, no "la única": así la toman
 `lk_bot-simular` y el chat de prueba del dashboard (v0.26.13). Hasta la v0.26.12 el dashboard
