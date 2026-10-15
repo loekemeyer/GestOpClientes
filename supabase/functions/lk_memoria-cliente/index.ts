@@ -121,7 +121,14 @@ async function sumarCharla(p: { telefono: string; desde: string | null; hasta: s
   if (!nuevos.length) { await marcar("sin_mensajes"); return { cod_cli: cod, ok: true, saltado: "sin_mensajes" }; }
 
   const { data: prev } = await supabase.from("wa_memoria_cliente")
-    .select("ficha, mensajes, desde, charlas_excluidas").eq("marca", "LK").eq("cod_cli", cod).maybeSingle();
+    .select("ficha, mensajes, desde, charlas_excluidas, revisada_por").eq("marca", "LK").eq("cod_cli", cod).maybeSingle();
+  // Ficha revisada a mano: NO la pisa el incremental (quedaría a merced de Haiku). Se congela hasta que alguien
+  // borre revisada_por. El corte va ANTES de llamar al modelo, así saltarla no gasta. La memoria del año a demanda
+  // (buscar_en_mi_historial) igual ve las charlas nuevas en bot_historial_chat.
+  if (prev?.revisada_por) {
+    await marcar("revisada_congelada");
+    return { cod_cli: cod, ok: true, saltado: "revisada", revisada_por: prev.revisada_por };
+  }
   const { texto } = textoHistorial(nuevos, EMPRESA.LK, 30_000);
   const r = await pedirFicha(apiKey, sistemaActualizacion(EMPRESA.LK),
     `FICHA ACTUAL:\n${prev?.ficha ?? "(todavía no tiene ficha)"}\n\nCHARLA NUEVA CON EL BOT DE WHATSAPP:\n${texto}`, "memoria_incremental", p.telefono);
@@ -228,6 +235,35 @@ Deno.serve(async (req: Request) => {
       }
       if (salida.some((x) => !x.ok)) console.error("[memoria-cliente] incremental:", JSON.stringify(salida.filter((x) => !x.ok)));
       return json({ ok: true, procesados: salida.length, resultados: salida });
+    }
+
+    // Reprocesa las fichas YA guardadas con las reglas de hoy, SIN llamar al modelo (US$ 0): fichaFinal saca las
+    // oraciones con porcentajes o importes (descuentos) que las fichas viejas traían de antes del filtro sinCifras.
+    // Saltea las revisadas a mano y NUNCA deja una ficha vacía. dry_run por defecto: no escribe, sólo cuenta y da muestra.
+    if (body.action === "reprocesar") {
+      const aplicar = body.aplicar === true;
+      const marca = body.marca ? String(body.marca).toUpperCase() : null;
+      let q = supabase.from("wa_memoria_cliente").select("marca, cod_cli, ficha, mensajes, desde, hasta, revisada_por");
+      if (marca === "LK" || marca === "CH") q = q.eq("marca", marca);
+      const { data, error } = await q;
+      if (error) return json({ ok: false, error: error.message }, 500);
+      const rows = (data ?? []) as Array<{ marca: string; cod_cli: number; ficha: string; mensajes: number; desde: string | null; hasta: string | null; revisada_por: string | null }>;
+      let cambiadas = 0, sin_cambio = 0, vacias = 0, saltadas_revisada = 0;
+      // deno-lint-ignore no-explicit-any
+      const muestra: any[] = [];
+      for (const r of rows) {
+        if (r.revisada_por) { saltadas_revisada++; continue; }
+        const nueva = fichaFinal(String(r.ficha ?? ""), Number(r.mensajes ?? 0), r.desde, r.hasta);
+        if (!nueva) { vacias++; continue; }           // nunca blanquear una ficha
+        if (nueva === r.ficha) { sin_cambio++; continue; }
+        cambiadas++;
+        if (muestra.length < 5) muestra.push({ marca: r.marca, cod_cli: r.cod_cli, antes: String(r.ficha).slice(0, 180), despues: nueva.slice(0, 180) });
+        if (aplicar) {
+          const { error: eU } = await supabase.from("wa_memoria_cliente").update({ ficha: nueva }).eq("marca", r.marca).eq("cod_cli", r.cod_cli);
+          if (eU) return json({ ok: false, error: `update ${r.marca}/${r.cod_cli}: ${eU.message}` }, 500);
+        }
+      }
+      return json({ ok: true, dry_run: !aplicar, total: rows.length, cambiadas, sin_cambio, vacias, saltadas_revisada, muestra });
     }
 
     return json({ ok: false, error: "action desconocida" }, 400);

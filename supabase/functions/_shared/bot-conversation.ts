@@ -1,6 +1,7 @@
 // Claude API — Tool-use conversacional para bot WhatsApp Loekemeyer
 // Usa RPCs bot_* existentes como herramientas de Claude
 
+import { conAvisoSinPendiente } from "./pedidos-sin-pendiente.ts";
 import { cacheSettingsTtl, getGestionClient, getSetting, supabase } from "./supabase.ts";
 import { derivaciones, motivosIA } from "./derivaciones.ts";
 import { notificarHumano } from "./alertas.ts";
@@ -32,6 +33,8 @@ import { CODIGOS_FORMA_DE_PAGO, formasDePago } from "./formas-pago.ts";
 import { datosCobranzas, datosEmpresas, deudaChefPorCuit, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { palabraDeBusqueda, raizDeBusqueda } from "./articulo-nombre.ts";
+import { detalleDePedido, type FilaDetallePedido, importesDelTotal } from "./importes-pedido.ts";
+import { imagenEnviable } from "./imagen-enviable.ts";   // 15/10: no se manda una foto que Meta va a rechazar (JPEG CMYK)
 import { REGLA_NO_DISPONIBLE } from "./inactivos.ts";
 import {
   callModel,
@@ -211,7 +214,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_mis_pedidos",
     description:
-      "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total, método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
+      "Consulta los pedidos recientes del cliente: índice (1 = más reciente), fecha del pedido, estado (recibido/programado/en preparación/facturado/entregado), fecha de salida si la tiene, total (total_para_el_cliente: con IVA y el neto «+ IVA», pasalo tal cual, sin agregarle «+ IVA» al primer número), método de pago, ítems y cajas. No trae número de pedido: nombralos por la fecha (\"tu pedido del 28/09\").",
     input_schema: {
       type: "object",
       properties: {
@@ -225,7 +228,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_detalle_pedido",
     description:
-      "Muestra el detalle de un pedido: ítems, códigos, cantidades (cajas), precios por línea y total. Se busca por indice (1 = más reciente, el mismo de consultar_mis_pedidos).",
+      "Muestra el detalle de un pedido: ítems, códigos, cantidades (cajas), el importe de cada línea si está cargado y el total (total_para_el_cliente: con IVA y el neto «+ IVA», pasalo tal cual, sin agregarle «+ IVA» al primer número). Se busca por indice (1 = más reciente, el mismo de consultar_mis_pedidos).",
     input_schema: {
       type: "object",
       properties: {
@@ -278,11 +281,16 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "buscar_productos",
     description:
-      "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, unidades por caja, precio de lista por UNIDAD y por CAJA (sin descuentos), el precio DEL CLIENTE por caja (con su descuento por volumen, si tiene) y si tiene imagen. Si le decís un precio al cliente, usá precio_cliente_por_caja cuando venga (es el suyo, antes del descuento de la forma de pago); si no viene, el de lista. No confundas los precios. Todos estos precios son SIN IVA: al decírselos al cliente agregá «+ IVA».",
+      "Busca productos en el catálogo por nombre, código o categoría. Devuelve código, descripción, unidades por caja, precio de lista por UNIDAD y por CAJA (sin descuentos), el precio DEL CLIENTE por caja (con su descuento por volumen, si tiene) y si tiene imagen. Si le decís un precio al cliente, usá precio_cliente_por_caja cuando venga (es el suyo, antes del descuento de la forma de pago); si no viene, el de lista. No confundas los precios. Todos estos precios son SIN IVA: al decírselos al cliente agregá «+ IVA». Si el cliente describe el artículo por un rasgo VISUAL (color, material, forma: \"el pelapapas de mango rojo\", \"la olla de aluminio\"), poné el tipo de producto en query (\"pelapapas\") y el/los rasgos en atributos ([\"rojo\"]). Si con atributos no sale nada, volvé a buscar SIN atributos y ofrecé lo que haya, o pedile una referencia.",
     input_schema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Término de búsqueda" },
+        query: { type: "string", description: "Término de búsqueda: el TIPO de producto (ej: \"pelapapas\", \"olla\"). No metas acá el color ni el material." },
+        atributos: {
+          type: "array",
+          items: { type: "string" },
+          description: "Rasgos VISUALES que el cliente mencionó (color, material, forma), uno por elemento: [\"rojo\"], [\"aluminio\"], [\"rojo\",\"chico\"]. Sólo si los dijo. Se filtran los productos que tengan TODOS esos rasgos.",
+        },
         limite: {
           type: "integer",
           description: "Cantidad de resultados (default 10, máx 20)",
@@ -349,7 +357,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "enviar_fotos_producto",
     description:
-      "Envía por WhatsApp una foto de uno o varios productos (hasta 10), una por producto. Pasá los códigos de los que querés mostrar. Usala cuando el cliente pide ver las fotos de los artículos que le ofreciste (ej: buscó 'pelapapas' sin código, le mostraste varias opciones y pide las fotos): mandá los códigos de todos los que le ofreciste.",
+      "Envía por WhatsApp una foto de uno o varios productos (hasta 10), una por producto. Pasá los códigos de los que querés mostrar. Usala cuando el cliente pide ver las fotos de los artículos que le ofreciste (ej: buscó 'pelapapas' sin código, le mostraste varias opciones y pide las fotos): mandá los códigos de todos los que le ofreciste. Si el cliente también pidió los precios, dáselos en el texto de la respuesta (uno por artículo, de buscar_productos): las fotos no llevan el precio.",
     input_schema: {
       type: "object",
       properties: {
@@ -569,6 +577,14 @@ function modoDeEntrega(m: any): { entrega: string; expreso?: string } {
   return { entrega: "reparto propio" };
 }
 
+/** Detalle de un pedido para la IA (Pablo, 14/10). `bot_detalle_pedido` pone el precio de LISTA × cajas cuando la línea no tiene `line_total` cargado (3 de los 4 pedidos del 14/10): sería un
+ *  importe sin descuentos que no suma con el total. Las líneas con importe cargado se leen de order_items, en el mismo orden (id) con que la RPC devuelve las filas (la parte pura está
+ *  en importes-pedido.ts). El total va con IVA y el neto «+ IVA», como el aviso de pedido recibido. */
+async function detalleParaIA(filas: FilaDetallePedido[], orderId: number) {
+  const { data: its } = await supabase.from("order_items").select("id, line_total").eq("order_id", orderId).order("id", { ascending: true });
+  return detalleDePedido(filas, (its ?? []).map((x: { line_total: unknown }) => Number(x.line_total) > 0));
+}
+
 async function executeTool(
   name: string,
   // deno-lint-ignore no-explicit-any
@@ -611,7 +627,7 @@ async function executeTool(
           }
         } catch (e) { console.warn("derivar_a_persona: datos de Cobranzas:", e instanceof Error ? e.message : e); }
       }
-      return { data: { ok: true, mensaje: "Listo: quedó derivado. Decile al cliente que una persona del equipo le escribe por este medio." } };
+      return { data: { ok: true, mensaje: "Listo: quedó derivado. Tu respuesta tiene que incluir TAMBIÉN todo lo que ya averiguaste para el cliente en este turno (stock, links de fotos, precios, estados): no lo reemplaces por el aviso. Avisale UNA sola vez, tuteándolo, que una persona del equipo (o Ventas) le escribe por este medio, y no lo repitas si ya está." } };
     }
 
     case "solicitar_cambio_mail": {
@@ -761,17 +777,20 @@ async function executeTool(
       const porId = new Map((est ?? []).map((e: any) => [String(e.order_id), e]));
       // deno-lint-ignore no-explicit-any
       const modoPor = new Map((modos ?? []).map((m: any) => [String(m.order_id), modoDeEntrega(m)]));
-      return { data: filas.map((r, i) => {
+      // Pablo, 14/10 (P5, mp03 y mp06): si ninguno está pendiente, la indicación va con los datos (pedidos-sin-pendiente.ts).
+      return { data: conAvisoSinPendiente(filas.map((r, i) => {
         // deno-lint-ignore no-explicit-any
         const e: any = porId.get(String(r.order_id));
-        const { order_id: _id, ...resto } = r;
+        // Pablo, 14/10: `total` de orders es SIN IVA y con descuentos. Se saca el neto pelado y se pasa con IVA y «+ IVA» (importes-pedido.ts), como el aviso de pedido recibido.
+        const { order_id: _id, total: totalNeto, subtotal: subtotalLista, ...sinTotales } = r;
+        const resto = { ...sinTotales, subtotal_lista_sin_iva_antes_de_descuentos: subtotalLista, ...(importesDelTotal(totalNeto) ?? {}) };
         const modo = modoPor.get(String(r.order_id)) ?? { entrega: "reparto propio" };
         const estado = e?.status ?? "recibido";
         // Pablo, 07/10 (m1, m23): un pedido de RETIRO no "sale": el estado va ya redactado ("facturado y listo para retirar desde el martes 06/10", "retirado el martes 06/10") y sin
         // `fecha_salida`, que el agente traducía como "salió".
         if (modo.entrega === "retira en el depósito") return { indice: i + 1, ...resto, estado, estado_para_el_cliente: estadoRetiroParaIA(estado, e?.fecha_entrega ?? null), ...modo };
         return { indice: i + 1, ...resto, estado, fecha_salida: e?.fecha_entrega ?? null, ...modo };
-      }) };
+      })) };
     }
 
     case "consultar_detalle_pedido": {
@@ -788,8 +807,7 @@ async function executeTool(
         });
         if (error) return { data: { error: error.message } };
         if (!data?.length) return { data: { mensaje: "No se encontró un pedido en esa posición." } };
-        // deno-lint-ignore no-explicit-any
-        return { data: (data as any[]).map(({ order_id: _id, ...resto }) => resto) };
+        return { data: await detalleParaIA(data as FilaDetallePedido[], Number(elegido.order_id)) };
       }
       if (input.order_id) {
         const { data, error } = await supabase.rpc("bot_detalle_pedido", {
@@ -798,7 +816,7 @@ async function executeTool(
         });
         if (error) return { data: { error: error.message } };
         if (!data?.length) return { data: { mensaje: "No se encontró ese pedido o no te pertenece." } };
-        return { data };
+        return { data: await detalleParaIA(data as FilaDetallePedido[], Number(input.order_id)) };
       }
       return { data: { error: "Necesito el índice del pedido (1 = el más reciente)." } };
     }
@@ -910,6 +928,12 @@ async function executeTool(
       });
       if (error) return { data: { error: error.message } };
       if (!data?.length) return { data: { mensaje: "No se pudieron obtener los descuentos." } };
+      // Gate escala_activa (Pablo, 14/10): un cliente con escala activa va obligado a Contado -25%,
+      // igual que la página (getPaymentDiscount). La RPC devuelve los demás plazos en null; avisamos
+      // al agente para que no ofrezca plazos que ese cliente no tiene.
+      if (data[0] && data[0].pago_15_30 == null) {
+        data[0].nota_escala = "Cliente con escala activa: su primera compra va Contado -25%. Los demás plazos (30/45/60/90 días) no aplican todavía.";
+      }
       return { data };
     }
 
@@ -925,9 +949,14 @@ async function executeTool(
     }
 
     case "buscar_productos": {
+      const limite = Math.min(Number(input.limite ?? 10) || 10, 20);
+      // Fase B: rasgos visuales que el cliente pidió (color/material/forma). Si hay, se busca más ancho
+      // y después se filtra en TS por wa_producto_atributos (sql/152): dejar sólo los que tienen TODOS.
+      const atributos = Array.isArray(input.atributos)
+        ? input.atributos.map((a: unknown) => String(a).toLowerCase().trim()).filter(Boolean) : [];
       const { data, error } = await supabase.rpc("bot_buscar_productos", {
         p_query: input.query,
-        p_limit: input.limite ?? 10,
+        p_limit: atributos.length ? 20 : limite,
       });
       if (error) return { data: { error: error.message } };
       // Pablo, 30/09 (2.5): un código que existe pero está inactivo es "no disponible por el momento" (desde el 08/10; antes "discontinuado"), no "no encontré". Se le ofrecen los
@@ -942,9 +971,32 @@ async function executeTool(
         if (inactivos.length) return { data: { no_disponibles: inactivos, regla: REGLA_NO_DISPONIBLE } };
         return { data: { mensaje: `No encontré productos para "${input.query}".` } };
       }
+      // deno-lint-ignore no-explicit-any
+      let rows = data as any[];
+      // Rasgos visuales por producto (color/material) que sacó la visión del catálogo (wa_producto_atributos, Fase B).
+      // Sirven para DOS cosas: filtrar por atributo y DEVOLVERLE el color al agente, así no lo inventa (ej. "colores surtidos").
+      const codsAll = rows.map((r) => String(r.cod));
+      const { data: atrs } = await supabase.from("wa_producto_atributos").select("cod, atributos_texto, datos").in("cod", codsAll);
+      // deno-lint-ignore no-explicit-any
+      const mapaAtr = new Map((atrs ?? []).map((a: any) => [String(a.cod), a]));
+      // Fase B: filtro por rasgo visual. Deja sólo los productos cuyo atributos_texto (+ descripción/subcategoría)
+      // contiene TODOS los términos pedidos, por PALABRA entera (no substring: "madera" no matchea "espumadera";
+      // un atributo multi-palabra como "acero inoxidable" exige todas sus palabras). Si ninguno coincide, se le dice al agente.
+      if (atributos.length) {
+        const conFiltro = rows.filter((r) => {
+          const texto = `${String(mapaAtr.get(String(r.cod))?.atributos_texto ?? "")} ${r.description ?? ""} ${r.subcategory ?? ""}`.toLowerCase();
+          const palabras = new Set(texto.split(/[^0-9a-záéíóúüñ]+/i).filter(Boolean));
+          return atributos.every((a) => a.split(/\s+/).filter(Boolean).every((w) => palabras.has(w)));
+        });
+        if (!conFiltro.length) {
+          return { data: { mensaje: `Encontré ${rows.length} resultado(s) de "${input.query}" pero ninguno que coincida con: ${atributos.join(", ")}. Ofrecé lo que hay sin esa aclaración, o pedile una referencia o el código.` } };
+        }
+        rows = conFiltro;
+      }
+      rows = rows.slice(0, limite);
       // Link de la foto (bucket público products-images/<cod>.webp) cuando son pocos resultados: para que el cliente
       // confirme el artículo que el bot supone.
-      const fotos = data.length <= 5 ? await Promise.all((data as Array<{ cod: string }>).map((p) => fotoProducto(p.cod))) : [];
+      const fotos = rows.length <= 5 ? await Promise.all((rows as Array<{ cod: string }>).map((p) => fotoProducto(p.cod))) : [];
       // Pablo, 29/09: list_price es por UNIDAD. El bot decía "$5.520 por caja" y la caja de 6 sale $33.120.
       // Se le pasan los dos precios con nombre explícito, de lista (sin descuentos).
       // Pablo, 30/09: además el precio DEL CLIENTE (lista − su descuento por volumen, como la web). En el Simulador el bot
@@ -952,11 +1004,18 @@ async function executeTool(
       const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
       const dto = Number(cli?.[0]?.cod_cliente) === 5000 ? 0 : Number(cli?.[0]?.dto_vol ?? 0);
       // deno-lint-ignore no-explicit-any
-      const res = (data as any[]).map(({ list_price, uxb, ...r }, i) => ({ ...r, unidades_por_caja: uxb, ...(fotos[i] ? { foto: fotos[i] } : {}),
-        precio_lista_por_unidad: Math.round(Number(list_price || 0)),
-        precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
-        ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
-          descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) }));
+      const res = (rows as any[]).map(({ list_price, uxb, ...r }, i) => {
+        // color/material de la visión (campo que el agente usa tal cual; cada código es de UN color, el de su foto).
+        const d = (mapaAtr.get(String(r.cod))?.datos ?? {}) as Record<string, unknown>;
+        const color = Array.isArray(d.colores) ? (d.colores as unknown[]).filter((x) => typeof x === "string").join(", ") : "";
+        const material = typeof d.material === "string" ? d.material : "";
+        return { ...r, unidades_por_caja: uxb, ...(fotos[i] ? { foto: fotos[i] } : {}),
+          ...(color ? { color } : {}), ...(material ? { material } : {}),
+          precio_lista_por_unidad: Math.round(Number(list_price || 0)),
+          precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
+          ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
+            descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) };
+      });
       return { data: inactivos.length ? { productos: res, no_disponibles: inactivos, regla: REGLA_NO_DISPONIBLE } : res };
     }
 
@@ -969,7 +1028,8 @@ async function executeTool(
         const cajas = Number(input.cajas) > 0 ? Number(input.cajas) : null;
         const st = await stockArticulo(p.cod);
         if (!st) return { data: { mensaje: "No pude consultar el stock. Ofrecé derivar a ventas." } };
-        if (stockNecesitaHumano(st, cajas)) {
+        const avisado = stockNecesitaHumano(st, cajas);
+        if (avisado) {
           const { data: cli } = await supabase.rpc("wa_identify_customer", { p_phone: phone });
           await notificarHumano({
             tipo: "escalation", phone, customerId: cli?.[0]?.customer_id ?? null,
@@ -983,7 +1043,9 @@ async function executeTool(
           try { ing = await ingresoEstimado(p.cod); } catch (e) { console.error("ingresoEstimado:", e); }
         }
         return { data: { texto_para_el_cliente: textoStock(p.description, p.cod, st, cajas) + textoIngreso(ing),
-          regla: "Pasale este texto tal cual; no agregues cantidades ni otras fechas. La fecha de ingreso siempre es estimada." } };
+          regla: "Pasale este texto tal cual; no agregues cantidades ni otras fechas. La fecha de ingreso siempre es estimada." +
+            // Pablo, 14/10 (P5, mp05 con Haiku): además de este aviso llamaba a derivar_a_persona y contestaba sólo «una persona te escribe», sin el stock ni la foto.
+            (avisado ? " Esta consulta YA quedó avisada a una persona: NO llames a derivar_a_persona por el stock, y en la respuesta incluí también lo demás que pidió (por ejemplo el link de la foto)." : "") } };
       } catch (e) {
         console.error("consultar_stock:", e);
         return { data: { mensaje: "No pude consultar el stock ahora. Decile que un asesor le confirma y ofrecé derivar." } };
@@ -1049,19 +1111,30 @@ async function executeTool(
       }
       const resultados = await Promise.all(cods.map((c) =>
         supabase.rpc("bot_obtener_imagenes_producto", { p_cod: c }).then((r) => ({ c, data: r.data }))));
-      const medias: MediaAction[] = [];
+      const candidatas: Array<{ c: string; url: string; caption: string }> = [];
       const sinFoto: string[] = [];
       for (const { c, data } of resultados) {
         const prod = data?.[0];
         const url: string | undefined = prod?.image_urls?.[0];
-        if (url) medias.push({ type: "image" as const, url, caption: `${prod.cod} — ${prod.description}` });
+        if (url) candidatas.push({ c, url, caption: `${prod.cod} — ${prod.description}` });
         else sinFoto.push(c);
       }
+      // Pablo, 15/10: la foto del 599E es un JPEG CMYK y Meta la rechaza siempre (131053) después de aceptarla; el bot había dicho que mandó las 10.
+      // Se mira el encabezado de cada foto antes de mandarla: la que Meta no va a aceptar queda en sin_foto y el agente se lo dice al cliente.
+      const veredictos = await Promise.all(candidatas.map((x) => imagenEnviable(x.url)));
+      const medias: MediaAction[] = [];
+      candidatas.forEach((x, k) => {
+        if (veredictos[k].ok) medias.push({ type: "image" as const, url: x.url, caption: x.caption });
+        else { sinFoto.push(x.c); console.warn(`[fotos] ${x.c} no se manda: ${veredictos[k].motivo}`); }
+      });
       if (!medias.length) {
-        return { data: { error: "Ninguno de esos productos tiene fotos cargadas." } };
+        return { data: { error: "Ninguno de esos productos tiene fotos que se puedan mandar por WhatsApp.", sin_foto: sinFoto } };
       }
       return {
-        data: { cantidad_fotos: medias.length, sin_foto: sinFoto },
+        data: {
+          cantidad_fotos: medias.length, sin_foto: sinFoto,
+          ...(sinFoto.length ? { nota: "De los códigos de sin_foto no se pudo mandar foto: decile al cliente cuáles son, sin explicar el motivo técnico." } : {}),
+        },
         media: medias,
       };
     }
@@ -1600,7 +1673,9 @@ export async function runConversation(
   // Pablo, 08/10: lo que la capa fija contestaría a un mensaje compuesto o repetido (faq.ts decidirCapaFija). Va al final del prompt.
   // Pablo, 08/10: soloGratis (la corrida automática de evaluación, sql/133) descarta todo modelo que no sea is_free_tier, aunque alguien haya
   // dejado uno pago en llm_modelo_pruebas mientras el caso estaba en el Simulador.
-  opciones: { pistas?: string[]; soloGratis?: boolean } = {},
+  // `degradado` (Pablo, 14/10): pasó el tope BLANDO de gasto diario (tope-gasto.ts, nivel `degradar`). El agente sigue, pero sólo con modelos
+  // gratis; si ninguno responde, Haiku 5.5 barato. Lo decide el webhook; el corte duro lo corta antes de llegar acá. No toca la toma de pedidos.
+  opciones: { pistas?: string[]; soloGratis?: boolean; modeloEval?: string | null; degradado?: boolean } = {},
 ): Promise<ConversationResult> {
   // Auditoría 02/10: historial, prompt, herramientas y cadena de modelos no dependen entre sí: se piden juntos. Antes
   // eran ~9 viajes a la base en fila antes de la primera llamada al modelo.
@@ -1618,7 +1693,7 @@ export async function runConversation(
   // anterior completa (con tope: ventana-historial.ts); la nota de tiempo y las compuertas de pedido y de mail siguen viendo los últimos 16.
   const rawHistory = historial.recientes;
   const bloqueAprobados = bloqueEjemplos(elegirEjemplos(userText, ejemplos));
-  const pistas = bloquePistas(opciones.pistas ?? []);
+  const pistas = bloquePistas(opciones.pistas ?? [], customerName);
   // Pablo, 08/10: el prompt va en dos partes para el caché de Anthropic (bot-llm.ts): la base (reglas y datos del cliente) es igual en todas las
   // llamadas del turno y en los mensajes seguidos del mismo cliente; lo que cambia con cada mensaje (nota de tiempo, hechos, ejemplos, pistas) va
   // dentro del último mensaje del cliente, después del historial (contextoEnElTurno), para no cambiarle el prefijo al historial.
@@ -1653,7 +1728,13 @@ export async function runConversation(
   // por coma, en orden: Pablo, 08/10, ver modelos-prueba.ts): si fallan todos, la prueba falla (llmError) y NO cae a la cadena, para que
   // una caída no se pague en otro modelo sin que nadie se entere (Pablo, 01/10).
   let soloPruebas = false;
-  if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
+  // Pablo, 14/10 (P5): la corrida semanal de evaluación pide un modelo pago puntual (modeloEvalPermitido, modelos-prueba.ts) sin tocar
+  // llm_modelo_pruebas. Sólo ese modelo: si falla, el caso falla y se reintenta en la corrida, nunca cae a otro.
+  if (apiKey && fuente === "lk_bot-simular" && opciones.modeloEval) {
+    candidates.length = 0;
+    candidates.push({ id: idModeloPrueba(0), provider: "anthropic", model: opciones.modeloEval, key: apiKey, isFreeTier: false });
+    soloPruebas = true;
+  } else if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
     const modelosPrueba = listaModelosPrueba(await getSetting("llm_modelo_pruebas"));
     if (modelosPrueba.length) {
       candidates.length = 0;
@@ -1685,6 +1766,15 @@ export async function runConversation(
     }
     candidates.length = 0;
     candidates.push(...gratis);
+  }
+  // Tope de gasto degradado (Pablo, 14/10: «degradá, pero no cortes del todo» y «que no corte»). Pasó el tope: el agente sigue pero SÓLO con modelos
+  // gratis; si ninguno está disponible —el caso que quema el presupuesto, Gemini gratis caído— cae a Haiku 5.5 barato como último recurso (nunca a Sonnet).
+  // El agente NUNCA se corta por gasto; el webhook decide el nivel (`degradar`/`escalar`). No toca la toma de pedidos (turnoPedido va con su modelo fijo) ni las pruebas.
+  if (opciones.degradado && !soloPruebas && !turnoPedido) {
+    const gratis = soloModelosGratis(candidates);
+    candidates.length = 0;
+    if (gratis.length) candidates.push(...gratis);
+    else if (apiKey) candidates.push({ id: 0, provider: "anthropic", model: "claude-haiku-5-5", key: apiKey, isFreeTier: false });
   }
   if (!candidates.length) {
     await notificarHumano({ tipo: "llm_error", phone, contexto: { userText, error: "Sin modelos en la cadena ni ANTHROPIC_API_KEY" } });

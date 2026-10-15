@@ -107,9 +107,37 @@ export function pistaRepetida(respuesta: string): string {
     `${MINUTOS_SIN_REPETIR} minutos (está en el historial). No se la repitas igual.`;
 }
 
-/** Bloque que se suma al final del prompt del agente. Vacío si no hay pistas. */
-export function bloquePistas(pistas: string[]): string {
+// Pablo, 15/10 (tanda de pruebas, mensaje 9): rastros de que en la charla reciente se habló de artículos: un código («cód. 586»), un precio por caja, una foto o el stock.
+// Hace falta mirar también «foto»: la respuesta que mandaba el agente era «Le envié las fotos de los 10 peladores» y no traía ningún código.
+const RE_HABLA_DE_ARTICULOS = /c[oó]d(?:igo|\.)?\s*\d|\bpor caja\b|\bfotos?\b|\[imagen\]|\bstock\b/i;
+
+/** ¿Alguno de los mensajes recientes del bot habla de artículos? (los que devuelve respuestasRecientes: los últimos MINUTOS_SIN_REPETIR minutos) */
+export function recientesHablanDeArticulos(recientes: string[]): boolean {
+  return recientes.some((x) => RE_HABLA_DE_ARTICULOS.test(String(x ?? "")));
+}
+
+/** La pista cuando el cliente pregunta por precios sin nombrar un artículo y venían hablando de artículos: el precio que pide es el de ESOS artículos. */
+export function pistaPrecioConContexto(texto: string, respuesta: string): string {
+  return `- El cliente pregunta por precios sin nombrar un artículo («${recortar(texto, 200)}»), pero en esta charla ya se habló de artículos: lo que pide es el precio de ESOS artículos. ` +
+    `Buscalos con buscar_productos si hace falta y decile el precio de cada uno por caja + IVA, uno por línea. ` +
+    `Sólo si mirando el historial no hay ningún artículo de por medio, la respuesta fija aprobada es: «${recortar(respuesta.trim(), 700)}» ` +
+    `(si ya se la mandaste hace menos de ${MINUTOS_SIN_REPETIR} minutos, no se la repitas igual).`;
+}
+
+/** Pablo, 14/10 (P5, caso mp07 con Haiku 5.5): varias respuestas fijas de faq.ts arrancan con la razón social («Garbarino Franco Tomas, todos
+ *  tus pedidos…») y el agente la copiaba de la pista, contra la regla de no saludar con la razón social. Se saca de la pista (la respuesta fija que
+ *  sale directo no cambia): «Nombre, todos…» queda «Todos…». */
+export function sinNombreAlInicio(texto: string, nombre: string | null | undefined): string {
+  const n = (nombre ?? "").trim();
+  if (!n) return texto;
+  const esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return texto.replace(new RegExp(`(^|«|\\n)${esc},\\s*(\\p{L})`, "gu"), (_m, antes: string, letra: string) => antes + letra.toUpperCase());
+}
+
+/** Bloque que se suma al final del prompt del agente. Vacío si no hay pistas. `nombre`: la razón social del cliente, que se saca del inicio de las pistas. */
+export function bloquePistas(pistas: string[], nombre?: string | null): string {
   if (!pistas.length) return "";
+  pistas = pistas.map((p) => sinNombreAlInicio(p, nombre));
   return "PISTAS DE LAS RESPUESTAS FIJAS PARA ESTE MENSAJE (salen de palabras clave, por eso este mensaje no se contestó con una respuesta fija):\n" +
     pistas.join("\n") + "\n" +
     "Cómo usarlas: contestá TODO lo que el cliente pide en este mensaje, en UN solo mensaje natural y en el orden en que lo pidió, " +

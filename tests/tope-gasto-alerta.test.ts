@@ -16,9 +16,10 @@ function igual(nombre: string, real: unknown, esperado: unknown) {
   else { fallas++; console.error(`FALLA ${nombre}\n   real:     ${a}\n   esperado: ${b}`); }
 }
 
-const t = { tope: 2, aviso: 1 };
-for (const nivel of ["aviso", "tope"] as const) {
-  const alerta = { tipo: "otro", contexto: contextoAlertaGasto(nivel, nivel === "aviso" ? 1.2 : 2.1, t, "hola", "Bazar Farimar") };
+const t = { tope: 2, aviso: 1, escalar: 3 };
+const gastoDe = (nivel: string) => nivel === "aviso" ? 1.2 : nivel === "degradar" ? 2.1 : 3.1;
+for (const nivel of ["aviso", "degradar", "escalar"] as const) {
+  const alerta = { tipo: "otro", contexto: contextoAlertaGasto(nivel, gastoDe(nivel), t, "hola", "Bazar Farimar") };
   igual(`la alerta de ${nivel} cae en la categoría tope_gasto`, categoria(alerta), "tope_gasto");
 }
 igual("la categoría tiene nombre para el Panel", typeof CATEGORIAS.tope_gasto?.label === "string" && CATEGORIAS.tope_gasto.label.length > 0, true);
@@ -28,10 +29,11 @@ igual("semáforo Auto: amarillo", nivelAuto("tope_gasto", {}, false), "amarillo"
 igual("semáforo Auto: rojo si la alerta se marcó urgente", nivelAuto("tope_gasto", { urgente: true }, false), "rojo");
 igual("no se confunde con el tope por hora", categoria({ tipo: "otro", contexto: { motivo: "tope_ia" } }), "tope_ia");
 
-const medida = MEDIDAS_SEGURIDAD.find((m) => m.medida === "Tope de gasto global diario");
+const medida = MEDIDAS_SEGURIDAD.find((m) => m.medida.startsWith("Tope de gasto global diario"));
 igual("la medida de seguridad figura como activa", medida?.estado, "activa");
 igual("la medida dice los montos y que cuenta sólo clientes", /US\$ 2/.test(medida?.que_hace ?? "") && /US\$ 1/.test(medida?.que_hace ?? "") && /clientes/i.test(medida?.que_hace ?? ""), true);
-igual("ya no queda como pendiente", MEDIDAS_SEGURIDAD.filter((m) => m.medida === "Tope de gasto global diario" && m.estado === "pendiente").length, 0);
+igual("la medida dice que no corta y que escala en horario", /nunca corta|NO se corta/i.test(medida?.que_hace ?? "") && /horario/i.test(medida?.que_hace ?? ""), true);
+igual("ya no queda como pendiente", MEDIDAS_SEGURIDAD.filter((m) => m.medida.startsWith("Tope de gasto global diario") && m.estado === "pendiente").length, 0);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo ok");

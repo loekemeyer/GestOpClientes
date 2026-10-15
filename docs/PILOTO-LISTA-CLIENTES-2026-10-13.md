@@ -46,8 +46,7 @@ quien conoce al cliente (hoy, el vendedor 7 para tres de los cuatro):
 3. Que **el teléfono sea el actual de cada cliente.** *(Corregido el 13/10, ver `PROPUESTA-TELEFONOS-695-2026-10-13.md`: antes decía que la copia del 24/09 podía perder cambios; no está demostrado.)*
    Los 4 teléfonos del piloto están en **las dos fuentes del padrón** (la vieja y `GV_Clientes_Whatsapp`, que la reemplazó el 24/09), con el mismo cliente, y `wa_identify_customer` los reconoce.
    Ninguna de las dos tiene un cambio posterior al 24/09, así que no hay un número más nuevo que el bot no vea; lo que no se puede saber desde la base es si un cliente cambió de número y nadie lo cargó.
-   Siguen sin estar en la agenda de vinculaciones (revisión humana). Confirmarlos con el vendedor antes de cargarlos sigue valiendo. Dato nuevo: **LK 1987 Bertotto tiene el mismo teléfono que el cliente
-   Chef 1891**, que es el mismo negocio. El bot lo trata como un cliente con dos marcas y ese caso no se probó en el aislamiento.
+   Siguen sin estar en la agenda de vinculaciones (revisión humana). Confirmarlos con el vendedor antes de cargarlos sigue valiendo. Dato nuevo: **LK 1987 Bertotto tiene el mismo teléfono que el cliente Chef 1891** (mismo CUIT, mismo negocio). *Corregido el 14/10:* antes decía que el bot lo trata como un cliente con dos marcas, y no es así. La puerta de marca sólo pregunta «¿Loekemeyer o Chef?» si el CUIT tiene cuenta de Chef Y compró en Chef (factura en 12 meses o pedido en 90 días): 1891 tiene cuenta pero 0 pedidos en 90 días y la puerta no se disparó, así que el bot lo atiende como cliente de una sola marca. Probado el 14/10 en el Simulador (Haiku 5.5, sin mandar mensajes): ver `ESTADO.md`. Si empieza a comprar en Chef, la puerta empieza a preguntar sola.
 
 ## 5. Revisión de las fichas (Fase 1 punto 2, hecha el 13/10 sobre estos 4)
 

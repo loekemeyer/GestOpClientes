@@ -317,7 +317,47 @@ serve(async (req) => {
       const agendado = cli?.source === "vinculo";
       // Cadena con lista propia (sql/114): la ficha avisa que el bot le cotiza con la lista general (Pablo, 01/10).
       const cadena = cod ? (await cadenasListaPropia([cod])).get(Number(cod)) ?? null : null;
-      return json({ ok: true, phone, identificado: !!cli, agendado, fuente: cli?.source ?? null, cliente, cadena, entrega, pedidos, avisos: av ?? [], facturas, deuda });
+      // Ficha de memoria del agente (wa_memoria_cliente): el resumen que lee la IA, con si está revisada a mano.
+      let memoria = null;
+      if (cod) {
+        const { data: m } = await sb.from("wa_memoria_cliente")
+          .select("ficha, revisada_por, revisada_en, generada_en")
+          .eq("marca", "LK").eq("cod_cli", Number(cod)).maybeSingle();
+        memoria = m ?? null;
+      }
+      return json({ ok: true, phone, identificado: !!cli, agendado, fuente: cli?.source ?? null, cliente, cadena, entrega, pedidos, avisos: av ?? [], facturas, deuda, memoria });
+    }
+
+    // Marca (o desmarca) como revisada a mano la ficha de memoria de un cliente. Mientras revisada_por esté cargado,
+    // el cron incremental (lk_memoria-cliente) no la pisa (sql/151). marca fija LK: este panel es del proyecto de LK.
+    if (action === "marcar_ficha_revisada") {
+      const codCli = Number(body.cod_cli);
+      if (!Number.isInteger(codCli) || codCli <= 0) return json({ error: "cod_cli requerido" }, 400);
+      const revisar = body.revisar !== false;
+      const upd = revisar
+        ? { revisada_por: gate.email ?? "admin", revisada_en: new Date().toISOString() }
+        : { revisada_por: null, revisada_en: null };
+      const { error } = await sb.from("wa_memoria_cliente").update(upd).eq("marca", "LK").eq("cod_cli", codCli);
+      if (error) return json({ error: error.message }, 500);
+      console.log(`lk_conversaciones: ficha ${codCli} ${revisar ? "revisada" : "des-revisada"} por ${gate.email}`);
+      return json({ ok: true, revisada: revisar, revisada_por: revisar ? (gate.email ?? "admin") : null });
+    }
+
+    // Guarda la ficha de memoria corregida a mano. Guardar = corregir: queda revisada (revisada_por) para que el cron
+    // incremental no la pise (sql/151). No crea fichas nuevas: sólo actualiza la de un cliente que ya tiene. marca LK.
+    if (action === "guardar_ficha_memoria") {
+      const codCli = Number(body.cod_cli);
+      const ficha = String(body.ficha ?? "").trim();
+      if (!Number.isInteger(codCli) || codCli <= 0) return json({ error: "cod_cli requerido" }, 400);
+      if (ficha.length < 10) return json({ error: "la ficha no puede quedar vacía" }, 400);
+      if (ficha.length > 4000) return json({ error: "la ficha es demasiado larga" }, 400);
+      const { data: upd, error } = await sb.from("wa_memoria_cliente")
+        .update({ ficha, revisada_por: gate.email ?? "admin", revisada_en: new Date().toISOString() })
+        .eq("marca", "LK").eq("cod_cli", codCli).select("cod_cli");
+      if (error) return json({ error: error.message }, 500);
+      if (!upd?.length) return json({ error: "ese cliente no tiene ficha de memoria" }, 404);
+      console.log(`lk_conversaciones: ficha ${codCli} editada por ${gate.email}`);
+      return json({ ok: true, revisada_por: gate.email ?? "admin" });
     }
 
     if (action === "buscar_cliente") {
@@ -382,9 +422,10 @@ serve(async (req) => {
       }
       const antes = (await getSetting("wa_envio_automatico")) ?? "0";
       const quien = await nombreUsuario(gate.email);
-      const { error: eAud } = await sb.from("wa_llave_cambios").insert({ modo_anterior: antes, modo_nuevo: modo, usuario: quien, email: gate.email });
-      if (eAud) return json({ error: "No se pudo registrar el cambio (auditoría): " + eAud.message }, 500);
-      const { error } = await sb.from("app_settings").upsert({ key: "wa_envio_automatico", value: modo }, { onConflict: "key" });
+      // El trigger trg_wa_llave_log (sql/158) registra TODO cambio de la llave, venga de la edge o de SQL directo.
+      // La RPC deja el actor (email + nombre) por GUC en la misma transacción para que el registro quede con quién
+      // lo hizo. Antes se insertaba a mano en wa_llave_cambios acá, pero eso no capturaba los cambios por SQL directo.
+      const { error } = await sb.rpc("wa_llave_set", { p_modo: modo, p_email: gate.email, p_usuario: quien });
       if (error) return json({ error: error.message }, 500);
       console.log(`lk_conversaciones: llave ${antes} → ${modo} por ${gate.email}`);
       return json({ ok: true, ...(await llaveEstado()) });

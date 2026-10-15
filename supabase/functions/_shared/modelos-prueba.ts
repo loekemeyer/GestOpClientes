@@ -49,3 +49,15 @@ export function esperaPorCuotaDePrueba(status: number | undefined, msg: string, 
 export function soloModelosGratis<T extends { isFreeTier: boolean }>(candidatos: readonly T[]): T[] {
   return candidatos.filter((c) => c.isFreeTier === true);
 }
+
+/** Pablo Olejavetzky, 14/10/2026 (P5 del plan de los 8 puntos): «Cambialo a Haiku, medición semanal». La corrida semanal de los casos de
+ *  varios pasos corre con el modelo del piloto, que es pago, sin tocar app_settings.llm_modelo_pruebas. Sólo los modelos de esta lista, y sólo
+ *  desde una llamada interna (x-lk-secret): un admin del dashboard no puede pedir un modelo pago por acá. Costo medido el 14/10: unos
+ *  US$ 0,0037 por caso, US$ 0,03 por corrida de 8 casos. */
+export const MODELOS_EVAL_PAGOS: readonly string[] = ["claude-haiku-5-5"];
+
+export function modeloEvalPermitido(valor: unknown, interna: boolean): string | null {
+  if (!interna || typeof valor !== "string") return null;
+  const m = valor.trim();
+  return MODELOS_EVAL_PAGOS.includes(m) ? m : null;
+}

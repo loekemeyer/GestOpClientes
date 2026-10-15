@@ -580,7 +580,19 @@ async function handleStats(since?: string) {
   const diasPrev = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
+  // Presupuesto mensual del pozo de IA (sql/154, _shared/presupuesto-ia.ts). El gasto del mes ya viene en month.cost (total, sin filtrar por proveedor);
+  // acá van sólo los topes para que el dashboard dibuje la barra US$ gastado / US$ presupuesto y el pozo.
+  const [presupMensual, presupPozo, presupUmbrales] = await Promise.all([
+    getSetting("ia_presup_mensual_usd"), getSetting("ia_presup_pozo_usd"), getSetting("ia_presup_umbrales"),
+  ]);
+  const numAjuste = (v: unknown, def: number) => { const n = Number(String(v ?? "").trim().replace(",", ".")); return Number.isFinite(n) && n >= 0 ? n : def; };
+
   return json({
+    presupuesto: {
+      mensual_usd: numAjuste(presupMensual, 100),
+      pozo_usd: numAjuste(presupPozo, 200),
+      umbrales: String(presupUmbrales ?? "25,50,75,90,100").split(/[,;\s]+/).map((x) => Number(x.replace(",", "."))).filter((n) => Number.isFinite(n) && n > 0 && n <= 100),
+    },
     month: aggregate(allMonth),
     week: aggregate(weekRows),
     prev_month: aggregate(prevMonth),

@@ -393,6 +393,15 @@ serve(async (req) => {
       return json({ ok: true, semanas: data ?? [] });
     }
 
+    // P8.3 (Pablo, 14/10; sql/152): el worklist de la revisión diaria — charlas cerradas que quedaron derivadas o sin
+    // respuesta, para darle a cada una su salida (corrección en el artifact, cambio de código o tarea). Vista revocada
+    // de anon: se lee con service_role tras el gate de admin.
+    if (action === "charlas_para_revisar") {
+      const { data, error } = await sb.from("v_wa_charlas_para_revisar").select("*").limit(40);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, charlas: data ?? [] });
+    }
+
     // La última respuesta del bot, simulada desde el panel (lk_bot-simular).
     if (action === "eval_resultado") {
       if (!body.id) return json({ error: "id requerido" }, 400);

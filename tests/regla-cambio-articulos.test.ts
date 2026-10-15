@@ -16,8 +16,16 @@ for (const [modo, txt] of [["con pedidos por WhatsApp", reglasOperativas(true)],
   ok(`${modo}: deriva en ese mismo turno con cambio_pedido, urgente si está programado o facturado`, /en ESE mismo turno hac[eé] dos cosas, en este orden/.test(txt) && /llam[aá] a derivar_a_persona \(motivo «cambio_pedido»/.test(txt) && /urgente: true si el pedido est[aá] programado o facturado/.test(txt));
   ok(`${modo}: responde sólo el texto aprobado`, /Respondele s[oó]lo esto, casi literal/.test(txt));
   ok(`${modo}: el texto que aprobó Pablo`, txt.includes("«Le paso el cambio a Ventas: si tu pedido del 02/10 todavía no salió, sacan la paleta batidora y suman el batidor pera, y te confirman por este medio.»"));
+  // P5 (14/10, mp03 y mp06): sin pedido pendiente no se deriva un cambio ni una anulación sobre uno ya entregado.
+  ok(`${modo}: SIN PEDIDO PENDIENTE está y la nombra CAMBIO`, /- SIN PEDIDO PENDIENTE \(Pablo, 14\/10, P5/.test(txt) && /si ninguno est[aá] todav[ií]a sin salir \(todos entregados o retirados\), NO derives ni uses el texto de abajo, rige SIN PEDIDO PENDIENTE/.test(txt));
+  ok(`${modo}: con una referencia («el de ayer») y sin pendiente, pasa el listado de sus últimos pedidos y pregunta cuál`, /pasale el listado de sus [uú]ltimos pedidos, cada uno por su fecha/.test(txt) && /no le digas que no le figura, no le preguntes si lo hizo en la web y no derives todav[ií]a/.test(txt));
+  ok(`${modo}: si no es ninguno de la lista, deriva pedido_no_encontrado`, /Si dice que no es ninguno de la lista, deriv[aá] con derivar_a_persona \(motivo «pedido_no_encontrado»/.test(txt));
+  ok(`${modo}: PAGOS, consultar la deuda no se deriva (mp04)`, /preguntar cu[aá]nto debe, cu[aá]ndo vence o c[oó]mo pagar NO se deriva/.test(txt));
+  ok(`${modo}: no deriva sobre un pedido ya entregado y encamina el pedido nuevo en el mismo turno`, /no derives sobre uno ya entregado/.test(txt) && /encaminalo en ESE mismo turno seg[uú]n la regla PEDIDOS/.test(txt));
+  ok(`${modo}: CIERRE sin ofrecimientos que no pidió (Pablo, 14/10)`, /Tampoco cierres ofreciendo algo que no pidi[oó]/.test(txt));
   ok(`${modo}: sin backticks (rompen la plantilla)`, !txt.includes("`"));
 }
+ok("SIN PEDIDO PENDIENTE es UNA sola línea", reglasOperativas(false).split("\n").filter((l) => l.startsWith("- SIN PEDIDO PENDIENTE")).length === 1);
 ok("la regla es UNA sola línea (reglasOperativas reemplaza línea por línea)", reglasOperativas(false).split("\n").filter((l) => l.startsWith("- CAMBIO DE ARTÍCULOS")).length === 1);
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");

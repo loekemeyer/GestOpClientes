@@ -1,4 +1,5 @@
 import "../_shared/wa-guard.ts"; // D007: corte único de envíos a Meta
+import { headersDestinatario } from "../_shared/wa-guard-destino.ts"; // sql/156: el cliente al que va el aviso, para el guardrail de cruce
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
@@ -20,6 +21,8 @@ import { armarDtoCfg, cuentasFactura, ddmm, diasDelPlazo, type DtoCfg, type FacM
 // app_settings.wa_factura_envio_modo ('modulo' = chat de prueba | 'whatsapp' = real).
 // Hoy sólo procesa clientes de PRUEBA (cuit 30999…); datos reales quedan dormant.
 // verify_jwt=false (lo llama pg_net desde ISIS). Gate de secreto x-lk-secret: ver gate.ts (llave wa_factura_check_gate).
+// Modo redirect (envío real desviado a un número de prueba): además de la ventana (wa_real_redirect_date), exige una
+// allowlist de cuits en app_settings.wa_real_redirect_cuits; vacía = no manda nada. Ver handleRealRedirect (freno 14/10).
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -211,7 +214,8 @@ async function waPhoneId(): Promise<string> {
   return Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? (await getSetting("wa_phone_number_id")) ?? "";
 }
 // deno-lint-ignore no-explicit-any
-async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null) {
+// `cliente.cuit`: el cliente al que va el aviso, para el guardrail de cruce (sql/156). Sólo el CUIT: el código de cliente es ambiguo entre LK y Chef.
+async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null, cliente?: { cuit?: string | null; codCliente?: string | number | null }) {
   const token = await metaToken(), phoneId = await waPhoneId();
   if (!token) return { error: "sin WHATSAPP_ACCESS_TOKEN" };
   if (!phoneId) return { error: "sin wa_phone_number_id" };
@@ -227,7 +231,7 @@ async function enviarWhatsapp(to: string, mensaje: any, pdfUrl: string | null) {
   };
   try {
     const res = await fetch(`${META_API}/${phoneId}/messages`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...headersDestinatario(cliente) },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -457,7 +461,7 @@ async function handleGrupo(body: any) {
 
     let envio = null;
     if (estado === "delivered") {
-      envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null);
+      envio = await enviarWhatsapp(redirect, mensaje, pdf?.url ?? null, { cuit: body.cuit });
       estado = envio.ok ? "sent_whatsapp" : "error_envio";
       mensaje.envio = { to: redirect, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
       if (estado === "sent_whatsapp") {
@@ -489,6 +493,19 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
   const wl = await whitelist();
   const redirects = raw.split(",").map((s) => s.replace(/\D/g, "")).filter(Boolean).filter((p) => wl.includes(p));
   if (!redirects.length) return json({ skipped: "redirect_no_whitelist", cuit });
+
+  // ── Freno al barrido (incidente 14/10/2026) ──
+  // En modo redirect cada factura real del día se consolida y va al número de redirección. El cron wa_barrido_avisos
+  // (jobid 69, Gestión) recorre TODOS los cuits facturados hoy: reabrir la ventana disparaba un envío masivo de
+  // facturas de muchos clientes a un solo número (pasó: 8 grupos de varios clientes a Logística). Por eso, además de
+  // la ventana, hace falta una ALLOWLIST EXPLÍCITA de cuits: app_settings.wa_real_redirect_cuits (coma-separado, con o
+  // sin guiones). Sólo se redirige lo que esté listado. Lista vacía (o sin fila) = NO se manda nada aunque la ventana
+  // esté abierta: el default es seguro. Para probar un cliente se agrega su cuit a la lista; terminada la prueba se
+  // vacía. Es el mismo criterio "corte quirúrgico" de la vasectomía (CLAUDE.md).
+  const allow = ((await getSetting("wa_real_redirect_cuits")) || "").split(",").map((s) => s.replace(/\D/g, "")).filter(Boolean);
+  const cuitN = cuit.replace(/\D/g, "");
+  if (!allow.length) return json({ skipped: "redirect_sin_allowlist_cuits", cuit });
+  if (!allow.includes(cuitN)) return json({ skipped: "cuit_no_en_allowlist", cuit });
 
   // Grupos del día por EMPRESA + DIRECCIÓN (LK y CH nunca juntas).
   const { data: grupos } = await g.rpc("wa_grupos_dia_cuit", { p_cuit: cuit, p_fecha: fecha });
@@ -543,7 +560,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
         const mensaje = { ...base };
         let envio = null;
         if (estado === "delivered") {
-          envio = await enviarWhatsapp(to, mensaje, pdf?.url ?? null);
+          envio = await enviarWhatsapp(to, mensaje, pdf?.url ?? null, { cuit });
           estado = envio.ok ? "sent_whatsapp" : "error_envio";
           mensaje.envio = { to, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
           if (estado === "sent_whatsapp") {
@@ -675,7 +692,7 @@ serve(async (req) => {
         if (wl === null) wl = await whitelist();
         if (!wl.includes(destPhone)) estado = "held_no_whitelist";
         else {
-          envio = await enviarWhatsapp(destPhone, mensaje, pdf?.url ?? null);
+          envio = await enviarWhatsapp(destPhone, mensaje, pdf?.url ?? null, { cuit });
           estado = envio.ok ? "sent_whatsapp" : "error_envio";
           mensaje.envio = { to: destPhone, ok: !!envio.ok, wamid: envio.wamid ?? null, error: envio.error ?? null };
           if (estado === "sent_whatsapp") {

@@ -30,6 +30,7 @@ import {
 } from "../_shared/bot-conversation.ts";
 import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
+import { esConsultaDeDisponibilidad } from "../_shared/consulta-disponibilidad.ts";
 import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
 import { pareceAtaqueEntrada } from "../_shared/ataque-entrada.ts";
@@ -41,8 +42,14 @@ import { abrirTurno, guardarTurno, iaEmpieza, iaTermina, type Turno } from "../_
 import { avisarFueraDeHorario } from "../_shared/fuera-de-horario.ts";
 import { contextoAlertaTope, mensajeTope } from "../_shared/tope-ia.ts";
 import {
-  CACHE_GASTO_MS, contextoAlertaGasto, FUNCION_CLIENTES, inicioDiaArgentina, MSG_TOPE_GASTO, type NivelGasto, nivelDeGasto, sumarGasto, type Topes, topesDeSettings,
+  CACHE_GASTO_MS, contextoAlertaGasto, FUNCION_CLIENTES, inicioDiaArgentina, type NivelGasto, nivelDeGasto, sumarGasto, type Topes, topesDeSettings,
 } from "../_shared/tope-gasto.ts";
+import {
+  contextoAlertaPresupuesto, inicioMesArgentina, pctDelMes, pozoDeSettings, presupuestoDeSettings, sumarGastoMes, umbralCruzado, umbralesDeSettings,
+} from "../_shared/presupuesto-ia.ts";
+import { contextoAlertaCliente, inicioSemanaArgentina, nivelClienteGasto, topesClienteDeSettings } from "../_shared/tope-cliente.ts";
+import { conCalendario, dentroDeHorario, leerHorario } from "../_shared/horario.ts";
+import { cargarCalendario } from "../_shared/feriados.ts";
 import { pedidoDeCambio, responderAviso } from "../_shared/respuesta-aviso.ts";
 import { atenderMalHumor } from "../_shared/humor.ts";
 import { atenderClienteChef, cuentaChef } from "../_shared/chef.ts";
@@ -55,6 +62,7 @@ import { ALTA_INTRO, crearLead, esAfirmacion, extractCuit, getPendingLead, handl
 import { leerConstancia } from "../_shared/constancia.ts";
 import { lineaSegura } from "../_shared/dato-externo.ts";
 import { contextoAlertaArchivo, MOTIVO_ARCHIVO_SOSPECHOSO, VENTANA_AVISO_MS } from "../_shared/archivo-sospechoso.ts";
+import { describirFotoProducto } from "../_shared/vision-producto.ts";
 
 // Auditoría de performance (02/10/2026): este webhook leía app_settings ~17 veces por mensaje, un viaje a la base cada una
 // (3 ó 4 sólo en loadConfig, antes de mirar el mensaje). Ahora la tabla (40 filas, 8 KB) se lee ENTERA una vez por mensaje
@@ -442,18 +450,18 @@ async function esPrimerContacto(phone: string, umbralHoras: number): Promise<boo
   return (count ?? 0) <= 1;
 }
 
-/** Wrapping opcional del reply con saludo cuando hay primer contacto. */
+/** Wrapping opcional del reply con saludo cuando hay primer contacto. Pablo, 15/10 (tanda de pruebas, mensaje 1): «¡Hola!» sin nombre. Antes decía «¡Hola {razón social}!»
+ *  y la base sólo tiene la razón social (1.264 clientes, 35 % con sigla de empresa y el resto casi todo personas con el apellido primero: «¡Hola Quispe Gabriel Dario Josue!»). */
 async function conSaludoSiCorresponde(
   reply: string,
   phone: string,
-  businessName: string,
 ): Promise<string> {
   const raw = await getSetting("wa_saludo_umbral_horas");
   const umbral = Number(raw) || 6;
   if (umbral <= 0) return reply; // saludo desactivado
   const primero = await esPrimerContacto(phone, umbral);
   if (!primero) return reply;
-  return `¡Hola ${businessName}!\n\n${reply}`;
+  return `¡Hola!\n\n${reply}`;
 }
 
 // ─── Statuses de Meta (delivery reports) ───────────────────────────
@@ -694,13 +702,48 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
     }
   }
 
+  // Pablo, 14/10 (Fase A): una FOTO de un cliente que no es reclamo ni pago se pasa primero por visión (_shared/vision-producto.ts,
+  // modelo propio app_settings.wa_vision_modelo = Gemini free, US$0; sin setear, visión dormida). Según lo que ve:
+  //  · producto dañado → reclamo (no se lee como pedido);
+  //  · un producto → el agente lo busca y le ofrece opciones con fotos (reusa buscar_productos + enviar_fotos_producto);
+  //  · una LISTA escrita o no se pudo ver (sin_vision) → sigue el flujo de pedido por archivo de abajo, como siempre.
+  // Antes toda foto de cliente caía en leerPedidoArchivo (esArchivoDePedido matchea image/*): una foto de un solo artículo salía mal leída.
+  if (clase === "otro" && customer && esFoto && archivo) {
+    const vista = await describirFotoProducto(archivo.bytes, archivo.mime);
+    if (vista.tipo === "danado") {
+      await responder(MSG_ADJUNTO_RECLAMO);
+      await alerta("reclamo", { motivo: "reclamo", visto: "producto_danado", comprobante_id: comprobanteId, mime });
+      return;
+    }
+    // El agente es producción (modelo real): respeta el tope de gasto diario. Ya no se corta (Pablo, 14/10): pasado el tope contesta igual, pero degradado (sólo modelos gratis / Haiku).
+    if (vista.tipo === "busqueda") {
+      const nivelG = (await nivelGastoDiario()).nivel;
+      const degradado = nivelG === "degradar" || nivelG === "escalar";
+      iaEmpieza(phone);
+      const result = await runConversation(
+        `Te mando una foto de un producto que estoy buscando. En la foto se ve: ${vista.terminos}. ¿Qué tenés parecido? Mostrame opciones con la foto.`,
+        phone, customer.business_name, customer.cod_cliente, customer.dto_vol, cfg.anthropicKey, "lk_whatsapp-webhook",
+        { degradado },
+      ).finally(() => iaTermina(phone));
+      if (result.timeout || result.llmError) {
+        await avisarIaCaida(cfg, phone);
+        return;
+      }
+      if (result.media.length) await sendMediaActions(result.media, phone, cfg);
+      if (result.reply?.trim()) await responder(result.reply);
+      await alerta("adjunto_recibido", { motivo: "foto_producto", vision: vista.terminos, comprobante_id: comprobanteId, mime });
+      return;
+    }
+    // "lista" / "sin_vision": sigue el flujo de pedido por archivo de abajo.
+  }
+
   // Pablo, 29/09: un Excel, CSV, foto o PDF de un cliente que no es reclamo ni pago se lee como PEDIDO: la IA arma la lista,
   // se la mostramos para que confirme y la tarea sale con la lista para cargar (_shared/pedido-archivo.ts).
   let respuestaFinal = respuesta;
   let motivoFinal = motivo;
   let lectura: Record<string, unknown> = {};
-  // Pablo, 07/10: con el tope de gasto diario alcanzado (_shared/tope-gasto.ts) el archivo NO se lee con IA: la alerta lleva `lectura_error` y lo revisa una persona.
-  if (clase === "otro" && customer && archivo && esArchivoDePedido(archivo.mime, msg.mediaFilename) && (await nivelGastoDiario()).nivel !== "tope") {
+  // Pablo, 14/10: el tope de gasto ya no corta. Un archivo de pedido es toma de pedidos (exenta de degradar, lleva plata), así que se lee siempre con su modelo fijo.
+  if (clase === "otro" && customer && archivo && esArchivoDePedido(archivo.mime, msg.mediaFilename)) {
     try {
       const r = await leerPedidoArchivo(archivo.bytes, archivo.mime, cfg.anthropicKey, phone, msg.mediaFilename);
       // Pablo, 07/10: el texto crudo de la planilla se escaneó ANTES de la IA. Si trae algo que parece una orden para el bot, se avisa a Auditoría (dashboard) aunque la IA
@@ -976,7 +1019,7 @@ async function gastoClientesHoy(): Promise<number | null> {
 async function nivelGastoDiario(): Promise<{ nivel: NivelGasto; gasto: number; topes: Topes }> {
   const sinTope = { nivel: "ok" as NivelGasto, gasto: 0, topes: topesDeSettings(null, null) };
   try {
-    const topes = topesDeSettings(await getSetting("ia_tope_gasto_usd"), await getSetting("ia_aviso_gasto_usd"));
+    const topes = topesDeSettings(await getSetting("ia_tope_gasto_usd"), await getSetting("ia_aviso_gasto_usd"), await getSetting("ia_tope_escalar_usd"));
     if (!(topes.tope > 0)) return { nivel: "ok", gasto: 0, topes }; // apagado con 0: ni siquiera se lee el gasto
     const gasto = await gastoClientesHoy();
     if (gasto === null) return { nivel: "ok", gasto: 0, topes };
@@ -989,7 +1032,7 @@ async function nivelGastoDiario(): Promise<{ nivel: NivelGasto; gasto: number; t
 }
 
 /** ¿Ya hay hoy una alerta `tope_gasto` de ese nivel (con `phone`, de ese número)? Ante un error dice que sí: ante la duda no se repite ni al equipo ni al cliente. */
-async function alertaGastoDeHoy(nivel: "aviso" | "tope", phone: string | null): Promise<boolean> {
+async function alertaGastoDeHoy(nivel: "aviso" | "degradar" | "escalar", phone: string | null): Promise<boolean> {
   try {
     let q = supabase.from("wa_alertas_humano").select("id")
       .eq("contexto->>motivo", "tope_gasto").eq("contexto->>nivel", nivel)
@@ -1004,32 +1047,165 @@ async function alertaGastoDeHoy(nivel: "aviso" | "tope", phone: string | null): 
   }
 }
 
+/** ¿Estamos DENTRO del horario de atención (Configuración › Derivaciones + feriados del calendario de Planify)? Ante un error dice que NO:
+ *  la alerta de `escalar` es un extra y no vale la pena mandarla si no se pudo confirmar que hay gente. Nunca lanza. */
+async function dentroDelHorarioDeAtencion(): Promise<boolean> {
+  try {
+    let guardado: unknown;
+    try { guardado = JSON.parse((await getSetting("wa_derivaciones")) ?? "{}")?.horario; } catch { guardado = undefined; }
+    const h = conCalendario(leerHorario(guardado), await cargarCalendario());
+    return dentroDeHorario(new Date(), h);
+  } catch (e) {
+    console.error("[tope-gasto] no pude leer el horario de atención:", e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
 /**
- * Se llama en el paso 6, justo antes de `runConversation`. Devuelve "tope" si el agente NO debe llamarse (el cliente ya quedó avisado y con una alerta para
- * una persona) y "ok" si puede seguir. En "aviso" sigue, pero una vez por día le avisa a una persona. Nunca lanza hacia arriba por el envío (enviarTexto la ataja).
- * La alerta se crea ANTES del aviso al cliente: si el envío falla, igual una persona ve el chat.
+ * Se llama en el paso 6, justo antes de `runConversation`. NINGÚN nivel corta al agente (Pablo, 14/10: «que no corte»). Devuelve:
+ *   • "ok"       → cadena normal.
+ *   • "degradar" → el agente sigue pero sólo con modelos gratis / Haiku (lo aplica runConversation con la opción `degradado`). Alerta 1×/día.
+ *   • "escalar"  → igual que degradar (sigue contestando), pero además, SÓLO si estamos en horario de atención, deja una alerta más para una persona.
+ * Nunca lanza hacia arriba (notificarHumano y el resto se atajan). Las alertas son una por día.
  */
 async function pasoElTopeDeGasto(
-  cfg: Config, phone: string, customer: { customer_id?: string | null; business_name?: string | null } | null, text: string,
-): Promise<"ok" | "tope"> {
+  phone: string, customer: { customer_id?: string | null; business_name?: string | null } | null, text: string,
+): Promise<"ok" | "degradar" | "escalar"> {
   const e = await nivelGastoDiario();
   if (e.nivel === "ok") return "ok";
   const razon = customer?.business_name ?? null, cid = customer?.customer_id ?? null;
   if (e.nivel === "aviso") {
-    // Una sola alerta por día, de cualquier número: el agente sigue contestando.
+    // Una sola alerta por día, de cualquier número: el agente sigue con la cadena normal.
     if (!(await alertaGastoDeHoy("aviso", null))) {
       await notificarHumano({ tipo: "otro", phone, customerId: cid, contexto: contextoAlertaGasto("aviso", e.gasto, e.topes, text, razon) });
     }
     return "ok";
   }
-  // Tope: el agente no se llama. A cada cliente se le avisa y se deja la alerta UNA vez por día (los mensajes que siguen no contestan nada, como el tope por hora):
-  // si cada mensaje de más disparara otro aviso, el tope generaría más tráfico del que corta.
-  if (!(await alertaGastoDeHoy("tope", phone))) {
-    await notificarHumano({ tipo: "otro", phone, customerId: cid, contexto: contextoAlertaGasto("tope", e.gasto, e.topes, text, razon) });
-    await enviarTexto(cfg, phone, MSG_TOPE_GASTO);
-    await saveMessage(phone, "assistant", MSG_TOPE_GASTO);
+  if (e.nivel === "degradar") {
+    // Pasó el tope blando (Pablo, 14/10): el agente SIGUE pero sólo con modelos gratis (o Haiku si ninguno responde; el filtro de la cadena está en
+    // bot-conversation.ts, opción `degradado`). No se corta ni se avisa al cliente: contesta normal. Una sola alerta por día, de cualquier número.
+    if (!(await alertaGastoDeHoy("degradar", null))) {
+      await notificarHumano({ tipo: "otro", phone, customerId: cid, contexto: contextoAlertaGasto("degradar", e.gasto, e.topes, text, razon) });
+    }
+    return "degradar";
   }
-  return "tope";
+  // Escalar (Pablo, 14/10: «que no corte en 5, sino que dé un aviso a un humano si está dentro del horario de atención»): el agente NO se corta, sigue
+  // degradado. Lo único que se agrega es una alerta para una persona, y SÓLO en horario de atención (fuera de horario nadie puede actuar). Una vez por día.
+  if (await dentroDelHorarioDeAtencion()) {
+    if (!(await alertaGastoDeHoy("escalar", null))) {
+      await notificarHumano({ tipo: "otro", phone, customerId: cid, contexto: contextoAlertaGasto("escalar", e.gasto, e.topes, text, razon) });
+    }
+  }
+  return "escalar";
+}
+
+/**
+ * Medidor de PRESUPUESTO MENSUAL del pozo de IA (Pablo, 14/10: US$ 100/mes, avisos al 25/50/75/90/100%, "sólo avisa"). A diferencia del tope diario de
+ * arriba, cuenta TODO el gasto del mes (no sólo clientes) porque el pozo de Anthropic se agota con todo, y NO corta nada: sólo deja una alerta para una
+ * persona, una vez por umbral por mes. Detalle y por qué en _shared/presupuesto-ia.ts. Cacheado como el gasto diario (CACHE_GASTO_MS).
+ */
+let cacheGastoMes: { hasta: number; usd: number } | null = null;
+async function gastoMesTotal(): Promise<number | null> {
+  if (cacheGastoMes && cacheGastoMes.hasta > Date.now()) return cacheGastoMes.usd;
+  const desde = new Date(inicioMesArgentina(Date.now())).toISOString();
+  // Sólo las filas con costo (las del modelo gratis son US$ 0 y la mayoría): así la suma del mes se arma con pocas filas. TODOS los function_name.
+  const { data, error } = await supabase.from("bot_token_usage").select("estimated_cost_usd").gt("estimated_cost_usd", 0).gte("created_at", desde).limit(50000);
+  if (error) { console.error("[presupuesto] no pude leer el gasto del mes:", error.message); return null; }
+  const usd = sumarGastoMes(data ?? []);
+  cacheGastoMes = { hasta: Date.now() + CACHE_GASTO_MS, usd };
+  return usd;
+}
+
+/** ¿Ya se avisó este mes por ESE umbral? (alerta `tope_gasto` nivel `presupuesto` con ese `umbral`, desde el inicio del mes ART). Ante un error dice que sí. */
+async function avisoPresupuestoHecho(umbral: number): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("wa_alertas_humano").select("id")
+      .eq("contexto->>motivo", "tope_gasto").eq("contexto->>nivel", "presupuesto").eq("contexto->>umbral", String(umbral))
+      .gte("created_at", new Date(inicioMesArgentina(Date.now())).toISOString()).limit(1);
+    if (error) { console.error("[presupuesto] no pude leer los avisos del mes:", error.message); return true; }
+    return (data ?? []).length > 0;
+  } catch (e) {
+    console.error("[presupuesto] falló la lectura de los avisos del mes:", e instanceof Error ? e.message : e);
+    return true;
+  }
+}
+
+/**
+ * Si el gasto del mes cruzó un umbral nuevo, deja UNA alerta para una persona (nivel `presupuesto`). Sólo avisa: no corta ni cambia la respuesta al
+ * cliente. Nunca lanza hacia arriba (se llama sin bloquear el flujo). El presupuesto en 0 apaga todo: ni se lee el gasto.
+ */
+async function avisarPresupuesto(phone: string, customer: { customer_id?: string | null; business_name?: string | null } | null): Promise<void> {
+  try {
+    const presupuesto = presupuestoDeSettings(await getSetting("ia_presup_mensual_usd"));
+    if (!(presupuesto > 0)) return; // apagado
+    const gasto = await gastoMesTotal();
+    if (gasto === null) return;
+    const umbrales = umbralesDeSettings(await getSetting("ia_presup_umbrales"));
+    const umbral = umbralCruzado(pctDelMes(gasto, presupuesto), umbrales);
+    if (umbral === null) return; // todavía no se cruzó ningún umbral (lo normal casi todo el mes)
+    if (await avisoPresupuestoHecho(umbral)) return; // ya se avisó por ese umbral este mes
+    const pozo = pozoDeSettings(await getSetting("ia_presup_pozo_usd"));
+    await notificarHumano({
+      tipo: "otro", phone, customerId: customer?.customer_id ?? null,
+      contexto: contextoAlertaPresupuesto(umbral, gasto, presupuesto, pozo),
+    });
+  } catch (e) {
+    console.error("[presupuesto] falló el aviso de presupuesto, se sigue normal:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Tope de gasto de IA POR CLIENTE (Pablo, 14/10: US$ 2/día y US$ 5/semana por teléfono). A diferencia del tope diario global, frena SÓLO a ese cliente:
+ * a los demás el agente les sigue contestando. Lo que gastó ese teléfono en la ventana (bot_token_usage del webhook). Detalle en _shared/tope-cliente.ts.
+ */
+async function gastoClienteVentana(phone: string, desdeMs: number): Promise<number | null> {
+  const { data, error } = await supabase.from("bot_token_usage").select("estimated_cost_usd")
+    .eq("function_name", FUNCION_CLIENTES).eq("phone", phone).gt("estimated_cost_usd", 0).gte("created_at", new Date(desdeMs).toISOString()).limit(10000);
+  if (error) { console.error("[tope-cliente] no pude leer el gasto del cliente:", error.message); return null; }
+  return sumarGasto(data ?? []);
+}
+
+/** ¿Ya hay hoy una alerta `tope_gasto` nivel `cliente` de ESTE teléfono? Una por día por cliente (como el tope diario). Ante un error dice que sí. */
+async function alertaClienteDeHoy(phone: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("wa_alertas_humano").select("id")
+      .eq("contexto->>motivo", "tope_gasto").eq("contexto->>nivel", "cliente").eq("phone", phone)
+      .gte("created_at", new Date(inicioDiaArgentina(Date.now())).toISOString()).limit(1);
+    if (error) { console.error("[tope-cliente] no pude leer las alertas de hoy:", error.message); return true; }
+    return (data ?? []).length > 0;
+  } catch (e) {
+    console.error("[tope-cliente] falló la lectura de las alertas de hoy:", e instanceof Error ? e.message : e);
+    return true;
+  }
+}
+
+/**
+ * Si ESTE cliente pasó su tope diario o semanal, no se llama al agente: recibe el aviso fijo (una vez por día) y se deja una alerta para una persona.
+ * Devuelve "tope" para cortar. Ante un error al leer el gasto NO bloquea (como la blacklist y el tope diario). Nunca lanza hacia arriba.
+ */
+async function pasoElTopeCliente(
+  cfg: Config, phone: string, customer: { customer_id?: string | null; business_name?: string | null } | null, text: string,
+): Promise<"ok" | "tope"> {
+  try {
+    const topes = topesClienteDeSettings(await getSetting("ia_tope_cliente_dia_usd"), await getSetting("ia_tope_cliente_semana_usd"));
+    if (!(topes.dia > 0) && !(topes.semana > 0)) return "ok"; // capa apagada
+    const ahora = Date.now();
+    const gastoDia = await gastoClienteVentana(phone, inicioDiaArgentina(ahora));
+    const gastoSemana = topes.semana > 0 ? await gastoClienteVentana(phone, inicioSemanaArgentina(ahora)) : 0;
+    if (gastoDia === null || gastoSemana === null) return "ok"; // ante un error de lectura no se corta
+    const r = nivelClienteGasto(gastoDia, gastoSemana, topes);
+    if (r.nivel === "ok") return "ok";
+    if (!(await alertaClienteDeHoy(phone))) {
+      const razon = customer?.business_name ?? null, cid = customer?.customer_id ?? null;
+      await notificarHumano({ tipo: "otro", phone, customerId: cid, contexto: contextoAlertaCliente(r.limite!, gastoDia, gastoSemana, topes, text, razon) });
+      await enviarTexto(cfg, phone, MSG_TOPE_GASTO);
+      await saveMessage(phone, "assistant", MSG_TOPE_GASTO);
+    }
+    return "tope";
+  } catch (e) {
+    console.error("[tope-cliente] falló, se sigue sin tope:", e instanceof Error ? e.message : e);
+    return "ok";
+  }
 }
 
 
@@ -1345,7 +1521,7 @@ async function handleMessage(
   if (chef) {
     await saveMessage(phone, "user", text);
     const r = await atenderClienteChef(phone, text, chef);
-    const reply = r.yaSaluda ? r.reply : await conSaludoSiCorresponde(r.reply, phone, chef.razon_social);
+    const reply = r.yaSaluda ? r.reply : await conSaludoSiCorresponde(r.reply, phone);
     await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", reply);
     // Fase 3: reenvío de la factura de Chef (PDF del bucket isis-ch). Mismo camino que el de LK más abajo.
@@ -1380,7 +1556,9 @@ async function handleMessage(
         .gt("first_seen", new Date(new Date(visto).getTime() - 6000).toISOString());
       rafaga = (previos ?? 0) > 0;
     }
-    if (visto && (rafaga || RE_ITEMS.test(text) || await enCursoLazy())) {
+    // Pablo, 15/10 (tanda de pruebas, mensajes 2 y 3): «Tiene stock del 586?» y «Si quiero 30 cajas hay?» esperaban 5 s sin ser un pedido. Una pregunta de disponibilidad sin intención de
+    // pedir (consulta-disponibilidad.ts) no espera por sí sola; sigue esperando si llegó otro mensaje hace menos de 6 s o hay un pedido en curso.
+    if (visto && (rafaga || (RE_ITEMS.test(text) && !esConsultaDeDisponibilidad(text)) || await enCursoLazy())) {
       await new Promise((r) => setTimeout(r, 5000));
       const { count } = await supabase.from("wa_inbound_seen").select("wamid", { count: "exact", head: true })
         .eq("phone", phone).gt("first_seen", visto);
@@ -1443,7 +1621,7 @@ async function handleMessage(
     });
     if (g?.tipo === "responder") {
       await saveMessage(phone, "user", text);
-      const reply = await conSaludoSiCorresponde(g.reply, phone, faqCustomer.business_name);
+      const reply = await conSaludoSiCorresponde(g.reply, phone);
       await enviarTexto(cfg, phone, reply);
       await saveMessage(phone, "assistant", reply);
       for (const d of g.documentos ?? []) {
@@ -1500,7 +1678,7 @@ async function handleMessage(
     // Sin ese chequeo el cliente recibía el saludo dos veces seguidas.
     const cuerpo = marcaLk ? conEtiqueta("lk", textoFaq) : textoFaq;
     const reply = customer && !faq.yaSaluda
-      ? await conSaludoSiCorresponde(cuerpo, phone, customer.business_name)
+      ? await conSaludoSiCorresponde(cuerpo, phone)
       : cuerpo;
     await enviarTexto(cfg, phone, reply);
     await saveMessage(phone, "assistant", faq.conClave ? taparClave(reply) : reply);
@@ -1581,9 +1759,19 @@ async function handleMessage(
     return;
   }
 
-  // 6a2. Tope de gasto global diario de IA (Pablo, 07/10: US$ 2, aviso a US$ 1; sólo cuenta a los clientes). Con el tope no se llama al agente: el cliente
-  //      recibe un aviso fijo una vez por día y una persona le contesta (alerta `tope_gasto`). Las FAQ y los flujos sin IA ya contestaron arriba.
-  if ((await pasoElTopeDeGasto(cfg, phone, customer, text)) === "tope") return;
+  // 6a2. Tope de gasto global diario de IA (Pablo, 14/10: «degradá, pero no cortes del todo» y «que no corte en 5, sino que dé un aviso a un humano si está
+  //      dentro del horario»). NINGÚN nivel corta al agente: con `degradar` (US$ 3) y `escalar` (US$ 5) el agente SIGUE pero sólo con modelos gratis / Haiku
+  //      (el filtro vive en runConversation, opción `degradado`); `escalar` sólo agrega una alerta para una persona si estamos en horario de atención.
+  const nivelGasto = await pasoElTopeDeGasto(phone, customer, text);
+  const degradado = nivelGasto !== "ok";
+
+  // 6a2b. Tope de gasto POR CLIENTE (Pablo, 14/10: US$ 2/día y US$ 5/semana por teléfono). Frena SÓLO a ese cliente (los demás siguen); mismo aviso fijo
+  //       y una alerta por día por cliente. Detalle en _shared/tope-cliente.ts.
+  if ((await pasoElTopeCliente(cfg, phone, customer, text)) === "tope") return;
+
+  // 6a3. Medidor de presupuesto MENSUAL del pozo de IA (Pablo, 14/10: US$ 100/mes, avisos al 25/50/75/90/100%, "sólo avisa"). No corta nada: sólo deja
+  //      una alerta para una persona si el mes cruzó un umbral nuevo. Cuenta TODO el gasto del mes (no sólo clientes). No bloquea el flujo.
+  await avisarPresupuesto(phone, customer);
 
   iaEmpieza(phone); // tiempo de la IA dentro del turno (sql/136)
   const result = await runConversation(
@@ -1594,7 +1782,7 @@ async function handleMessage(
     customer.dto_vol,
     cfg.anthropicKey,
     "lk_whatsapp-webhook",
-    { pistas },
+    { pistas, degradado },
   ).finally(() => iaTermina(phone));
 
   // 6b. Si el LLM se cayó (timeout / error irrecuperable), NO enviamos
@@ -1613,7 +1801,7 @@ async function handleMessage(
   }
 
   // 8. Enviar respuesta de texto (con saludo si es primer contacto)
-  const reply = await conSaludoSiCorresponde(marcaLk ? conEtiqueta("lk", result.reply) : result.reply, phone, customer.business_name);
+  const reply = await conSaludoSiCorresponde(marcaLk ? conEtiqueta("lk", result.reply) : result.reply, phone);
   await enviarTexto(cfg, phone, reply);
 
   // 9. Guardar respuesta en historial.

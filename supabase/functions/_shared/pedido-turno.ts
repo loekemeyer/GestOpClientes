@@ -4,6 +4,8 @@
 // Sonnet. Este módulo es PURO (sin red ni base): decide si un turno es de pedido y con qué modelo; lo usa `runConversation`
 // (bot-conversation.ts) y se prueba en tests/pedido-turno.test.ts.
 
+import { esConsultaDeDisponibilidad } from "./consulta-disponibilidad.ts";
+
 /** Modelo de los turnos de pedido. `app_settings.llm_modelo_pedidos` lo cambia sin deploy; "cadena" (u "off" / "0") lo apaga. */
 export const MODELO_PEDIDOS = "claude-sonnet-4-6";
 
@@ -55,7 +57,9 @@ export function ultimoDelBotEsDePedido(historial: Fila[], ahora = Date.now()): b
 
 /** ¿Este turno es de toma de pedido? Si el cliente pide o manda un cotizador, o contesta algo que sigue un pedido en curso. */
 export function esTurnoDePedido(textoCliente: string, historial: Fila[], ahora = Date.now()): boolean {
-  return RE_CLIENTE_PIDE.test(textoCliente) || ultimoDelBotEsDePedido(historial, ahora);
+  // Pablo, 15/10 (tanda de pruebas, mensaje 3): «Si quiero 30 cajas hay?» es una pregunta de stock, no un pedido: no va a Sonnet (US$ 0,0974 el turno). Ver consulta-disponibilidad.ts.
+  // Si el último mensaje del bot es parte de un pedido en curso, el turno sigue siendo de pedido aunque pregunte por stock.
+  return (RE_CLIENTE_PIDE.test(textoCliente) && !esConsultaDeDisponibilidad(textoCliente)) || ultimoDelBotEsDePedido(historial, ahora);
 }
 
 export interface ModeloFijo { id: number; provider: string; model: string; key: string; isFreeTier: boolean }

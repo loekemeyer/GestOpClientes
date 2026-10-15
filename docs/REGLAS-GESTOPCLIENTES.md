@@ -115,6 +115,10 @@ Se escribe con `ArtifactData` (`url` del artifact), colección `consultas`, un d
 - **Casos del agente (`wa_agente_evals`): corren solos cada noche** a las 03:15 en el Simulador con Gemini (US$ 0), de a uno por
   minuto, y se comparan con la corrida anterior (sql/133, Pablo 08/10/2026). Los cambios y errores llegan en el mail de fallas y se
   ven en Configuración del agente › Evaluación ("Correr ahora" la dispara a mano). Si el modelo de pruebas no es gratis, no corre.
+- **Los 8 casos de varios pasos (`origen = 'multipaso'`) corren además cada lunes a las 10:15 con Haiku 5.5**, el modelo del piloto
+  (sql/153, Pablo 14/10/2026, unos US$ 0,03 por corrida). Se comparan sólo contra la corrida semanal anterior. Es el criterio de P5.
+  Al cerrar, `lk_eval-juez` (Haiku 5.5, sql/157, Pablo 15/10/2026) compara cada respuesta con su `nota_esperada` y la marca
+  bien / a_medias / mal con el motivo (`wa_agente_eval_resultados.juicio`). P5 pasa cuando los 8 salen bien.
 - `supabase functions serve lk_whatsapp-webhook --env-file .env.local`
 - Usar ngrok para exponer localhost a Meta webhook
 - Meta test numbers para desarrollo

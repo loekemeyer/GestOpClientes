@@ -94,8 +94,94 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
      bajo, commit `974b634`). Con Sonnet 4.6 no hay nada que prender.
 - **Costo:** 1 y 2, US$ 0 (Gemini en la eval nocturna). Medir los casos nuevos con Sonnet 4.6: US$ 0,035 por caso,
   unos US$ 0,35, con estimativo y "sí". **Dueño:** Claude. **Para:** jueves 16/10 (regla y casos), medición fase 1.
-- **Ok cuando:** los casos de varios pasos pasan con el modelo del piloto en la corrida nocturna 3 noches seguidas.
+- **Ok cuando:** ~~los casos de varios pasos pasan con el modelo del piloto en la corrida nocturna 3 noches seguidas~~.
+  **Desde el 14/10 (Pablo: *"Cambialo a Haiku, medición semanal"*):** los 8 casos de varios pasos pasan con Haiku 5.5 en la
+  corrida semanal (`lk_eval-semanal-haiku`, lunes 10:15, `sql/153`). La nocturna con Gemini sigue corriendo, pero ya no decide P5.
+- **Primera corrida semanal, disparada a mano el 14/10 (corrida 10, sí de Pablo):** el circuito anda (8 de 8 contestados por
+  Haiku, 0 errores, 17 llamadas, US$ 0,007496). 7 bien. mp05 cambió respecto de la medición de la tarde: llamó a
+  `derivar_a_persona` y contestó sólo "Una persona del equipo te escribe por este medio para confirmarte la fecha de ingreso",
+  sin el link de la foto ni el stock. Detalles: mp07 saludó con la razón social, mp01 y mp08 cierran ofreciendo algo.
+  **Arreglo (commit `d7a6adf`):** `consultar_stock` avisa que la consulta ya quedó en manos de una persona y que no se derive de
+  nuevo, y `derivar_a_persona` pide incluir lo ya averiguado. Con Haiku (sí de Pablo, 2 corridas, US$ 0,007163): 2 de 2 sin
+  derivar de más, con el stock y la foto (una la mandó con `enviar_fotos_producto`, la otra pasó el link).
+  **Detalles menores arreglados (commits `87a183e` y `9ecb475`):** la razón social se saca del inicio de las pistas (mp07 la
+  copiaba de la respuesta fija), la regla CIERRE prohíbe ofrecer lo que no se pidió y la respuesta fija de stock ya no cierra con
+  «Podés hacer el pedido en loekemeyer.com.» (mp01 la copiaba). Con Haiku (sí de Pablo, 4 corridas, US$ 0,011688): mp01, mp07
+  y mp08 sin saludo con razón social ni ofrecimientos.
+- **15/10:** la nocturna con Gemini (corrida 11, 111 casos, US$ 0) ya pasa el listado en mp06. mp03 con Gemini dice que el
+  pedido salió pero no lista ni encamina el pedido nuevo (Gemini no decide P5). Las notas esperadas de mp02, mp03, mp05 y mp07
+  se reescribieron para cubrir los dos estados del cliente de prueba 4210 (con y sin pedido pendiente): los casos corren contra
+  datos vivos y el cliente puede tener un pedido nuevo cualquier semana. **Falta para medir "pasan":** la corrida guarda las
+  respuestas y marca cambios contra la anterior, pero nadie las compara con la nota esperada en forma automática.
+- **Juez automático (15/10, Pablo: *"Sí, armá el juez automático con Haiku"*, commit `a58e9a1`, `sql/157`):** `lk_eval-juez` compara
+  cada respuesta de la corrida semanal con su nota esperada (Haiku 5.5) y guarda bien / a_medias / mal con el motivo;
+  `wa_eval_tick` lo llama solo al cerrar la corrida. **P5 pasa cuando los 8 salen "bien".** Calibrado sobre la corrida 10 (las
+  respuestas de antes de los arreglos del 14/10): la primera pasada dio 2 bien, 5 a medias y 1 mal, con 4 "a medias" por notas
+  ambiguas (mp01, mp04, mp06, mp07). Con las notas ajustadas: 4 bien, 3 a medias y 1 mal, y los 4 no-bien son fallas reales de
+  esa corrida que ya se arreglaron (mp05 derivaba de más, mp07 saludaba con la razón social, mp06 y mp03 de redacción). Costo:
+  16 juicios, US$ 0,002502 (US$ 0,00016 por caso).
+- **Corridas con juez del 15/10 (Pablo: *"tenemos créditos de APIs disponibles para pruebas, así que a usarlos"*):** corrida 12:
+  6 bien y 2 a medias (mp03 no indicó cómo hacer el pedido nuevo, mp06 no pasó el listado y preguntó por el artículo). Arreglo:
+  la indicación de sin pendientes pasó a 5 pasos numerados (commit `572ec63`). Corrida 13: 7 bien y 1 a medias, y el a medias
+  (mp04) era un error del juez; el juez ahora tiene que citar qué parte de la nota falta (commit `eac72a5`). Re-juzgadas: **la
+  13 da 8 de 8 bien** y la 10 (respuestas de antes de los arreglos) sigue marcando sus 3 fallas reales (mp05 mal, mp03 y mp07 a
+  medias). **Variación medida:** en 3 corridas sueltas, mp06 pasó 3 de 3 y mp03 sólo 1 de 3 (las otras 2 listan y preguntan
+  cuál anular, pero no dicen cómo hacer el pedido nuevo). Gasto del día en pruebas: US$ 0,0248 del Simulador y US$ 0,0077 del juez.
+- **Pablo, 15/10: *"Sí, alcanza con listar y preguntar cuál"*** (rehacer un pedido depende de cuál era): indicación y nota de mp03
+  ajustadas (commit `7a5e64c`). Corrida 14: 7 bien, mp02 a medias (ofrecía que lo revise una persona en vez de decir cómo pedir);
+  arreglo: si el cliente ya dijo cuál pedido y salió, no lista y manda el texto aprobado de CANTIDAD TOTAL (commit `9c97d49`).
+  **Corrida 15: 8 de 8 bien.** Gasto total del 15/10 en pruebas: Simulador US$ 0,050785 (79 llamadas) y juez US$ 0,010466 (64).
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
+- **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
+  (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)
+  y 2 mal con la misma causa (mp03 y mp06: derivaron una anulación y un cambio sobre el pedido del 30/09, que ya se había
+  retirado, y mp03 no encaminó el pedido nuevo). Arreglo: regla **SIN PEDIDO PENDIENTE** en `agente-fijos.ts` (sin pedido
+  que no haya salido no se deriva sobre uno entregado; el pedido nuevo se encamina en el mismo turno) y el texto de
+  `derivar_a_persona` ya no hace repetir "una persona del equipo le escribe" (mp06 lo dijo dos veces). **Pendiente del
+  criterio:** la corrida nocturna mide con Gemini, no con Haiku 5.5 (el modelo del piloto): medir con Haiku necesita el
+  "sí" de Pablo.
+- **Re-medición tras el arreglo (14/10, Gemini, US$ 0, 1 corrida cada uno):** mp03 bien (dice que el del 30/09 ya se
+  retiró y manda el pedido de 10 cajas a la web, sin derivar). mp06 a medias: dice que ya se retiró pero igual deriva
+  `cambio_pedido` (la regla CAMBIO DE ARTÍCULOS, que manda derivar sin preguntar, le gana a SIN PEDIDO PENDIENTE en
+  Gemini). Se mira en la corrida nocturna antes de tocar más el texto.
+- **Medición con Haiku 5.5, el modelo del piloto (14/10, con el "sí" de Pablo, US$ 0,020514 en 17 llamadas):** 6 de 8
+  bien (mp01, mp02, mp03, mp05, mp07, mp08), mp04 a medias (otra vez la alerta `pago` y "Cobranzas ya quedó al tanto"
+  sin que lo pidiera) y mp06 mal (otra vez deriva el cambio sobre el pedido retirado). Como los dos fallos se repiten
+  con Gemini y con Haiku, son de la regla y no del modelo: CAMBIO DE ARTÍCULOS ahora mira primero los pedidos y, si
+  ninguno está sin salir, no deriva (rige SIN PEDIDO PENDIENTE), y PAGOS dice que consultar la deuda, el vencimiento o
+  cómo pagar no se deriva. **Corrección de mp04:** la alerta `pago` no la crea el agente, la crea a propósito
+  `consultar_mis_facturas` en cada consulta de saldo (aviso a Cobranzas, una abierta por número): mp04 está bien. Re-medido
+  con Gemini tras el arreglo: mp06 bien (no deriva, manda el pedido nuevo a la web) y mp04 bien. Detalles menores sin tocar: mp07 saludó con la razón social y mp05 dijo "no tengo la foto"
+  aunque pasó el link.
+- **mp06 re-medido con Haiku tras el arreglo (14/10, sí de Pablo, US$ 0,003701 en 2 llamadas):** ya no deriva el cambio,
+  pero tampoco queda bien: pregunta cuál de 4 batidores pera, pregunta en qué pedido y le pregunta al cliente si se
+  refiere a un pedido de la web que no le figura, y le habla de usted. **El caso no mide lo que dice su nota:** el
+  cliente de prueba 4210 no tiene pedidos pendientes, y "el pedido de ayer" no existe. Para eso ya hay regla (NO
+  INVENTES TIEMPOS, 07/10): si el cliente nombra un pedido que no aparece, se le dice que no figura y se deriva con
+  `pedido_no_encontrado`. Visto así, la primera respuesta de Haiku (derivó, aunque con `cambio_pedido`) estaba más
+  cerca de lo correcto que lo que se juzgó.
+- **Decisión de Pablo (14/10):** *"tendría que darle un listado de los pedidos que realizó, porque ponele que lo hizo hoy o
+  antes de ayer"*. SIN PEDIDO PENDIENTE suma LISTADO: con una referencia («el de ayer») y sin pendiente que coincida, no
+  dice que no figura ni deriva: lista sus últimos pedidos por fecha con su estado y pregunta cuál (sólo por el pedido).
+  Si no es ninguno, deriva `pedido_no_encontrado`. `nota_esperada` de mp06 actualizada en `wa_agente_evals`.
+- **La regla sola no alcanzó con Gemini (14/10, US$ 0):** con la regla LISTADO en el prompt, Gemini Flash Lite derivó 5
+  de 6 veces (mp03 y mp06, 3 corridas cada uno). Se pasó la indicación a la respuesta de `consultar_mis_pedidos`
+  (`_shared/pedidos-sin-pendiente.ts`, commit `5f81ad9`): si ningún pedido está pendiente, la lista viene con la
+  indicación. Después, 4 corridas: 0 derivaciones. mp03 bien 2 de 2 (una pasa el listado, otra dice que el último salió
+  y manda el pedido nuevo a la web). mp06 sin listado 2 de 2: dice que el último salió y manda a la web, sin preguntar
+  cuál. Falta verlo con Haiku.
+- **Con Haiku 5.5 (14/10, sí de Pablo, US$ 0,014613 en 8 llamadas, 2 corridas de mp03 y 2 de mp06):** 4 de 4 pasan el
+  listado de sus últimos 5 pedidos por fecha con su estado y preguntan cuál, 0 derivaciones. Defectos: metía el importe
+  de cada pedido (una vez mal: "$235.442 + IVA, o sea $194.580 + IVA", cuando el primero ya es con IVA) y en mp03
+  preguntaba también por el artículo. La indicación ahora pide sólo fecha y estado, sin importes, y preguntar sólo cuál.
+  Gemini después del ajuste: mp03 pasa el listado sin importes, mp06 sigue sin listado (0 de 3 con Gemini). La corrida
+  nocturna va a marcar mp06 como fallado mientras use Gemini, aunque Haiku lo resuelve.
+- **Total de un pedido con Haiku tras la indicación interna (14/10, sí de Pablo, US$ 0,014126 en 8 llamadas):** 4 de 4
+  con el formato tal cual («$235.442 ($194.580 + IVA)»), ninguna con «+ IVA» en el primer número. Formato sin «con IVA»
+  por decisión de Pablo (commit `2c9668b`). Detalle menor: en 1 de las 2 listas sumó la invitación a hacer un pedido
+  nuevo sin que la pidiera (sale de la indicación de sin pendientes).
+  Pablo: *"sacala si no lo pidió, me parece muy invasivo"* (commit `b98d9e4`). Gemini después: 2 de 2 consultas de
+  pedidos sin la invitación. mp03 con Gemini volvió a derivar la anulación (1 corrida), con Haiku había pasado 2 de 2.
 
 ### P6 · Ciclo observar → decidir → actuar → **revisar** — hoy parcial
 
@@ -147,6 +233,11 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   primer reporte con datos reales viernes 23/10 (cierre del piloto).
 - **Ok cuando:** el reporte del 23/10 sale de la vista, no de contar a mano, y cada derivada de la semana tiene su
   salida (A, B, C, D o correcta).
+- **15/10 [Seguro]:** 1 y 3 hechos por otra sesión (`sql/146`, `sql/152`, tarjetas en Evaluación). El 2 quedó en el dashboard
+  y no en `lk_reporte-quincenal`, que es el reenvío del PDF de importación, no un reporte del bot. `sql/158` corrige lo que la
+  vista contaba mal: `derivada` sólo miraba `escalation`, así que el bot en pausa salía `sin_respuesta` y reclamos, entregas,
+  adjuntos e IA caída no contaban. Ahora usa la misma lista de motivos que la memoria de la charla (`hechos-charla.ts`).
+  Falta: tráfico real (hasta hoy son números de prueba) y la salida de cada derivada en la revisión diaria.
 
 ## 2. Orden y calendario (dentro del plan de producción, sin fechas nuevas)
 
