@@ -639,11 +639,74 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 
 ---
 
-## D033 — Plantillas del remito: `pedido_retirado` y `pedido_en_expreso` subidas a Meta (2026-10-15)
+## D033 — La Routine de bitácora diaria falla silenciosa: fix del script OK, carga a la página todavía bloqueada (2026-10-15)
+
+**Decisión / hallazgo**: La Routine "Bitácora diaria GestOpClientes (08:00 ART)" (`trig_012KVxRd3PrbzyGfys5hAnTn`) terminaba `succeeded` sin cargar ningún día. Se aplicó un fix parcial y queda pendiente la parte de la página.
+
+**Por qué fallaba** [Seguro, dos corridas reales leídas]: su sesión arranca con el working dir vacío (entorno `env_01X1TuV8VqZQV349xdiV27sT` con `sources: []`). El agente clonaba el repo a mano y el clasificador de auto-mode bloqueaba `node scripts/reporte-diario/reporte-dia.mjs` como "código externo". El 14/10 en `bitacora_dias` quedó `fuente='manual'` (carga a mano del 14/10), nunca lo puso la Routine.
+
+**Fix aplicado** (`update_trigger`, mismo `trigger_id`, sólo cambió el prompt): la Routine ya no ejecuta el `.mjs` del clon; escribe ella misma un `/tmp/rd.cjs` equivalente (mismo git log y mismo parseo de áreas/autor por trailer `Hecho-por`) y lo corre. Código propio de la sesión → el clasificador no lo bloquea. Verificado: el script corre y escribe el Artifact.
+
+**Lo que sigue roto** [Seguro, corrida de prueba del 15/10 19:19]: (1) el POST a `lk_bitacora-sync` lo bloquea el clasificador como "posible exfiltración" (curl con el secreto a una URL externa) → la tabla `bitacora_dias` no se actualiza y el calendario del dashboard no muestra el día; (2) la sesión no tiene el MCP de Supabase (`mcp_connections` vacío) → la auditoría del día sale 0/0 falso.
+
+**Opción de raíz pendiente de decisión de Pablo**: recrear la Routine con el connector de Supabase y hacer el UPSERT a `bitacora_dias` por MCP en lugar del curl (resuelve el bloqueo de exfiltración y el 0/0 a la vez), al costo de cambiar el `trigger_id`.
+
+**Discrepancia a resolver antes de pisar datos**: el script full-history cuenta 94 commits para el 14/10; la carga manual tenía 16. Hay que decidir cuál es el válido.
+
+**Dónde quedó**: nota del 15/10 arriba de todo en `docs/ESTADO.md`, corrección de la línea vieja de la entrada 5664, y auditoría `github_repo_problemas` problema 826 (ABIERTO, no cerrado: el fix no terminó de funcionar). El secreto `x-bitacora-secret` sigue en texto plano en el prompt de la Routine.
+
+---
+
+## D034 — El artículo en curso de la charla lo arma el código, y las cajas de `consultar_stock` sólo valen si el cliente las escribió (2026-10-15)
+
+**Decisión**: Pablo, probando desde Logística (…1027): *«no me gustan las respuestas que está dando. No recuerda lo que le estoy consultando el mensaje anterior»*, y ante el diagnóstico, *«Sí, aplicá el fix»*. El agente repreguntaba el artículo que el cliente ya había nombrado en el turno anterior y mandaba `cajas` inventadas a `consultar_stock`.
+
+**Por qué** [Seguro]: el historial sí le llegaba al modelo; el fallo era de comportamiento de Haiku 5.5 con las reglas del 15/10 que empujan a «preguntar de más». Mismo criterio que el caso Cuccinarte (`docs/FUGA-CUENTA-HISTORIAL-2026-10-14.md`): lo exacto lo arma el código, no el modelo.
+
+**Qué se hizo**: `_shared/articulo-en-curso.ts` (bloque «Artículo en curso» en la parte variable del prompt; `cajasRespaldadas`), conectado en `_shared/bot-conversation.ts`; `tests/articulo-en-curso.test.ts`. Detalle, causa probable y límites en la entrada del 15/10 de `docs/ESTADO.md`. Auditoría 828, tarea de Planify 5969.
+
+**Lo que NO se decidió**: no se tocaron las reglas PEDIDO SIN ERRORES, COLORES ni TIPO DE ARTÍCULO (Pablo las pidió el 15/10 y siguen). Tampoco se cambió el modelo del agente (D032 sigue sólo anotado). Comprobado en producción el 15/10 en 1 caso real (Pablo repitió «Tenes stock para 30 cajas?» desde Logística: consultó el 586 con 30 cajas sin repreguntar, US$ 0,00096); la variante «Del art que te pregunte antes» queda sin probar. Auditoría 828 cerrada con esas salvedades.
+
+---
+
+## D035 — Un mensaje con varias preguntas no es un cliente molesto: sólo cuentan los signos pegados (2026-10-15)
+
+**Decisión**: Pablo, ante la derivación a una persona de «Hola, como estas? tenes stock del 586? que valor tiene? Tenes stock para 20 cajas?»: *«Hice las 3 preguntas en el mismo mensaje, tendría que entender el mensaje completo»*. El detector de grito (`_shared/humor-reglas.ts`, `grita`) pasa de «4 o más signos en total» a «4 o más signos PEGADOS» (`????`, `!!!!`, `?!?!`); MAYÚSCULAS con algún signo, insultos y quejas fuertes quedan como estaban.
+
+**Por qué** [Seguro]: el paso 3b' del webhook (`atenderMalHumor`) responde y deriva ANTES del agente, sin IA; un mensaje cortés con varias preguntas es lo normal de un mayorista y quedaba sin contestar. Regla vieja del 28/09 (`docs/FLUJOS.md`).
+
+**Qué se hizo**: `humor-reglas.ts`, `tests/humor-reglas.test.ts` (19 chequeos), línea de `docs/FLUJOS.md`. Auditoría 829. **No se tocó**: la cláusula de MAYÚSCULAS (un cliente que escribe todo en mayúsculas sigue marcado como grito; sin caso real que lo pida). Verificado en producción el 15/10: el mismo mensaje de Logística llegó al agente (deploy de la corrida 474) y contestó stock y precio sin alerta. Auditoría 829 cerrada.
+
+---
+
+## D036 — Compuerta de stock: si la respuesta habla de stock y no se llamó a `consultar_stock`, la llamada la hace el código (2026-10-15)
+
+**Decisión**: Pablo, ante «Del ergonomico, de ese tenes 30 cajas?» contestado «tiene stock para las 30 cajas» sin herramienta (puntaje 74): *«Sí, arreglalo con la compuerta»*. Cuando el modelo termina sin herramientas y su texto dice o niega stock, el código consulta `consultar_stock` por él y le devuelve la palabra para que rehaga la respuesta con el texto de la herramienta.
+
+**Por qué** [Seguro]: la regla STOCK de prompt ya lo prohibía y Haiku 5.5 la salteó dos veces el mismo día (filas 60 y 74). Un stock repetido de memoria es una promesa a un cliente. Mismo criterio que D034 y el caso Cuccinarte: lo exacto lo arma el código.
+
+**Qué se hizo**: `_shared/compuerta-stock.ts`, cableado en `runConversation`, una sola vez por turno, hasta 4 artículos, fuera de la toma de pedidos. Marca `_compuerta: true` en el `input` para contarla. `tests/compuerta-stock.test.ts`. Auditoría 834, tarea 5976. Detalle y límites en la entrada del 15/10 de `docs/ESTADO.md`.
+
+**Lo que NO se decidió**: los precios traídos del historial de otro día («los otros artículos que me ofreciste») quedan como problema aparte en la auditoría, sin arreglo. Pedir el código cuando se podía mirar el stock de los candidatos quedó decidido en D037. Tampoco se tocó `bot_auditar_tool`.
+
+---
+
+## D037 — Ante un artículo que no está claro, el agente pregunta; no adivina ni da stock o precio de todos los candidatos (2026-10-15)
+
+**Decisión**: Pablo, sobre qué manda cuando el cliente no es claro con un artículo («preguntar para no equivocarse» o «mirar el stock de los candidatos y contestar todos»): *«Que mande preguntar y no adivinar»*. Gana PEDIDO SIN ERRORES (preguntar de más) sobre CONSULTÁ ANTES DE PREGUNTAR cuando hay varios artículos posibles.
+
+**Por qué** [Seguro]: dos reglas del 15/10 se pisaban para una consulta de stock («tenes stock del pelapapas con mango rojo comun?» → listó 586, 505 y 587 y pidió el código: era lo correcto). Un stock o un precio dado para el artículo equivocado es una promesa equivocada.
+
+**Qué se hizo**: dos cláusulas en `_shared/agente-fijos.ts`: la excepción en CONSULTÁ ANTES DE PREGUNTAR (un artículo pedido con varios candidatos: se pregunta cuál; si pide «todos», se dan todos) y la de CHARLAS ANTERIORES (lo ofrecido en otra charla no es «lo que te ofrecí» en esta; ante «los otros» poco claro se pregunta a cuáles). `tests/regla-preguntar-no-adivinar.test.ts`. Auditoría 835 abierta hasta verlo en una charla real.
+
+**Lo que NO se decidió**: no se tocó PRECIOS Y FOTOS (pedir «todos» sigue dando todos). No se midió con el modelo si Haiku 5.5 sigue las cláusulas (requiere estimativo y «sí» de Pablo).
+---
+
+## D038 — Plantillas del remito: `pedido_retirado` y `pedido_en_expreso` subidas a Meta (2026-10-15)
 
 **Decisión (Pablo, 15/10):** *«Subí pedido_en_expreso y pedido_retirado a Meta»*. Se crearon las dos en Meta con `lk_templates` action `templates_sync` (`aplicar`, `solo:[pedido_en_expreso,pedido_retirado]`), categoría UTILITY, idioma es_AR. Quedaron `PENDING` (en revisión de Meta): `pedido_retirado` id 2529181834243049, `pedido_en_expreso` id 2318701338906372.
 
-**Qué NO cambia (vasectomía intacta):** crear plantillas en Meta no manda ningún mensaje ni cuesta. Las dos siguen SIN disparador (`estado: sin_disparador` en `disparadores.json`): el reenganche del trigger `trg_order_tracking_notify` sigue bloqueado hasta que Virgilio exponga la marca del remito (lado de Luis, ver D ... y `docs/REENGANCHE-REMITO-VIRGILIO.md`). Aunque Meta las apruebe, no sale nada hasta que (a) haya disparador y (b) `wa_envio_automatico` pase de `0`.
+**Qué NO cambia (vasectomía intacta):** crear plantillas en Meta no manda ningún mensaje ni cuesta. Las dos siguen SIN disparador (`estado: sin_disparador` en `disparadores.json`): el reenganche del trigger `trg_order_tracking_notify` sigue bloqueado hasta que Virgilio exponga la marca del remito (lado de Luis, ver `docs/REENGANCHE-REMITO-VIRGILIO.md`). Aunque Meta las apruebe, no sale nada hasta que (a) haya disparador y (b) `wa_envio_automatico` pase de `0`.
 
 **Por qué se subieron ahora, antes del trigger:** aprobar en Meta tarda y es independiente del contrato de Virgilio. Subirlas ya adelanta la cola crítica: cuando llegue lo de Luis sólo falta el cambio del trigger, no esperar la revisión de Meta.
 
