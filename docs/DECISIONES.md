@@ -573,3 +573,8 @@ para que el juez no marque mal respuestas correctas.
 
 **Pregunta abierta (sin respuesta al cerrar la charla del 15/10):** ¿el piloto del 19 al 23/10 incluye clientes reales? Hoy toda la whitelist es de prueba,
 así que el reporte del 23/10 no mide el objetivo y P8 no puede llegar a ok. Abrir el bot a clientes lo deciden Luis o Thomas (principio de la vasectomía).
+
+## D027 — El juez del puntaje de IA usa las reglas y la charla reales del agente (2026-10-15)
+
+**Quién:** Pablo Olejavetzky. **Qué:** *«Sí, corregí lk_ia-puntaje para cerrar 818 y 819»*. **Por qué:** el juez marcaba como mala toda respuesta que tomaba un pedido (le daba la regla de pedidos apagados con `wa_pedidos_config.activo = true`) y puntuaba sin ver la charla (leía `wa_conversations`, sin filas desde el 05/10). Con eso las revisiones de IA › Revisión de respuestas se llenaban de falsas alarmas (D026). **Cómo quedó:** el juez recibe `reglasOperativas(pedidosWa)` y la charla de `bot_historial_chat`, y no evalúa si no puede leer `wa_pedidos_cfg`. **No incluye** el bloque «Hechos de esta charla» ni los otros tres lectores de `wa_conversations` (Salientes, Alertas, adjuntos: problema 821). **Dónde:** `supabase/functions/lk_ia-puntaje/` (`juez.ts`, `index.ts`), `tests/puntaje-juez.test.ts`, tarea 5945 de Planify (64), problemas 818 y 819 de la auditoría.
+
