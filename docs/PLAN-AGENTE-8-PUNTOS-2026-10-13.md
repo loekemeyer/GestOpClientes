@@ -120,6 +120,13 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   ambiguas (mp01, mp04, mp06, mp07). Con las notas ajustadas: 4 bien, 3 a medias y 1 mal, y los 4 no-bien son fallas reales de
   esa corrida que ya se arreglaron (mp05 derivaba de más, mp07 saludaba con la razón social, mp06 y mp03 de redacción). Costo:
   16 juicios, US$ 0,002502 (US$ 0,00016 por caso).
+- **Corridas con juez del 15/10 (Pablo: *"tenemos créditos de APIs disponibles para pruebas, así que a usarlos"*):** corrida 12:
+  6 bien y 2 a medias (mp03 no indicó cómo hacer el pedido nuevo, mp06 no pasó el listado y preguntó por el artículo). Arreglo:
+  la indicación de sin pendientes pasó a 5 pasos numerados (commit `572ec63`). Corrida 13: 7 bien y 1 a medias, y el a medias
+  (mp04) era un error del juez; el juez ahora tiene que citar qué parte de la nota falta (commit `eac72a5`). Re-juzgadas: **la
+  13 da 8 de 8 bien** y la 10 (respuestas de antes de los arreglos) sigue marcando sus 3 fallas reales (mp05 mal, mp03 y mp07 a
+  medias). **Variación medida:** en 3 corridas sueltas, mp06 pasó 3 de 3 y mp03 sólo 1 de 3 (las otras 2 listan y preguntan
+  cuál anular, pero no dicen cómo hacer el pedido nuevo). Gasto del día en pruebas: US$ 0,0248 del Simulador y US$ 0,0077 del juez.
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
 - **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
   (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)
