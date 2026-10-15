@@ -30,13 +30,14 @@ antes de reenviarlo, correr el SQL de "Cómo verificarlo".**
   **las de prueba se descartan**.
 - **Reclamo** ("me llegó mercadería rota") y cualquier derivación: abre una tarea real en Planify para el sector que
   corresponda.
-- **Límites que va a ver:** 20 consultas de IA por hora y por número (después pausa y avisa hasta qué hora); tope de gasto
-  diario de IA (al 08/10: aviso US$ 1, tope US$ 2; **al 15/10: aviso US$ 2,5, tope US$ 3**, `ia_aviso_gasto_usd` /
-  `ia_tope_gasto_usd`); fuera de horario (lunes a viernes de 9 a 17) contesta igual pero avisa que una persona responde el
-  próximo día hábil.
-- El 08/10 se dijo que con Sonnet como modelo principal el tope de US$ 2 eran unos 20 turnos por día y que una tanda de pruebas
-  podía cortarlo. **Ya no aplica igual:** desde el 13/10 el #1 de la cadena es Haiku 5.5 (Sonnet 4.6 es el #2) y el tope
-  es US$ 3.
+- **Límites que va a ver:** 20 consultas de IA por hora y por número (después pausa y avisa hasta qué hora). Fuera de horario
+  (lunes a viernes de 9 a 17) contesta igual, pero si algo necesita una persona avisa que responde el próximo día hábil.
+- **Gasto de IA (cambió después del 08/10, ver «Controles de gasto de IA en PRODUCCIÓN» en `CLAUDE.md`):** el 08/10 el tope
+  global era US$ 2 por día y cortaba al agente (con Sonnet como #1 eran unos 20 turnos, y una tanda de pruebas podía cortarlo).
+  **Desde el 14/10 el tope global ya no corta: degrada** a modelos gratis o a Haiku 5.5 (al 15/10: aviso US$ 2,5, degradar
+  US$ 3, escalar US$ 5). **Lo que sí puede frenar a quien prueba es el tope por cliente: US$ 2 por día y US$ 5 por semana por
+  teléfono**, sólo para ese número. Desde el 13/10 el #1 de la cadena es Haiku 5.5 (Sonnet 4.6 el #2), así que esos US$ 2
+  rinden bastante más que el 08/10. La toma de pedidos sigue con Sonnet fijo.
 
 ## Mensaje que se le mandó (versión corta, 08/10)
 

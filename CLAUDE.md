@@ -189,7 +189,7 @@ dice que habla otra persona, no rige) **y** escrituras que son del repo: la base
 **NO cubre, y sigue pidiendo el "sí" con el SQL exacto antes:**
 1. **Borrados**: `DELETE`, `DROP`, `TRUNCATE` y cualquier DDL que borre datos o columnas.
 2. **Fuera del repo**: otro repo, otro proyecto de Supabase, tablas de Gestión que no sean las tareas o el semáforo de Planify.
-3. **Auditoría** (`github_repo_problemas`): sigue "sin excepción", Pablo no la nombró.
+3. ~~**Auditoría** (`github_repo_problemas`): sigue "sin excepción", Pablo no la nombró.~~ **Actualizado 15/10/2026 (Pablo Olejavetzky):** *"vos siempre registrá todo, no preguntes tema auditoría, siempre cualquier cosa que haga registralo"*. Ahora, en ESTE repo y con Pablo, `registrar_problema`, `cerrar_problema` y `agregar_commit` se ejecutan **sin pedir el "sí" antes** (igual que los INSERT/UPDATE del repo). Se sigue informando el título al registrar y cerrar, y leyendo `v_problemas` para verificar. Sigue sin excepción para OTRA persona (si el mensaje dice que habla otro, vuelve el "sí") y para los borrados (el rol `anon` no tiene DELETE igual). Al copiar el bloque global de BD a otro repo, esta línea NO se copia: es sólo de este repo.
 4. **Gastos**: tienen su propia regla (estimativo + "sí"), más abajo.
 
 Primer uso (07/10): el semáforo fijo de `anulacion_pedido` y, antes, las reglas de Derivaciones (`docs/ESTADO.md`).
@@ -479,6 +479,68 @@ toca `llm_modelo_pruebas`: el modelo va en `body.modelo_eval` y el Simulador só
 (`_shared/modelos-prueba.ts`). **Cubre sólo esa corrida**: sumar casos, otro modelo u otra frecuencia vuelve a la regla de arriba (estimativo + "sí").
 Cubre también el **juez** de esa corrida (`lk_eval-juez`, sql/157, Pablo 15/10: *"Sí, armá el juez automático con Haiku"*): una llamada
 a Haiku por caso, unos US$ 0,01 por corrida.
+## Controles de gasto de IA en PRODUCCIÓN (runtime) — distinto del gasto de pruebas de arriba
+
+La sección de arriba es sobre el gasto de las PRUEBAS (Simulador / chat de prueba, auditado por Pablo). Esto es
+sobre el gasto de los CLIENTES reales (filas de `bot_token_usage` con `function_name = 'lk_whatsapp-webhook'`).
+Detalle vivo en `docs/ESTADO.md` y en `MEDIDAS_SEGURIDAD` (`_shared/agente-fijos.ts`); acá SÓLO el mapa, para no
+reconstruirlo ni duplicar reglas (que divergen: pozo de Matricería).
+
+⚠ **Decisión fija (Pablo Olejavetzky, 14/10/2026): el tope de gasto NO corta al agente, DEGRADA.** Textual:
+*"degradá, pero no cortes del todo"* y *"que no corte en 5, sino que dé un aviso a un humano si está dentro del
+horario de atención"*. Se eliminó el corte duro viejo (`MSG_TOPE_GASTO`, que dejaba mudo al cliente). No volver a
+ponerlo sin que Pablo lo pida.
+
+Cinco capas, de la más fina a la más gruesa:
+1. **Por número y hora:** `wa_check_rate_limit` (20/h) → cooldown (`_shared/tope-ia.ts`, sql/012).
+2. **Por acción cara y número:** `wa_accion_tope` (derivar, armar pedido, sucursal… `_shared/tope-accion.ts`, sql/142).
+3. **Tope de gasto diario GLOBAL** (`_shared/tope-gasto.ts`, `lk_whatsapp-webhook` `pasoElTopeDeGasto`): tres niveles y
+   NUNCA corta — `aviso` (alerta, cadena normal) → `degradar` (sólo modelos gratis `is_free_tier`; si ninguno
+   responde, `claude-haiku-5-5` barato; el filtro vive en `runConversation`, opción `degradado`) → `escalar` (no
+   corta, sigue degradado; sólo suma una alerta a una persona SI estamos en horario de atención, `_shared/horario.ts`).
+   Settings sin deploy: `ia_aviso_gasto_usd`, `ia_tope_gasto_usd`, `ia_tope_escalar_usd`. Vivos al 15/10: **2,5 / 3 / 5**.
+   La toma de pedidos NO se degrada (va con su modelo fijo Sonnet).
+4. **Tope de gasto POR CLIENTE** (`_shared/tope-cliente.ts`, `pasoElTopeCliente`): US$ 2/día y US$ 5/semana por
+   teléfono; frena SÓLO a ese cliente, los demás siguen. Es la capa que aísla al abusador sin tocar a nadie más.
+5. **Presupuesto MENSUAL del pozo** (`_shared/presupuesto-ia.ts`, `ia_presup_mensual_usd`): sólo avisa (25/50/75/90/100%).
+
+⚠ **"Distinguir un cliente malicioso de uno activo" NO se hace con un clasificador por contenido** (un mayorista con
+pedido grande pregunta igual que un abusador; un falso positivo bloquea a quien paga). Se resuelve presupuestando:
+la capa 4 corta al abusador puntual por su propio gasto, y la capa 3 mantiene a todos los demás servidos barato
+(gratis/Haiku) en vez de mudos. La señal de inyección/jailbreak es aparte (`_shared/ataque-entrada.ts`, sql/143).
+
+## ⚠ REGLA: descuentos del bot (`consultar_mis_descuentos` / `bot_mis_descuentos`) — Pablo Olejavetzky, 14-15/10/2026
+
+**Decisión (Pablo): cada cliente ve SÓLO su escalón de descuento según su plazo pactado** (no la escala entera).
+Es "la escala estándar filtrada por plazo". La escala estándar, por forma de pago, es fija y sale de la página
+(`pagina-LK-copia/script.js`, grilla de métodos de pago): **Contado 25% · 15-30 días 20% · 31-45 días 15% ·
+46-60 días 10% · 90 días eCheq 5% · 120 días eCheq 0%**. Verificado: la página muestra los 6 chips a TODO cliente
+mayorista estándar y el descuento sale del método que elige en el checkout; `payment_term` NO filtra los chips.
+
+**Qué YA está hecho (sql/154):** `bot_mis_descuentos` devuelve la escala estándar y respeta **`escala_activa`**:
+un cliente con `customers.escala_activa = true` va obligado a Contado -25% (los demás plazos en NULL), igual que la
+página. El handler TS agrega `nota_escala`. Esto NO es todavía "sólo su escalón por plazo".
+
+**Qué FALTA y por qué está trabado (dato que no tengo, no se inventa — es plata):** para mostrarle a cada cliente
+su único escalón hace falta el mapeo **código de `customers.payment_term` → escalón**. `payment_term` es el plazo
+pactado, pero es un **código del ERP** (31 valores en uso: 1 a 27, 30, 84, 90) y **NO hay catálogo código→días/%
+en ninguna base que la sesión lea** — chequeado el 15/10 en LK (`customers`, sin catálogo), ISIS
+(`virgilio.isis_ventas` no trae condición de pago), Gestión Virgilio (no hay catálogo) y los pedidos web
+(`v_pedidos_web.condicion_pago_code` usa los códigos del MÉTODO web 8-13, otro namespace). El mapeo tiene que
+venir del ERP o dictado por Pablo. ⚠ **Descartado el proxy "método más usado en la web"**: en la web todos pueden
+elegir Contado para llevarse el 25% (código 8 = 12.776 pedidos, domina), así que usarlo diría a casi todos "tu
+escalón es Contado 25%" — prometer un descuento que no es el pactado. Regla de Luis: comunicarle mal un dato de
+plata a un cliente es inaceptable.
+
+**Peso de los códigos (clientes con ese `payment_term`, al 15/10; 598 clientes tienen NULL = sin plazo cargado):**
+30→177 · 3→99 · 2→72 · 4→62 · 1→51 · 5→44 · 6→30 (estos 7 = 80,4% de los que tienen plazo); después 8→17, 7→16,
+0→16, 9→9, 14→9, y una cola de 1-8 clientes (20→8 … 90→1). Del piloto: Damián (411) = código **0**, Thomy (4028) = **NULL**.
+
+**Cuando Pablo pase el mapeo** (aunque sea los 7 de más peso): armar una tabla `code → escalón` y que
+`bot_mis_descuentos` devuelva sólo ese escalón. **Los códigos sin mapear y los NULL quedan en la escala completa**
+(seguro: mejor mostrar de más que prometer de menos/más). Mostrar el mapeo a Pablo para su "sí" ANTES de que el bot
+lo use (es plata). No volver a proponer el proxy de la web.
+
 ## Reglas
 
 - NUNCA hardcodear anon key ni service role key en el código fuente
@@ -742,3 +804,4 @@ select n.nspname, c.relname
 > Las reglas son las mismas: se movieron a `docs/` para no cargarlas en cada sesión. **Antes de tocar un tema, abrir y leer ENTERO su archivo.** Si una regla de un archivo choca con este `CLAUDE.md`, manda `CLAUDE.md`.
 
 - `docs/REGLAS-GESTOPCLIENTES.md` — artifacts del equipo se actualizan en el mismo cambio; categorizacion/clasificacion interna de preguntas; consultas para Thommy en el artifact; coordinacion multi-sesion; correcciones del artifact Respuestas del bot por causa, cómo llegan al bot; sincronizacion logica/front, pestaña Preguntas frecuentes; tablas nuevas en schema public de PaginaLK; testing
+- `docs/FUGA-CUENTA-HISTORIAL-2026-10-14.md` — caso Cuccinarte: el agente nombró una cuenta vieja sacada del historial de un número reasignado. Fix de dos capas (regla de prompt NOMBRE DE LA CUENTA + corte de historial por cuenta en `historialDelTurno`), familia de evals `seg16..seg19`, y las lecciones (contexto limpio, lo exacto no lo redacta el modelo, aislamiento por teléfono). Registros canónicos: auditoría 784, `MEDIDAS_SEGURIDAD`, `sql/148`.
