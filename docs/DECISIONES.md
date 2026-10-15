@@ -523,3 +523,18 @@ cae a `github.event.before` y después a `HEAD^`. El job `deploy` pidió `action
 con un `gh` falso en 7 escenarios. **Costo conocido:** el script ya redeployaba todas las funciones que importan algo de `_shared/` cuando cambia cualquier archivo
 de `_shared/`, así que un push que recupere el fix de `tope-cliente.ts` despliega 25 funciones y no sólo el webhook (es la regla vieja, no se tocó).
 **Verificado en el runner:** la corrida 467 (`788ff42`) mostró «último push verde: 0ebec42…» en el log, o sea que `gh api` funciona con `actions: read`. **Dónde:** `788ff42` (el arreglo) y el commit siguiente (el aviso del log, que decía «push que no salió verde» cuando el anterior era de docs), problema 813 de la auditoría, tarea 5936 de Planify (64).
+---
+
+## D025 — Continuidad entre charlas: markdown + hook de contexto (2026-10-15)
+
+**Decisión (Pablo, 15/10: «markdown + hook, dale»):** como Claude no tiene memoria entre conversaciones y no puede leer otras charlas, el contexto compartido se materializa en lo
+escrito en el repo y se carga solo al abrir cada charla. El registro vive en markdown (`docs/DECISIONES.md` + `docs/ESTADO.md`, no una tabla de Supabase).
+
+**Razón:** varias charlas en paralelo sobre el mismo repo perdían lo hablado (caso del 15/10: los vínculos 225 y 228 salieron de una charla que no dejó rastro; la corrida fallida del
+circuito del 14/10 tampoco quedó escrita). El markdown ya existía a medias; faltaba que se cargara sin depender de que Claude se acuerde de leerlo.
+
+**Dónde quedó:** `scripts/contexto-repo.sh` (nuevo) + `.claude/settings.json` (segundo hook de `SessionStart`, después de `claude-permisos.sh`). Al abrir cada charla imprime las
+últimas 12 decisiones de `DECISIONES.md`, la fecha de `ESTADO.md` y `git log -8`, y recuerda la regla de anotar en el mismo turno. Sólo lee archivos del repo, sin credenciales.
+
+**Límite:** si una charla no anota, el hook no la puede mostrar — el candado es la disciplina de escribir, igual que con los commits. Lo de las bases (tareas abiertas, auditoría) lo
+consulta Claude con el MCP cuando hace falta; el hook no tiene credenciales para eso.
