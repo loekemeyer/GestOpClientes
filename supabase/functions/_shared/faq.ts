@@ -20,11 +20,11 @@ import { avisaFacturaPorMail, PREGUNTA_MAIL_FACTURAS } from "./mail-facturas.ts"
 import { claseNombrada, derivacionExcel, pideExcel, PREGUNTA_EXCEL } from "./pasar-excel.ts";
 export { pideExcel };
 export { avisaFacturaPorMail };
-import { hayNombreDeArticulo, preguntaPrecioDeArticulo } from "./articulo-nombre.ts";
+import { hayNombreDeArticulo, preguntaPrecioDeArticulo, preguntaPrecioSinReferencia } from "./articulo-nombre.ts";
 import { cargarCalendario } from "./feriados.ts";
 import { horarioEfectivo } from "./horario.ts";
 import { TEXTO_ACCESO_TAPADO, TEXTO_CLAVE_NO_AGENDADO } from "./clave-web.ts";
-import { mensajeCompuesto, pedidosDelMensaje, pistaDeParte, pistaRepetida, RE_CANTIDAD_CON_UNIDAD, yaLoDijo } from "./mensaje-compuesto.ts";
+import { mensajeCompuesto, pedidosDelMensaje, pistaDeParte, pistaPrecioConContexto, pistaRepetida, RE_CANTIDAD_CON_UNIDAD, recientesHablanDeArticulos, yaLoDijo } from "./mensaje-compuesto.ts";
 import { preguntaQueEs, TEXTO_PRESENTACION } from "./presentacion.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -534,6 +534,12 @@ export async function pistasDeLaCapaFija(text: string, customer: NonNullable<Cus
 export async function decidirCapaFija(text: string, customer: Customer, faq: FaqResult | null, recientes: string[]):
   Promise<{ faq: FaqResult | null; pistas: string[]; documentos: Documento[] }> {
   if (!customer) return { faq, pistas: [], documentos: [] };
+  // Pablo, 15/10 (tanda de pruebas, mensaje 9): «y los precios?» después de hablar de artículos (pidió precio y fotos de los pelapapas) recibió el enlace a la lista de precios (#11).
+  // Un pedido de precio sin artículo ni palabras de lista, con artículos en la charla de los últimos MINUTOS_SIN_REPETIR minutos, lo contesta el agente (lee el historial) con la
+  // respuesta fija como pista. Sin charla previa (o sin artículos en ella) sigue saliendo la respuesta fija. Va antes del chequeo de repetidas: esa pista no dice a qué precio se refiere.
+  if (faq && !faq.conClave && faq.topic === "consultar_precios" && preguntaPrecioSinReferencia(text) && recientesHablanDeArticulos(recientes)) {
+    return { faq: null, pistas: [pistaPrecioConContexto(text, faq.reply)], documentos: [] };
+  }
   if (faq && !faq.conClave && yaLoDijo(faq.reply, recientes)) return { faq: null, pistas: [pistaRepetida(faq.reply)], documentos: [] };
   // Pablo, 14/10: estado/fecha de pedido migra a IA — el dato exacto del lookup va como pista y el agente redacta (migración capa fija → IA).
   if (faq?.comoPista && !faq.conClave) {

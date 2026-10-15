@@ -1,7 +1,7 @@
 // Pruebas de cuándo una pregunta de precio o de stock nombra un artículo (supabase/functions/_shared/articulo-nombre.ts, corrección m72). Sin red.
 // Correr: node --experimental-strip-types --no-warnings tests/articulo-nombre.test.ts   (sale con código 1 si algo falla)
 import { readFileSync } from "node:fs";
-import { hayNombreDeArticulo, palabraDeBusqueda, preguntaPrecioDeArticulo, raizDeBusqueda } from "../supabase/functions/_shared/articulo-nombre.ts";
+import { hayNombreDeArticulo, palabraDeBusqueda, preguntaPrecioDeArticulo, preguntaPrecioSinReferencia, raizDeBusqueda } from "../supabase/functions/_shared/articulo-nombre.ts";
 
 let fallas = 0;
 function igual(nombre: string, real: unknown, esperado: unknown) {
@@ -57,6 +57,14 @@ for (const t of [
   "Dame el precio de todos los pelapapas que tengas y fotos", "Me mandás el precio de la mandolina?", "¿Cuánto sale el envasador?", "Podés pasarme el precio del pelador de papas",
   "Me podes mandar la lista de precios de los coladores?", "Quiero el precio de las tijeras",
 ]) igual(`precio de un artículo con verbos de pedir: ${t}`, preguntaPrecioDeArticulo(t), true);
+
+// Pablo, 15/10 (tanda de pruebas, mensaje 9): «y los precios?» no nombra un artículo ni pide una lista: es un seguimiento que sólo se entiende con la charla.
+for (const t of ["y los precios?", "Y los precios", "¿y el precio?", "y los precios de esos?", "cuánto sale?", "Cuanto salen?", "qué precio tienen?", "los precios?"])
+  igual(`precio sin referencia: ${JSON.stringify(t)}`, preguntaPrecioSinReferencia(t), true);
+for (const t of [
+  "Me podes mandar la lista de precios?", "precio de lista", "Hola, ¿me pasás el precio de lista?", "Pasame el catálogo con precios", "¿Hubo aumento de precios?",
+  "Cuanto sale el 505?", "¿cuánto sale el automate?", "precio del 597", "Dame el precio de todos los pelapapas que tengas y fotos", "hola", "Tienen stock del 586?", "",
+]) igual(`no es precio sin referencia: ${JSON.stringify(t)}`, preguntaPrecioSinReferencia(t), false);
 
 // Guarda: handleFaq tiene que usar la detección en la FAQ #11 (consultar_precios) y sólo con cliente identificado.
 const faqFuente = readFileSync(new URL("../supabase/functions/_shared/faq.ts", import.meta.url), "utf8");

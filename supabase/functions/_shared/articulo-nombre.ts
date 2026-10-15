@@ -70,3 +70,13 @@ export function preguntaPrecioDeArticulo(mensaje: string): boolean {
   const sinLista = m.replace(RE_PALABRAS_DE_LISTA, " ");
   return RE_CODIGO_DE_ARTICULO.test(sinLista) || hayNombreDeArticulo(sinLista);
 }
+
+/** Pablo Olejavetzky, 15/10/2026 (tanda de pruebas, mensaje 9): «y los precios?», dicho justo después de pedir precio y fotos de los pelapapas, recibió el enlace a la web
+ *  (FAQ #11) porque la respuesta fija decide sólo por el texto del mensaje y «y los precios?» no nombra nada ni pide una lista. true si pide un precio sin nombrar un artículo
+ *  (ni su código) y sin palabras de un pedido de LISTA (lista, catálogo, web, vigente…): «y los precios?», «¿y el precio?», «¿cuánto sale?». Sola no alcanza para derivar a la IA:
+ *  decidirCapaFija (faq.ts) también mira que en la charla reciente se haya hablado de artículos. */
+export function preguntaPrecioSinReferencia(mensaje: string): boolean {
+  const m = mensaje ?? "";
+  if (!RE_PIDE_PRECIO.test(m) || m.search(RE_PALABRAS_DE_LISTA) >= 0) return false;
+  return !preguntaPrecioDeArticulo(m);
+}

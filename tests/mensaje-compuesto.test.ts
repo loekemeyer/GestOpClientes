@@ -114,9 +114,35 @@ igual("la guarda de compuesto existe", iGuarda > 0, true);
 igual("la clave de la web va ANTES de la guarda (el PIN sólo lo da la capa fija)", iClave > 0 && iClave < iGuarda, true);
 const hook = await Deno.readTextFile(new URL("../supabase/functions/lk_whatsapp-webhook/index.ts", import.meta.url));
 igual("el webhook decide con decidirCapaFija", hook.includes("await decidirCapaFija(text, faqCustomer, faq,"), true);
-igual("el webhook le pasa las pistas al agente", hook.includes('"lk_whatsapp-webhook",\n    { pistas },'), true);
+igual("el webhook le pasa las pistas al agente", /"lk_whatsapp-webhook",\s*\{ pistas[,\s]/.test(hook), true);   // desde f13fd4d también va `degradado`
 const sim = await Deno.readTextFile(new URL("../supabase/functions/lk_bot-simular/index.ts", import.meta.url));
 igual("el Simulador hace lo mismo", sim.includes("await decidirCapaFija(text, cli, faq,") && sim.includes('"lk_bot-simular", { pistas'), true);
+
+// ── Pablo, 15/10 (tanda de pruebas, mensaje 9): «y los precios?» después de hablar de artículos lo contesta el agente, no el enlace a la lista ──
+const { decidirCapaFija } = await import("../supabase/functions/_shared/faq.ts");
+const LISTA_WEB = "La lista de precios vigente está en la web, con catálogo y novedades:\n\n🔗 loekemeyer.com | chefsrl.com\n\nEntrá desde \"Pedidos Mayorista\" con tu CUIT y contraseña.";
+const faqPrecios = { reply: LISTA_WEB, intent: "faq", automation_level: "full_auto", topic: "consultar_precios" };
+// deno-lint-ignore no-explicit-any
+const cli: any = { id: "c1", cod_cliente: 4210, business_name: "Garbarino Franco Tomas", dto_vol: 0.1 };
+const CHARLA_ARTICULOS = ["Le envié las fotos de los 10 peladores por este medio."];
+{
+  const d = await decidirCapaFija("y los precios?", cli, faqPrecios, CHARLA_ARTICULOS);
+  igual("«y los precios?» tras hablar de artículos: no sale la respuesta fija", d.faq, null);
+  igual("... y el agente recibe una pista que habla del precio de ESOS artículos y trae la respuesta fija de respaldo", [d.pistas.length, d.pistas[0]?.includes("precio de ESOS artículos"), d.pistas[0]?.includes("loekemeyer.com")], [1, true, true]);
+}
+igual("con el precio por caja de un artículo en la charla, también", (await decidirCapaFija("y el precio?", cli, faqPrecios, ["cód. 586 · Pelapapas Mgo Ergonomico: $17.554 por caja + IVA"])).faq, null);
+igual("sin charla reciente sigue saliendo la respuesta fija", (await decidirCapaFija("y los precios?", cli, faqPrecios, [])).faq?.reply, LISTA_WEB);
+igual("con una charla que no habla de artículos (medios de pago) sigue la respuesta fija", (await decidirCapaFija("y los precios?", cli, faqPrecios, ["Nuestros medios de pago son: efectivo, transferencia, cheques."])).faq?.reply, LISTA_WEB);
+igual("pedir la lista de precios sigue en la respuesta fija aunque venían hablando de artículos (mensaje 7)", (await decidirCapaFija("Me podes mandar la lista de precios?", cli, faqPrecios, CHARLA_ARTICULOS)).faq?.reply, LISTA_WEB);
+igual("otra respuesta fija no se toca", (await decidirCapaFija("y los precios?", cli, { ...faqPrecios, topic: "pedido_minimo" }, CHARLA_ARTICULOS)).faq?.topic, "pedido_minimo");
+igual("sin cliente identificado no se toca", (await decidirCapaFija("y los precios?", null, faqPrecios, CHARLA_ARTICULOS)).faq?.reply, LISTA_WEB);
+igual("recientesHablanDeArticulos: código, precio por caja, foto, stock, imagen", [
+  mc.recientesHablanDeArticulos(["El Pelador (cód. 505) sale $17.172"]), mc.recientesHablanDeArticulos(["$1.000 por caja + IVA"]), mc.recientesHablanDeArticulos(["Te mando la foto"]),
+  mc.recientesHablanDeArticulos(["tiene stock disponible"]), mc.recientesHablanDeArticulos(["[Imagen] Pelador"]),
+], [true, true, true, true, true]);
+igual("recientesHablanDeArticulos: horario, mínimo de compra y vacío no cuentan", [
+  mc.recientesHablanDeArticulos(["El depósito atiende de lunes a viernes de 9:00 a 12:00"]), mc.recientesHablanDeArticulos(["Pedido mínimo con envío: $500.000"]), mc.recientesHablanDeArticulos([]),
+], [false, false, false]);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");
