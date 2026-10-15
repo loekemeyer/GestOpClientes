@@ -113,6 +113,13 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
   se reescribieron para cubrir los dos estados del cliente de prueba 4210 (con y sin pedido pendiente): los casos corren contra
   datos vivos y el cliente puede tener un pedido nuevo cualquier semana. **Falta para medir "pasan":** la corrida guarda las
   respuestas y marca cambios contra la anterior, pero nadie las compara con la nota esperada en forma automática.
+- **Juez automático (15/10, Pablo: *"Sí, armá el juez automático con Haiku"*, commit `a58e9a1`, `sql/157`):** `lk_eval-juez` compara
+  cada respuesta de la corrida semanal con su nota esperada (Haiku 5.5) y guarda bien / a_medias / mal con el motivo;
+  `wa_eval_tick` lo llama solo al cerrar la corrida. **P5 pasa cuando los 8 salen "bien".** Calibrado sobre la corrida 10 (las
+  respuestas de antes de los arreglos del 14/10): la primera pasada dio 2 bien, 5 a medias y 1 mal, con 4 "a medias" por notas
+  ambiguas (mp01, mp04, mp06, mp07). Con las notas ajustadas: 4 bien, 3 a medias y 1 mal, y los 4 no-bien son fallas reales de
+  esa corrida que ya se arreglaron (mp05 derivaba de más, mp07 saludaba con la razón social, mp06 y mp03 de redacción). Costo:
+  16 juicios, US$ 0,002502 (US$ 0,00016 por caso).
 - **Avance 14/10 (Pablo: "sigamos con los 8 puntos"):** 5.1 y 5.2 hechos. Regla **ANTES DE ACTUAR** en `agente-fijos.ts` (`REGLAS_OPERATIVAS`) y **8 casos** mp01..mp08 en `wa_agente_evals` (origen `multipaso`, `sql/147`, aplicado: 8 activos, 111 en total). **Falta para el "ok":** medirlos con el modelo del piloto 3 noches seguidas (corrida nocturna con Gemini, US$ 0). P3.3 (índice al repo, `sql/148`) hecho de paso.
 - **Primera medición 14/10 (Simulador, Gemini, US$ 0, cliente de prueba 4210 sin pedidos pendientes):** 5 de 8 bien
   (mp01, mp02, mp05, mp07, mp08), 1 a medias (mp04: contestó las dos cosas pero creó una alerta `pago` que nadie pidió)
