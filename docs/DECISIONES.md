@@ -666,3 +666,13 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Qué se hizo**: `_shared/articulo-en-curso.ts` (bloque «Artículo en curso» en la parte variable del prompt; `cajasRespaldadas`), conectado en `_shared/bot-conversation.ts`; `tests/articulo-en-curso.test.ts`. Detalle, causa probable y límites en la entrada del 15/10 de `docs/ESTADO.md`. Auditoría 828, tarea de Planify 5969.
 
 **Lo que NO se decidió**: no se tocaron las reglas PEDIDO SIN ERRORES, COLORES ni TIPO DE ARTÍCULO (Pablo las pidió el 15/10 y siguen). Tampoco se cambió el modelo del agente (D032 sigue sólo anotado). Falta comprobar con Haiku 5.5 que sigue la pista: requiere estimativo y «sí» de Pablo.
+
+---
+
+## D035 — Un mensaje con varias preguntas no es un cliente molesto: sólo cuentan los signos pegados (2026-10-15)
+
+**Decisión**: Pablo, ante la derivación a una persona de «Hola, como estas? tenes stock del 586? que valor tiene? Tenes stock para 20 cajas?»: *«Hice las 3 preguntas en el mismo mensaje, tendría que entender el mensaje completo»*. El detector de grito (`_shared/humor-reglas.ts`, `grita`) pasa de «4 o más signos en total» a «4 o más signos PEGADOS» (`????`, `!!!!`, `?!?!`); MAYÚSCULAS con algún signo, insultos y quejas fuertes quedan como estaban.
+
+**Por qué** [Seguro]: el paso 3b' del webhook (`atenderMalHumor`) responde y deriva ANTES del agente, sin IA; un mensaje cortés con varias preguntas es lo normal de un mayorista y quedaba sin contestar. Regla vieja del 28/09 (`docs/FLUJOS.md`).
+
+**Qué se hizo**: `humor-reglas.ts`, `tests/humor-reglas.test.ts` (19 chequeos), línea de `docs/FLUJOS.md`. Auditoría 829. **No se tocó**: la cláusula de MAYÚSCULAS (un cliente que escribe todo en mayúsculas sigue marcado como grito; sin caso real que lo pida).

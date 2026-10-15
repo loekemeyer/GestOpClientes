@@ -5,11 +5,14 @@ const RE_INSULTO = /\b(bolud\w*|pelotud\w*|forr[oa]s?|idiot\w*|imb[eé]cil\w*|in
 const RE_QUEJA = /(desastre|p[eé]sim\w*|horrible|mal[ií]sim\w*|un asco|nunca m[aá]s|no (les )?compro m[aá]s|me (tienen|tiene) (harto|harta|podrid\w*|cansad\w*|re\s*\w+)|estoy (re\s*)?(harto|harta|podrid\w*|cansad\w*|caliente|enojad\w*|furios\w*|indignad\w*|molest\w*)|no puede ser|es una joda|qu[eé] joda|me est[aá]n (jodiendo|cargando|boludeando|tomando el pelo)|tomada de pelo|falta de respeto|nadie (me )?(responde|contesta|atiende)|no (me )?(responden|contestan|atienden)|siempre lo mismo|otra vez lo mismo|defensa del consumidor|abogad\w*|denuncia)/i;
 const RE_URGENTE = /(urgent\w*|urgencia|ya mismo|hoy mismo|ahora mismo|lo antes posible|cuanto antes|para hoy|no (me )?(lleg[oó]|vino|trajeron)|falt(aron|[oó])\b|faltan? (\d+|una?|la|el|las|los) (caja|unidad|art|producto|mercader)|vino (roto|rota|mal|incomplet\w*|fallad\w*)|\broto\b|rota\b|equivocad\w*|me cobraron (de m[aá]s|mal|doble)|cobr\w* doble|reclamo|devoluci[oó]n)/i;
 
+// Auditoría 829 (Pablo Olejavetzky, 15/10): «Hola, como estas? tenes stock del 586? que valor tiene? Tenes stock para 20 cajas?» tiene 4 «?» sueltos y se tomaba por un grito
+// (el bot contestó «Perdón por las molestias…» y derivó a una persona sin responder el stock). Varias preguntas en un mensaje son lo normal de un mayorista: los signos cuentan
+// sólo si van pegados («!!!!», «????», «?!?!»), no repartidos entre frases.
 function grita(t: string): boolean {
   const letras = t.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, "");
   const mayus = letras.replace(/[^A-ZÁÉÍÓÚÑ]/g, "").length;
   const signos = (t.match(/[!?]/g) ?? []).length;
-  return (letras.length >= 12 && mayus / letras.length >= 0.7 && signos >= 1) || signos >= 4;
+  return (letras.length >= 12 && mayus / letras.length >= 0.7 && signos >= 1) || /[!?]{4,}/.test(t);
 }
 
 export function estaMolesto(text: string): boolean {

@@ -187,8 +187,8 @@ en `_shared/bot-conversation.ts`) y con la regla fija en `agente-fijos.ts`. ~~St
 la respuesta de stock termina en el stock, y la regla CIERRE prohíbe ofrecer lo que el cliente no pidió.
 
 **Cliente molesto (28/09):** antes que cualquier otra respuesta, si el mensaje trae insultos, quejas
-fuertes ("una vergüenza", "nadie me contesta", "estoy harto") o gritos (MAYÚSCULAS con signos, 4+ signos
-de pregunta/exclamación), el bot contesta "Perdón por las molestias. Ya le paso tu mensaje a una persona
+fuertes ("una vergüenza", "nadie me contesta", "estoy harto") o gritos (MAYÚSCULAS con signos, o 4+ signos de
+pregunta/exclamación PEGADOS: «????», «!!!!»; desde el 15/10 los signos repartidos entre frases ya no cuentan, auditoría 829), el bot contesta "Perdón por las molestias. Ya le paso tu mensaje a una persona
 del equipo…" y crea una alerta urgente `cliente_molesto` (→ tarea 🔴 urgente en Planify). Si ya hay una
 abierta de ese número en las últimas 2 h, no crea otra ("Ya le avisé a una persona del equipo…").
 Sin IA: `_shared/humor.ts` + reglas en `_shared/humor-reglas.ts`.
