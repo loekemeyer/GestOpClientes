@@ -421,3 +421,81 @@ del 15/10 (tarea de Planify 5852) encontró 2, Logística y Thomy, ambos de prue
 
 **Dónde quedó:** `sql/156_wa_guardrail_cruce_cliente.sql` (aplicada en vivo en PaginaLK; rollback en `sql/rollback/156_…`; 5 funciones nuevas sólo para `service_role`), `_shared/wa-guard.ts`,
 `_shared/wa-guard-destino.ts`, `lk_factura-check`; prueba `tests/wa-guard-destino.test.ts`. Commits `c729253` y `d9b4b67`. Tarea de Planify 5801.
+
+---
+
+## D017 — Control de gasto de IA: medidor mensual, tope por cliente y tope global que degrada (2026-10-14, cargada el 15/10)
+
+**Decisión (Pablo, 14/10):** «200 USD gratis de Anthropic, uso 100/mes, que avise al 25/50/75 % y verlo en el dashboard» → «el tope va a ser 2 USD por cliente por día, 5 por semana» → «las dos capas».
+Y para el tope global del día: «degrada, pero no cortes del todo», «Haiku con 2º techo» y «que no corte en 5, sino que dé un aviso a un humano si está dentro del horario de atención».
+
+**Capa A, medidor mensual del pozo (sólo avisa, no corta):** `ia_presup_mensual_usd` (US$ 100), `ia_presup_pozo_usd` (US$ 200, sólo para mostrar) y umbrales `25,50,75,90,100`. Cuenta **todo** el gasto del
+mes (clientes, simulador, chat de prueba y puntaje), porque el pozo se agota con todo. Una alerta por umbral por mes (motivo `tope_gasto`, `nivel: presupuesto`), urgente desde el 90 %. Barra en el dashboard (v0.29.5).
+**Capa B, tope por cliente (sí corta, sólo a ese cliente):** `ia_tope_cliente_dia_usd` (US$ 2) y `ia_tope_cliente_semana_usd` (US$ 5) por teléfono, semana de Argentina desde el lunes. Al cruzar: a ese cliente no se le
+llama al agente, recibe un aviso fijo y se deja una alerta (una por día por teléfono); a los demás se les sigue contestando. Los dos números se pisan: 3 días llenos son US$ 6 y la semana corta en US$ 5.
+Ante un error de lectura no bloquea. **Tope global del día de los clientes, tres escalones y el agente nunca queda mudo:** aviso (`ia_aviso_gasto_usd` = 2,5) → degradar (`ia_tope_gasto_usd` = 3: sólo modelos gratis y, si ninguno
+responde, `claude-haiku-5-5`, nunca Sonnet) → escalar (`ia_tope_escalar_usd` = 5: no corta, sólo suma una alerta para una persona y sólo dentro del horario de atención; 0 = sólo degrada). La toma de pedidos no se degrada.
+El corte duro que dejaba mudo al cliente se eliminó.
+
+**Razón:** el 01/10 el crédito de Anthropic se agotó por el gasto del simulador (US$ 13,23 del 28/09 al 01/10) y el agente dejó de contestar. **La cifra es una estimación** (`estimated_cost_usd`, del código): corregirla contra el API de
+uso de Anthropic queda pendiente de una admin key nueva, y Pablo decidió dejarla estimada. Al 15/10 el medidor marcaba US$ 12,33 de 100 (12,3 %), sin umbral cruzado.
+
+**Dónde quedó:** `_shared/presupuesto-ia.ts`, `_shared/tope-cliente.ts`, `_shared/tope-gasto.ts`, `lk_whatsapp-webhook` (`avisarPresupuesto`, `pasoElTopeCliente`, `pasoElTopeDeGasto`), `sql/154` y `sql/155`; pruebas
+`tests/presupuesto-ia.test.ts`, `tests/tope-cliente.test.ts` y `tests/tope-gasto.test.ts`. Viva desde el deploy del 15/10 (`lk_whatsapp-webhook` v333).
+**Hallazgo abierto (15/10):** `pasoElTopeCliente` manda `MSG_TOPE_GASTO`, una constante que el commit `f13fd4d` (15/10 13:32 UTC, el tope que degrada) borró sin sacar ese uso (verificado: `deno lint no-undef` marca `MSG_TOPE_GASTO is not defined` en `lk_whatsapp-webhook/index.ts:1201`). Consecuencia **inferida del código, no probada**: al cruzar el tope por cliente la alerta se crea
+pero el envío lanza un error que la función atrapa y deja pasar ese primer mensaje, y desde el siguiente el cliente queda sin respuesta y sin aviso. Pendiente de decisión de Pablo (registro en la auditoría y corrección). **Otro pendiente:** la llave huérfana
+`ia_tope_duro_usd` = 5, que el código ya no lee, se borra con el «sí» de Pablo.
+
+---
+
+## D018 — Precios y totales: la IA da el precio de un artículo, todo precio lleva «+ IVA» y el total de un pedido se dice como el aviso (2026-10-14, cargada el 15/10)
+
+**Decisiones (Pablo, 14/10):** «La IA tendría que buscar el precio y darlo» («cuánto sale el X» llega a la IA y la respuesta fija #11 queda sólo para pedir la lista); «Buenos días, empezá a laburarlo» (regla **CONSULTÁ ANTES DE PREGUNTAR**:
+nunca se le pide al cliente el nombre o el código de un artículo que ya nombró, se busca con `buscar_productos`, de la forma que lo diga); «Está perfecto, sí, agregale más IVA» (el precio de un artículo por código también lo da la IA y todo precio de un artículo
+lleva «+ IVA»); «Sí, corregilo así» (el total de un pedido se dice como el aviso automático, con IVA y el neto «+ IVA», por ejemplo «$ 152.719 ($ 126.214 + IVA)», y no se muestran importes por línea que no estén cargados).
+**Los importes de facturas y deuda ya vienen con IVA y no se tocan.**
+
+**Razón (medido):** la #11 le ganaba a la #12 por prioridad en el empate y el cliente recibía el enlace de la web (en la historia hubo 2 casos reales); la respuesta fija por código cotizaba el artículo inactivo 597 a $ 8.888 y calculaba por unidad con un 2 % web fijo,
+mientras la IA da el precio por caja con el descuento por volumen: dos precios para la misma pregunta. Y el total de `orders` es **sin IVA** y con los descuentos aplicados: la IA podía decir «$ 741.048» cuando el aviso del mismo pedido dice «$ 896.668 ($ 741.048 + IVA)».
+
+**Dónde quedó:** `preguntaPrecioDeArticulo` (`articulo-nombre.ts`) más una línea en `handleFaq`, se borró `lookupProductPrice`, reglas en `agente-fijos.ts`, `_shared/importes-pedido.ts`; commits `1ceb0d9`, `955e10e`, `1bc9dae`, `d59ecbd`, `5917139`, `1aed8ad` y `5ce5b4e`; pruebas
+`tests/articulo-nombre.test.ts`, `tests/precio-articulo-ia.test.ts`, `tests/regla-consulta-antes.test.ts` e `tests/importes-pedido.test.ts`. **Verificado en el Simulador con Haiku 5.5** (gastos de US$ 0,004892 a 0,0859 por tanda), incluido que el «+ IVA» no contamina los importes de facturas (LK 1987, 2 de 2).
+**Sin mirar:** los totales de `consultar_mi_historial` y `buscar_en_mi_historial`. Lo del 15/10 sobre precios y fotos sigue en D014.
+
+---
+
+## D019 — Memoria del cliente: ficha editable y protegida, memoria del año a demanda y importador listo sin aplicar (2026-10-14, cargada el 15/10)
+
+**Decisiones (Pablo, 14/10):** (1) «seguí con otra tarea de memoria»: en Conversaciones › Ficha del cliente la memoria del agente es **editable** y tiene el botón **Marcar revisada** (dashboard v0.29.2 y v0.29.3, `lk_conversaciones`); una ficha revisada **no la pisa el cron incremental** (`sql/151`, columnas
+`revisada_por` y `revisada_en`; el corte es antes de llamar a Haiku, US$ 0). (2) «reprocesá las 504 para sacarles el descuento»: las fichas no llevan porcentajes ni importes, porque el agente los saca en vivo por cliente; 26 cambiadas y 2 revisadas salteadas, 0 fichas con % o importe, sin llamar al modelo,
+con respaldo `zz_backups.bkp_wa_memoria_cliente_reproc_20261014`. (3) «necesito que tenga memoria del último año» → «hacé la herramienta on-demand»: `buscar_en_mi_historial` (`sql/149`), sobre el historial del propio cliente (año 09/06/2025 a 09/06/2026, 27.348 mensajes, más lo vivo del bot),
+**sin embeddings** (decisión del 09/10) y con aislamiento por `(cod_cli, marca)`. (4) «la memoria la cargo el día que salgamos» → «dejalo listo… lo hacés vos desde Claude in Chrome»: el importador del WhatsApp humano (`sql/150`, `docs/RUNBOOK-IMPORT-HISTORIAL.md`) queda **listo y SIN aplicar**; el tramo del 10/06 al lanzamiento se carga el día que arranquen.
+(5) Fichas del piloto: los textos de 3790 y 3969 se ejecutaron el 14/10 («Sí, ejecutalos»), con respaldo; 1987 no se toca.
+
+**Auditoría de las 504 fichas:** 0 teléfonos, 0 mails, 0 CUIT, 0 % o importes, 0 «calle y número»; anti-mezcla activa (7 charlas con varios clientes excluidas). **Pendiente:** el tramo del 09/06/2026 a hoy no está importado (P3.2, sin dueño); a 411 y 4028 del piloto la herramienta les devuelve vacío porque no tienen historial.
+
+---
+
+## D020 — Evaluación del agente: P5 planificación, P7 pausa y P8 revisión diaria (2026-10-14, cargada el 15/10)
+
+**Decisiones (Pablo, 14/10, «sigamos con los 8 puntos»):** **P5**: regla fija **ANTES DE ACTUAR** en `agente-fijos.ts` (consigue los datos con las herramientas antes de usar una que cambia algo o de preguntar, y si hay varios pasos los hace en orden en el mismo turno) y 8 casos multipaso `mp01` a `mp08` en `wa_agente_evals` (`sql/147`); su criterio era pasar con el modelo del piloto 3 noches
+seguidas. Ese mismo día pasó a una corrida semanal con Haiku 5.5 («Cambialo a Haiku, medición semanal», `sql/153`) y el 15/10 se sumó el juez automático (`sql/157`): ver `CLAUDE.md` para los gastos permitidos; la primera corrida con juez es el lunes 19/10 a las 10:15 (tarea 5796).
+**P7**: `docs/RUNBOOK-PAUSA-P7.md`, 6 pasos para pausar y retomar el bot sin tocar código (pausar = llave `wa_envio_automatico` en `0`, retomar = `prueba`, desde la franja «Envíos a clientes» del dashboard, auditado en `wa_llave_cambios`); P7 sigue «parcial»: falta que Pablo ensaye la pausa y revisar el tope de gasto el 23/10.
+**P8**: worklist de la revisión diaria `v_wa_charlas_para_revisar` (`sql/152`) en Configuración del agente › Evaluación (v0.29.4); P8 sigue en «no»: su criterio necesita el reporte del 23/10 con tráfico real.
+
+---
+
+## D021 — Marca: un cliente de LK con cuenta de Chef que nombra Chef lo atiende el flujo de Chef (2026-10-14, cargada el 15/10)
+
+**Decisión (Pablo, 14/10: «Sí, corregilo así»):** en `puertaMarca` (`marca.ts`), si el cliente no tiene cuenta de Chef activa pero el mensaje **nombra Chef** y su CUIT tiene cuenta de Chef (`cuentaChefPorCuit`, por CUIT y no por código), lo resuelve `atenderClienteChef`; si no nombra Chef o no hay cuenta, sigue como siempre: a nadie se le pregunta la marca de más.
+**Razón:** LK 1987 (con cuenta Chef 1891 sin compras recientes) preguntó «¿qué pedidos tengo en Chef?» y el agente le contestó con los pedidos de LK sin decir que eran de Loekemeyer. **Cuidado:** existe otro cliente Chef con código 1987 y otro CUIT (27306399247): el cruce es por CUIT, no por código.
+Se retiró lo que decía `PILOTO-LISTA-CLIENTES-2026-10-13.md`: LK 1987 se atiende como cliente de una sola marca, no de dos. El flujo de Chef deriva a una persona la lista de pedidos de Chef de ese cliente. Commit `c978129`; `tests/marca-chef-inactiva.test.ts`. Complementa D008.
+
+---
+
+## D022 — Piloto: lo medido y lo cerrado el 14/10 (2026-10-14, cargada el 15/10)
+
+**Smoke test (pedido de Pablo):** los dos clientes de la whitelist pasaron 8 de 8 de punta a punta en el Simulador (Thomy como 4028 y Damián como 411), con un gasto de US$ 0,001742 por las llamadas auxiliares. **Medición del tiempo de respuesta (tarea 5530):** 34 turnos con IA, mediana 10,3 s, p90 14,6 s y sólo 1 dentro del objetivo de 3 a 6 s; el modelo tardaba una mediana de 3,1 s, así que
+el resto era otra cosa (D015). **Rechazo real de Meta (tarea 5630):** el 14/10 15:25 UTC Meta rechazó la foto del 599E enviada al 4210 (131053); quedó `envio_no_llego` en `bot_auditoria`, la alerta `envio_fallido` y el bloque «Hechos de esta charla» se lo dice al agente.
+**Planify (Pablo: «solamente las mías, de Pablo, trabajá con mi usuario»):** de 10 tareas abiertas quedaron 5 y ninguna vencida; de las 442 abiertas y 121 vencidas del total, casi todas de otros repos y de otras personas, no se tocó ninguna. **Auditoría del repo:** en 0 abiertos (45 corregidos y 1 descartado) tras cerrar «Respuestas fijas por palabra clave contestan otra cosa…» (656) y «Programación no web nunca marca "Retira"…» (614).
+**Pendiente:** el prompt de la Routine «Bitácora diaria GestOpClientes» lleva el secreto `x-bitacora-secret` en texto plano; si importa, rotarlo en `app_settings` y en la Routine.
