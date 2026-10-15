@@ -521,4 +521,4 @@ cae a `github.event.before` y después a `HEAD^`. El job `deploy` pidió `action
 último verde (antes: lo del último commit). **Prueba:** `tests/workflow-deploy.test.ts` (7 chequeos estáticos: 6 fallan con el workflow anterior) y el script corrido a mano
 con un `gh` falso en 7 escenarios. **Costo conocido:** el script ya redeployaba todas las funciones que importan algo de `_shared/` cuando cambia cualquier archivo
 de `_shared/`, así que un push que recupere el fix de `tope-cliente.ts` despliega 25 funciones y no sólo el webhook (es la regla vieja, no se tocó).
-**Dónde:** commit del arreglo (ver `git log` de ese archivo), problema 813 de la auditoría, tarea 5936 de Planify (64).
+**Verificado en el runner:** la corrida 467 (`788ff42`) mostró «último push verde: 0ebec42…» en el log, o sea que `gh api` funciona con `actions: read`. **Dónde:** `788ff42` (el arreglo) y el commit siguiente (el aviso del log, que decía «push que no salió verde» cuando el anterior era de docs), problema 813 de la auditoría, tarea 5936 de Planify (64).

@@ -130,8 +130,10 @@ jobs:
             BASE="HEAD^"
           fi
           echo "Base del diff: $BASE (último push verde: ${OK_SHA:-ninguno}, antes del push: ${BEFORE:-ninguno})"
-          if [ -n "$BEFORE" ] && [ "$BASE" != "$BEFORE" ]; then
-            echo "Aviso: hay commits sin desplegar de un push anterior que no salió verde: se despliegan ahora."
+          # Sólo se avisa si entre el último verde y el commit anterior al push hubo cambios en funciones: una base más
+          # vieja por un push de docs (que no dispara el workflow) no deja nada pendiente.
+          if [ -n "$BEFORE" ] && [ "$BASE" != "$BEFORE" ] && [ -n "$(git diff --name-only "$BASE" "$BEFORE" -- supabase/functions/)" ]; then
+            echo "Aviso: había funciones sin desplegar de un push anterior que no salió verde: se despliegan ahora."
           fi
           CHANGED=$(git diff --name-only "$BASE" HEAD -- supabase/functions/ || true)
 
