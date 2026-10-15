@@ -661,6 +661,13 @@ serve(async (req) => {
       const pdf = await combinarPaths(g, srcUsado, sub.facturas.map((f) => f.storage_path).filter(Boolean) as string[], `${grupoKey}|${sub.metodo}`.replace(/[^0-9a-zA-Z]+/g, "_"));
       mensaje.pdf_combinado = pdf ? { path: pdf.path, n: pdf.n, ok: !!pdf.url } : null;
 
+      // ── GUARDRAIL CRUCE DE CLIENTE (pendiente go-live; auditoría #808, tarea Planify 5801) ──
+      // HOY no aplica: todo envío va a la whitelist (test/redirección a Thomy), así que `destPhone` NO es el teléfono del
+      // cliente del aviso a propósito — no hay nada que verificar y alertar acá sería ruido en cada envío de prueba.
+      // CUANDO `wa_envio_automatico` pase a '1' y los avisos salgan al teléfono REAL del cliente: antes de enviar, verificar
+      // que `destPhone` pertenezca al `cod` del aviso (bot_customer_whatsapps / wa_clientes_telefono, comparando los últimos
+      // 10 dígitos con wa_normalize_phone). Si resuelve a OTRO cod_cliente real → NO enviar (estado 'held_cruce_cliente') y
+      // alertar (wa_alertas_humano, motivo 'cruce_cliente', urgente). NO activarlo en prueba: rompería la redirección a Thomy.
       // ── Envío REAL por WhatsApp — SÓLO a números de la lista blanca (imperativo de seguridad) ──
       // Sin dest_phone (ej. Avisos automáticos) NUNCA se envía: queda en el módulo.
       let envio = null;
