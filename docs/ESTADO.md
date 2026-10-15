@@ -1109,6 +1109,17 @@ falten, esas verificaciones avisan pero no rechazan. Ver la auditoría, sección
 
 ⚠ **Vínculo de PRUEBA (14/10, Pablo O.):** `5491131181027` (etiqueta "Logistica", en whitelist) está vinculado en `bot_customer_whatsapps` (id 227) al cliente **Garbarino Franco Tomas (4210, LK)** con `is_primary=true` y `permiso_ver_pedidos=true`, para las pruebas de plantillas. **Fijo por el momento para pruebas** (Pablo O., 14/10), patrón Thomy→4028: con `wa_envio_automatico='prueba'` cada pedido real de 4210 dispara el aviso real a ese número. Se saca cuando Pablo lo pida.
 
+### ⚠ Cómo se prueban las plantillas y qué NO puede testear Claude solo (14/10, Pablo O.)
+
+**Cadena de un aviso de pedido:** se crea el pedido en `orders` → `trg_notify_order_created` encola la plantilla `pedido_recibido` en `wa_outbox` y llama `lk_outbox-flush` → el flush pasa por la llave `wa_envio_automatico` y por `wa_puede_enviar(phone)` → si el número está en whitelist y la llave en `prueba`/`1`, el WhatsApp sale real por Meta. El destinatario lo resuelve `trg_notify_order_created` por `bot_customer_whatsapps` del cliente (principal primero). Tiempos reales medidos el 14/10 (pedido 1676 a Garbarino): pedido→encolado 3,9 s, encolado→despacho a Meta 2,2 s.
+
+**Claude NO puede hacer el testeo end-to-end solo.** Verificado el 14/10:
+1. **Postear un inbound al webhook no funciona:** `META_APP_SECRET` está cargado y `lk_whatsapp-webhook` **rechaza con HTTP 403** todo POST sin la firma HMAC de Meta (`X-Hub-Signature-256`). No se tiene el App Secret y no se extrae para forjar un inbound (romper esa protección es justo lo que `_shared/webhook-firma.ts` evita). No perder tiempo intentándolo.
+2. **Simulador / chat-test:** `lk_bot-simular` y `lk_chat-test` tienen `requireAdmin` — Claude no tiene token admin, los corre una persona desde el dashboard (con el modelo de pruebas gratis `gemini-*` es US$ 0).
+3. **No hay handset:** Claude no puede mandar un WhatsApp como cliente.
+
+**Entonces, para probar de verdad:** (a) una persona con un número **en la whitelist** le escribe al bot / se le crea un pedido real, y Claude **mide y confirma de los logs** (`wa_conversations`, `wa_outbox`, `wa_message_status`, `wa_alertas_humano`, edge logs) — US$ 0 de parte de Claude; o (b) la persona corre el Simulador desde el dashboard y Claude lee los resultados de la base. Para un ida-y-vuelta real sin el teléfono de "Logistica" abierto: repuntar el vínculo de prueba (whitelist + `bot_customer_whatsapps`) a un número que la persona sí controle.
+
 ## Auditoría de seguridad y funcionamiento (2026-09-07)
 
 > **Lo que FALTA está en `docs/PENDIENTES-AUDITORIA-2026-09-07.md`** — 45 puntos
