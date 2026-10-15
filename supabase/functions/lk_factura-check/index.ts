@@ -519,7 +519,7 @@ async function handleRealRedirect(g: any, cuit: string, fecha: string) {
   if (!allow.includes(cuitN)) return json({ skipped: "cuit_no_en_allowlist", cuit });
 
   // Grupos del día por EMPRESA + DIRECCIÓN (LK y CH nunca juntas).
-  const { data: grupos } = await g.rpc("wa_grupos_dia_cuit_v2", { p_cuit: cuit, p_fecha: fecha });
+  const { data: grupos } = await g.rpc("wa_grupos_dia_cuit", { p_cuit: cuit, p_fecha: fecha });
   if (!grupos || !grupos.length) return json({ pendiente: true, cuit, note: "sin facturas matcheadas a NP/dirección hoy" });
 
   const cfgLk = await loadDtoCfg("lk");
