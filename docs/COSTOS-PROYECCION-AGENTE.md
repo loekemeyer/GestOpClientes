@@ -95,6 +95,22 @@ Base: ~938 respuestas IA/mes, ~1.211 plantillas Meta/mes.
 - Diferencia entre modelos = sólo la IA. Como la paga el crédito, de bolsillo los tres cuestan lo
   mismo hoy. Lectura: conviene Sonnet por calidad mientras el crédito cubra la IA.
 
+## Decisión tomada (Pablo Olejavetzky, 15/10/2026)
+
+**El agente conversacional va con Sonnet 4.6.** Razón: con los US$ 200/mes de crédito de Anthropic
+cubriendo toda la IA (Sonnet usa el 23%), el gasto de bolsillo es el mismo que con Haiku
+(US$ 56/mes: Supabase + Meta), y Sonnet da mejor calidad —consulta antes de preguntar en los
+casos donde Haiku 5.5 preguntaba de más (1 a 2 de cada 34, ver `docs/ESTADO.md` 13/10)—.
+
+Condición: la decisión vale **mientras el crédito alcance**. Si se agota el crédito o el volumen
+sube y la IA pasa a salir de bolsillo (Sonnet ~US$ 45/mes vs Haiku ~US$ 3/mes), se revisa.
+
+⚠ **Hoy, en producción, el modelo #1 del agente es Haiku 5.5** (cadena `wa_agente_modelos`, tarea
+`general`, puesto así el 13/10 — ver `docs/ESTADO.md`). Aplicar esta decisión = poner Sonnet 4.6
+de #1 en esa cadena, que es una **escritura en la base** (`UPDATE wa_agente_modelos`) y necesita el
+"sí" de Pablo con el SQL a la vista en ese momento (regla de BD). No se cambió en esta sesión: queda
+anotada la decisión, falta ejecutarla.
+
 ## Protección contra abuso
 
 Ya existe en el código:
