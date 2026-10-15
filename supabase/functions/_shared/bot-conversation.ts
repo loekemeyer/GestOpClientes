@@ -972,17 +972,18 @@ async function executeTool(
       }
       // deno-lint-ignore no-explicit-any
       let rows = data as any[];
+      // Rasgos visuales por producto (color/material) que sacó la visión del catálogo (wa_producto_atributos, Fase B).
+      // Sirven para DOS cosas: filtrar por atributo y DEVOLVERLE el color al agente, así no lo inventa (ej. "colores surtidos").
+      const codsAll = rows.map((r) => String(r.cod));
+      const { data: atrs } = await supabase.from("wa_producto_atributos").select("cod, atributos_texto, datos").in("cod", codsAll);
+      // deno-lint-ignore no-explicit-any
+      const mapaAtr = new Map((atrs ?? []).map((a: any) => [String(a.cod), a]));
       // Fase B: filtro por rasgo visual. Deja sólo los productos cuyo atributos_texto (+ descripción/subcategoría)
-      // contiene TODOS los términos pedidos. Si ninguno coincide, se le dice al agente para que ofrezca lo que hay.
+      // contiene TODOS los términos pedidos, por PALABRA entera (no substring: "madera" no matchea "espumadera";
+      // un atributo multi-palabra como "acero inoxidable" exige todas sus palabras). Si ninguno coincide, se le dice al agente.
       if (atributos.length) {
-        const cods = rows.map((r) => String(r.cod));
-        const { data: atrs } = await supabase.from("wa_producto_atributos").select("cod, atributos_texto").in("cod", cods);
-        // deno-lint-ignore no-explicit-any
-        const mapa = new Map((atrs ?? []).map((a: any) => [String(a.cod), String(a.atributos_texto ?? "")]));
         const conFiltro = rows.filter((r) => {
-          const texto = `${mapa.get(String(r.cod)) ?? ""} ${r.description ?? ""} ${r.subcategory ?? ""}`.toLowerCase();
-          // Match por PALABRA entera, no substring: "madera" no debe matchear "espumadera". Un atributo
-          // multi-palabra ("acero inoxidable") exige todas sus palabras presentes.
+          const texto = `${String(mapaAtr.get(String(r.cod))?.atributos_texto ?? "")} ${r.description ?? ""} ${r.subcategory ?? ""}`.toLowerCase();
           const palabras = new Set(texto.split(/[^0-9a-záéíóúüñ]+/i).filter(Boolean));
           return atributos.every((a) => a.split(/\s+/).filter(Boolean).every((w) => palabras.has(w)));
         });
@@ -1002,11 +1003,18 @@ async function executeTool(
       const { data: cli } = await supabase.rpc("bot_cliente_por_whatsapp", { p_telefono: phone });
       const dto = Number(cli?.[0]?.cod_cliente) === 5000 ? 0 : Number(cli?.[0]?.dto_vol ?? 0);
       // deno-lint-ignore no-explicit-any
-      const res = (rows as any[]).map(({ list_price, uxb, ...r }, i) => ({ ...r, unidades_por_caja: uxb, ...(fotos[i] ? { foto: fotos[i] } : {}),
-        precio_lista_por_unidad: Math.round(Number(list_price || 0)),
-        precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
-        ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
-          descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) }));
+      const res = (rows as any[]).map(({ list_price, uxb, ...r }, i) => {
+        // color/material de la visión (campo que el agente usa tal cual; cada código es de UN color, el de su foto).
+        const d = (mapaAtr.get(String(r.cod))?.datos ?? {}) as Record<string, unknown>;
+        const color = Array.isArray(d.colores) ? (d.colores as unknown[]).filter((x) => typeof x === "string").join(", ") : "";
+        const material = typeof d.material === "string" ? d.material : "";
+        return { ...r, unidades_por_caja: uxb, ...(fotos[i] ? { foto: fotos[i] } : {}),
+          ...(color ? { color } : {}), ...(material ? { material } : {}),
+          precio_lista_por_unidad: Math.round(Number(list_price || 0)),
+          precio_lista_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0)),
+          ...(dto > 0 ? { precio_cliente_por_caja: Math.round(Number(list_price || 0) * Number(uxb || 0) * (1 - dto)),
+            descuento_volumen_cliente: `${Math.round(dto * 1000) / 10}%` } : {}) };
+      });
       return { data: inactivos.length ? { productos: res, no_disponibles: inactivos, regla: REGLA_NO_DISPONIBLE } : res };
     }
 
