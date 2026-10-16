@@ -654,7 +654,9 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 
 **Discrepancia a resolver antes de pisar datos**: el script full-history cuenta 94 commits para el 14/10; la carga manual tenía 16. Hay que decidir cuál es el válido.
 
-**Dónde quedó**: nota del 15/10 arriba de todo en `docs/ESTADO.md`, corrección de la línea vieja de la entrada 5664, y auditoría `github_repo_problemas` problema 826 (ABIERTO, no cerrado: el fix no terminó de funcionar). El secreto `x-bitacora-secret` sigue en texto plano en el prompt de la Routine.
+**Dónde quedó**: nota del 15/10 arriba de todo en `docs/ESTADO.md`, corrección de la línea vieja de la entrada 5664, y auditoría `github_repo_problemas` problema 826. El secreto `x-bitacora-secret` sigue en texto plano en el prompt de la Routine (ahora deshabilitada).
+
+**RESUELTO el 16/10 (Pablo: «no me importa, hacé que funcione»).** Se descartó la Routine de Claude: no podía escribir la página (sesión desatendida sin repo ni MCP de Supabase, y el clasificador bloqueaba el curl). La carga pasó a **GitHub Actions** (`.github/workflows/bitacora-diaria.yml` + `scripts/reporte-diario/bitacora-cargar.mjs`): el runner ya tiene el repo (git log nativo) y escribe `public.bitacora_dias` por la Management API de Supabase con el `SUPABASE_ACCESS_TOKEN` que ya usa el deploy (el mismo token cuenta la auditoría del día en Gestión). Cero secretos nuevos, cero claves anon/service, cero pasos manuales. Cron 08:07 ART + disparo manual. Verificado: cargó el 13/10 (`fuente=routine`). La Routine quedó `enabled=false`. Auditoría 826 **cerrada** (commit `ed7fdea`). Limitación aceptada: Actions no genera el `resumen` en lenguaje simple (lo hacía el LLM); alta nueva queda con `resumen` NULL y el modal muestra áreas/autores/asuntos, y un re-upsert no pisa un resumen ya cargado a mano.
 
 ---
 
