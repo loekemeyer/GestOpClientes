@@ -709,8 +709,10 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   //  · un producto → el agente lo busca y le ofrece opciones con fotos (reusa buscar_productos + enviar_fotos_producto);
   //  · una LISTA escrita o no se pudo ver (sin_vision) → sigue el flujo de pedido por archivo de abajo, como siempre.
   // Antes toda foto de cliente caía en leerPedidoArchivo (esArchivoDePedido matchea image/*): una foto de un solo artículo salía mal leída.
+  let visionDiag: { tipo: string; raw: string | null } | null = null;
   if (clase === "otro" && customer && esFoto && archivo) {
     const vista = await describirFotoProducto(archivo.bytes, archivo.mime);
+    visionDiag = { tipo: vista.tipo, raw: lineaSegura((vista as { raw?: string }).raw ?? "", 160) || null };
     if (vista.tipo === "danado") {
       await responder(MSG_ADJUNTO_RECLAMO);
       await alerta("reclamo", { motivo: "reclamo", visto: "producto_danado", comprobante_id: comprobanteId, mime });
@@ -803,6 +805,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
     ...(motivoFinal ? { motivo: motivoFinal } : {}), ...lectura,
     comprobante_id: comprobanteId, mime, archivo: lineaSegura(msg.mediaFilename, 120) || null,
     ...(falla ? { error_archivo: falla } : {}),
+    ...(visionDiag ? { vision_tipo: visionDiag.tipo, vision_raw: visionDiag.raw } : {}),
   });
 }
 

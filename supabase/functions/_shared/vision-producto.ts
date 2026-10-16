@@ -18,11 +18,11 @@ import { partesGoogle, resolveModelById, type ResolvedModel } from "./bot-llm.ts
 import { getSetting } from "./supabase.ts";
 
 export type VisionResultado =
-  | { tipo: "danado" }
-  | { tipo: "comprobante" }
-  | { tipo: "lista" }
-  | { tipo: "busqueda"; terminos: string }
-  | { tipo: "sin_vision" };
+  | { tipo: "danado"; raw?: string }
+  | { tipo: "comprobante"; raw?: string }
+  | { tipo: "lista"; raw?: string }
+  | { tipo: "busqueda"; terminos: string; raw?: string }
+  | { tipo: "sin_vision"; raw?: string }; // `raw`: texto crudo del modelo (o el motivo del sin_vision) — para diagnosticar desde la alerta, sin logs.
 
 const PROMPT_FASE_A =
   "Sos asistente de un mayorista de bazar y cocina. Un cliente mandó esta foto por WhatsApp.\n" +
@@ -106,19 +106,19 @@ async function pedirVision(modelo: ResolvedModel, mime: string, bytes: Uint8Arra
 /** Fase A: mira la foto del cliente. Sólo JPEG/PNG/WebP. Nunca tira: ante cualquier problema devuelve sin_vision. */
 export async function describirFotoProducto(bytes: Uint8Array, mime: string): Promise<VisionResultado> {
   const m0 = fotoValida(bytes, mime);
-  if (!m0) return { tipo: "sin_vision" };
+  if (!m0) return { tipo: "sin_vision", raw: "foto_invalida" };
   const modelo = await modeloVision();
-  if (!modelo) return { tipo: "sin_vision" };
+  if (!modelo) return { tipo: "sin_vision", raw: "vision_dormida" };
 
-  const t = await pedirVision(modelo, m0, bytes, PROMPT_FASE_A, 40);
-  if (!t) return { tipo: "sin_vision" };
+  const t = await pedirVision(modelo, m0, bytes, PROMPT_FASE_A, 64);
+  if (!t) return { tipo: "sin_vision", raw: "gemini_vacio_o_error" };
   const w0 = t.split(/\s+/)[0] ?? "";
-  if (/^comprobante/i.test(w0)) return { tipo: "comprobante" };
-  if (/^lista/i.test(w0)) return { tipo: "lista" };
-  if (/dani?ado|dañado/i.test(w0)) return { tipo: "danado" };
+  if (/comprobante/i.test(t)) return { tipo: "comprobante", raw: t };
+  if (/^lista/i.test(w0)) return { tipo: "lista", raw: t };
+  if (/dani?ado|dañado/i.test(w0)) return { tipo: "danado", raw: t };
   // Limpia a términos de búsqueda simples (sin signos raros), tope 80 chars.
   const terminos = t.replace(/["'`*_#]/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
-  return terminos ? { tipo: "busqueda", terminos } : { tipo: "sin_vision" };
+  return terminos ? { tipo: "busqueda", terminos, raw: t } : { tipo: "sin_vision", raw: t };
 }
 
 /** Fase B: extrae los atributos visuales de la foto de UN producto del catálogo. null si no se pudo. */
