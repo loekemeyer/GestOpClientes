@@ -704,8 +704,8 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
     }
   }
 
-  // Pablo, 14/10 (Fase A): una FOTO de un cliente que no es reclamo ni pago se pasa primero por visión (_shared/vision-producto.ts,
-  // modelo propio app_settings.wa_vision_modelo = Gemini free, US$0; sin setear, visión dormida). Según lo que ve:
+  // Pablo, 14/10 (Fase A): una FOTO de un cliente que no es reclamo ni pago se pasa primero por visión (_shared/vision-producto.ts).
+  // Desde el 16/10 describe con Haiku (Pablo: "saca gemini de toda ecuacion" — Gemini free tardaba 9-11 s y devolvía vacío). Según lo que ve:
   //  · producto dañado → reclamo (no se lee como pedido);
   //  · un producto → el agente lo busca y le ofrece opciones con fotos (reusa buscar_productos + enviar_fotos_producto);
   //  · una LISTA escrita o no se pudo ver (sin_vision) → sigue el flujo de pedido por archivo de abajo, como siempre.
@@ -713,7 +713,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   let visionDiag: { tipo: string; raw: string | null } | null = null;
   if (clase === "otro" && customer && esFoto && archivo) {
     const tVis = Date.now();
-    const vista = await describirFotoProducto(archivo.bytes, archivo.mime);
+    const vista = await describirFotoProducto(archivo.bytes, archivo.mime, cfg.anthropicKey, phone);
     visionDiag = { tipo: vista.tipo, raw: lineaSegura((vista as { raw?: string }).raw ?? "", 160) || null, ms_vision: Date.now() - tVis };
     if (vista.tipo === "danado") {
       await responder(MSG_ADJUNTO_RECLAMO);

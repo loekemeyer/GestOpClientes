@@ -15,7 +15,8 @@
 // devuelve sin_vision / null y el que llama sigue con el flujo de siempre.
 
 import { partesGoogle, resolveModelById, type ResolvedModel } from "./bot-llm.ts";
-import { getSetting } from "./supabase.ts";
+import { getSetting, supabase } from "./supabase.ts";
+import { extrasAnthropic, sinMuestreo, textoAnthropic } from "./anthropic-extras.ts";
 
 export type VisionResultado =
   | { tipo: "danado"; raw?: string }
@@ -103,15 +104,9 @@ async function pedirVision(modelo: ResolvedModel, mime: string, bytes: Uint8Arra
   }
 }
 
-/** Fase A: mira la foto del cliente. Sólo JPEG/PNG/WebP. Nunca tira: ante cualquier problema devuelve sin_vision. */
-export async function describirFotoProducto(bytes: Uint8Array, mime: string): Promise<VisionResultado> {
-  const m0 = fotoValida(bytes, mime);
-  if (!m0) return { tipo: "sin_vision", raw: "foto_invalida" };
-  const modelo = await modeloVision();
-  if (!modelo) return { tipo: "sin_vision", raw: "vision_dormida" };
-
-  const t = await pedirVision(modelo, m0, bytes, PROMPT_FASE_A, 64);
-  if (!t) return { tipo: "sin_vision", raw: "gemini_vacio_o_error" };
+/** Clasifica el texto de Fase A en el resultado. Puro. */
+function clasificarFaseA(t: string | null): VisionResultado {
+  if (!t) return { tipo: "sin_vision", raw: "vacio_o_error" };
   const w0 = t.split(/\s+/)[0] ?? "";
   if (/comprobante/i.test(t)) return { tipo: "comprobante", raw: t };
   if (/^lista/i.test(w0)) return { tipo: "lista", raw: t };
@@ -119,6 +114,45 @@ export async function describirFotoProducto(bytes: Uint8Array, mime: string): Pr
   // Limpia a términos de búsqueda simples (sin signos raros), tope 80 chars.
   const terminos = t.replace(/["'`*_#]/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
   return terminos ? { tipo: "busqueda", terminos, raw: t } : { tipo: "sin_vision", raw: t };
+}
+
+const MODELO_FASE_A = "claude-haiku-5-5"; // Pablo, 16/10: "saca gemini de toda ecuacion". Fase A describe con Haiku (rápido y confiable; Gemini free tardaba 9-11 s y devolvía vacío).
+const TARIFA_HAIKU = { input: 0.10, output: 0.50 }; // US$ por millón
+
+/** Una llamada de visión a Anthropic (Haiku) con el prompt de Fase A. Loguea el gasto. Devuelve el texto o null. Nunca tira. */
+async function pedirVisionAnthropic(apiKey: string, mime: string, bytes: Uint8Array, phone: string | null): Promise<string | null> {
+  try {
+    const body = {
+      model: MODELO_FASE_A, system: PROMPT_FASE_A,
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: mime, data: toBase64(bytes) } },
+        { type: "text", text: "¿Qué es esta foto?" }] }],
+      ...(sinMuestreo(MODELO_FASE_A) ? {} : { temperature: 0 }), ...extrasAnthropic(MODELO_FASE_A), max_tokens: 64,
+    };
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) { console.warn("[vision-producto] Anthropic", res.status, (await res.text()).slice(0, 200)); return null; }
+    const d = await res.json();
+    const it = Number(d?.usage?.input_tokens ?? 0), ot = Number(d?.usage?.output_tokens ?? 0);
+    supabase.from("bot_token_usage").insert({
+      model: MODELO_FASE_A, input_tokens: it, output_tokens: ot, function_name: "lk_whatsapp-webhook", phone, motivo: "vision_describe",
+      estimated_cost_usd: (it * TARIFA_HAIKU.input + ot * TARIFA_HAIKU.output) / 1_000_000,
+    }).then(() => {}, (e: unknown) => console.error("[vision-producto] log de uso:", e));
+    return textoAnthropic(d?.content).trim() || null;
+  } catch (e) {
+    console.warn("[vision-producto] pedirVisionAnthropic", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/** Fase A: mira la foto del cliente con Haiku (Gemini quedó fuera, Pablo 16/10). Sólo JPEG/PNG/WebP. Nunca tira: ante cualquier problema devuelve sin_vision. */
+export async function describirFotoProducto(bytes: Uint8Array, mime: string, apiKey: string, phone: string | null = null): Promise<VisionResultado> {
+  const m0 = fotoValida(bytes, mime);
+  if (!m0) return { tipo: "sin_vision", raw: "foto_invalida" };
+  if (!apiKey) return { tipo: "sin_vision", raw: "sin_api_key" };
+  return clasificarFaseA(await pedirVisionAnthropic(apiKey, m0, bytes, phone));
 }
 
 /** Fase B: extrae los atributos visuales de la foto de UN producto del catálogo. null si no se pudo. */
