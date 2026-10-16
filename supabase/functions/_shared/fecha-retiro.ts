@@ -2,6 +2,8 @@
 // m21, m24, m25, m2 y m68 del artifact). Primero (06/10) "tenés que sacar el retirar cuando te preguntan cuándo se entrega" → "programado para el lunes 05/10"; después
 // (07/10) "se tendría que tener en cuenta si el pedido es para retirar o para entregar, eso cambia el tipo de respuesta" → "sí, ese texto": un pedido de retiro ya facturado
 // dice "listo para retirar" (en Gestión, para el depósito, 'facturado' = armado y con factura: es cuando sale el aviso pedido_listo_retirar) y el título dice "que falta retirar".
+// Pablo, 16/10 (D045, sql/165): la marca 'facturado' de Gestión es la descarga del Excel de facturación, no la factura. bot_estado_pedidos_gv devuelve
+// 'facturado' sólo cuando se subió el PDF de la factura (wa_factura_pdf_subida); antes, 'en preparacion'. Este módulo recibe el estado ya corregido.
 // Módulo puro, sin imports: lo usan faq.ts (lookupOrderStatus) y pedidos-marca.ts, y lo prueba tests/fecha-retiro.test.ts.
 
 /** El estado de un pedido de RETIRO con su día. `estado`: programado | en preparacion | facturado (el resto no lleva este texto); `texto`: el estado tal como se muestra

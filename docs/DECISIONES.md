@@ -845,7 +845,9 @@ Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas
 
 **Dónde:** `sql/164_listo_retirar_espera_pdf_factura.sql` (aplicada el 16/10 en PaginaLK, respaldo `zz_backups.bkp_wa_avisos_retiro_web_20261016`). Auditoría: problema 855. Planify 6077.
 
-**Caso hermano, sin tocar:** el estado `facturado` (= Excel) también lo usan `wa_avisos_en_viaje_web` (sql/105), el aviso de expreso del día de entrega (sql/106) y el texto del agente *"facturado y listo para retirar desde …"* (`_shared/fecha-retiro.ts`). No se cambiaron: Pablo pidió el disparador del aviso de retiro.
+**Caso hermano, el texto del agente (Pablo, 16/10: *"Si hacelo"*):** `bot_estado_pedidos_gv` devolvía `facturado` con la misma marca del Excel, así que el agente y las respuestas fijas decían *"facturado, listo para retirar"* o *"listo para salir"* antes de que existiera la factura. `sql/165` mueve la regla a UNA función, `wa_factura_pdf_subida(order_id)`, que usan el aviso de retiro y `bot_estado_pedidos_gv`: con la marca de Gestión pero sin PDF de factura el estado es `en preparacion` (retiro: *"en preparación en el depósito: va a estar listo para retirar desde el …"*). Si la lectura de Gestión falla, devuelve false: no se afirma una factura que no se pudo ver. Lo cubre todo lo que lee esa RPC: `lookupOrderStatus`, `consultar_mis_pedidos`, agregado-armado (pasa de "ya está facturado" a "ya está en armado", deriva igual), el dashboard de conversaciones y la vista previa de plantillas. Auditoría 856, Planify 6080.
+
+**Sigue sin tocar:** `wa_avisos_en_viaje_web` (sql/105) y el aviso de expreso del día de entrega (sql/106) leen `facturado` directo de Gestión. La lista de pedidos de Chef (`_shared/pedidos-marca.ts`) lee el estado de Gestión desde el código y también dice "facturado" con el Excel.
 
 ## D046 — Corrida de evaluación COMPLETA (114 casos) con Haiku 5.5, a mano, para medir los cambios del 16/10 (2026-10-16)
 
