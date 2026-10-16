@@ -764,14 +764,17 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
             const m = await matchFotoProducto(cfg.anthropicKey, { bytes: archivo.bytes, mime: archivo.mime }, candidatos, matchModelo, phone);
             matchDiag = { modelo: matchModelo, cod: m.cod, confianza: m.confianza, alternativas: m.alternativas, gasto_usd: m.gasto_usd, raw: m.raw || null,
               ms_candidatos: msCandidatos, ms_match: Date.now() - t1, candidatos: candidatos.length };
-            if (m.cod) {
+            // Pablo, 16/10: cuando NO está seguro, el mensaje abre con una intro ("no puedo distinguir bien cuál es, te mando las imágenes
+            // de los posibles") ANTES de las fotos; sólo con confianza alta ofrece el artículo directo.
+            if (m.cod && m.confianza === "alta") {
               const desc = candidatos.find((c) => c.cod === m.cod)?.description ?? "";
               const otros = m.alternativas.length ? m.alternativas.join(" o ") : "";
-              instruccion = m.confianza === "alta"
-                ? `Te mando una foto de un producto. [Sistema: la foto coincide con el código ${m.cod} (${desc}). Ofrecé ESE artículo, mostrá su foto y confirmá que es el que busca; si pide stock o precio, consultá la herramienta.${otros ? ` Si dice que no es, el otro parecido es el código ${otros}.` : ""}]`
-                : `Te mando una foto de un producto. [Sistema: lo más parecido es el código ${m.cod} (${desc})${otros ? `, y también podría ser el ${otros}` : ""}. Mostrá ese/esos con la foto y preguntá cuál es; no afirmes cuál es si no estás seguro.]`;
+              instruccion = `Te mando una foto de un producto. [Sistema: la foto coincide con el código ${m.cod} (${desc}). Ofrecé ESE artículo, mostrá su foto y confirmá que es el que busca; si pide stock o precio, consultá la herramienta.${otros ? ` Si dice que no es, el otro parecido es el código ${otros}.` : ""}]`;
+            } else {
+              // Confianza media/baja (m.cod con dudas) o sin match (cod null): se ofrecen los posibles con una intro de que no se distingue.
+              const posibles = m.cod ? [m.cod, ...m.alternativas] : candidatos.slice(0, 4).map((c) => c.cod);
+              instruccion = `Te mando una foto de un producto. [Sistema: no se pudo distinguir con certeza cuál es. EMPEZÁ tu respuesta con una línea diciendo que no podés distinguir bien cuál es y que le mandás las imágenes de los artículos posibles. Después mostrá con la foto estos códigos: ${posibles.join(", ")} y pedile que confirme cuál es mirando las imágenes. NO afirmes cuál es.]`;
             }
-            // cod null → el artículo no está en el catálogo (o no se pudo comparar): se queda con la instrucción genérica de ofrecer opciones.
           }
         } catch (e) { console.error("[match-foto] webhook:", e instanceof Error ? e.message : e); }
       }
@@ -788,8 +791,12 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
         await avisarIaCaida(cfg, phone);
         return;
       }
+      // Texto PRIMERO (así la intro "no puedo distinguir…" va antes de las fotos), partido por [[corte]] como el camino normal
+      // del agente: antes esta rama mandaba result.reply crudo y el marcador [[corte]] se filtraba al cliente (Pablo, 16/10).
+      const partesFoto = partirRespuesta(result.reply ?? "");
+      for (const parte of partesFoto) await enviarTexto(cfg, phone, parte);
+      if (partesFoto.length) await supabase.rpc("bot_guardar_mensaje", { p_telefono: phone, p_rol: "assistant", p_contenido: partesFoto.join("\n\n") });
       if (result.media.length) await sendMediaActions(result.media, phone, cfg);
-      if (result.reply?.trim()) await responder(result.reply);
       await alerta("adjunto_recibido", { motivo: "foto_producto", vision: vista.terminos,
         ...(visionDiag ? { ms_vision: visionDiag.ms_vision } : {}),
         ...(matchDiag ? { match: matchDiag } : {}), comprobante_id: comprobanteId, mime });
