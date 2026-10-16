@@ -172,6 +172,28 @@ export const PLANTILLAS: PlantillaMeta[] = [
     ejemplos: ["22/09"],
   },
 
+  // ── Pedido entregado SIN fecha (fallback). Pablo Olejavetzky, 16/10: "Si no tiene fecha ponele, tu pedido ha
+  //    sido entregado. Punto." Lo usa wa_avisos_remito_entregado (remitos NO-WEB, sql/161) cuando el remito no
+  //    trae fecha. Sin variables.
+  {
+    name: "pedido_entregado_sf",
+    language: ES, category: UT,
+    disparo: "Remito NO-WEB marcado conforme (entregado) sin fecha. Lo encola wa_avisos_remito_entregado (sql/161).",
+    variables: [],
+    body: "Tu pedido fue entregado.\nSi falta algo o llegó algo mal, avisanos por este medio.",
+    ejemplos: [],
+  },
+
+  // ── Pedido retirado SIN fecha (fallback). Mismo criterio (Pablo, 16/10).
+  {
+    name: "pedido_retirado_sf",
+    language: ES, category: UT,
+    disparo: "Remito NO-WEB marcado conforme (retirado) sin fecha. Lo encola wa_avisos_remito_entregado (sql/161).",
+    variables: [],
+    body: "Tu pedido fue retirado.\nSi falta algo o llegó algo mal, avisanos por este medio.",
+    ejemplos: [],
+  },
+
   // ── Pedido recibido por el expreso (confirmación de que el expreso ya lo tiene). Pablo Olejavetzky, 15/10:
   //    el aviso lo gatilla el remito marcado en Virgilio cuando el expreso recibe la mercadería. Distinto de
   //    pedido_en_viaje_expreso (ese dice "ya salió HACIA el expreso"); éste confirma que el expreso YA LO RECIBIÓ.

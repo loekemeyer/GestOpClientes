@@ -14,9 +14,13 @@
 -- postgres, dueño que sí lee todo) + una vista fina que la llama, y GRANT sólo sobre esa vista.
 --
 -- Fecha del aviso ({{1}}): para no-web no hay fecha de pedido web; se usa la fecha de control/entrega del remito
--- (gv_remitos_controlados.fecha). PENDIENTE de revisar con Pablo antes de abrir la llave si esa fecha es la que
--- quiere en el texto "Tu pedido del {{1}}...". Hoy no sale nada a clientes reales: la vasectomía
--- (app_settings.wa_envio_automatico) sigue cortando; sólo la whitelist recibiría en 'prueba'.
+-- (gv_remitos_controlados.fecha). Si el remito NO trae fecha, Pablo (16/10) decidió: "tu pedido ha sido entregado"
+-- SIN fecha. Por eso hay dos variantes sin fecha (pedido_entregado_sf / pedido_retirado_sf, _shared/plantillas-meta.ts)
+-- que la función usa cuando fecha is null. Esas dos hay que subirlas a Meta (templates_sync) antes de abrir la llave.
+-- Hoy no sale nada a clientes reales: la vasectomía (app_settings.wa_envio_automatico) sigue cortando.
+--
+-- Latencia: los crons bajan a cada 2 min (sync-order-tracking-gestion y lk_aviso-remito-entregado) para que el
+-- aviso salga apenas se controla el remito. Al lanzar se puede relajar.
 --
 -- Rollback: en PaginaLK, cron.unschedule('lk_aviso-remito-entregado') + drop function wa_avisos_remito_entregado()
 -- + drop foreign table virgilio.gv_remitos_controlados_bot. En Virgilio, drop view gv_remitos_controlados_bot +
@@ -56,7 +60,7 @@ create foreign table if not exists virgilio.gv_remitos_controlados_bot (
 -- Encolador de avisos para remitos NO-WEB controlados.
 create or replace function public.wa_avisos_remito_entregado()
 returns integer language plpgsql security definer set search_path to 'public' as $function$
-declare v_n int := 0; r record; v_tpl text;
+declare v_n int := 0; r record; v_tpl text; v_params jsonb;
 begin
   for r in
     select g.np, g.tipo, g.cod_cliente, g.fecha, bcw.whatsapp as phone
@@ -72,9 +76,15 @@ begin
       and g.controlado_at > now() - interval '2 days'
       and not exists (select 1 from wa_outbox w where w.context = 'remito_conforme' and w.ref_id = g.np)
   loop
-    v_tpl := case when r.tipo = 'retirado' then 'pedido_retirado' else 'pedido_entregado' end;
+    if r.fecha is null then
+      v_tpl := case when r.tipo = 'retirado' then 'pedido_retirado_sf' else 'pedido_entregado_sf' end;
+      v_params := '{}'::jsonb;
+    else
+      v_tpl := case when r.tipo = 'retirado' then 'pedido_retirado' else 'pedido_entregado' end;
+      v_params := jsonb_build_object('1', to_char(r.fecha,'DD/MM'));
+    end if;
     insert into wa_outbox (phone, template_name, template_params, context, ref_id)
-    values (r.phone, v_tpl, jsonb_build_object('1', coalesce(to_char(r.fecha,'DD/MM'),'reciente')), 'remito_conforme', r.np);
+    values (r.phone, v_tpl, v_params, 'remito_conforme', r.np);
     v_n := v_n + 1;
   end loop;
   if v_n > 0 then
@@ -92,5 +102,7 @@ comment on function public.wa_avisos_remito_entregado() is
   'Avisa entrega/retiro de remitos NO-WEB (es_web=false) desde virgilio.gv_remitos_controlados_bot, por cod_cliente. '
   'Web va por order_tracking (sql/160). Gateado por wa_envio_automatico.';
 
--- Cron cada 10 min (como lk_aviso-retiro-web).
-select cron.schedule('lk_aviso-remito-entregado', '*/10 * * * *', 'select public.wa_avisos_remito_entregado();');
+-- Cron cada 2 min (baja latencia: dispara apenas se controla el remito).
+select cron.schedule('lk_aviso-remito-entregado', '*/2 * * * *', 'select public.wa_avisos_remito_entregado();');
+-- También se bajó el sync del tracking web a cada 2 min (antes 4-59/15) para el mismo efecto en pedidos web:
+select cron.alter_job((select jobid from cron.job where jobname='sync-order-tracking-gestion'), schedule := '*/2 * * * *');
