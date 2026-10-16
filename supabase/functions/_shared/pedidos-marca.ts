@@ -200,11 +200,21 @@ export async function pedidosChef(c: { cuit?: string | null; codChef?: string | 
     if (r.error) throw new Error(r.error.message);
     // deno-lint-ignore no-explicit-any
     const est = new Map<number, any>((r.data ?? []).map((e: { order_id: number }): [number, unknown] => [Number(e.order_id), e]));
+    // Pablo, 16/10 (D045, sql/166): 'facturado' en Gestión es la descarga del Excel de facturación, no la factura. Sin el PDF de
+    // la factura de Chef el pedido sigue "en preparación" (armado). Si la consulta falla, tampoco se dice "facturado".
+    const marcados = [...est.values()].filter((e) => e?.estado === "facturado").map((e) => Number(e.order_id));
+    const conPdf = new Set<number>();
+    if (marcados.length) {
+      const { data: pdf, error: e3 } = await supabase.rpc("bot_pedidos_factura_pdf", { p_ids: marcados, p_empresa: "chef" });
+      if (e3) console.error("pedidosChef bot_pedidos_factura_pdf:", e3.message);
+      for (const x of (pdf ?? []) as { order_id: number; pdf: boolean }[]) if (x.pdf) conPdf.add(Number(x.order_id));
+    }
     return vivos.map((o) => {
       const e = est.get(Number(o.id));
+      const estado = e?.estado ? String(e.estado) : null;
       return {
         creado: String(o.created_at),
-        estado: e?.estado ? String(e.estado) : null,
+        estado: estado === "facturado" && !conPdf.has(Number(o.id)) ? "armado" : estado,
         fecha_entrega: e?.fecha_entrega ? String(e.fecha_entrega).slice(0, 10) : null,
         entregado_at: e?.entregado_at ? String(e.entregado_at).slice(0, 10) : null,
         retiro: payload(o, "retiro_fecha")?.slice(0, 10) ?? null,
