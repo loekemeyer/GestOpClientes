@@ -740,3 +740,19 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Qué quedó:** `sql/160_pedido_retirado_retira_trigger.sql` (aplicado a PaginaLK), backup en `zz_backups.bkp_tracking_notify_20261016`. Vasectomía intacta: no contacta a nadie hasta `wa_envio_automatico='1'`; hoy en `prueba` sale sólo a `wa_envio_contactos`. Tarea de Planify 6015 (Pablo). Backend puro: la versión visible del dashboard no cambia.
 
 **Pendiente (abierto):** (1) prueba punta a punta con el PRUEBA LK 0439 (order 1692): tildar su remito en RR, el cron `sync_order_tracking_from_gestion` (15 min) lo pasa a entregado y debe salir `pedido_retirado`. (2) **Decisión de Pablo sin cerrar:** ¿el aviso va a UN número por cliente (principal, lo actual) o a TODOS los whatsapp del cliente? Hoy el trigger manda a uno solo (`is_primary DESC, created_at DESC`).
+
+---
+
+## D041 — El aviso de entrega se dispara por REMITO controlado, haya pedido web o no (2026-10-16)
+
+**Decisión (Pablo, 16/10):** *«Tiene que salir igual, haya pedido o no, si está el remito conforme está entregado»*. El aviso de entrega/retiro NO debe depender de que el pedido sea web: cualquier remito marcado conforme (controlado) dispara, por su cliente.
+
+**Por qué el cambio de hoy (D040, sql/160) no alcanza:** ese se cuelga de `order_tracking`, que sólo se llena con pedidos WEB (`gv_pedido_web_estado_pagina`). Un remito que no es pedido web nunca entra ahí, así que no avisa. Caso real: el remito de prueba "PRUEBA 4210-505" cargado para el 4210 quedó suelto (sin `order_id` y con `cod_cliente` vacío `—`), por eso no dispara nada.
+
+**Lo que se encontró (no depende de Luis):** la vista `public.gv_remitos_controlados` (base Virgilio `hrxfctzncixxqmpfhskv`, ya alcanzable por el FDW que el bot usa) es el feed completo: `np, empresa, tipo (retirado/entregado), tipo_segun, controlado_at, fecha, cod_cliente, razon_social, remito, fletero, es_web`. Cubre web y no-web. El NP→cod_cliente también está en `Facturacion_NP`.
+
+**Límite duro (dato, no se inventa):** el aviso necesita `cod_cliente` para buscar el teléfono en `bot_customer_whatsapps`. Remitos con `cod_cliente` nulo (ej. `LK 0421`, `es_web=false`) no se pueden avisar: no hay a quién. El remito de prueba PRUEBA 4210-505 tiene el cliente vacío, por eso ESE no dispara ni con la vía nueva: para probar hay que cargarlo CON el cliente 4210.
+
+**Plan propuesto (pendiente del OK de Pablo sobre el enfoque):** vía nueva (cron/trigger) sobre `gv_remitos_controlados`: por cada remito nuevo controlado con `cod_cliente` y teléfono, encolar la plantilla por `tipo` (retirado→`pedido_retirado`, entregado/reparto→`pedido_entregado`, expreso→`pedido_en_expreso`), dedup por remito/np, gateado por la vasectomía (`wa_envio_automatico`). **Consolidar:** sacar la rama `entregado` del trigger web (`trg_order_tracking_notify`, sql/160) y dejar ahí sólo `programado`/`reprogramado`, para que un retiro web no avise dos veces. Queda abierto: params de la plantilla sin pedido (fecha del remito), y qué hacer con `cod_cliente` nulo (hoy: no avisar).
+
+**Estado:** D040/sql/160 aplicado y commiteado (sirve para web retira); esta vía lo amplía y lo consolida. Tarea de Planify 6015 (Pablo) reescrita con este alcance.
