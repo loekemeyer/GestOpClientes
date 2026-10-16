@@ -26,6 +26,7 @@ import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } f
 import { hechosDeLaCharla } from "./hechos-charla.ts";
 import { articuloEnCurso, cajasRespaldadas } from "./articulo-en-curso.ts";
 import { debeForzarStock, llamadasDeStock } from "./compuerta-stock.ts";
+import { debeForzarFoto, fotosAEnviar } from "./compuerta-foto.ts";
 import { bloqueMemoria } from "./memoria-cliente.ts";
 import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
@@ -1802,6 +1803,7 @@ export async function runConversation(
   const tTurno = performance.now();
   // Auditoría 834 (15/10): una sola vez por turno la compuerta de stock puede forzar consultar_stock (compuerta-stock.ts).
   let compuertaStockUsada = false;
+  let compuertaFotoUsada = false;
 
   for (let iter = 0; iter < 5; iter++) {
     let res = null as Awaited<ReturnType<typeof callModel>> | null;
@@ -1894,6 +1896,22 @@ export async function runConversation(
           console.warn(`[compuerta-stock] la respuesta hablaba de stock sin consultar_stock: se consulta ${llamadas.map((l) => `${l.cod}${l.cajas ? `x${l.cajas}` : ""}`).join(", ")} …${phone.slice(-4)}`);
         } else {
           console.warn(`[compuerta-stock] la respuesta habla de stock sin consultar_stock pero no se sabe de qué artículo: sale igual …${phone.slice(-4)}`);
+        }
+      }
+    }
+
+    // Compuerta de foto (Pablo, 16/10): si el cliente pidió una foto y en el turno no se llamó a enviar_fotos_producto, la manda el código.
+    // A diferencia de la de stock, CONSERVA el borrador del modelo (el stock y el precio ya están bien): sólo suma la imagen, sin otra vuelta.
+    if (!toolCalls.length && !compuertaFotoUsada) {
+      const enPedidoFoto = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
+      if (debeForzarFoto(userText, usadas.map((u) => u.nombre), enPedidoFoto)) {
+        const codsFoto = fotosAEnviar(res.text ?? "", userText, rawHistory);
+        if (codsFoto.length) {
+          compuertaFotoUsada = true;
+          const rf = await executeTool("enviar_fotos_producto", { cods: codsFoto, _compuerta: true }, phone, { userText, historial: rawHistory });
+          if (rf.media) allMedia.push(...rf.media);
+          usadas.push({ nombre: "enviar_fotos_producto", input: { cods: codsFoto, _compuerta: true }, resultado: JSON.stringify(rf.data).slice(0, 1500) });
+          console.warn(`[compuerta-foto] el cliente pidió foto y no se llamó a enviar_fotos_producto: se mandan ${codsFoto.join(", ")} …${phone.slice(-4)}`);
         }
       }
     }
