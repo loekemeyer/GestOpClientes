@@ -764,3 +764,21 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Segundo defecto, mismo pulido (16/10):** re-probado con Haiku, el primer párrafo ya no se contradecía, pero a un cliente que **retira** (pedido 1692, modo «Retira») le decía «programado para **salir** el martes 20/10». Las herramientas daban bien el texto (`estado_para_el_cliente = «programado para el martes 20/10»`, sin `fecha_salida`); el modelo le metió «salir», el verbo que la regla RETIRO (desde el 07/10) ya prohíbe y que ambos modelos venían ignorando. **Causa agravada:** el ejemplo que esta misma sesión agregó en la regla ESTADO Y ENTREGA usaba «programado para salir el 20/10» sobre ese pedido de retiro, reforzando el verbo prohibido. **Arreglo (commit `45effac`):** se corrigió el ejemplo y se reforzó «decí `estado_para_el_cliente` tal cual, sin cambiar el verbo; para retiro nunca sale/se entrega». Verificado por Pablo en el Simulador: «salió perfecto». Si algún modelo volviera a cambiar el verbo, queda pendiente un guard por código (determinista, la herramienta ya sabe que es retiro).
 
 **Dónde:** `supabase/functions/_shared/agente-fijos.ts`, `app_settings.llm_modelo_pruebas` (PaginaLK), tarea 6018 de Planify (64). Verificado con SELECT: `llm_modelo_pruebas = claude-haiku-5-5`.
+
+---
+
+## D041 — Varias preguntas en un mensaje: hasta 7 datos, cada uno en un mensaje aparte (2026-10-16)
+
+**Quién:** Pablo Olejavetzky. **Contexto:** pulido con 4210. A «¿tenés stock del 654, cuánto vale? ¿tenés foto?» el bot mandó **sólo la foto** y se comió el stock y el precio. Pablo, además, por el **audio prendido** (`wa_audio_activo = 1`), teme que el cliente se explaye y pregunte muchas cosas juntas.
+
+**Decisión (Pablo):** *«7 datos máximos, todos respondidos en diferentes mensajes para que no se mezclen y que parezca natural»*.
+
+**Qué se hizo:**
+1. **Regla VARIAS PREGUNTAS EN UN MENSAJE** (`agente-fijos.ts`): contestar cada pregunta, hasta 7 datos; mandar la foto NO es contestar stock ni precio; si hay más de 7, contestar las 7 principales y pedir el resto de a una.
+2. **Mensajes separados:** el agente marca con `[[corte]]` (línea sola) entre una respuesta y la siguiente. `_shared/partir-respuesta.ts` (módulo puro + `tests/partir-respuesta.test.ts`) parte en ese marcador, recorta, saca vacías y topea en 8 partes (lo que sobra se pega a la última). **Sin marcador = un solo mensaje, cero regresión.** Un resumen de pedido va entero, sin cortes.
+3. **Webhook** (`lk_whatsapp-webhook`): manda cada parte por separado; el historial y el puntaje guardan el texto limpio y unido (el marcador nunca llega al cliente ni a la base).
+4. **Simulador** (`lk_bot-simular`): une las partes con línea en blanco para que el dashboard las muestre como burbujas distintas.
+
+**Riesgo acotado:** el marcador lo controla el modelo; una respuesta normal (sin marcador) sale igual que hoy. El límite real no es un número sino la atención del modelo: con 3-5 datos anda, arriba empieza a comerse alguno. Por eso el tope de 7 y el «pedí el resto de a una».
+
+**Dónde:** `supabase/functions/_shared/partir-respuesta.ts` (+ test), `lk_whatsapp-webhook/index.ts`, `lk_bot-simular/index.ts`, `_shared/agente-fijos.ts`. Commit `414cdf2`. Tarea 6034 de Planify (64). Entra cuando CI deploye.
