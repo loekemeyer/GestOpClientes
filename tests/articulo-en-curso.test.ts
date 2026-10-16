@@ -84,7 +84,7 @@ ok("numerosDelTexto: cifras y letras", (() => { const s = numerosDelTexto("quier
 
 // ── Guardas de código: la pieza está conectada, no sólo escrita ──
 const fuente = await Deno.readTextFile(new URL("../supabase/functions/_shared/bot-conversation.ts", import.meta.url));
-ok("bot-conversation importa articuloEnCurso y cajasRespaldadas", /import \{ articuloEnCurso, cajasRespaldadas \} from "\.\/articulo-en-curso\.ts"/.test(fuente));
+ok("bot-conversation importa articuloEnCurso y cajasRespaldadas", /import \{[^}]*\barticuloEnCurso\b[^}]*\bcajasRespaldadas\b[^}]*\} from "\.\/articulo-en-curso\.ts"/.test(fuente));
 ok("el bloque va en la parte VARIABLE del prompt (no rompe el caché de la base)", /const promptVariable = notaDeTiempo\(rawHistory, userText\)[^;]*\(articulo \? "\\n\\n" \+ articulo : ""\)/s.test(fuente));
 ok("consultar_stock usa cajasRespaldadas con el texto y el historial del turno", /const cajas = cajasRespaldadas\(input\.cajas, ctx\.userText, ctx\.historial\);/.test(fuente));
 ok("la herramienta ya no admite «si las dijo» a secas: pide no inventar el número", /NO mandes este campo: no pongas 1, 2 ni ningún número por tu cuenta/.test(fuente));

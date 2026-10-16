@@ -24,7 +24,7 @@ import { derivarCanario, lineaCanario, taparCanario } from "./canario.ts";
 import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { hechosDeLaCharla } from "./hechos-charla.ts";
-import { articuloEnCurso, cajasRespaldadas } from "./articulo-en-curso.ts";
+import { articuloEnCurso, bloqueArticulosDeLaCharla, cajasRespaldadas } from "./articulo-en-curso.ts";
 import { debeForzarStock, llamadasDeStock, MAX_ARTICULOS_COMPUERTA, stockPorCodigoFaltante } from "./compuerta-stock.ts";
 import { debeForzarFoto, fotosAEnviar } from "./compuerta-foto.ts";
 import { conAvisoDeVentas, debeDerivarNoFigura } from "./compuerta-no-figura.ts";
@@ -1706,7 +1706,9 @@ export async function runConversation(
   // dentro del último mensaje del cliente, después del historial (contextoEnElTurno), para no cambiarle el prefijo al historial.
   // Pablo, 15/10 (auditoría 828, Logística …1027): «¿tenés stock para 30 cajas?» después de hablar del 586 repreguntaba el artículo. El último artículo de la charla lo arma el código.
   const articulo = articuloEnCurso(rawHistory, userText);
-  const promptVariable = notaDeTiempo(rawHistory, userText) + (hechos ? "\n\n" + hechos : "") + (articulo ? "\n\n" + articulo : "") +
+  // Pablo, 16/10 (auditoría 835): «los otros artículos que me ofreciste» mezclaba los de ayer con los de hoy. La lista de los de ESTA charla la arma el código.
+  const articulosCharla = bloqueArticulosDeLaCharla(rawHistory, userText);
+  const promptVariable = notaDeTiempo(rawHistory, userText) + (hechos ? "\n\n" + hechos : "") + (articulo ? "\n\n" + articulo : "") + (articulosCharla ? "\n\n" + articulosCharla : "") +
     (bloqueAprobados ? "\n\n" + bloqueAprobados : "") + (pistas ? "\n\n" + pistas : "");
   const systemPrompt = promptBase + "\n\n" + promptVariable;
   // Historial NORMALIZADO (agnóstico de proveedor). Cada adaptador de `bot-llm`

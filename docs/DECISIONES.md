@@ -989,3 +989,15 @@ Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estab
 **Acciones:** problema 878 → `descartado` (con la causa). Nota del eval `id 4` corregida para describir el reenvío (correcto cuando manda la factura real; deriva a Cobranzas sólo si no se puede). El juez la marcaba "mal" por una nota vieja, no por el bot.
 
 **Lección:** antes de declarar "el agente alucinó", mirar `antes.camino` (ia vs fija) y `herramientas`. Varios "mal" de la corrida eran notas/juez desactualizados, no defectos del bot. Dos casos siguen abiertos como BORDERLINE (no defecto claro): `descuento` (eval_id 2) — la IA a veces da la escala estándar (`consultar_mis_descuentos`) y a veces los descuentos por fecha de pago de la factura abierta (`consultar_mis_facturas`): las dos son aceptables; `mp06` (eval_id 109) — ante un cambio de un artículo que NO está en el pedido, el agente aclara en vez de derivar a ciegas. Pendiente que Pablo diga si los considera defectos antes de tocar `agente-fijos.ts`.
+
+---
+
+## D053 — «Artículos de esta charla»: la lista de lo nombrado hoy la arma el código, para que «los otros» no mezcle ayer con hoy (2026-10-16)
+
+**Decisión**: Pablo, viernes a la última hora, a la propuesta pendiente desde el 15/10: *«Sí, armalo y vamos cerrando»*. El código arma, en la parte variable del prompt, la lista exacta de artículos nombrados en la charla actual (corte de 12 h), y le dice al modelo que «los otros / los demás / esos» son esos, que consulte cada uno con las herramientas y que lo que no está en la lista es de una charla anterior.
+
+**Por qué** [Seguro]: el 15/10 el agente presentó como «de esta charla» seis artículos del 14/10 (auditoría 835). Mismo criterio que D034 y D036: lo exacto lo arma el código, no el modelo. Complementa D037 (preguntar y no adivinar), que sólo estaba como texto del prompt.
+
+**Qué se hizo**: `_shared/articulo-en-curso.ts` (`articulosDeLaCharla`, `bloqueArticulosDeLaCharla`), cableado en `_shared/bot-conversation.ts`, `tests/articulos-de-la-charla.test.ts`. Arreglo de paso: una cantidad («100 cajas») ya no se lee como código de artículo. Auditoría 835, tarea 5976.
+
+**Lo que NO se decidió ni se midió**: que Haiku 5.5 siga la pista no se probó con tráfico real (queda para la próxima prueba de Pablo). El descuento por cantidad de cajas (auditoría 845) sigue abierto.
