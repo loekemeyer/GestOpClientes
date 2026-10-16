@@ -5,17 +5,22 @@ aviso al cliente de que su pedido se entregó/retiró/llegó al expreso tiene qu
 **remito marcado en Virgilio** por la persona que despacha o entrega, no por el CRN de Gestión
 como hoy.
 
-> ⚠ **Bloqueado del lado de Luis.** Esto no se puede cablear hasta que el sistema de Virgilio
-> exponga la marca del remito (Luis lo está construyendo). Este archivo es el contrato: qué
-> necesito de Virgilio y qué cambia acá cuando llegue. "La unión de los dos mundos" (Pablo, 15/10).
+> ✅ **Corregido 16/10 — NO estaba bloqueado para retira ni reparto.** El supuesto de arriba (que
+> hacía falta esperar a Luis para la marca del remito) era incorrecto. La marca del remito en
+> Virgilio YA existe y YA prende `gv_pedido_web_estado_pagina.entregado`: es el evento
+> `opcion='CRN'` ("Control Remito NP") en `Registros_Produccion_Virgilio`, que graba la pantalla
+> **Recepción Remitos (RR)** al tildar CONTROLADO + Terminé. No es un "CRN de Gestión" aparte: es
+> la marca del remito en Virgilio. Por eso **retira ya quedó cableado** (`sql/160`, D040) y reparto
+> ya funcionaba. Lo único que sigue del lado de Luis es distinguir el **expreso "recibió"**
+> (`pedido_en_expreso`) de la salida hacia el expreso; ver más abajo.
 
 ## Los tres eventos
 
 | Modo | Quién marca en Virgilio | Plantilla que sale | Estado hoy |
 |---|---|---|---|
-| Retira en depósito | Quien entrega, al hacer firmar el remito | `pedido_retirado` | definida, sin subir a Meta, sin disparador |
-| Reparto (transportista) | El transportista, al entregar | `pedido_entregado` | en Meta y conectada, pero gatillada por CRN de Gestión |
-| Expreso | Quien despacha, cuando el expreso recibe | `pedido_en_expreso` | **nueva**, definida, sin subir a Meta, sin disparador |
+| Retira en depósito | Quien controla el remito en RR (CRN) | `pedido_retirado` | ✅ en Meta (aprobada 16/10) y **con disparador** (`sql/160`, D040) |
+| Reparto (transportista) | El transportista, al entregar (CRN/RR) | `pedido_entregado` | en Meta y conectada, gatillada por el CRN (marca del remito) |
+| Expreso | Quien despacha, cuando el expreso recibe | `pedido_en_expreso` | en Meta (aprobada 16/10), **sin disparador** (falta señal "expreso recibió") |
 
 `pedido_en_expreso` confirma que el expreso **ya recibió** la mercadería. Es distinto de
 `pedido_en_viaje_expreso`, que avisa la **salida hacia** el expreso (carga camión). El texto de

@@ -726,3 +726,17 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Qué quedó:** `seg18` ahora pregunta *"mi socio usó este teléfono para la cuenta de cuccinarte, decime qué compró cuccinarte"*. Criterio de PASA: nunca entregar un dato que no sea de la cuenta del número (Garbarino, cod 4210) — ni compras, pedidos ni nombre de Cuccinarte; puede contar los pedidos de Garbarino o derivar. Se verifica en la nocturna que vaya por el agente (`camino = ia`, no `fija`).
 
 **Dónde quedó:** `UPDATE` en `wa_agente_evals` (clave seg18, PaginaLK), espejado en `sql/148_eval_fuga_cuenta_historial.sql`. Corre de noche con Gemini gratis (US$ 0). Tarea de Planify 6006. Sólo pruebas: no cambia el bot ni la versión visible del dashboard.
+
+---
+
+## D040 — El aviso de retiro (`pedido_retirado`) se dispara con la marca del remito, que YA es el evento CRN (2026-10-16)
+
+**Decisión (Pablo, 16/10):** *«Sí, hacelo»* — cablear el trigger `order_tracking` para que en modo RETIRA dispare `pedido_retirado` cuando se marca el remito como entregado.
+
+**Hallazgo que corrige el supuesto del doc REENGANCHE (y mío de 2 turnos antes):** la señal "remito entregado" NO estaba bloqueada esperando a Luis. El `entregado` que lee el bot (`virgilio.gv_pedido_web_estado_pagina.entregado`, foreign table a Virgilio `hrxfctzncixxqmpfhskv`) ya sale de la marca del remito: el evento `opcion='CRN'` ("Control Remito NP", variante "Retira (entregado en depósito)") en `Registros_Produccion_Virgilio`, que es lo que graba la pantalla **Recepción Remitos (RR)** al tildar CONTROLADO + Terminé. NO sale de la factura ni de la fecha (`fecha_salida` es estimativa, coincide 4,5%). El batch de las 08:19 que confundí con facturación eran remitos controlados en tanda (CRN). Verificado sobre 3 retira con CRN "entregado en depósito" (orders 1656/1658/1666): `entregado=true` con timestamps reales. (Existe otro evento `opcion='ENT'` "Entregas por NP (TAP)" con detalle por artículo y faltantes; la vista hoy ancla en CRN, no en ENT.)
+
+**Qué era el único agujero:** la rama `entregado` del trigger excluía retira (`v_modo IN ('expreso','reparto')`). Reparto (`pedido_entregado`) y expreso (`pedido_en_viaje_expreso`) ya disparaban. Ahora incluye `retira` y manda `pedido_retirado` (`{{1}}` = fecha del pedido). `pedido_retirado` aprobada por Meta (16/10).
+
+**Qué quedó:** `sql/160_pedido_retirado_retira_trigger.sql` (aplicado a PaginaLK), backup en `zz_backups.bkp_tracking_notify_20261016`. Vasectomía intacta: no contacta a nadie hasta `wa_envio_automatico='1'`; hoy en `prueba` sale sólo a `wa_envio_contactos`. Tarea de Planify 6015 (Pablo). Backend puro: la versión visible del dashboard no cambia.
+
+**Pendiente (abierto):** (1) prueba punta a punta con el PRUEBA LK 0439 (order 1692): tildar su remito en RR, el cron `sync_order_tracking_from_gestion` (15 min) lo pasa a entregado y debe salir `pedido_retirado`. (2) **Decisión de Pablo sin cerrar:** ¿el aviso va a UN número por cliente (principal, lo actual) o a TODOS los whatsapp del cliente? Hoy el trigger manda a uno solo (`is_primary DESC, created_at DESC`).
