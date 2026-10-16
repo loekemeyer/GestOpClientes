@@ -254,7 +254,9 @@ function btPintar() {
     <div class="bt-top">
       <h2>Bitácora de trabajo</h2>
       <span class="bt-sub">Qué se trabajó cada día · ${dias.length} días · ${totC} cambios · del ${btFecha(desde)} al ${btFecha(hasta)} · se actualiza sola cada mañana</span>
+      <input id="btQ" class="bt-q" type="search" autocomplete="off" placeholder="¿Qué día hice…? Buscá por palabra (factura, descuento, stock, seguridad…)" oninput="btBuscar(this.value)">
     </div>
+    <div id="btBusca" class="bt-busca" hidden></div>
     <div class="bt-meses">${meses.map(([y, m]) => btMes(y, m, mapa)).join("")}</div>
     <div class="bt-leyenda">Menos
       <i style="background:#f1f5f9"></i><i style="background:#9db9a6"></i><i style="background:#5e8f6e"></i><i style="background:#3f7350"></i><i style="background:#2d5a3d"></i>
@@ -277,6 +279,49 @@ function btDetalle(key) {
     <div class="bt-areas">${areas}</div>
     <details><summary>Ver detalle técnico (${(r.asuntos || []).length})</summary><ul class="bt-asuntos">${asuntos}</ul></details>
     <div class="botones" style="margin-top:.8rem"><button class="g-btn" onclick="cerrarModal()">Cerrar</button></div></div>`);
+}
+
+// ── Buscador de la bitácora (v0.29.8) ──────────────────────────────────────
+// Busca una palabra en el resumen (viñetas) y en el detalle técnico (asuntos) de todos los días,
+// que ya están cargados en BT.dias: filtra en el navegador, sin pegarle a la base. Insensible a
+// mayúsculas y acentos. Responde "¿qué día hice tal cosa?" listando las fechas que coinciden.
+function btFold(s) {
+  return String(s).toLowerCase()
+    .replace(/[áàâä]/g, "a").replace(/[éèêë]/g, "e").replace(/[íìîï]/g, "i")
+    .replace(/[óòôö]/g, "o").replace(/[úùûü]/g, "u").replace(/ñ/g, "n");
+}
+function btResaltar(txt, qf) {
+  const f = btFold(txt); let out = "", i = 0, idx;
+  while ((idx = f.indexOf(qf, i)) !== -1) {
+    out += gesc(txt.slice(i, idx)) + "<mark>" + gesc(txt.slice(idx, idx + qf.length)) + "</mark>";
+    i = idx + qf.length;
+  }
+  return out + gesc(txt.slice(i));
+}
+function btBuscar(q) {
+  const cont = document.getElementById("btBusca");
+  const meses = document.querySelector(".bt-meses");
+  const ley = document.querySelector(".bt-leyenda");
+  if (!cont) return;
+  const qf = btFold(String(q || "").trim());
+  if (qf.length < 2) {
+    cont.hidden = true; cont.innerHTML = "";
+    if (meses) meses.style.display = ""; if (ley) ley.style.display = "";
+    return;
+  }
+  const res = [];
+  for (const d of [...(BT.dias || [])].sort((a, b) => b.dia.localeCompare(a.dia))) {
+    const lineas = [];
+    for (const l of String(d.resumen || "").split("\n")) { const t = l.trim(); if (t && btFold(t).includes(qf)) lineas.push(t); }
+    for (const s of (d.asuntos || [])) { if (btFold(s).includes(qf)) lineas.push("· " + s); }
+    if (lineas.length) res.push({ dia: d.dia, lineas });
+  }
+  if (meses) meses.style.display = "none"; if (ley) ley.style.display = "none";
+  cont.hidden = false;
+  if (!res.length) { cont.innerHTML = `<div class="cm-vacio">No encontré nada para "${gesc(q)}".</div>`; return; }
+  const total = res.reduce((n, r) => n + r.lineas.length, 0);
+  cont.innerHTML = `<div class="bt-busca-h">${res.length} ${res.length === 1 ? "día" : "días"} · ${total} ${total === 1 ? "coincidencia" : "coincidencias"} para "${gesc(q)}"</div>` +
+    res.map((r) => `<div class="bt-busca-dia"><button class="bt-busca-fecha" onclick="btDetalle('${r.dia}')">${btFecha(r.dia)}</button><ul>${r.lineas.map((l) => `<li>${btResaltar(l, qf)}</li>`).join("")}</ul></div>`).join("");
 }
 
 // ── Modo oscuro ─────────────────────────────────────────────────────────────

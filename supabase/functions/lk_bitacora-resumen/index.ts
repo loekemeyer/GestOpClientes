@@ -36,7 +36,7 @@ const JSON_H = { ...CORS, "Content-Type": "application/json" };
 function armarPrompt(areas: unknown, asuntos: string[]): string {
   return (
     "A partir de la lista de cambios de un dia de trabajo en un bot de WhatsApp y su panel, escribi un resumen para alguien que NO programa. " +
-    "Reglas: entre 4 y 8 vinetas, cada una una linea corta (maximo unos 90 caracteres), contando QUE cambio para el negocio o para quien usa el bot o el panel. " +
+    "Reglas: entre 4 y 8 vinetas (NUNCA mas de 8: si hay mucho, elegi las 8 mas importantes para el negocio y agrupa el resto), cada una una linea corta (maximo unos 90 caracteres), contando QUE cambio para el negocio o para quien usa el bot o el panel. " +
     "Ignora por completo lo que sea documentacion, notas internas, merges, tests o refactors. " +
     "Nada de terminos tecnicos (nada de SQL, deploy, commit, endpoint, API, funcion, tabla, migracion, branch, base de datos). " +
     "No uses punto y coma. Devolve SOLO las vinetas, cada una empezando con '• ', sin titulo ni texto extra.\n\n" +
@@ -104,7 +104,8 @@ Deno.serve(async (req) => {
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.startsWith("•"))
-    .map((l) => l.replace(/;/g, ","));
+    .map((l) => l.replace(/;/g, ","))
+    .slice(0, 8); // tope duro: máximo 8 viñetas, por si el modelo se pasa
 
   if (vinetas.length < 1) {
     return new Response(JSON.stringify({ error: "sin viñetas", texto }), { status: 502, headers: JSON_H });
