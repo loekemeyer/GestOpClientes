@@ -15,10 +15,12 @@
 //   sin --dia: usa el día de AYER en hora de Argentina.
 // Requiere la variable de entorno SUPABASE_ACCESS_TOKEN.
 //
-// Nota: NO escribe `resumen` (el texto en lenguaje simple lo hacía el LLM, que acá no está).
-// En un alta nueva `resumen` queda NULL y el modal del dashboard muestra áreas, autores y
-// asuntos. En un re-upsert del mismo día NO se pisa el `resumen` que ya hubiera (ON CONFLICT
-// no lo toca), así que un resumen cargado a mano se conserva.
+// El `resumen` en lenguaje simple (la lista de viñetas que se ve arriba en el modal del día) lo
+// arma Gemini en el plan GRATIS (US$ 0): la key de Google está en wa_agente_model_keys y se lee
+// con el mismo token. No se usa Haiku porque su key es un secreto de las Edge Functions (Deno.env)
+// que la Management API no puede leer por SQL, y Gemini gratis hace el mismo trabajo sin costo.
+// Si Gemini falla, el día se carga igual SIN resumen (el modal muestra áreas, autores y asuntos)
+// y no se pisa un resumen que ya estuviera cargado.
 
 import { execFileSync } from "node:child_process";
 
@@ -51,6 +53,67 @@ async function q(ref, query, read_only = false) {
   return txt ? JSON.parse(txt) : [];
 }
 
+const sqlLit = (s) => `'${String(s).replace(/'/g, "''")}'`;
+
+// Resumen en lenguaje simple con Gemini GRATIS. Devuelve el texto (viñetas) o null si no se pudo.
+async function resumenSimple(areas, asuntos) {
+  let key, modelosRaw;
+  try {
+    const kr = await q(LK, "select api_key from public.wa_agente_model_keys where proveedor = 'google'", true);
+    key = kr?.[0]?.api_key;
+    const mr = await q(LK, "select value from public.app_settings where key = 'llm_modelo_eval_gratis'", true);
+    modelosRaw = mr?.[0]?.value;
+  } catch (e) {
+    console.warn("resumen: no se pudo leer la key o el modelo:", e.message);
+    return null;
+  }
+  if (!key || !modelosRaw) return null;
+  const modelos = String(modelosRaw).split(",").map((s) => s.trim()).filter(Boolean);
+
+  const prompt =
+    "A partir de la lista de cambios de un dia de trabajo en un bot de WhatsApp y su panel, escribi un resumen para alguien que NO programa. " +
+    "Reglas: entre 4 y 8 vinetas, cada una una linea corta (maximo unos 90 caracteres), contando QUE cambio para el negocio o para quien usa el bot o el panel. " +
+    "Ignora por completo lo que sea documentacion, notas internas, merges, tests o refactors. " +
+    "Nada de terminos tecnicos (nada de SQL, deploy, commit, endpoint, API, funcion, tabla, migracion, branch, base de datos). " +
+    "No uses punto y coma. Devolve SOLO las vinetas, cada una empezando con '• ', sin titulo ni texto extra.\n\n" +
+    `Areas tocadas: ${JSON.stringify(areas)}\nCambios:\n${asuntos.join("\n")}`;
+
+  for (const model of modelos) {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.3, maxOutputTokens: 600 },
+          }),
+        },
+      );
+      if (!r.ok) {
+        console.warn(`resumen: ${model} respondio ${r.status}`);
+        continue;
+      }
+      const data = await r.json();
+      const texto = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ?? "";
+      const vinetas = texto
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.startsWith("•"))
+        .map((l) => l.replace(/;/g, ","));
+      if (vinetas.length >= 2) {
+        console.log(`resumen: generado con ${model} (${vinetas.length} vinetas)`);
+        return vinetas.join("\n");
+      }
+      console.warn(`resumen: ${model} no devolvio vinetas usables`);
+    } catch (e) {
+      console.warn(`resumen: ${model} fallo:`, e.message);
+    }
+  }
+  return null;
+}
+
 // 1) git log del día (reusa el script canónico)
 const j = JSON.parse(
   execFileSync("node", ["scripts/reporte-diario/reporte-dia.mjs", "--dia", dia], {
@@ -76,20 +139,35 @@ if (j.commits === 0 && abiertos === 0 && cerrados === 0) {
   process.exit(0);
 }
 
-// 4) UPSERT. Dollar-quoting con un tag improbable y sin ';' en los asuntos (el MCP de Supabase
-//    se cuelga con un ';' dentro de un literal; la Management API no tiene ese bug, pero se
-//    mantiene la higiene por las dudas y para que el SQL sea idéntico al de la carga manual).
-const noSemi = (s) => String(s).replace(/;/g, ",");
-const asuntos = j.asuntos.map(noSemi);
+// 4) resumen en lenguaje simple (Gemini gratis). Puede ser null.
+const asuntos = j.asuntos.map((s) => String(s).replace(/;/g, ","));
+const resumen = await resumenSimple(j.areas, asuntos);
+
+// 5) UPSERT. Dollar-quoting con tag improbable. El `resumen` se incluye SÓLO si se generó: así,
+//    si Gemini falló, no se pisa un resumen que ya hubiera cargado y el alta nueva queda en NULL.
 const jq = (o) => `$bit$${JSON.stringify(o)}$bit$::jsonb`;
+const cols = ["dia", "commits", "autores", "areas", "asuntos", "audit", "fuente", "updated_at"];
+const vals = [
+  sqlLit(dia), String(j.commits), jq(j.autores), jq(j.areas), jq(asuntos),
+  jq({ abiertos, cerrados }), "'routine'", "now()",
+];
+const sets = [
+  "commits=excluded.commits", "autores=excluded.autores", "areas=excluded.areas",
+  "asuntos=excluded.asuntos", "audit=excluded.audit", "fuente='routine'", "updated_at=now()",
+];
+if (resumen) {
+  cols.splice(6, 0, "resumen"); // antes de fuente
+  vals.splice(6, 0, `$res$${resumen}$res$`);
+  sets.push("resumen=excluded.resumen");
+}
 const sql =
-  `insert into public.bitacora_dias (dia, commits, autores, areas, asuntos, audit, fuente, updated_at)
-   values ('${dia}', ${j.commits}, ${jq(j.autores)}, ${jq(j.areas)}, ${jq(asuntos)}, ${jq({ abiertos, cerrados })}, 'routine', now())
-   on conflict (dia) do update set commits=excluded.commits, autores=excluded.autores, areas=excluded.areas, asuntos=excluded.asuntos, audit=excluded.audit, fuente='routine', updated_at=now()`;
+  `insert into public.bitacora_dias (${cols.join(", ")})
+   values (${vals.join(", ")})
+   on conflict (dia) do update set ${sets.join(", ")}`;
 await q(LK, sql, false);
 
-// 5) verificación
-const chk = await q(LK, `select dia, commits, fuente from public.bitacora_dias where dia='${dia}'`, true);
+// 6) verificación
+const chk = await q(LK, `select dia, commits, fuente, (resumen is not null) tiene_resumen from public.bitacora_dias where dia='${dia}'`, true);
 console.log(
-  `cargado ${JSON.stringify(chk?.[0] ?? null)} | autores ${j.autores.map((a) => a.nombre + ":" + a.n).join(", ")} | auditoría ${abiertos}/${cerrados}`,
+  `cargado ${JSON.stringify(chk?.[0] ?? null)} | autores ${j.autores.map((a) => a.nombre + ":" + a.n).join(", ")} | auditoría ${abiertos}/${cerrados} | resumen ${resumen ? "sí" : "no"}`,
 );
