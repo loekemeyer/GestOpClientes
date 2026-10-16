@@ -887,4 +887,3 @@ Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas
 **Por qué no se forzó una precarga de prueba** (lo ofrecí, Pablo dijo sí, pero al ir a hacerlo apareció el bloqueo): la vista sólo muestra charlas cerradas (>12 h sin mensaje), así que una precarga insertada ahora no se vería hasta dentro de 12 h; y para verla ya habría que fabricar además una charla histórica en `bot_historial_chat`, dos filas en tablas reales que no se pueden borrar sin un "sí" aparte (borrados fuera de la excepción de BD). La prueba por `CASE` da la misma certeza sin ensuciar datos.
 
 **Estado del plan de los 8 al 16/10:** 1, 2 y 4 ok; 3, 5, 6, 7 y 8 parciales (esperan tráfico real del piloto 19-23/10, no código); ninguno en "no". `docs/PLAN-AGENTE-8-PUNTOS-2026-10-13.md` actualizado.
->>>>>>> 3b6db50 (docs: P1 (resultado medible) cerrado - codigo completo y 5 estados probados (D047))
