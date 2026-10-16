@@ -225,7 +225,7 @@ contesta y le llegan los automáticos) y asociado a un cliente en `bot_customer_
 TEMPORAL, el **4028 Bazar Farimar**: ver `docs/ESTADO.md`), así los avisos de pedidos de ese
 cliente le llegan a él. Llave en `prueba`.
 
-⚠ **La whitelist tiene hoy TRES filas y todas son teléfonos de prueba (Pablo Olejavetzky, 15/10: «hoy todo teléfono en la whitelist es de prueba»):** Thomy (…1635), Damián (…1594) y Logística (…1027, agregada el 14/10).
+⚠ **La whitelist tiene hoy CUATRO filas y todas son teléfonos de prueba (Pablo Olejavetzky, 15/10: «hoy todo teléfono en la whitelist es de prueba»):** Thomy (…1635), Damián (…1594), Logística (…1027, agregada el 14/10) y «Prueba plantillas remito» (…6849, agregada el 16/10, teléfono interno de Pablo). El …6849 además quedó vinculado al cliente **4210 Garbarino** en `bot_customer_whatsapps` como primario (Logística …1027 pasó a secundario), así los avisos automáticos de 4210 le llegan a ese teléfono para probar. Se usó el 16/10 para probar las plantillas `pedido_en_expreso`, `pedido_retirado` y `pedido_entregado` (ver D039).
 **Damián** (`5491131181594`) es el más importante: **es el dueño de Loekemeyer y de Chef** (Pablo, 15/10), por eso su teléfono es interno aunque tenga la cuenta de Chef.
 Está vinculado al cliente **LK 411 Chef S.R.L.** (`bot_customer_whatsapps` id 226: principal, ve pedidos). El bot le contesta como Chef y
 le llegan los avisos de Chef 411. **No sacarlo para "volver a un solo canal"**: está aprobado por Thomas (02/10). Ese número figuró como
