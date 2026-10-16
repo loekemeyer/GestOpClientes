@@ -411,6 +411,21 @@ en el proyecto PaginaLK (`kwkclwhmoygunqmlegrg`).
 - Estado conversacional en tablas Supabase (no en memoria)
 - Respuestas WA max 4000 chars
 
+## ⚠ IDENTIDAD DEL CLIENTE = CUIT, NO el código (Pablo Olejavetzky, 16/10/2026)
+
+**Un mismo cliente es un mismo CUIT; el `cod_cliente` (el número) es accidental.** LK y Chef son
+**empresas distintas** y cada ERP numera sus clientes por su cuenta, así que **el MISMO `cod_cliente`
+puede ser clientes DISTINTOS en LK y en Chef** — con CUIT distinto. Verificado el 16/10: cod `2118` =
+Milera Patricia (LK, CUIT 27244675986) vs Cuatro Robles S.R.L (Chef, CUIT 33716469579); cod `2447` y
+`2462`, ídem. Es mala praxis del ERP, pero **hay que trabajar con eso**.
+
+**Regla para cualquier cruce cliente ↔ teléfono ↔ pedido/remito/aviso/factura:** identificar al cliente por
+**CUIT** (`customers.cuit` en LK, `chef_customers.cuit` en Chef), o en su defecto por **(empresa, `cod_cliente`)**
+juntos. **NUNCA por `cod_cliente` solo**: buscar sólo por el número puede devolver el cliente de la otra marca
+y mandarle el aviso/dato al equivocado (plata/cliente, lo que Luis prohíbe). Hoy no muerde sólo porque el piloto
+tiene 6 teléfonos sin cruce; antes de cargar clientes reales de las dos marcas hay que cerrar esto. Detalle y
+evidencia: `docs/DECISIONES.md` D042.
+
 ## Modelos Claude
 
 | Uso | Modelo | Razón |
