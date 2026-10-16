@@ -78,7 +78,11 @@ Deno.serve(async (req) => {
       headers: { "content-type": "application/json", "x-api-key": AKEY, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         model: MODELO,
-        max_tokens: 600,
+        max_tokens: 800,
+        // Haiku 5.5 tiene el pensamiento prendido por defecto y, con un max_tokens chico, en los
+        // días grandes se come todo el presupuesto antes de escribir (devolvía texto vacío). Para
+        // un resumen simple no hace falta pensar: apagado + esfuerzo bajo (igual que _shared/anthropic-extras.ts).
+        thinking: { type: "disabled" },
         output_config: { effort: "low" },
         messages: [{ role: "user", content: armarPrompt(areas, asuntos) }],
       }),
@@ -102,7 +106,7 @@ Deno.serve(async (req) => {
     .filter((l) => l.startsWith("•"))
     .map((l) => l.replace(/;/g, ","));
 
-  if (vinetas.length < 2) {
+  if (vinetas.length < 1) {
     return new Response(JSON.stringify({ error: "sin viñetas", texto }), { status: 502, headers: JSON_H });
   }
   return new Response(JSON.stringify({ ok: true, resumen: vinetas.join("\n"), modelo: MODELO }), { headers: JSON_H });
