@@ -454,7 +454,7 @@
     .faq-save-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
   </style>
   <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="gestop2.css?v=0.29.9">
+  <link rel="stylesheet" href="gestop2.css?v=0.29.10">
 </head>
 <body>
 
@@ -1676,9 +1676,11 @@
       #pageBitacora .bt-leyenda { display:flex; align-items:center; gap:.3rem; font-size:.68rem; color:var(--g-muted,#64748b); margin-top:.9rem; flex-wrap:wrap; }
       #pageBitacora .bt-leyenda i { width:.9rem; height:.9rem; border-radius:3px; display:inline-block; }
       .bt-modal .bt-res { font-size:1rem; line-height:1.45; margin:.2rem 0 .8rem; white-space:pre-line; }
-      /* El contenedor de la Bitácora vive dentro de .main (overflow:hidden, 100vh): necesita su
-         propio scroll, si no la lista larga del buscador o muchos meses quedan cortados. */
-      .bt-wrap { flex:1; min-height:0; overflow-y:auto; padding:1rem 1.2rem; }
+      /* La página de la Bitácora vive dentro de .pages (flex:1, overflow:hidden, altura acotada):
+         para que scrollee, la PÁGINA misma lleva overflow-y:auto (mismo patrón que #pageSalientes),
+         si no la lista larga del buscador o muchos meses quedan cortados. */
+      #pageBitacora.active { display:block; min-width:0; overflow-y:auto; }
+      .bt-wrap { padding:1rem 1.2rem; }
       .bt-q { display:block; width:100%; max-width:520px; margin:.6rem 0 .2rem; padding:.5rem .7rem; font-size:.95rem; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); }
       .bt-busca { margin:.4rem 0 1rem; }
       .bt-busca-h { font-size:.85rem; color:var(--muted); margin:.2rem 0 .6rem; }
@@ -5648,7 +5650,7 @@ function renderDashLog(log) {
   }).join("");
 }
 </script>
-<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.29.9</div>
-<script src="gestop2.js?v=0.29.9"></script>
+<div style="position:fixed;bottom:8px;right:12px;background: rgba(0,0,0,0.6);color: #fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;z-index:9999;pointer-events:none;">v0.29.10</div>
+<script src="gestop2.js?v=0.29.10"></script>
 </body>
 </html>
