@@ -922,3 +922,15 @@ Ahora dicen «listo para retirar desde…», «programado para el…», «retira
 - Si el único pedido **ya salió** (retirado/entregado) → rige **SIN PEDIDO PENDIENTE**: no se agrega a uno ya salido.
 
 Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estaba en el pedido) y `mp02` (confirmó antes de `solicitar_agregado_pedido`) estaban **bien**: el juez los marcó mal/a_medias por la nota vieja, no por el agente. **Se retira lo que una versión anterior de esta entrada decía («defecto real del agente»): era desajuste de nota.** No hizo falta tocar `agente-fijos.ts`.
+
+---
+
+## D050 — El código PIN del admin sólo puede salir al WhatsApp de Thomy: candado en la cola (2026-10-16)
+
+**Quién:** Pablo Olejavetzky. **Textual:** *"tenés que tener ultra seguridad que sólo va para Thommy"* y *"si no cambia nada, sí, aplicalo"*.
+
+**Contexto:** el aviso «Aviso automático · notif_thomy_admin» que aparece en la charla de Thomy en el dashboard es el código PIN que pide un admin para entrar a Admin LK o al Espejo de Gestión (`admin_pin_pedir_codigo`, de PaginaLK, no está en este repo). Lo saca nuestra cola (`wa_outbox`, contexto `admin_pin`) hacia el teléfono de `app_settings.pin_aprobador_whatsapp` (hoy `5491162521635`, Thomy). Revisado el 16/10: la web no puede cambiar esa fila (sólo SELECT), `wa_outbox` sólo la usa `service_role`, y el código queda tapado (`••••••`) en la cola y en el historial. **Hueco:** nada frenaba el envío si esa fila cambiaba. Con la llave en `prueba` lo atajaba la whitelist; con la llave en `1` saldría a cualquier número.
+
+**Decisión:** candado en la cola, con el número escrito fijo: `sql/167_wa_outbox_pin_solo_thomy.sql` (trigger `trg_wa_outbox_pin_solo_thomy`). Rechaza cualquier fila `notif_thomy_admin` o `admin_pin` dirigida a otro teléfono, al insertarla o al cambiarla. Si alguien cambia el aprobador, pedir el código da error y no sale nada. **Cambiar de aprobador exige cambiar esa función** (con commit), no alcanza con editar `app_settings`.
+
+**Probado (16/10):** otro número con `notif_thomy_admin` → rechazado. Otro número con contexto `admin_pin` → rechazado. El número de Thomy → pasa. Cambiar el teléfono de la fila 177 → rechazado. No quedó ninguna fila de prueba. No toca el tapado del código ni los demás avisos. Planify 6093.
