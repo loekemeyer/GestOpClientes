@@ -947,3 +947,15 @@ Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estab
 **Verificado:** la base refleja los dos cambios (`pg_get_functiondef`: trigger manda `pedido_en_expreso` y ya no la vieja, cron usa `en_viaje_web`). Las 3 plantillas de entrega están aprobadas en Meta y se probaron el 16/10 (NP 1692 de 4210). **No se corrió** un flip real de un pedido expreso a "entregado" para no mandar un mensaje de prueba: el mapeo es un cambio directo verificado en el texto de la función.
 
 **Dependencia abierta (lado de Luis):** el trigger dispara por el `entregado` de Gestión (al día siguiente ~08:00), no por una marca propia del remito. Cuando Virgilio exponga la marca del remito, esa marca debe prender ese `entregado` (opción A de `docs/REENGANCHE-REMITO-VIRGILIO.md`). El lado de PaginaLK ya quedó listo.
+
+---
+
+## D042 — Bitácora: resumen con tope de 8 viñetas y buscador por palabra (2026-10-16)
+
+**Decisión (Pablo)**: "poné el tope de 8 y que quede prolijo" + "un buscador para cuando me pregunten qué fecha hice tal cosa".
+
+**Tope de 8 viñetas**: la edge `lk_bitacora-resumen` pide máximo 8 (y corta duro a 8 en el código) porque Haiku, con días de muchos commits, se iba a 17-22. Los resúmenes ya cargados se recortaron a las primeras 8 líneas por SQL (sin volver a gastar IA). Verificado: 0 días con más de 8.
+
+**Buscador**: input en la pestaña Bitácora (`btBuscar` en `docs/gestop2.js`, estilo en `docs/index.html`, badge v0.29.8). Filtra **en el navegador** sobre los días ya cargados en `BT.dias` (no pega a la base), busca la palabra en el resumen (viñetas) y en el detalle técnico (asuntos), insensible a mayúsculas y acentos (`btFold` preserva la longitud para poder resaltar), y lista las fechas que coinciden, cada una abre el día. Responde "¿qué día hice tal cosa?".
+
+**Dónde quedó**: commit `b9bdbd7`. Sin cambios de backend del bot; versión visible del dashboard v0.29.8.
