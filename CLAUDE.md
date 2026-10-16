@@ -473,8 +473,8 @@ mirar cuántas filas tocó: el 08/10 otra sesión lo cambió a Gemini en medio d
 
 
 **Excepción — corrida semanal con Haiku de los casos de varios pasos (Pablo Olejavetzky, 14/10/2026: *"Cambialo a Haiku, medición semanal"*,
-sobre un estimativo de unos US$ 0,03 por corrida):** el cron `lk_eval-semanal-haiku` (lunes 10:15 de Argentina, `sql/153`) corre los 8 casos
-`origen = 'multipaso'` con `claude-haiku-5-5` **sin pedir el "sí" cada semana**. Tope: 8 casos con 2 reintentos, unos US$ 0,09 en el peor caso. No
+sobre un estimativo de unos US$ 0,03 por corrida):** el cron `lk_eval-semanal-haiku` (lunes 10:15 de Argentina, `sql/153`) corre los casos
+`origen = 'multipaso'` con `claude-haiku-5-5` **sin pedir el "sí" cada semana**. Al 16/10 son **11 casos** (mp01..mp11; el 16/10 Pablo sumó mp09-mp11 con los hallazgos del pulido de 4210, +US$ 0,02-0,03 por corrida, con su "sí"). Tope: 11 casos con 2 reintentos, unos US$ 0,12 en el peor caso. No
 toca `llm_modelo_pruebas`: el modelo va en `body.modelo_eval` y el Simulador sólo lo acepta desde el cron y si está en `MODELOS_EVAL_PAGOS`
 (`_shared/modelos-prueba.ts`). **Cubre sólo esa corrida**: sumar casos, otro modelo u otra frecuencia vuelve a la regla de arriba (estimativo + "sí").
 Cubre también el **juez** de esa corrida (`lk_eval-juez`, sql/157, Pablo 15/10: *"Sí, armá el juez automático con Haiku"*): una llamada
