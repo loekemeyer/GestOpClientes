@@ -711,3 +711,5 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Por qué se subieron ahora, antes del trigger:** aprobar en Meta tarda y es independiente del contrato de Virgilio. Subirlas ya adelanta la cola crítica: cuando llegue lo de Luis sólo falta el cambio del trigger, no esperar la revisión de Meta.
 
 **Dónde quedó:** textos en `_shared/plantillas-meta.ts` (sin cambio de texto, sólo se corrigieron los comentarios que decían «sin subir a Meta»), `scripts/plantillas-artifact/disparadores.json` (las dos pasan a «creada en Meta, PENDING, sin disparador»), `docs/REENGANCHE-REMITO-VIRGILIO.md` (paso 2 marcado hecho) y el puntero del índice de `CLAUDE.md`. Tarea de Planify 5890 (Pablo). Backend puro: la versión visible del dashboard no cambia.
+
+**Actualización 16/10:** Meta aprobó las dos (ambas `APPROVED`, UTILITY). Siguen sin disparador y con la llave cortando: no sale nada hasta el reenganche (lado de Luis) y `wa_envio_automatico` en `prueba`/`1`.
