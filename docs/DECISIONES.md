@@ -846,3 +846,17 @@ Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas
 **Dónde:** `sql/164_listo_retirar_espera_pdf_factura.sql` (aplicada el 16/10 en PaginaLK, respaldo `zz_backups.bkp_wa_avisos_retiro_web_20261016`). Auditoría: problema 855. Planify 6077.
 
 **Caso hermano, sin tocar:** el estado `facturado` (= Excel) también lo usan `wa_avisos_en_viaje_web` (sql/105), el aviso de expreso del día de entrega (sql/106) y el texto del agente *"facturado y listo para retirar desde …"* (`_shared/fecha-retiro.ts`). No se cambiaron: Pablo pidió el disparador del aviso de retiro.
+
+## D046 — Corrida de evaluación COMPLETA (114 casos) con Haiku 5.5, a mano, para medir los cambios del 16/10 (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"necesito una corrida de simulación nueva con todos los cambios que fuimos haciendo"* → *"Si, correla"* al estimativo).
+
+**Qué:** corrida 17 de `wa_agente_eval_corridas`, los 114 casos simulables de `wa_agente_evals` (68 estudio WhatsApp, 19 ataques, 11 multipaso, 10 por causa jul-sep, 6 originales), con `claude-haiku-5-5` vía `wa_eval_corrida_modelo('claude-haiku-5-5', null, 'manual')`. No toca `llm_modelo_pruebas`. El juez (`lk_eval-juez`, Haiku) la juzga sola al cerrar.
+
+**Por qué no la nocturna:** la corrida 16 (03:15 del 16/10) fue con Gemini y antes de D041-D044. Pablo sacó a Gemini de las pruebas (D040).
+
+**Estimativo aprobado:** unos US$ 0,13 (≈140 llamadas del agente a US$ 0,0008 + juez 114 × US$ 0,00016), tope US$ 0,40 con 2 reintentos por caso. Base `bot_token_usage` antes de arrancar: 4.304 filas, US$ 22,402933 (16:29 UTC). Duración esperada: unas 2 h (un caso por minuto).
+
+**Qué NO mide:** las rutas por imagen (D043 comprobante por foto, D044 match de foto) ni el aviso de retiro (D045, trigger de base): el Simulador manda texto.
+
+**Este «sí» cubre sólo esta corrida.** Repetirla, o hacerla periódica, vuelve a la regla de gasto (estimativo + «sí»). Planify 6079.
