@@ -90,8 +90,7 @@ Virgilio va a distinguir más momentos (ej. expreso recibió vs. expreso entreg�
 1. Confirmar el contrato real de Virgilio (campos y valores) y elegir A o B con Pablo.
 2. ~~Subir a Meta `pedido_retirado` y `pedido_en_expreso`~~ **HECHO el 15/10** (`templates_sync aplicar`,
    las dos quedaron `PENDING`: `pedido_retirado` id 2529181834243049, `pedido_en_expreso` id
-   2318701338906372). Falta que Meta las apruebe (`lk_promover-plantillas`/`templates_promover` lo
-   verifica). No manda mensajes crearlas.
+   2318701338906372). **Aprobadas por Meta el 16/10** (ambas APPROVED, UTILITY). No manda mensajes crearlas.
 3. Aplicar el cambio del trigger (con backup en `zz_backups`, como `sql/084`/`sql/094`).
 4. Verificar con la llave `wa_envio_automatico` en `prueba` contra la lista blanca antes de `'1'`.
 5. Pasar las dos plantillas a `estado: "conectada"` en `scripts/plantillas-artifact/disparadores.json`.

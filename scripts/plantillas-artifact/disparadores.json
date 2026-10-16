@@ -113,14 +113,14 @@
       "orden": 11,
       "estado": "sin_disparador",
       "para": "Retira en depósito",
-      "sale": "Cuando se firma el remito de un retiro y se marca en Virgilio. Creada en Meta el 15/10 (PENDING), sin disparador todavía: espera el contrato de Virgilio (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md."
+      "sale": "Cuando se firma el remito de un retiro y se marca en Virgilio. Creada en Meta el 15/10 y aprobada el 16/10, sin disparador todavía: espera el contrato de Virgilio (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md."
     },
     "pedido_en_expreso": {
       "grupo": "pedido",
       "orden": 12,
       "estado": "sin_disparador",
       "para": "Por expreso",
-      "sale": "Cuando el expreso recibe la mercadería y se marca el remito en Virgilio. Confirma que el expreso ya lo tiene (distinto de pedido_en_viaje_expreso, que avisa la salida hacia el expreso). Creada en Meta el 15/10 (PENDING), sin disparador todavía: espera el contrato de Virgilio (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md."
+      "sale": "Cuando el expreso recibe la mercadería y se marca el remito en Virgilio. Confirma que el expreso ya lo tiene (distinto de pedido_en_viaje_expreso, que avisa la salida hacia el expreso). Creada en Meta el 15/10 y aprobada el 16/10, sin disparador todavía: espera el contrato de Virgilio (lado de Luis). Ver docs/REENGANCHE-REMITO-VIRGILIO.md."
     },
     "pedido_contado_s": {
       "grupo": "factura",
