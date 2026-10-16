@@ -744,3 +744,19 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Qué sigue sin cambiar:** el reenganche del trigger al remito entregado sigue bloqueado — en la base NO existe un estado «remito entregado» (ver turno del 16/10 y D038/REENGANCHE). El «entregado» que hay es a nivel NP (CRN de Gestión). Esta prueba valida el TEXTO y el envío de las plantillas, no el disparo por remito.
 
 **Dónde quedó:** `wa_envio_contactos` y `bot_customer_whatsapps` de PaginaLK (`kwkclwhmoygunqmlegrg`), sección whitelist de `CLAUDE.md` actualizada (3→4 filas). Backend/datos: la versión visible del dashboard no cambia.
+
+---
+
+## D040 — Agente: el estado de un pedido se contesta una sola vez; modelo de pruebas pasa de Gemini a Haiku (2026-10-16)
+
+**Quién:** Pablo Olejavetzky. Nota: hay dos entradas «D039» por colisión de otras sesiones; esta es D040.
+
+**Qué pasó (pulido del agente con el cliente de prueba 4210, tarea 6018):** a «¿cuándo llega mi pedido?» el agente contestó bien el primer párrafo —«tu pedido del 15/10 está programado para salir el 20/10»— y abajo, en el MISMO mensaje, pegó «tu pedido del 15/10 fue retirado» (el body del aviso `pedido_retirado`, `plantillas-meta.ts:171`), contradiciéndose. El dato real: 1692 está `programado`, entrega 20/10 (`bot_estado_pedidos_gv`). El segundo párrafo es inventado; lo dio **Gemini Flash Lite** (el modelo de pruebas gratis, el más débil).
+
+**Decisión 1 (regla):** regla **ESTADO Y ENTREGA DE UN PEDIDO** en `agente-fijos.ts`: un pedido tiene un solo estado; no decir «entregado»/«retirado» ni pegar el cierre de post-entrega salvo que la herramienta lo devuelva para ese pedido; no mezclar un pedido con otro. Commit `a154697` en `main`.
+
+**Decisión 2 (modelo de pruebas):** Pablo: *«no usen más gemini, o Haiku o Sonnet»*. `app_settings.llm_modelo_pruebas` pasó de `gemini-3.5-flash-lite,gemini-3.1-flash-lite` a **`claude-haiku-5-5`** (elegí Haiku por costo; Sonnet queda a un cambio de distancia para una tanda de alta fidelidad). Sin deploy.
+
+**Efecto en cadena (a vigilar):** (1) el Simulador y el chat de prueba ahora **cuestan** (~US$ 0,003 por mensaje con Haiku; antes US$ 0 con Gemini). (2) La corrida **nocturna** de evaluación (`sql/133`, `solo_gratis`) se queda **sin modelo gratis** y deja de correr: comparte la misma fila `llm_modelo_pruebas`. Si se quiere mantener la nocturna gratis hay que separarla de esta fila (pendiente, decisión de Pablo). La corrida **semanal** de P5 no se toca: usa `body.modelo_eval`, no esta fila.
+
+**Dónde:** `supabase/functions/_shared/agente-fijos.ts`, `app_settings.llm_modelo_pruebas` (PaginaLK), tarea 6018 de Planify (64). Verificado con SELECT: `llm_modelo_pruebas = claude-haiku-5-5`.
