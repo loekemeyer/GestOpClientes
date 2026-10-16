@@ -801,4 +801,18 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 
 Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas de Meta para este flujo, ver `disparo`), así que el cambio no necesita re-aprobación de Meta. **Dónde:** `_shared/plantillas-meta.ts`. Tarea 6050 de Planify (64).
 
-**⚠ Gap de detección que planteó Pablo (16/10), queda ABIERTO:** si el cliente manda **sólo la imagen/PDF sin texto**, el bot NO lo reconoce como comprobante. La clase «pago» (`lk_whatsapp-webhook`, `handleAdjunto`) exige que `RE_ADJ_PAGO` matchee el caption o un mensaje de los últimos 30 min (comprobante, transfer, pago, depósito, cheque, echeq…). Sin texto cae en «otro» y responde el genérico «Recibimos tu archivo». La visión del lector corre DESPUÉS de clasificar, así que no ayuda. Opciones a decidir: (a) clasificar con visión por defecto cada imagen/PDF (cuesta una llamada por adjunto), (b) tratar un PDF como probable comprobante (riesgo: constancia de ARCA, que ya se maneja aparte), (c) si llega un adjunto sin contexto de un cliente, preguntar «¿es un comprobante de pago?».
+**⚠ Gap de detección que planteó Pablo (16/10) — RESUELTO en D043 (visión gratis) el mismo día:** si el cliente manda **sólo la imagen/PDF sin texto**, el bot NO lo reconoce como comprobante. La clase «pago» (`lk_whatsapp-webhook`, `handleAdjunto`) exige que `RE_ADJ_PAGO` matchee el caption o un mensaje de los últimos 30 min (comprobante, transfer, pago, depósito, cheque, echeq…). Sin texto cae en «otro» y responde el genérico «Recibimos tu archivo». La visión del lector corre DESPUÉS de clasificar, así que no ayuda. Opciones a decidir: (a) clasificar con visión por defecto cada imagen/PDF (cuesta una llamada por adjunto), (b) tratar un PDF como probable comprobante (riesgo: constancia de ARCA, que ya se maneja aparte), (c) si llega un adjunto sin contexto de un cliente, preguntar «¿es un comprobante de pago?».
+
+---
+
+## D043 — Comprobante de pago mandado como FOTO sin texto: lo reconoce la visión gratis (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"Si hacelo"*). **Cierra el gap abierto en D042.**
+
+**Caso real (alerta 889, 15:11:26):** Pablo mandó la imagen de un comprobante al canal de prueba …6849 (cliente 4210) **sin caption y sin texto**. El bot no lo agarró: `RE_ADJ_PAGO` necesita texto, así que la clase quedó en «otro», la imagen cayó en el lector de pedidos (`pedido-archivo.ts`, Sonnet 4.6, US$ 0,002985, id 4288) y dio «no se encontraron líneas de pedido». El lector pago (`lk_parse-comprobante`) nunca se disparó porque exige clase «pago».
+
+**Decisión (opción distinta a las tres de D042, más barata):** no se agrega un clasificador pago nuevo ni se prende el lector pago por defecto. Se extiende la **visión gratis de Fase A** (`_shared/vision-producto.ts`, Gemini, US$ 0), que **ya corría sobre toda imagen** que el texto no clasificó. Ahora su prompt reconoce `COMPROBANTE` con prioridad sobre `LISTA`, y el webhook lo rutea a la **misma respuesta que el camino pago por texto** (`respuestaPago` → Cobranzas), pasa el `wa_comprobantes` de «no_comprobante» a «pending» y avisa como `comprobante_recibido` (motivo `comprobante_vision`). El lector pago sigue gateado por `wa_comprobantes_activo`: si está apagado, no gasta.
+
+**Qué NO cubre:** un **PDF** sin texto (la visión Fase A sólo mira imágenes JPEG/PNG/WebP). Un PDF con la palabra «comprobante» en el texto sí lo agarra el camino por texto; un PDF-comprobante sin texto queda sin reconocer (gap menor, no planteado por Pablo).
+
+**Dónde:** `_shared/vision-producto.ts` (tipo `comprobante`, prompt Fase A), `lk_whatsapp-webhook/index.ts` (rama de visión). Entra cuando CI deploye. Sin eval automática: la ruta es por visión con imagen, el Simulador por texto no la ejercita.

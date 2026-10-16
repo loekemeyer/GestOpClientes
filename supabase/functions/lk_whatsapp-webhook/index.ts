@@ -716,6 +716,22 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
       await alerta("reclamo", { motivo: "reclamo", visto: "producto_danado", comprobante_id: comprobanteId, mime });
       return;
     }
+    // Pablo, 16/10: comprobante de pago mandado como FOTO SIN texto. RE_ADJ_PAGO no lo pudo clasificar (necesita texto),
+    // la visión gratis (Gemini) sí lo reconoce. Misma respuesta que el camino "pago" por texto (respuestaPago → Cobranzas).
+    // El comprobante se guardó arriba como "no_comprobante" (clase="otro"): lo pasamos a "pending" y avisamos como comprobante.
+    if (vista.tipo === "comprobante") {
+      await responder(await respuestaPago(!!chef));
+      if (comprobanteId) {
+        await supabase.from("wa_comprobantes").update({ status: "pending" }).eq("id", comprobanteId);
+        // El lector pago sólo corre con el flag encendido, igual que el camino por texto (no gasta si está apagado).
+        if (Number((await getSetting("wa_comprobantes_activo")) ?? "0") === 1) {
+          triggerParser(comprobanteId).catch((e) =>
+            console.error("[adjunto] trigger parser (visión) falló:", e instanceof Error ? e.message : e));
+        }
+      }
+      await alerta("comprobante_recibido", { motivo: "comprobante_vision", comprobante_id: comprobanteId, mime });
+      return;
+    }
     // El agente es producción (modelo real): respeta el tope de gasto diario. Ya no se corta (Pablo, 14/10): pasado el tope contesta igual, pero degradado (sólo modelos gratis / Haiku).
     if (vista.tipo === "busqueda") {
       const nivelG = (await nivelGastoDiario()).nivel;

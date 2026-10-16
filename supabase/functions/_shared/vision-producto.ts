@@ -1,8 +1,10 @@
 // _shared/vision-producto.ts — Visión sobre fotos de productos (Pablo, 14/10/2026).
 //
-// Fase A: cuando un cliente manda una foto que no es reclamo ni comprobante de pago, se le pasa a un
-// modelo con visión para saber QUÉ es (describirFotoProducto): dañado va a reclamo; un producto se
-// describe en 2-5 palabras para buscarlo; una lista escrita sigue el flujo de pedido.
+// Fase A: cuando un cliente manda una foto que el clasificador de texto no marcó como reclamo ni pago, se le
+// pasa a un modelo con visión para saber QUÉ es (describirFotoProducto): dañado va a reclamo; un COMPROBANTE
+// DE PAGO sin texto (captura de transferencia, depósito, eCheq) va al flujo de pago; un producto se describe
+// en 2-5 palabras para buscarlo; una lista escrita sigue el flujo de pedido. El comprobante-por-visión (Pablo,
+// 16/10) cubre el hueco de la imagen SIN caption: RE_ADJ_PAGO necesita texto, acá no.
 //
 // Fase B: etiquetado de atributos visuales del catálogo (extraerAtributosProducto): una vez por
 // producto, se le pide al modelo color/material/forma para poder buscar "el pelapapas de mango rojo".
@@ -17,12 +19,16 @@ import { getSetting } from "./supabase.ts";
 
 export type VisionResultado =
   | { tipo: "danado" }
+  | { tipo: "comprobante" }
   | { tipo: "lista" }
   | { tipo: "busqueda"; terminos: string }
   | { tipo: "sin_vision" };
 
 const PROMPT_FASE_A =
   "Sos asistente de un mayorista de bazar y cocina. Un cliente mandó esta foto por WhatsApp.\n" +
+  "- Si es un COMPROBANTE DE PAGO (transferencia bancaria, depósito, recibo de pago, captura de homebanking o de " +
+  "una billetera virtual como Mercado Pago, cheque o eCheq), respondé exactamente: COMPROBANTE. Esto tiene prioridad: " +
+  "aunque tenga muchos renglones o números, si es un pago respondé COMPROBANTE y nada más.\n" +
   "- Si es una LISTA o NOTA escrita con varios productos (un pedido), respondé exactamente: LISTA\n" +
   "- Si es UN producto y está roto, partido, abollado o dañado, respondé exactamente: DANIADO\n" +
   "- Si es UN producto en buen estado, describí QUÉ es en 2 a 5 palabras, pensado para buscarlo en un " +
@@ -107,6 +113,7 @@ export async function describirFotoProducto(bytes: Uint8Array, mime: string): Pr
   const t = await pedirVision(modelo, m0, bytes, PROMPT_FASE_A, 40);
   if (!t) return { tipo: "sin_vision" };
   const w0 = t.split(/\s+/)[0] ?? "";
+  if (/^comprobante/i.test(w0)) return { tipo: "comprobante" };
   if (/^lista/i.test(w0)) return { tipo: "lista" };
   if (/dani?ado|dañado/i.test(w0)) return { tipo: "danado" };
   // Limpia a términos de búsqueda simples (sin signos raros), tope 80 chars.
