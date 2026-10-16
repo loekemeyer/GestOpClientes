@@ -58,20 +58,6 @@ function mimeImagen(mime: string): string | null {
   return /^image\/(jpe?g|png|webp|gif)$/.test(m) ? (m === "image/jpg" ? "image/jpeg" : m) : null;
 }
 
-/** Baja una imagen de catálogo por URL. null ante cualquier problema (no es imagen, muy grande, error de red). Nunca tira. */
-async function bajarImagen(url: string): Promise<{ bytes: Uint8Array; mime: string } | null> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return null;
-    const mime = mimeImagen(res.headers.get("content-type") ?? "image/jpeg") ?? "image/jpeg";
-    const buf = new Uint8Array(await res.arrayBuffer());
-    if (!buf.length || buf.length > MAX_FOTO_BYTES) return null;
-    return { bytes: buf, mime };
-  } catch {
-    return null;
-  }
-}
-
 const SISTEMA =
   "Sos un comparador visual de un mayorista de bazar y cocina. Te paso la FOTO que mandó un cliente y las fotos de " +
   "varios productos del catálogo, cada una con su CÓDIGO. Tu tarea es decir cuál de los candidatos es el MISMO producto " +
@@ -82,6 +68,10 @@ const SISTEMA =
 
 const bloqueImagen = (mime: string, bytes: Uint8Array) =>
   ({ type: "image", source: { type: "base64", media_type: mime, data: toBase64(bytes) } });
+// Las fotos del catálogo se pasan por URL: las baja Anthropic, no nuestro server (antes bajábamos hasta 6, ~decenas de segundos
+// en el camino crítico). La foto del cliente sí va en base64 (ya tenemos los bytes y no es pública).
+const bloqueImagenUrl = (url: string) => ({ type: "image", source: { type: "url", url } });
+const esUrlHttp = (u: string) => /^https?:\/\//i.test(u);
 
 const TRANSITORIOS = new Set([429, 500, 502, 503, 504, 529]);
 
@@ -98,19 +88,18 @@ export async function matchFotoProducto(
   const lista = candidatos.slice(0, MAX_CANDIDATOS);
   if (!lista.length) return VACIO;
 
-  // Baja las fotos de catálogo (en paralelo). Las que no se pudieron bajar quedan afuera; si no queda ninguna, no hay con qué comparar.
-  const bajadas = await Promise.all(lista.map((c) => bajarImagen(c.url).then((img) => ({ c, img }))));
-  const usables = bajadas.filter((x): x is { c: CandidatoFoto; img: { bytes: Uint8Array; mime: string } } => !!x.img);
+  // Sólo candidatos con URL http(s) válida (Anthropic la baja). Si no queda ninguno, no hay con qué comparar.
+  const usables = lista.filter((c) => esUrlHttp(c.url));
   if (!usables.length) return VACIO;
 
   // deno-lint-ignore no-explicit-any
   const content: any[] = [{ type: "text", text: "FOTO DEL CLIENTE:" }, bloqueImagen(mimeCli, fotoCliente.bytes),
     { type: "text", text: "CANDIDATOS DEL CATÁLOGO:" }];
-  for (const { c, img } of usables) {
+  for (const c of usables) {
     content.push({ type: "text", text: `Código ${c.cod}: ${c.description}` });
-    content.push(bloqueImagen(img.mime, img.bytes));
+    content.push(bloqueImagenUrl(c.url));
   }
-  const codsValidos = new Set(usables.map((x) => String(x.c.cod)));
+  const codsValidos = new Set(usables.map((c) => String(c.cod)));
 
   let res: Response;
   try {

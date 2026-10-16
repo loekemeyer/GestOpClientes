@@ -712,8 +712,9 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
   // Antes toda foto de cliente caía en leerPedidoArchivo (esArchivoDePedido matchea image/*): una foto de un solo artículo salía mal leída.
   let visionDiag: { tipo: string; raw: string | null } | null = null;
   if (clase === "otro" && customer && esFoto && archivo) {
+    const tVis = Date.now();
     const vista = await describirFotoProducto(archivo.bytes, archivo.mime);
-    visionDiag = { tipo: vista.tipo, raw: lineaSegura((vista as { raw?: string }).raw ?? "", 160) || null };
+    visionDiag = { tipo: vista.tipo, raw: lineaSegura((vista as { raw?: string }).raw ?? "", 160) || null, ms_vision: Date.now() - tVis };
     if (vista.tipo === "danado") {
       await responder(MSG_ADJUNTO_RECLAMO);
       await alerta("reclamo", { motivo: "reclamo", visto: "producto_danado", comprobante_id: comprobanteId, mime });
@@ -745,18 +746,24 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
       const matchModelo = ((await getSetting("wa_match_foto_modelo")) ?? "").trim();
       if (matchModelo && archivo) {
         try {
+          const t0 = Date.now();
           const { data: cands } = await supabase.rpc("bot_buscar_productos", { p_query: vista.terminos, p_limit: 8 });
-          const candidatos: CandidatoFoto[] = [];
-          for (const row of ((cands ?? []) as Array<{ cod: unknown; description: unknown }>).slice(0, MAX_CANDIDATOS)) {
-            const cod = String(row.cod ?? "").trim();
-            if (!cod) continue;
-            const { data: imgs } = await supabase.rpc("bot_obtener_imagenes_producto", { p_cod: cod });
+          const filas = ((cands ?? []) as Array<{ cod: unknown; description: unknown }>)
+            .map((row) => ({ cod: String(row.cod ?? "").trim(), description: String(row.description ?? "") }))
+            .filter((r) => r.cod).slice(0, MAX_CANDIDATOS);
+          // Las URLs de las fotos se piden EN PARALELO (antes era un for secuencial: 6 RPC una atrás de otra).
+          const conUrl = await Promise.all(filas.map(async (r) => {
+            const { data: imgs } = await supabase.rpc("bot_obtener_imagenes_producto", { p_cod: r.cod });
             const url = (imgs as Array<{ image_urls?: string[] }> | null)?.[0]?.image_urls?.[0];
-            if (url) candidatos.push({ cod, description: String(row.description ?? ""), url });
-          }
+            return url ? { cod: r.cod, description: r.description, url } : null;
+          }));
+          const candidatos: CandidatoFoto[] = conUrl.filter((c): c is CandidatoFoto => !!c);
+          const msCandidatos = Date.now() - t0;
           if (candidatos.length) {
+            const t1 = Date.now();
             const m = await matchFotoProducto(cfg.anthropicKey, { bytes: archivo.bytes, mime: archivo.mime }, candidatos, matchModelo, phone);
-            matchDiag = { modelo: matchModelo, cod: m.cod, confianza: m.confianza, alternativas: m.alternativas, gasto_usd: m.gasto_usd, raw: m.raw || null };
+            matchDiag = { modelo: matchModelo, cod: m.cod, confianza: m.confianza, alternativas: m.alternativas, gasto_usd: m.gasto_usd, raw: m.raw || null,
+              ms_candidatos: msCandidatos, ms_match: Date.now() - t1, candidatos: candidatos.length };
             if (m.cod) {
               const desc = candidatos.find((c) => c.cod === m.cod)?.description ?? "";
               const otros = m.alternativas.length ? m.alternativas.join(" o ") : "";
@@ -784,6 +791,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
       if (result.media.length) await sendMediaActions(result.media, phone, cfg);
       if (result.reply?.trim()) await responder(result.reply);
       await alerta("adjunto_recibido", { motivo: "foto_producto", vision: vista.terminos,
+        ...(visionDiag ? { ms_vision: visionDiag.ms_vision } : {}),
         ...(matchDiag ? { match: matchDiag } : {}), comprobante_id: comprobanteId, mime });
       return;
     }
