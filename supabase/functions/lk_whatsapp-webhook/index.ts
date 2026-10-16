@@ -747,7 +747,7 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
       if (matchModelo && archivo) {
         try {
           const t0 = Date.now();
-          const { data: cands } = await supabase.rpc("bot_buscar_productos", { p_query: vista.terminos, p_limit: 8 });
+          const { data: cands } = await supabase.rpc("bot_buscar_productos", { p_query: vista.terminos, p_limit: 20 });
           const filas = ((cands ?? []) as Array<{ cod: unknown; description: unknown }>)
             .map((row) => ({ cod: String(row.cod ?? "").trim(), description: String(row.description ?? "") }))
             .filter((r) => r.cod).slice(0, MAX_CANDIDATOS);

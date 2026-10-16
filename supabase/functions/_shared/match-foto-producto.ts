@@ -27,8 +27,10 @@ const TARIFAS: Record<string, { input: number; output: number }> = {
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
   "claude-sonnet-5-5": { input: 3.0, output: 15.0 },
 };
-/** Cuántos candidatos del catálogo se comparan como mucho (controla costo y latencia: 1 foto del cliente + N del catálogo). */
-export const MAX_CANDIDATOS = 6;
+/** Cuántos candidatos del catálogo se comparan como mucho (1 foto del cliente + N del catálogo). 12 cubre categorías enteras
+ *  (abrelatas 10, peladores 11): con 6 el artículo correcto quedaba afuera del set y el match elegía el menos malo (Pablo, 16/10).
+ *  Barato y rápido porque las fotos van por URL (las baja Anthropic) y Haiku compara ~12 imágenes en pocos segundos. */
+export const MAX_CANDIDATOS = 12;
 const MAX_FOTO_BYTES = 5 * 1024 * 1024;
 
 export interface CandidatoFoto { cod: string; description: string; url: string }
