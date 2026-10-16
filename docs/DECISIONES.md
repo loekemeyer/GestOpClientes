@@ -934,3 +934,16 @@ Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estab
 **Decisión:** candado en la cola, con el número escrito fijo: `sql/167_wa_outbox_pin_solo_thomy.sql` (trigger `trg_wa_outbox_pin_solo_thomy`). Rechaza cualquier fila `notif_thomy_admin` o `admin_pin` dirigida a otro teléfono, al insertarla o al cambiarla. Si alguien cambia el aprobador, pedir el código da error y no sale nada. **Cambiar de aprobador exige cambiar esa función** (con commit), no alcanza con editar `app_settings`.
 
 **Probado (16/10):** otro número con `notif_thomy_admin` → rechazado. Otro número con contexto `admin_pin` → rechazado. El número de Thomy → pasa. Cambiar el teléfono de la fila 177 → rechazado. No quedó ninguna fila de prueba. No toca el tapado del código ni los demás avisos. Planify 6093.
+## D051 — Avisos de entrega: en los tres modos, uno "en viaje" y uno "entregado/recibido" (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"el pedido tiene que disparar cuando esté en viaje y cuando el remito aparezca como entregado. en todos los casos"*).
+
+**Problema:** el **expreso** recibía un solo aviso. El cron `wa_avisos_en_viaje_web` (sql/106) encolaba `pedido_en_viaje_expreso` con context `tracking_entregado` para que el trigger NO repitiera al marcarse "entregado", y el trigger `trg_order_tracking_notify`, en su rama "entregado", mandaba otra vez `pedido_en_viaje_expreso` (la vieja) en lugar de `pedido_en_expreso`. Resultado: el expreso nunca recibía el "recibido por el expreso".
+
+**Decisión y arreglo (`sql/168`, aplicada el 16/10 a PaginaLK):** dos cambios. (1) El "en viaje" del expreso pasa a context `en_viaje_web`, así deja de suprimir al trigger. (2) El trigger, en la rama "entregado", para el expreso manda `pedido_en_expreso` (mismos params). Queda, en los tres modos: en viaje — reparto `pedido_en_viaje`, expreso `pedido_en_viaje_expreso`; entregado — retira `pedido_retirado`, reparto `pedido_entregado`, expreso `pedido_en_expreso`. Retira no tiene "en viaje" (es retiro en depósito).
+
+**De paso:** `sql/168` captura en el repo el trigger que vivía sólo en la base (el mapeo retira→`pedido_retirado` se había aplicado directo, sin migración: el `sql/160` del repo es otra cosa). Desincronización repo↔base cerrada. Auditoría 867.
+
+**Verificado:** la base refleja los dos cambios (`pg_get_functiondef`: trigger manda `pedido_en_expreso` y ya no la vieja, cron usa `en_viaje_web`). Las 3 plantillas de entrega están aprobadas en Meta y se probaron el 16/10 (NP 1692 de 4210). **No se corrió** un flip real de un pedido expreso a "entregado" para no mandar un mensaje de prueba: el mapeo es un cambio directo verificado en el texto de la función.
+
+**Dependencia abierta (lado de Luis):** el trigger dispara por el `entregado` de Gestión (al día siguiente ~08:00), no por una marca propia del remito. Cuando Virgilio exponga la marca del remito, esa marca debe prender ese `entregado` (opción A de `docs/REENGANCHE-REMITO-VIRGILIO.md`). El lado de PaginaLK ya quedó listo.

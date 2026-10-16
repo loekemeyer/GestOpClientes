@@ -5,17 +5,24 @@ aviso al cliente de que su pedido se entregó/retiró/llegó al expreso tiene qu
 **remito marcado en Virgilio** por la persona que despacha o entrega, no por el CRN de Gestión
 como hoy.
 
-> ⚠ **Bloqueado del lado de Luis.** Esto no se puede cablear hasta que el sistema de Virgilio
-> exponga la marca del remito (Luis lo está construyendo). Este archivo es el contrato: qué
-> necesito de Virgilio y qué cambia acá cuando llegue. "La unión de los dos mundos" (Pablo, 15/10).
+> ✅ **Lado de PaginaLK: HECHO (16/10/2026, Pablo: "en todos los casos").** Los tres eventos ya
+> disparan su plantilla al marcarse `entregado`, y el expreso suma su "recibido" además del "en
+> viaje" (`sql/168`). Las 3 plantillas están aprobadas en Meta y se probaron el 16/10 (NP 1692 de
+> 4210: marcar entregado → `pedido_retirado` salió a …6849).
+>
+> ⚠ **Lo que sigue del lado de Luis.** El disparador lee el `entregado` de **Gestión**
+> (`gv_pedido_web_estado_pagina.entregado`, que se marca al día siguiente ~08:00), NO una marca
+> propia del remito. Cuando Virgilio exponga la marca del remito, esa marca es la que tiene que
+> prender ese `entregado` (opción A, más abajo): es un cambio del lado de Virgilio, el de PaginaLK
+> ya quedó listo. "La unión de los dos mundos" (Pablo, 15/10).
 
 ## Los tres eventos
 
 | Modo | Quién marca en Virgilio | Plantilla que sale | Estado hoy |
 |---|---|---|---|
-| Retira en depósito | Quien entrega, al hacer firmar el remito | `pedido_retirado` | definida, sin subir a Meta, sin disparador |
-| Reparto (transportista) | El transportista, al entregar | `pedido_entregado` | en Meta y conectada, pero gatillada por CRN de Gestión |
-| Expreso | Quien despacha, cuando el expreso recibe | `pedido_en_expreso` | **nueva**, definida, sin subir a Meta, sin disparador |
+| Retira en depósito | Quien entrega, al hacer firmar el remito | `pedido_retirado` | aprobada en Meta · disparada por el trigger al marcarse `entregado` (`sql/168`, antes vivía sólo en la base) |
+| Reparto (transportista) | El transportista, al entregar | `pedido_entregado` | aprobada · disparada por el trigger al marcarse `entregado` |
+| Expreso | Quien despacha, cuando el expreso recibe | `pedido_en_expreso` | aprobada · disparada por el trigger al marcarse `entregado` (`sql/168`; antes mandaba la vieja `pedido_en_viaje_expreso`). El "en viaje" sigue saliendo aparte (cron, context `en_viaje_web`) |
 
 `pedido_en_expreso` confirma que el expreso **ya recibió** la mercadería. Es distinto de
 `pedido_en_viaje_expreso`, que avisa la **salida hacia** el expreso (carga camión). El texto de
