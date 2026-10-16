@@ -849,7 +849,7 @@ Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas
 
 **Caso hermano, la lista de pedidos de Chef (Pablo, 16/10: *"Si arreglalo"*):** `pedidosChef` (`_shared/pedidos-marca.ts`) leía el estado de Gestión desde el código y decía "facturado" con el Excel (en Chef la factura llega una mediana de 225 min después). `sql/166` le pone la empresa como parámetro a la misma regla, `wa_factura_pdf_subida_emp(order_id, empresa)` (Chef → facturas CH); `wa_factura_pdf_subida(order_id)` queda como la de LK y llama a esa. `pedidosChef` consulta `bot_pedidos_factura_pdf(ids, 'chef')` para los pedidos con la marca y, sin PDF, los muestra "en preparación" (armado). Si la consulta falla, tampoco dice "facturado". Medido en 49 NP de Chef (30 días) contra el cruce: la regla reconoce 48. CH 0072 queda sin reconocer porque su factura se subió una hora ANTES del Excel. 3 se adelantan más de 1 hora (el mismo cliente tuvo otra factura antes que la suya). El pedido 247 (Cencosud, 4 NP, 3 facturas) da "en preparación", igual que el cruce, que tiene 2 NP sin factura. Auditoría 863, Planify 6083.
 
-**Sigue sin tocar:** `wa_avisos_en_viaje_web` (sql/105) y el aviso de expreso del día de entrega (sql/106) leen `facturado` directo de Gestión.
+**Decidido dejar así (Pablo, 16/10: *"Dejalo asi"*):** `wa_avisos_en_viaje_web` (sql/105) y el aviso de expreso del día de entrega (sql/106) siguen leyendo `facturado` directo de Gestión (la marca del Excel). Salen el día de la entrega, cuando la factura casi siempre ya está subida. No volver a proponer cambiarlos salvo que aparezca un caso real de aviso antes de la factura.
 
 ## D046 — Corrida de evaluación COMPLETA (114 casos) con Haiku 5.5, a mano, para medir los cambios del 16/10 (2026-10-16)
 
