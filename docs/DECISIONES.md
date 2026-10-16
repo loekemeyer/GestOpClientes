@@ -861,4 +861,6 @@ Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas
 
 **Qué NO mide:** las rutas por imagen (D043 comprobante por foto, D044 match de foto) ni el aviso de retiro (D045, trigger de base): el Simulador manda texto.
 
+**Cron acelerado sólo para esta corrida (Pablo: «Si», 16/10 13:53):** `lk_eval-tick` (jobid 83) pasó de `* * * * *` a `15 seconds` con `cron.alter_job`. Los casos siguen de a uno (el Simulador guarda la charla en un objeto compartido, `SIM.historial`, y en paralelo se mezclarían). Gasto igual. Se restituye a `* * * * *` al terminar la corrida, antes de la nocturna de las 03:15: con Gemini gratis (15 por minuto) el tick a 15 s podría pasarse de la cuota.
+
 **Este «sí» cubre sólo esta corrida.** Repetirla, o hacerla periódica, vuelve a la regla de gasto (estimativo + «sí»). Planify 6079.
