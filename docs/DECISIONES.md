@@ -1001,3 +1001,15 @@ Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estab
 **Qué se hizo**: `_shared/articulo-en-curso.ts` (`articulosDeLaCharla`, `bloqueArticulosDeLaCharla`), cableado en `_shared/bot-conversation.ts`, `tests/articulos-de-la-charla.test.ts`. Arreglo de paso: una cantidad («100 cajas») ya no se lee como código de artículo. Auditoría 835, tarea 5976.
 
 **Lo que NO se decidió ni se midió**: que Haiku 5.5 siga la pista no se probó con tráfico real (queda para la próxima prueba de Pablo). El descuento por cantidad de cajas (auditoría 845) sigue abierto.
+
+---
+
+## D053 — Descuentos: el bot recuerda los que tiene; si el cliente insiste o quiere un precio especial, deriva a un vendedor (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"hasta que no tengamos todo más que testeado lo dejamos para que lo vea una persona"* → *"la uno, vos recordale los descuentos, si insiste lo derivamos"*).
+
+**Decisión (opción 1):** ante un pedido de descuento, el bot **recuerda los descuentos que ya tiene el cliente** (no deriva de entrada). Sólo si el cliente **insiste, pide un descuento mayor o un precio especial por la cantidad**, el bot **no negocia**: deriva a un vendedor (`derivar_a_persona`, motivo escalation) y le dice que un vendedor le escribe. El flujo de **deuda** (`consultar_mis_facturas`, "cuánto debo / cuánto pago con el descuento de contado") **no se toca**: sigue andando.
+
+**Dato verificado hoy:** `bot_mis_descuentos` devuelve `dto_vol` (volumen personal, ya incluido en los precios), `dto_web` (2%) y la escala por forma de pago (contado 25% … 90 eCheq 5%). **NO devuelve ningún rango por cantidad de cajas.** Por eso el caso que planteó Pablo ("llevo 20 cajas en vez de 10, ¿me hacés un descuento extra?") no tiene dato que dar: el bot recita lo que tiene y, si quiere más por la cantidad, deriva. La descripción del tool decía "rangos de descuento por cantidad de cajas" (falso): **corregida**.
+
+**Dónde:** regla `DESCUENTOS` nueva en `agente-fijos.ts` (REGLAS_OPERATIVAS), descripción de `consultar_mis_descuentos` corregida en `bot-conversation.ts`, nota del eval `id 2` actualizada. Entra cuando CI deploye (sólo backend, la versión del dashboard no cambia). Relacionado: CLAUDE.md «REGLA descuentos» (el escalón por plazo sigue sin mapear/bloqueado).

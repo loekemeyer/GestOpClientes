@@ -264,7 +264,7 @@ const BOT_TOOLS: ToolDef[] = [
   {
     name: "consultar_mis_descuentos",
     description:
-      "Muestra los descuentos del cliente: descuento por volumen personal, descuento web, y rangos de descuento por cantidad de cajas.",
+      "Muestra los descuentos del cliente: su descuento por volumen personal (ya incluido en los precios), el descuento por comprar en la web (2%), y la escala por forma de pago (contado y plazos). NO trae descuentos por cantidad de cajas de un pedido: no existe un descuento extra por llevar más cajas. Si el cliente quiere un descuento mayor o un precio especial, derivá (no lo negocia el bot).",
     input_schema: {
       type: "object",
       properties: {},
