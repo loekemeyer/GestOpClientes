@@ -1,4 +1,5 @@
 import { modeloEvalPermitido } from "../_shared/modelos-prueba.ts";
+import { partirRespuesta } from "../_shared/partir-respuesta.ts";
 import "../_shared/wa-guard.ts"; // D007: por las dudas — igual no manda nada (teléfono ficticio)
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { getGestionClient, getIsisClient, getSetting, supabase } from "../_shared/supabase.ts";
@@ -491,6 +492,9 @@ serve(async (req) => {
         via = r.timeout ? "agente (timeout: en producción no se contesta nada)" : r.llmError ? "agente (error: en producción no se contesta nada)"
           : pistas.length ? `agente IA con ${pistas.length} pista${pistas.length > 1 ? "s" : ""} de la capa fija` : "agente IA";
         reply = marcaLk && r.reply ? conEtiqueta("lk", r.reply) : r.reply;
+        // Pablo, 16/10: si el agente marcó cortes ([[corte]]) para contestar varias preguntas en mensajes separados, acá se
+        // unen con línea en blanco para que el dashboard los muestre como burbujas distintas (y el marcador no quede en el texto).
+        if (reply) reply = partirRespuesta(reply).join("\n\n");
         // PDF de factura de las pistas: en producción salen después del texto; acá se muestra cuál iría.
         if (reply && documentosPistas.length && !r.timeout && !r.llmError) reply += "\n\n" + documentosPistas.map((d) => `📎 ${d.filename}`).join("\n");
         // Con "Crear tareas de prueba", la respuesta de la IA también queda para puntuar (🧪, fuera de los promedios).

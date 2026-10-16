@@ -30,6 +30,7 @@ import {
 } from "../_shared/bot-conversation.ts";
 import { decidirCapaFija, esSoloSaludo, handleFaq } from "../_shared/faq.ts";
 import { respuestasRecientes } from "../_shared/mensaje-compuesto.ts";
+import { partirRespuesta } from "../_shared/partir-respuesta.ts";
 import { esConsultaDeDisponibilidad } from "../_shared/consulta-disponibilidad.ts";
 import { datosDeAccesoWeb, taparClave, TEXTO_CLAVE_A_PERSONA, textoAccesoWeb } from "../_shared/clave-web.ts";
 import { notificarHumano } from "../_shared/alertas.ts";
@@ -1802,7 +1803,11 @@ async function handleMessage(
 
   // 8. Enviar respuesta de texto (con saludo si es primer contacto)
   const reply = await conSaludoSiCorresponde(marcaLk ? conEtiqueta("lk", result.reply) : result.reply, phone);
-  await enviarTexto(cfg, phone, reply);
+  // Pablo, 16/10: si el mensaje traía varias preguntas, el agente contesta cada una en un mensaje aparte (marca con [[corte]]).
+  // Sin marcador es un solo mensaje, como siempre (partir-respuesta.ts). El historial y el puntaje guardan el texto limpio y unido.
+  const partesReply = partirRespuesta(reply);
+  for (const parte of partesReply) await enviarTexto(cfg, phone, parte);
+  const replyGuardar = partesReply.join("\n\n") || reply;
 
   // 9. Guardar respuesta en historial.
   // 10. Puntaje de la IA (Pablo, 29/09): la respuesta queda para que Haiku la evalúe en segundo plano (cron
@@ -1810,9 +1815,9 @@ async function handleMessage(
   // Son dos inserts independientes: van juntos (auditoría 02/10; antes, en fila). PostgrestBuilder no rechaza ante un
   // error de la base (lo devuelve en `error`), así que se mira el resultado además de atajar la excepción de red.
   await Promise.all([
-    saveMessage(phone, "assistant", reply),
+    saveMessage(phone, "assistant", replyGuardar),
     supabase.from("wa_ia_puntajes").insert({
-      phone, customer_id: customer.customer_id, pregunta: text.slice(0, 2000), respuesta: reply.slice(0, 4000),
+      phone, customer_id: customer.customer_id, pregunta: text.slice(0, 2000), respuesta: replyGuardar.slice(0, 4000),
       herramientas: result.herramientas ?? [], modelo_respuesta: result.modelo ?? null,
     }).then(
       ({ error }) => { if (error) console.error("[puntaje] no se pudo encolar:", error.message); },
