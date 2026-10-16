@@ -875,3 +875,16 @@ Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas
 - **D040/D041:** las respuestas de la IA usan «listo para retirar desde…» en los casos de retiro, y mp09 y mp10 (varias preguntas) contestan todo. 
 - **Defectos reales abiertos en auditoría:** 862 (la anulación de un pedido de retiro dice «listo para salir», texto fijo de `respuesta-aviso.ts`, se ve en m16 y mp03) y 865 (m1: «No me figura ese pedido» y deriva aunque el pedido web del 15/10 existe).
 - **Menores, sin auditoría:** a un cliente que retira se le dice «los demás pedidos ya están entregados» en algunas respuestas (lista fija y algunas de la IA). m73 ofrece derivar en vez de derivar.
+
+---
+
+## D047 — P1 (objetivo con resultado medible) cerrado: código completo, 5 estados probados (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"Si por favor"*). **Qué:** se dio P1 por "ok".
+
+**Estado real verificado hoy:** (a) la frase de resultado ("la consulta queda resuelta sin pasar a una persona; si es pedido, precarga tal como la aprueba el vendedor, sin cambios") está en `AGENTE.md` › Objetivo **y** en `wa_agente_config` id 1 (lo que lee el prompt). (b) La vista `v_wa_resultado_charla` existe y clasifica; con datos reales da `resuelta` 78, `derivada` 8, `sin_respuesta` 2. (c) Los 2 estados de precarga tienen 0 filas porque no hubo ningún pedido en precarga todavía (pedidos por WhatsApp en `false`); se verificó que el `CASE` de la vista los asigna bien (`precarga_aprobada_sin_cambios` / `precarga_con_cambios`) pasándole valores de ejemplo, sin escribir en la base.
+
+**Por qué no se forzó una precarga de prueba** (lo ofrecí, Pablo dijo sí, pero al ir a hacerlo apareció el bloqueo): la vista sólo muestra charlas cerradas (>12 h sin mensaje), así que una precarga insertada ahora no se vería hasta dentro de 12 h; y para verla ya habría que fabricar además una charla histórica en `bot_historial_chat`, dos filas en tablas reales que no se pueden borrar sin un "sí" aparte (borrados fuera de la excepción de BD). La prueba por `CASE` da la misma certeza sin ensuciar datos.
+
+**Estado del plan de los 8 al 16/10:** 1, 2 y 4 ok; 3, 5, 6, 7 y 8 parciales (esperan tráfico real del piloto 19-23/10, no código); ninguno en "no". `docs/PLAN-AGENTE-8-PUNTOS-2026-10-13.md` actualizado.
+>>>>>>> 3b6db50 (docs: P1 (resultado medible) cerrado - codigo completo y 5 estados probados (D047))

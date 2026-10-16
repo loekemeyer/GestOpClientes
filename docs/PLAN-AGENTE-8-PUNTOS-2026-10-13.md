@@ -22,7 +22,17 @@ este plan: la levanta Luis o Thomas. Si se cambia el supuesto, cambian los punto
 
 ## 1. Estado por punto y qué falta
 
-### P1 · Objetivo con resultado medible — hoy NO
+### P1 · Objetivo con resultado medible — OK (16/10)
+
+> **Cerrado el 16/10 (Pablo: "Si por favor").** Frase de resultado en `AGENTE.md` › Objetivo y en `wa_agente_config` id 1
+> (lo que lee el prompt) [Seguro]. Vista `v_wa_resultado_charla` creada y clasificando: con datos reales devuelve
+> `resuelta` 78 · `derivada` 8 · `sin_respuesta` 2; los 2 estados de precarga (`precarga_aprobada_sin_cambios`,
+> `precarga_con_cambios`) dan 0 filas sólo porque todavía no hubo ningún pedido en precarga, y se verificó que el `CASE`
+> de la vista los asigna bien pasándole valores de ejemplo (sin escribir en la base). Las filas reales de precarga llegan
+> con el piloto. No se forzó una precarga de prueba: la vista sólo muestra charlas cerradas (>12 h), así que no se vería
+> hasta dentro de 12 h, y habría dejado una charla y una precarga falsas que no se pueden borrar sin un "sí" aparte.
+
+El detalle de abajo es el estado original (13/10), que decía NO:
 
 - **[Seguro] Hoy:** `docs/AGENTE.md` › Objetivo y `wa_agente_config` id 1 dicen "respuesta útil, breve y correcta, o
   derivar". No hay ninguna medida de si la consulta quedó resuelta: `wa_agente_evals` compara caminos, no resultados.
@@ -270,6 +280,7 @@ informa el SQL, el efecto y el `SELECT`).
 ## 4. Cómo se sabe que los 8 están "ok"
 
 Un punto está ok cuando cumple su "Ok cuando" de la sección 1. Al 13/10: **2 y 4 ok; 3, 6 y 7 parciales; 1, 5 y 8 no.**
+**Al 16/10: 1, 2 y 4 ok; 3, 5, 6, 7 y 8 parciales (los 5 esperan el piloto 19-23/10, no código); ninguno en "no".** (P1 cerrado el 16/10, ver su sección.)
 (Corregido el 13/10: la primera versión daba el 7 por ok, pero su propio criterio pide la pausa ensayada y el tope revisado, que
 no están. El 6 pasó a parcial con lo hecho ese día.) **Tablero vivo:** https://claude.ai/artifact/DY3rYB4AtYejUZmEyE4VoG Objetivo: los 8 con su criterio cumplido al cierre del piloto, viernes 23/10, salvo 3.2 (historial faltante), que
 es de fase 3.
