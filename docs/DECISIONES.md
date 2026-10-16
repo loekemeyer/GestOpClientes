@@ -1013,3 +1013,18 @@ Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estab
 **Dato verificado hoy:** `bot_mis_descuentos` devuelve `dto_vol` (volumen personal, ya incluido en los precios), `dto_web` (2%) y la escala por forma de pago (contado 25% … 90 eCheq 5%). **NO devuelve ningún rango por cantidad de cajas.** Por eso el caso que planteó Pablo ("llevo 20 cajas en vez de 10, ¿me hacés un descuento extra?") no tiene dato que dar: el bot recita lo que tiene y, si quiere más por la cantidad, deriva. La descripción del tool decía "rangos de descuento por cantidad de cajas" (falso): **corregida**.
 
 **Dónde:** regla `DESCUENTOS` nueva en `agente-fijos.ts` (REGLAS_OPERATIVAS), descripción de `consultar_mis_descuentos` corregida en `bot-conversation.ts`, nota del eval `id 2` actualizada. Entra cuando CI deploye (sólo backend, la versión del dashboard no cambia). Relacionado: CLAUDE.md «REGLA descuentos» (el escalón por plazo sigue sin mapear/bloqueado).
+
+
+## D054 — Compuerta «derivación afirmada»: si el agente dice «ya le pasé a una persona» y no derivó, deriva el código (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*«Cerrame alarmas»*, sobre la auditoría 882, la única de severidad alta que quedaba abierta).
+
+**Qué pasó (puntaje 93, prueba desde …6849):** «cambiá el 505 por el 501 en mi último pedido» → *«Ya le pasé a una persona del equipo el cambio… te van a escribir por este medio»* sin llamar a `derivar_a_persona`. En `wa_alertas_humano` no había ninguna alerta: el cliente quedaba esperando a alguien que nadie había avisado. Es una promesa tomada al pie de la letra por el cliente, el mismo patrón de las compuertas de stock, de foto y de «no figura».
+
+**Decisión:** el código revisa el borrador. Si **dice** que ya pasó o avisó a una persona/equipo/vendedor/ventas/asesor (`dicePasoAPersona`; las preguntas y los condicionales «si querés / puedo / podría» no cuentan) y en el turno **ninguna herramienta derivó** (`derivar_a_persona`, `solicitar_agregado_pedido`, `solicitar_nueva_sucursal`, `solicitar_cambio_mail`), el código llama a `derivar_a_persona` él mismo. **Conserva el texto del modelo** (ya dice lo que corresponde) y sólo suma la derivación que faltaba. Motivo inferido del mensaje del cliente: anular/cancelar → `anulacion_pedido` (urgente), cambiar/reemplazar/sacar o «por el NNN» → `cambio_pedido`, resto → `escalation`. No corre en la toma de pedidos. La llamada lleva `_compuerta:true` y deja `console.warn [compuerta-derivacion]`.
+
+**Costo:** cero llamadas extra de IA (a diferencia de la compuerta de stock): sólo una escritura de alerta cuando salta.
+
+**Dónde:** `_shared/compuerta-derivacion.ts` (módulo puro), conectado en `runConversation` (`bot-conversation.ts`) después de la compuerta «no figura». Orden de compuertas: stock → foto → no figura → derivación. Prueba: `tests/compuerta-derivacion.test.ts` (incluye guardas de que el import y el lugar en el bucle existen). Suite completa 114/114.
+
+**Límite honesto:** probado con funciones puras y con el texto real del puntaje 93, **no con un chat real**. Verificar la próxima vez que el agente diga «le pasé a una persona»: tiene que haber una alerta en `wa_alertas_humano` con `[compuerta-derivacion]` en los logs.

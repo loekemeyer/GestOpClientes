@@ -28,6 +28,7 @@ import { articuloEnCurso, bloqueArticulosDeLaCharla, cajasRespaldadas } from "./
 import { debeForzarStock, llamadasDeStock, MAX_ARTICULOS_COMPUERTA, stockPorCodigoFaltante } from "./compuerta-stock.ts";
 import { debeForzarFoto, fotosAEnviar } from "./compuerta-foto.ts";
 import { conAvisoDeVentas, debeDerivarNoFigura } from "./compuerta-no-figura.ts";
+import { debeDerivarAfirmada, motivoDeLaDerivacion } from "./compuerta-derivacion.ts";
 import { bloqueMemoria } from "./memoria-cliente.ts";
 import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
@@ -1941,6 +1942,20 @@ export async function runConversation(
         usadas.push({ nombre: "derivar_a_persona", input: entrada, resultado: JSON.stringify(rd.data).slice(0, 1500) });
         res.text = conAvisoDeVentas(borradorNoFigura);
         console.warn(`[compuerta-no-figura] la respuesta dice que el pedido no figura y no se derivó: se deriva pedido_no_encontrado …${phone.slice(-4)}`);
+      }
+    }
+
+    // Compuerta «derivación afirmada» (Pablo, 16/10, auditoría 882): la respuesta dice que YA se pasó a una persona y en el turno ninguna herramienta derivó.
+    // La derivación la hace el código y el borrador se conserva tal cual (compuerta-derivacion.ts). Va después de la de «no figura»: si ésa ya derivó, no duplica.
+    if (!toolCalls.length) {
+      const enPedidoDeriv = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
+      const borradorDeriv = sinMarcaDeTramo(res.text ?? "");
+      if (debeDerivarAfirmada(borradorDeriv, usadas.map((u) => u.nombre), enPedidoDeriv)) {
+        const { motivo, urgente } = motivoDeLaDerivacion(userText);
+        const entrada = { motivo, urgente, resumen: `El cliente pidió: ${userText.slice(0, 300)}`, _compuerta: true };
+        const rd = await executeTool("derivar_a_persona", entrada, phone, { userText, historial: rawHistory });
+        usadas.push({ nombre: "derivar_a_persona", input: entrada, resultado: JSON.stringify(rd.data).slice(0, 1500) });
+        console.warn(`[compuerta-derivacion] la respuesta dice que ya pasó a una persona y no se derivó: se deriva ${motivo} …${phone.slice(-4)}`);
       }
     }
 
