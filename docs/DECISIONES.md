@@ -904,6 +904,8 @@ Ahora dicen «listo para retirar desde…», «programado para el…», «retira
 
 **Dónde:** `respuesta-aviso.ts`, `faq.ts`, `pedidos-marca.ts`, `fecha-retiro.ts`, `agente-fijos.ts`, `bot-conversation.ts`, `compuerta-no-figura.ts`. Planify 6088.
 
+**Verificado en la corrida 18 (16/10, 14:32 a 15:01 hora AR, 114 casos con Haiku, 0 errores, tick a 15 s y restituido a `* * * * *`):** m16 y mp03 dicen «listo para retirar desde el martes 20/10»; las listas cierran con «Los demás pedidos ya están retirados»; m1 contesta «Sí, lo recibimos» con el pedido del 15/10 sin derivar; m4 deriva `pedido_no_encontrado`. Juez: 54 bien, 7 a medias, 7 mal (corrida 17: 52, 7, 9); los «mal» que quedan son los mismos falsos del juez de la corrida 17 (respuestas fijas que no registran herramientas, notas viejas) más m40, que sigue pendiente. **Gasto real US$ 0,070499** (Simulador 125 llamadas US$ 0,059971, juez 68 US$ 0,010528), igual al delta de `bot_token_usage` (US$ 22,471235 → 22,541734). Auditoría 862 y 865 cerradas con `c0b1ae4`. Cuadro de la corrida (mensaje, cant, respuesta): https://claude.ai/artifact/CYnRQkP341j6iBUdiBZmKp
+
 ---
 
 ## D049 — Agregar/cambiar un artículo sobre un pedido YA HECHO: lo hace Ventas (anexo + factura nueva si no salió) (2026-10-16)
