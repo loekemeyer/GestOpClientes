@@ -1742,7 +1742,12 @@ export async function runConversation(
     candidates.push({ id: idModeloPrueba(0), provider: "anthropic", model: opciones.modeloEval, key: apiKey, isFreeTier: false });
     soloPruebas = true;
   } else if (apiKey && (fuente === "lk_bot-simular" || fuente === "lk_chat-test")) {
-    const modelosPrueba = listaModelosPrueba(await getSetting("llm_modelo_pruebas"));
+    // Pablo, 16/10: la corrida nocturna GRATIS (solo_gratis) usa su propia lista de modelos gratis (llm_modelo_eval_gratis), para no
+    // depender de llm_modelo_pruebas, que desde el 16/10 apunta al modelo del piloto (Haiku, pago) con que se prueba el Simulador a mano.
+    // Si llm_modelo_eval_gratis está vacío, cae a llm_modelo_pruebas (lo de antes). El filtro soloGratis de más abajo igual descarta
+    // cualquier modelo pago, así que una lista mal cargada no gasta: a lo sumo la corrida no corre.
+    const claveModelos = opciones.soloGratis ? "llm_modelo_eval_gratis" : "llm_modelo_pruebas";
+    const modelosPrueba = listaModelosPrueba((await getSetting(claveModelos)) || (opciones.soloGratis ? await getSetting("llm_modelo_pruebas") : null));
     if (modelosPrueba.length) {
       candidates.length = 0;
       for (const [i, modelo] of modelosPrueba.entries()) {
