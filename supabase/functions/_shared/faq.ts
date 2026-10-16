@@ -15,7 +15,7 @@ import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
 import { codigosChef, datosCobranzas, datosEmpresas, deudaChefPorCuit, type FacturaDoc, facturasChef, textoDatosPago } from "./empresas.ts";
 import { fmtMinimo, minimoCliente } from "./minimo.ts";
 import { textoPedidoParaFecha, textoPlazo } from "./plazo-entrega.ts";
-import { depositoAbierto, pideConfirmacionPedido, textoEstadoRetiro, textoLlegando, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
+import { depositoAbierto, palabraCerrados, pideConfirmacionPedido, textoDemasCerrados, textoEstadoRetiro, textoLlegando, tituloConfirmado, tituloPorRetiro } from "./fecha-retiro.ts";
 import { avisaFacturaPorMail, PREGUNTA_MAIL_FACTURAS } from "./mail-facturas.ts";
 import { claseNombrada, derivacionExcel, pideExcel, PREGUNTA_EXCEL } from "./pasar-excel.ts";
 export { pideExcel };
@@ -961,7 +961,10 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     const m = modoOf(o);
     const cuando = t?.fecha_entrega ? ` el ${conDia(t.fecha_entrega)}` : "";
     const donde = m.modo === "expreso" ? ` en el expreso *${m.expreso}*` : "";
-    return `Todos tus pedidos están entregados. El último, del ${ddmm(o.created_at)}, se entregó${donde}${cuando}.${m.modo === "expreso" ? notaExpresoTxt : ""}\n\n${cierre}`;
+    // Pablo, 16/10 (auditoría 862): a quien retira, «retirados» y «se retiró» (fecha-retiro.ts, palabraCerrados).
+    const todos = palabraCerrados(orders.map((x) => modoOf(x).modo === "retira"));
+    const verbo = m.modo === "retira" ? "se retiró" : "se entregó";
+    return `Todos tus pedidos están ${todos}. El último, del ${ddmm(o.created_at)}, ${verbo}${donde}${cuando}.${m.modo === "expreso" ? notaExpresoTxt : ""}\n\n${cierre}`;
   }
 
   const estimada = new Map<string, string>();
@@ -1002,7 +1005,9 @@ export async function lookupOrderStatus(customer: NonNullable<Customer>, opts: {
     ? (unoSolo ? "este es tu pedido en curso" : "estos son tus pedidos en curso")
     : (tituloPorRetiro(visibles.map((o) => modoOf(o).modo === "retira"), unoSolo)
       ?? (unoSolo ? "este es tu pedido que falta entregar" : "estos son tus pedidos que faltan entregar"));
-  const resto = hayOcultos ? "Los demás pedidos ya están entregados. " : "";
+  // Pablo, 16/10 (auditoría 862): «Los demás pedidos ya están retirados» si el cliente los retiró (fecha-retiro.ts, textoDemasCerrados).
+  const visiblesIds = new Set(visibles.map((o) => String(o.id)));
+  const resto = hayOcultos ? textoDemasCerrados(orders.filter((o) => !visiblesIds.has(String(o.id))).map((o) => modoOf(o).modo === "retira")) : "";
   return `${conMayuscula(titulo)}:\n\n${lines.join("\n")}${notaExpreso}\n\n${resto}${cierre}`;
 }
 

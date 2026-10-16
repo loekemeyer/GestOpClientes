@@ -51,6 +51,55 @@ export function estadoRetiroParaIA(estado: string, fecha: string | null): string
   }
 }
 
+// ── Anulación y pedidos cerrados de quien RETIRA (Pablo Olejavetzky, 16/10/2026, corrida 17 de eval, auditoría 862) ──
+// La respuesta fija de anulación (respuesta-aviso.ts) le decía a un cliente que retira «ya está facturado y listo para salir» o «sale el martes 20/10», y la
+// lista de pedidos cerraba con «Los demás pedidos ya están entregados»: un pedido de retiro no sale ni se entrega, lo retira el cliente.
+
+/** Cómo sigue «Tu pedido del 15/10 …» en la respuesta de anulación. `retiro`: el pedido se retira en el depósito; `fecha`: yyyy-mm-dd o null. */
+export function estadoParaAnular(estado: string, fecha: string | null, retiro: boolean): string {
+  const conFecha = estado === "facturado" || estado === "programado" || estado === "en preparacion";
+  if (retiro && conFecha) return `ya está ${estadoRetiroParaIA(estado, fecha)}`;
+  if (estado === "facturado") return "ya está facturado y listo para salir";
+  if (estado === "programado" || estado === "en preparacion") return `ya está programado${fecha ? ` (sale el ${diaConFecha(fecha)})` : ""}`;
+  return "todavía no entró en preparación";
+}
+
+/** El estado de cada pedido en la pregunta «¿Cuál de tus pedidos querés anular?». */
+export function lineaParaAnular(estado: string, fecha: string | null, retiro: boolean): string {
+  const conFecha = estado === "facturado" || estado === "programado" || estado === "en preparacion";
+  if (retiro && conFecha) return estadoRetiroParaIA(estado, fecha);
+  if (estado === "facturado") return "facturado, listo para salir";
+  if (estado === "programado" || estado === "en preparacion") return `programado${fecha ? `, sale el ${diaConFecha(fecha)}` : ""}`;
+  return "recibido, todavía sin fecha de salida";
+}
+
+/** La respuesta a «¿cuándo llega?» después de un aviso automático (respuesta-aviso.ts, estadoPedido). `del`: « del 15/10» o ""; `fecha`: yyyy-mm-dd o null. */
+export function textoEstadoTrasAviso(del: string, estado: string, fecha: string | null, retiro: boolean): string {
+  const dia = fecha ? diaConFecha(fecha) : "";
+  if (estado === "entregado") {
+    return retiro
+      ? `Tu pedido${del} figura como retirado${dia ? ` el ${dia}` : ""}.`
+      : `Tu pedido${del} figura como entregado${dia ? ` el ${dia}` : ""}. Si no lo recibiste, avisanos por este medio y lo revisamos.`;
+  }
+  if (!dia || estado === "recibido" || !estado) {
+    return `Tu pedido${del} está recibido y todavía no tiene fecha ${retiro ? "para retirar" : "de entrega"}. Te avisamos por este medio apenas la tenga.`;
+  }
+  if (retiro) return `Tu pedido${del} está ${estadoRetiroParaIA(estado, fecha)}. Cualquier cambio te avisamos por este medio.`;
+  const etapa = estado === "en preparacion" ? "en preparación" : estado;
+  return `Tu pedido${del} está ${etapa} y sale el ${dia}. Cualquier cambio te avisamos por este medio.`;
+}
+
+/** Cómo se nombran los pedidos ya cerrados según cómo los recibió el cliente: «retirados» si todos se retiraron, «entregados» si ninguno, los dos si hay de ambos. */
+export function palabraCerrados(retiros: boolean[]): string {
+  if (retiros.length && retiros.every(Boolean)) return "retirados";
+  return retiros.some(Boolean) ? "entregados o retirados" : "entregados";
+}
+
+/** La frase de cierre de la lista para los pedidos que no se muestran (ya cerrados). Vacía si no hay ninguno oculto. */
+export function textoDemasCerrados(retiros: boolean[]): string {
+  return retiros.length ? `Los demás pedidos ya están ${palabraCerrados(retiros)}. ` : "";
+}
+
 // ── Retiro en el depósito: preguntar la franja y avisar a Ventas (Pablo Olejavetzky, 07/10/2026, correcciones m36 y m37) ──
 // "También debería consultar en qué horario estimativo pasa (mañana o tarde) y dar un aviso a Ventas para que lo tengan a mano" → "sí, ese texto".
 // Quien usa esto es respuesta-aviso.ts (pedidoDeCambio): la respuesta fija "Sí, podés retirar…" suma la pregunta y deja un aviso a Ventas (motivo entrega); si el cliente

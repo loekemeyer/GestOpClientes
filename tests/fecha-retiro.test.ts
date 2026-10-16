@@ -4,7 +4,7 @@
 // pedidos-marca.ts importa _shared/supabase.ts, que arma el cliente al cargar: se le dan una URL y una clave falsas (no se conecta).
 Deno.env.set("SUPABASE_URL", "http://localhost:54321");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "clave-falsa");
-const { textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido, diaConFecha, estadoRetiroParaIA, textoLlegando, depositoAbierto, PREGUNTA_FRANJA, textoRetiroConfirmado, textoFranjaConfirmada, franjaDeRetiro, retiroInformado } = await import("../supabase/functions/_shared/fecha-retiro.ts");
+const { estadoParaAnular, lineaParaAnular, textoEstadoTrasAviso, palabraCerrados, textoDemasCerrados, textoEstadoRetiro, tituloPorRetiro, tituloConfirmado, pideConfirmacionPedido, diaConFecha, estadoRetiroParaIA, textoLlegando, depositoAbierto, PREGUNTA_FRANJA, textoRetiroConfirmado, textoFranjaConfirmada, franjaDeRetiro, retiroInformado } = await import("../supabase/functions/_shared/fecha-retiro.ts");
 const { textoPedidosChef } = await import("../supabase/functions/_shared/pedidos-marca.ts");
 
 let fallas = 0;
@@ -96,6 +96,31 @@ igual("depósito: domingo 10:00 cerrado", depositoAbierto(ar("2026-10-11T13:00:0
 igual("depósito: viernes 13:00 abierto", depositoAbierto(ar("2026-10-09T16:00:00Z")), true);
 igual("depósito: feriado cerrado aunque sea día y hora hábil", depositoAbierto(ar("2026-10-07T13:00:00Z"), ["2026-10-07"]), false);
 igual("depósito: 23:30 del martes en UTC ya es miércoles 20:30 AR: cerrado", depositoAbierto(ar("2026-10-07T23:30:00Z")), false);
+
+// Anulación, respuesta a un aviso y pedidos cerrados de quien RETIRA (Pablo, 16/10, corrida 17, auditoría 862): nunca «sale», «listo para salir» ni «entregados».
+igual("anular retiro facturado (m16, mp03)", estadoParaAnular("facturado", "2026-10-20", true), "ya está facturado y listo para retirar desde el martes 20/10");
+igual("anular retiro programado", estadoParaAnular("programado", "2026-10-20", true), "ya está programado para el martes 20/10");
+igual("anular retiro en preparación", estadoParaAnular("en preparacion", "2026-10-20", true), "ya está en preparación en el depósito; va a estar listo para retirar desde el martes 20/10");
+igual("anular retiro recibido: igual que antes", estadoParaAnular("recibido", null, true), "todavía no entró en preparación");
+igual("anular reparto facturado: igual que antes", estadoParaAnular("facturado", "2026-10-20", false), "ya está facturado y listo para salir");
+igual("anular reparto programado: igual que antes", estadoParaAnular("programado", "2026-10-20", false), "ya está programado (sale el martes 20/10)");
+igual("anular reparto programado sin fecha", estadoParaAnular("programado", null, false), "ya está programado");
+for (const e of ["programado", "en preparacion", "facturado"]) igual(`anular retiro: ningún estado dice 'sal' (${e})`, /sal(e|ir|i[óo])\b/i.test(estadoParaAnular(e, "2026-10-20", true)), false);
+igual("lista para anular, retiro facturado", lineaParaAnular("facturado", "2026-10-20", true), "facturado y listo para retirar desde el martes 20/10");
+igual("lista para anular, reparto programado: igual que antes", lineaParaAnular("programado", "2026-10-20", false), "programado, sale el martes 20/10");
+igual("lista para anular, recibido", lineaParaAnular("recibido", null, true), "recibido, todavía sin fecha de salida");
+igual("tras aviso, retiro facturado", textoEstadoTrasAviso(" del 15/10", "facturado", "2026-10-20", true), "Tu pedido del 15/10 está facturado y listo para retirar desde el martes 20/10. Cualquier cambio te avisamos por este medio.");
+igual("tras aviso, retiro entregado = retirado", textoEstadoTrasAviso(" del 15/10", "entregado", "2026-10-20", true), "Tu pedido del 15/10 figura como retirado el martes 20/10.");
+igual("tras aviso, retiro sin fecha", textoEstadoTrasAviso(" del 15/10", "recibido", null, true), "Tu pedido del 15/10 está recibido y todavía no tiene fecha para retirar. Te avisamos por este medio apenas la tenga.");
+igual("tras aviso, reparto programado: igual que antes", textoEstadoTrasAviso(" del 15/10", "programado", "2026-10-20", false), "Tu pedido del 15/10 está programado y sale el martes 20/10. Cualquier cambio te avisamos por este medio.");
+igual("tras aviso, reparto entregado: igual que antes", textoEstadoTrasAviso("", "entregado", "2026-10-20", false), "Tu pedido figura como entregado el martes 20/10. Si no lo recibiste, avisanos por este medio y lo revisamos.");
+igual("cerrados: todos retiro", palabraCerrados([true, true]), "retirados");
+igual("cerrados: ninguno retiro", palabraCerrados([false]), "entregados");
+igual("cerrados: mezcla", palabraCerrados([true, false]), "entregados o retirados");
+igual("demás cerrados de quien retira (m14, m68)", textoDemasCerrados([true, true, true]), "Los demás pedidos ya están retirados. ");
+igual("demás cerrados: ninguno oculto", textoDemasCerrados([]), "");
+igual("Chef: lista con otro pedido retirado oculto dice «retirados»", (textoPedidosChef("Chef", [ped({}), ped({ creado: "2026-09-01T15:00:00Z", estado: "entregado", entregado_at: "2026-09-05", fecha_entrega: "2026-09-05", retiro: "2026-09-05" })], "2026-10-05") ?? "").includes("Los demás pedidos ya están retirados."), true);
+igual("Chef: todos retirados", (textoPedidosChef("Chef", [ped({ estado: "entregado", entregado_at: "2026-09-05", fecha_entrega: "2026-09-05", retiro: "2026-09-05" })], "2026-10-05") ?? "").includes("todos tus pedidos de Chef están retirados. El último, del 30/09, se retiró el sábado 05/09"), true);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");

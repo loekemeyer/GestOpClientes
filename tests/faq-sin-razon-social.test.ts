@@ -50,7 +50,7 @@ igual("faq.ts: texto por defecto «Tus descuentos son:» sin razón social", faq
 
 // ── Las 3 respuestas de estado de pedidos que arma el código tampoco empiezan con la razón social (Pablo: «Sí, sacala también de esas 3») ──
 igual("faq.ts: «No tenés pedidos recientes…» sin razón social", faq.includes('return `No tenés pedidos recientes (últimos 90 días).') && !faq.includes("${customer.business_name}, no tenés pedidos recientes"), true);
-igual("faq.ts: «Todos tus pedidos están entregados…» sin razón social", faq.includes("return `Todos tus pedidos están entregados. El último,") && !faq.includes("${customer.business_name}, todos tus pedidos"), true);
+igual("faq.ts: «Todos tus pedidos están entregados…» sin razón social", faq.includes("return `Todos tus pedidos están ${todos}. El último,") && !faq.includes("${customer.business_name}, todos tus pedidos"), true);
 igual("faq.ts: el listado de pedidos arranca con el título con mayúscula, sin razón social",
   faq.includes('return `${conMayuscula(titulo)}:\\n\\n${lines.join("\\n")}${notaExpreso}') && !faq.includes("${customer.business_name}, ${titulo}"), true);
 igual("conMayuscula sólo sube la primera letra", faq.includes("const conMayuscula = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);"), true);

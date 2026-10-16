@@ -27,6 +27,7 @@ import { hechosDeLaCharla } from "./hechos-charla.ts";
 import { articuloEnCurso, cajasRespaldadas } from "./articulo-en-curso.ts";
 import { debeForzarStock, llamadasDeStock, MAX_ARTICULOS_COMPUERTA, stockPorCodigoFaltante } from "./compuerta-stock.ts";
 import { debeForzarFoto, fotosAEnviar } from "./compuerta-foto.ts";
+import { conAvisoDeVentas, debeDerivarNoFigura } from "./compuerta-no-figura.ts";
 import { bloqueMemoria } from "./memoria-cliente.ts";
 import { anotarDuda } from "./dudas-agente.ts";
 import { bloquePistas } from "./mensaje-compuesto.ts";
@@ -1924,6 +1925,20 @@ export async function runConversation(
           usadas.push({ nombre: "enviar_fotos_producto", input: { cods: codsFoto, _compuerta: true }, resultado: JSON.stringify(rf.data).slice(0, 1500) });
           console.warn(`[compuerta-foto] el cliente pidió foto y no se llamó a enviar_fotos_producto: se mandan ${codsFoto.join(", ")} …${phone.slice(-4)}`);
         }
+      }
+    }
+
+    // Compuerta «no figura» (Pablo, 16/10, auditoría 865): el cliente dice que hizo un pedido, la respuesta dice que no figura y en el turno no se derivó.
+    // La derivación la hace el código (pedido_no_encontrado, urgente) y el borrador se conserva con el aviso de Ventas (compuerta-no-figura.ts).
+    if (!toolCalls.length) {
+      const enPedidoNoFigura = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
+      const borradorNoFigura = sinMarcaDeTramo(res.text ?? "");
+      if (debeDerivarNoFigura(userText, borradorNoFigura, usadas.map((u) => u.nombre), enPedidoNoFigura)) {
+        const entrada = { motivo: "pedido_no_encontrado", urgente: true, resumen: `El cliente dice que hizo un pedido que no figura: ${userText.slice(0, 300)}`, _compuerta: true };
+        const rd = await executeTool("derivar_a_persona", entrada, phone, { userText, historial: rawHistory });
+        usadas.push({ nombre: "derivar_a_persona", input: entrada, resultado: JSON.stringify(rd.data).slice(0, 1500) });
+        res.text = conAvisoDeVentas(borradorNoFigura);
+        console.warn(`[compuerta-no-figura] la respuesta dice que el pedido no figura y no se derivó: se deriva pedido_no_encontrado …${phone.slice(-4)}`);
       }
     }
 

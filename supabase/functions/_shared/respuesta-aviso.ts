@@ -16,7 +16,7 @@ import { getSetting, supabase } from "./supabase.ts";
 import { notificarHumano } from "./alertas.ts";
 import { SIM } from "./simulacion.ts";
 import { estadoPedidos, sinAnulados } from "./pedidos-anulados.ts";
-import { franjaDeRetiro, retiroInformado, textoFranjaConfirmada, textoRetiroConfirmado } from "./fecha-retiro.ts";
+import { estadoParaAnular, franjaDeRetiro, lineaParaAnular, retiroInformado, textoEstadoTrasAviso, textoFranjaConfirmada, textoRetiroConfirmado } from "./fecha-retiro.ts";
 import { claseNombrada, derivacionExcel, esRespuestaAExcel, PREGUNTA_EXCEL } from "./pasar-excel.ts";
 import { compararMails, mailsEscritos, mailsRegistrados, PREGUNTA_MAIL_FACTURAS, TEXTO_MAIL_COINCIDE, TEXTO_MAIL_NO_COINCIDE, TEXTO_MAIL_SIN_REGISTRO } from "./mail-facturas.ts";
 
@@ -150,23 +150,22 @@ const conDia = (ymd?: string | null) => {
   return `${DIAS[d.getUTCDay()]} ${ymd.slice(8, 10)}/${ymd.slice(5, 7)}`;
 };
 
+// ¿El pedido se retira en el depósito? (v_pedidos_web, misma regla que faq.ts). Si no se puede leer, no: queda el texto de siempre.
+async function esDeRetiro(pedido: number): Promise<boolean> {
+  const { data } = await supabase.from("v_pedidos_web").select("zona_expreso").eq("order_id", pedido).eq("linea_rn", 1).limit(1);
+  return /^retira/i.test(String((data?.[0] as { zona_expreso?: string | null } | undefined)?.zona_expreso ?? ""));
+}
+
 async function estadoPedido(pedido: number): Promise<string> {
-  const [{ data: ord }, { data: est }] = await Promise.all([
+  const [{ data: ord }, { data: est }, retiro] = await Promise.all([
     supabase.from("orders").select("created_at").eq("id", pedido).maybeSingle(),
     estadoPedidos([pedido]),
+    esDeRetiro(pedido),
   ]);
   const del = ord?.created_at ? ` del ${fechaCorta(ord.created_at)}` : "";
   const e = est?.[0];
-  const status = String(e?.status ?? "");
-  const fecha = e?.fecha_entrega ? conDia(String(e.fecha_entrega)) : "";
-  if (status === "entregado") {
-    return `Tu pedido${del} figura como entregado${fecha ? ` el ${fecha}` : ""}. Si no lo recibiste, avisanos por este medio y lo revisamos.`;
-  }
-  if (!fecha || status === "recibido" || !status) {
-    return `Tu pedido${del} está recibido y todavía no tiene fecha de entrega. Te avisamos por este medio apenas la tenga.`;
-  }
-  const etapa = status === "en preparacion" ? "en preparación" : status;
-  return `Tu pedido${del} está ${etapa} y sale el ${fecha}. Cualquier cambio te avisamos por este medio.`;
+  // Pablo, 16/10 (auditoría 862): a quien RETIRA no se le dice «sale el…» ni «entregado» (fecha-retiro.ts, textoEstadoTrasAviso).
+  return textoEstadoTrasAviso(del, String(e?.status ?? ""), e?.fecha_entrega ? String(e.fecha_entrega).slice(0, 10) : null, retiro);
 }
 
 /**
@@ -178,14 +177,12 @@ async function estadoPedido(pedido: number): Promise<string> {
 const RE_ANULA = /\b(anul\w*|cancel\w*|dar\s+de\s+baja|no\s+lo\s+(quiero|necesito)\s+m[aá]s)/i;
 async function anularPedido(
   phone: string, t: string, customer: { customer_id: string; business_name: string },
-  ped: { id: number | string; created_at: string }, e: { status?: string; fecha_entrega?: string | null } | undefined,
+  ped: { id: number | string; created_at: string }, e: { status?: string; fecha_entrega?: string | null } | undefined, retiro: boolean,
 ): Promise<string> {
   const del = fechaCorta(ped.created_at);
   const st = String(e?.status ?? "recibido");
-  const sale = e?.fecha_entrega ? ` (sale el ${conDia(String(e.fecha_entrega).slice(0, 10))})` : "";
-  const estado = st === "facturado" ? "ya está facturado y listo para salir"
-    : st === "programado" || st === "en preparacion" ? `ya está programado${sale}`
-    : "todavía no entró en preparación";
+  // Pablo, 16/10 (auditoría 862): a quien RETIRA no se le dice «listo para salir» ni «sale el…» (fecha-retiro.ts, estadoParaAnular).
+  const estado = estadoParaAnular(st, e?.fecha_entrega ? String(e.fecha_entrega).slice(0, 10) : null, retiro);
   await notificarHumano({
     tipo: "escalation", phone, customerId: customer.customer_id,
     contexto: { motivo: "anulacion_pedido", pedido: ped.id, texto_recibido: t.slice(0, 300), estado_pedido: st,
@@ -274,12 +271,15 @@ export async function pedidoDeCambio(
     const elegido = fechaDicha
       ? vivos.find((o) => fechaCorta(o.created_at) === `${fechaDicha[1].padStart(2, "0")}/${fechaDicha[2].padStart(2, "0")}`)
       : vivos.length === 1 ? vivos[0] : undefined;
-    if (elegido) return await anularPedido(phone, t, customer, elegido, estDe(elegido));
+    // Modo de entrega (v_pedidos_web, misma regla que faq.ts): un pedido de retiro no «sale» (auditoría 862).
+    const { data: modosAnula } = await supabase.from("v_pedidos_web").select("order_id, zona_expreso")
+      .in("order_id", vivos.map((o) => o.id)).eq("linea_rn", 1);
+    const retiraAnula = new Set((modosAnula ?? []).filter((v: { zona_expreso: string | null }) => /^retira/i.test(String(v.zona_expreso ?? "")))
+      .map((v: { order_id: number }) => Number(v.order_id)));
+    if (elegido) return await anularPedido(phone, t, customer, elegido, estDe(elegido), retiraAnula.has(Number(elegido.id)));
     const lista = vivos.slice(0, 5).map((o, i) => {
       const e = estDe(o);
-      const st = String(e?.status ?? "recibido");
-      const txt = st === "facturado" ? "facturado, listo para salir" : st === "programado" || st === "en preparacion"
-        ? `programado${e?.fecha_entrega ? `, sale el ${conDia(String(e.fecha_entrega).slice(0, 10))}` : ""}` : "recibido, todavía sin fecha de salida";
+      const txt = lineaParaAnular(String(e?.status ?? "recibido"), e?.fecha_entrega ? String(e.fecha_entrega).slice(0, 10) : null, retiraAnula.has(Number(o.id)));
       return `${i + 1}️⃣ Pedido del ${fechaCorta(o.created_at)} — ${txt}`;
     });
     return `¿Cuál de tus pedidos querés anular?\n\n${lista.join("\n")}\n\nConfirmame de qué fecha es y lo reviso.`;
@@ -446,11 +446,12 @@ export async function responderAviso(
   if (aviso.plantilla.startsWith("pedido_recordatorio_descuento")) return await responderRecordatorio(phone, t, customer, aviso);
 
   if (RE_ANULA.test(t) && aviso.pedido) {
-    const [{ data: ord }, { data: est }] = await Promise.all([
+    const [{ data: ord }, { data: est }, retiro] = await Promise.all([
       supabase.from("orders").select("id, created_at").eq("id", aviso.pedido).maybeSingle(),
       estadoPedidos([aviso.pedido]),
+      esDeRetiro(aviso.pedido),
     ]);
-    if (ord) return await anularPedido(phone, t, customer, ord, est?.[0]);
+    if (ord) return await anularPedido(phone, t, customer, ord, est?.[0], retiro);
   }
   if (RE_CAMBIO.test(t) && !(RE_AGREGA.test(t) && !(RE_SACAR.test(t) || /\b(cancel|anul)/i.test(t)))) {
     await notificarHumano({

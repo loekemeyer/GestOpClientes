@@ -21,7 +21,7 @@ import { getGestionClient, supabase } from "./supabase.ts";
 import { pedidosAnulados } from "./pedidos-anulados.ts";
 import { cuitNorm } from "./empresas.ts";
 import { RE_ESTADO_PEDIDO, RE_INGRESO, RE_NO_LLEGO, RE_PLAZO_ENTREGA } from "./faq.ts";
-import { textoEstadoRetiro, tituloPorRetiro } from "./fecha-retiro.ts";
+import { palabraCerrados, textoDemasCerrados, textoEstadoRetiro, tituloPorRetiro } from "./fecha-retiro.ts";
 
 export type Marca = "lk" | "chef" | "ambas";
 
@@ -121,7 +121,9 @@ export function textoPedidosChef(
     }
     const u = nuevos[0];
     const cuando = u.entregado_at ?? u.fecha_entrega;
-    return `${saludo}todos tus pedidos de Chef están entregados. El último, del ${ddmm(diaAR(u.creado))}, ${cuando ? `se entregó el ${conDia(String(cuando))}` : "figura entregado"}.${cola}`;
+    // Pablo, 16/10 (auditoría 862): a quien retira, «retirados» y «se retiró» (fecha-retiro.ts).
+    const [hizo, figura] = u.retiro ? ["se retiró", "figura retirado"] : ["se entregó", "figura entregado"];
+    return `${saludo}todos tus pedidos de Chef están ${palabraCerrados(nuevos.map((p) => !!p.retiro))}. El último, del ${ddmm(diaAR(u.creado))}, ${cuando ? `${hizo} el ${conDia(String(cuando))}` : figura}.${cola}`;
   }
 
   const variasSuc = new Set(visibles.map((p) => p.sucursal ?? "")).size > 1;
@@ -135,7 +137,7 @@ export function textoPedidosChef(
     }
     const texto = ESTADO_TXT[estado] ?? estado;
     if (estado === "entregado") {
-      l += texto;
+      l += p.retiro ? "✅ retirado" : texto;
       const cuando = p.entregado_at ?? p.fecha_entrega;
       if (cuando) l += ` el ${conDia(String(cuando))}`;
     } else if (p.retiro && CON_FECHA.has(estado)) {
@@ -154,7 +156,7 @@ export function textoPedidosChef(
     ? (unoSolo ? "este es tu pedido de Chef en curso" : "estos son tus pedidos de Chef en curso")
     : (tituloPorRetiro(visibles.map((p) => !!p.retiro), unoSolo, "de Chef")
       ?? (unoSolo ? "este es tu pedido de Chef que falta entregar" : "estos son tus pedidos de Chef que faltan entregar"));
-  const resto = nuevos.length > visibles.length ? "Los demás pedidos ya están entregados. " : "";
+  const resto = textoDemasCerrados(nuevos.filter((p) => !visibles.includes(p)).map((p) => !!p.retiro));
   const cabecera = opts.sinNombre ? titulo.charAt(0).toUpperCase() + titulo.slice(1) : `${saludo}${titulo}`;   // sin nombre, arranca una oración
   return `${cabecera}:\n\n${lineas.join("\n")}\n\n${resto}${cierre ? CIERRE_PEDIDOS : ""}`.trimEnd();
 }

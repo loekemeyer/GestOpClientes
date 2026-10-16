@@ -887,3 +887,19 @@ Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas
 **Por qué no se forzó una precarga de prueba** (lo ofrecí, Pablo dijo sí, pero al ir a hacerlo apareció el bloqueo): la vista sólo muestra charlas cerradas (>12 h sin mensaje), así que una precarga insertada ahora no se vería hasta dentro de 12 h; y para verla ya habría que fabricar además una charla histórica en `bot_historial_chat`, dos filas en tablas reales que no se pueden borrar sin un "sí" aparte (borrados fuera de la excepción de BD). La prueba por `CASE` da la misma certeza sin ensuciar datos.
 
 **Estado del plan de los 8 al 16/10:** 1, 2 y 4 ok; 3, 5, 6, 7 y 8 parciales (esperan tráfico real del piloto 19-23/10, no código); ninguno en "no". `docs/PLAN-AGENTE-8-PUNTOS-2026-10-13.md` actualizado.
+
+## D048 — Defectos de la corrida 17: quien retira nunca «sale» ni está «entregado», y «no figura ese pedido» siempre deriva (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"Si corregilos y volve a correrlos, que quede todo perfecto"*).
+
+**1. Retiro (auditoría 862).** La respuesta fija de anulación le decía a un cliente que retira «ya está facturado y listo para salir» o «sale el martes 20/10». Mismo defecto en los casos hermanos, corregidos también:
+- la lista «¿Cuál de tus pedidos querés anular?»;
+- la respuesta a «¿cuándo llega?» después de un aviso (`estadoPedido`: «figura como entregado», «sale el…», «sin fecha de entrega»);
+- el cierre de la lista de pedidos de LK y de Chef: «Los demás pedidos ya están entregados» y «Todos tus pedidos están entregados… se entregó».
+Ahora dicen «listo para retirar desde…», «programado para el…», «retirado» y «retirados» (o «entregados o retirados» si hay de los dos). El modo sale de `v_pedidos_web.zona_expreso` (misma regla que `faq.ts`). Textos puros en `_shared/fecha-retiro.ts` (`estadoParaAnular`, `lineaParaAnular`, `textoEstadoTrasAviso`, `palabraCerrados`, `textoDemasCerrados`) con pruebas en `tests/fecha-retiro.test.ts`. Para reparto y expreso el texto queda igual que antes.
+
+**2. «No me figura ese pedido» (auditoría 865).** Dos arreglos:
+- **Regla QUÉ PEDIDO ES** (`agente-fijos.ts`): si el cliente dice que hizo un pedido sin fecha y hay uno de los últimos 7 días sin entregar ni retirar, ése es su pedido: se confirma con su estado y no se deriva. Si dice «recién» u «hoy», es el de hoy o el de ayer. «No te figura» queda sólo para fecha que no coincide, «recién» sin pedido de hoy ni de ayer, o ningún pedido abierto de 7 días. **Los umbrales (7 días, hoy o ayer) los puse yo**, no Pablo: se pueden cambiar.
+- **Compuerta por código** (`_shared/compuerta-no-figura.ts` + test, cableada en `bot-conversation.ts`): si el cliente dice que hizo un pedido, la respuesta dice que no figura y el turno no derivó, el código deriva `pedido_no_encontrado` (urgente) y suma el aviso aprobado «Le aviso a una persona de Ventas…», sacando la pregunta «¿es alguno de estos?». Caso real: m4 («metí un pedido el 17/9») no derivaba.
+
+**Dónde:** `respuesta-aviso.ts`, `faq.ts`, `pedidos-marca.ts`, `fecha-retiro.ts`, `agente-fijos.ts`, `bot-conversation.ts`, `compuerta-no-figura.ts`. Planify 6088.
