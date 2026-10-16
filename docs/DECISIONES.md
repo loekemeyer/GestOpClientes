@@ -816,3 +816,19 @@ Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas
 **Qué NO cubre:** un **PDF** sin texto (la visión Fase A sólo mira imágenes JPEG/PNG/WebP). Un PDF con la palabra «comprobante» en el texto sí lo agarra el camino por texto; un PDF-comprobante sin texto queda sin reconocer (gap menor, no planteado por Pablo).
 
 **Dónde:** `_shared/vision-producto.ts` (tipo `comprobante`, prompt Fase A), `lk_whatsapp-webhook/index.ts` (rama de visión). Entra cuando CI deploye. Sin eval automática: la ruta es por visión con imagen, el Simulador por texto no la ejercita.
+
+---
+
+## D044 — Reconocer el ARTÍCULO EXACTO de una foto: match imagen-contra-imagen (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"quiero que me encuentre el modelo exacto"* → *"Si armalo"*, con "sí" al estimativo de prueba Haiku).
+
+**Problema:** la visión gratis (Fase A) describe la foto en 2-5 palabras y el agente busca por ese texto: trae la categoría entera y pregunta "¿cuál es?". Caso real: foto del abrelatas a manija (cod **501**), la visión dijo "abrelatas manual de mesa", el agente mandó las 5 fotos de abrelatas y preguntó. Pablo: no sirve, quiere el código exacto.
+
+**Decisión:** para el código exacto no alcanza con describir, hay que **comparar la foto del cliente contra las fotos de los candidatos del catálogo** con un modelo multimodal. Nuevo `_shared/match-foto-producto.ts`: acota candidatos con `bot_buscar_productos`, baja sus fotos (`bot_obtener_imagenes_producto`) y le pasa al modelo la foto del cliente + las de los candidatos. Devuelve `cod` + `confianza` + `alternativas`. El webhook (rama búsqueda) le pasa el código reconocido al agente para que ofrezca ESE (confianza alta) o los 1-2 más probables (media/baja), en vez de dumpear la categoría.
+
+**Techo honesto (dicho a Pablo):** si el artículo **no está en catálogo**, `cod = null` (no se inventa). Dos variantes casi iguales desde mal ángulo → confianza media/baja y el agente ofrece las 2, no elige.
+
+**Gasto:** LLEVA PLATA (visión paga, no Gemini). **Gateado por `app_settings.wa_match_foto_modelo`** (vacío = apagado, como `wa_vision_modelo`). Prueba con `claude-haiku-5-5`, estimativo ~US$ 0,002-0,003 por foto; se mide con `bot_token_usage` (motivo `match_foto`) y se apaga después. Si Haiku no distingue variantes finas, estimativo aparte de Sonnet (su tope de US$ 1 ya está pasado, necesita "sí").
+
+**Dónde:** `_shared/match-foto-producto.ts` (+ `-puro.ts` con `parseMatch`, + test), `lk_whatsapp-webhook/index.ts` (rama búsqueda, import y gate). Commit `5ba87f0`. Entra cuando CI deploye. Sin eval automática (ruta de visión con imagen, el Simulador por texto no la ejercita).
