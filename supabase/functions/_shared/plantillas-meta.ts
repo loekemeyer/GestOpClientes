@@ -136,7 +136,9 @@ export const PLANTILLAS: PlantillaMeta[] = [
     name: "pedido_listo_retirar",
     language: ES, category: UT,
     // Horario = franjas de retiro de la web (9:00 a 12:00 y 13:00 a 16:30), Pablo 29/09.
-    disparo: "Retira en depósito: el pedido web llega a 'facturado' en Gestión (cron lk_aviso-retiro-web, sql/083).",
+    disparo: "Retira en depósito: el pedido web llega a 'facturado' en Gestión Y se subió el PDF de su factura (cron lk_aviso-retiro-web, sql/083 y sql/164).",
+    // Pablo, 16/10 (D045, sql/164): 'facturado' en Gestión es la descarga del Excel de facturación, no la factura. El aviso
+    // espera el PDF de la factura de cada NP (virgilio.comprobantes_venta), que llega una mediana de 15 min después.
     // Sin la doble presentación (Pablo, 29/09, sql/094). Pablo, 30/09 (auditoría): suma hasta cuándo retirarlo = la
     // fecha acordada (fecha de entrega en Gestión; al día siguiente se desarma). {{2}} lleva el artículo ("el jueves
     // 02/10", o "la fecha acordada" si Gestión no tiene fecha). En Meta la v1 era {nombre, fecha}: el cron arma las
