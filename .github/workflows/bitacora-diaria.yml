@@ -1,0 +1,44 @@
+name: Bitácora diaria
+
+# Carga la bitácora del día de AYER en el calendario del dashboard (public.bitacora_dias de
+# PaginaLK). Reemplaza a la Routine de Claude, que no podía escribir la página (la sesión
+# desatendida no tenía cómo: el clasificador bloqueaba el curl y no tenía MCP de Supabase).
+# Acá el repo ya está clonado (git log nativo) y se escribe por la Management API de Supabase
+# con SUPABASE_ACCESS_TOKEN — el MISMO secreto que usa el deploy, sin claves anon/service.
+
+on:
+  schedule:
+    - cron: "7 11 * * *" # 11:07 UTC = 08:07 ART (procesa el día de ayer)
+  workflow_dispatch:
+    inputs:
+      dia:
+        description: "Día a cargar YYYY-MM-DD (vacío = ayer, hora de Argentina)"
+        required: false
+        default: ""
+
+concurrency:
+  group: bitacora-diaria
+  cancel-in-progress: false
+
+jobs:
+  cargar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historia completa: el conteo de commits del día la necesita
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Cargar la bitácora del día
+        run: |
+          set -e
+          if [ -n "${{ github.event.inputs.dia }}" ]; then
+            node scripts/reporte-diario/bitacora-cargar.mjs --dia "${{ github.event.inputs.dia }}"
+          else
+            node scripts/reporte-diario/bitacora-cargar.mjs
+          fi
