@@ -216,7 +216,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "El cliente de Loekemeyer manda un comprobante de pago (imagen o PDF que habla de pago o transferencia). Pasa por el webhook (handleAdjunto): hoy sale como texto libre dentro de las 24 h.",
     variables: ["datos de Cobranzas de Loekemeyer (ficha Empresas), ej. \"WhatsApp 11 6557-4113\""],
-    body: "Recibimos tu comprobante de pago de Loekemeyer.\nCobranzas lo revisa y te confirma por este medio.\nPara consultas sobre tus pagos podés comunicarte con Cobranzas: {{1}}\nGracias.",
+    body: "Recibimos tu comprobante.\nCobranzas lo revisa y te confirma desde su celular.\nLa próxima vez enviá el comprobante directamente a Cobranzas: {{1}} — así lo gestionan más rápido.\nGracias.",
     ejemplos: ["WhatsApp 11 6557-4113"],
   },
   {
@@ -224,7 +224,7 @@ export const PLANTILLAS: PlantillaMeta[] = [
     language: ES, category: UT,
     disparo: "El cliente de Chef (sólo tiene cuenta en Chef) manda un comprobante de pago. Mismo flujo que comprobante_recibido, con los datos de Cobranzas de Chef.",
     variables: ["datos de Cobranzas de Chef (ficha Empresas), ej. \"cobranzas@chefsrl.com\""],
-    body: "Recibimos tu comprobante de pago de Chef.\nCobranzas lo revisa y te confirma por este medio.\nPara consultas sobre tus pagos podés comunicarte con Cobranzas: {{1}}\nGracias.",
+    body: "Recibimos tu comprobante.\nCobranzas lo revisa y te confirma.\nPara consultas sobre tus pagos, escribí a Cobranzas: {{1}}\nGracias.",
     ejemplos: ["cobranzas@chefsrl.com"],
   },
 

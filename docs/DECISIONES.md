@@ -790,3 +790,15 @@ ambas aplicadas en vivo en PaginaLK con `execute_sql` (grants a `service_role`).
 **Verificado por Pablo en el Simulador (16/10):** el 501 y la foto responden bien con los dos arreglos en vivo. Tarea 6034 (mensajes separados) cerrada; 6018 (pulir 4210) **cerrada el 16/10**: las 3 derivaciones (anular, cambio de artículos, pedido que no figura) salieron bien en el Simulador.
 
 **Hallazgos de hoy convertidos en eval automática (16/10, Pablo: «Sí»):** se sumaron 3 casos `origen = 'multipaso'` a `wa_agente_evals` (mp09 stock+precio+foto juntos, mp10 las 4 preguntas con el stock del 501, mp11 «¿cuándo llega?» de un cliente que retira), ids 116-118. Ahora el cron semanal con Haiku y la nocturna gratis corren **11 casos** (antes 8) y el juez los chequea solos: un cambio futuro que rompa esto salta sin probar a mano. +US$ 0,02-0,03 por corrida semanal (con el «sí» de Pablo, dato corregido en `CLAUDE.md`). Criterio (Pablo): lo valioso no es seguir probando a mano los mismos patrones sino dejarlos cubiertos por la eval.
+
+---
+
+## D042 — Respuesta al comprobante de pago: sin marca, Cobranzas confirma desde su celular, el próximo va directo (2026-10-16)
+
+**Quién:** Pablo Olejavetzky. **Qué:** en la respuesta al comprobante de pago, sacar «de Loekemeyer» (queda «Recibimos tu comprobante»), decir que **Cobranzas confirma desde su celular** (no «por este medio») y avisar que **el próximo comprobante lo manden directo a Cobranzas**.
+- **LK** (`comprobante_recibido`): `{{1}}` es el WhatsApp de Cobranzas (11 6557-4113), así que va el texto completo con el «enviá el próximo directamente a Cobranzas: {{1}}».
+- ⚠ **Chef** (`comprobante_recibido_chef`): su Cobranzas es un **mail** (`cobranzas@chefsrl.com`), así que NO dice «desde su celular» ni «mandalo directo»: sólo saca la marca y mantiene «escribí a Cobranzas: {{1}}». Esto lo marqué yo; Pablo pidió el cambio mirando la de LK.
+
+Ambas salen como **texto libre dentro de las 24 h** (no son plantillas aprobadas de Meta para este flujo, ver `disparo`), así que el cambio no necesita re-aprobación de Meta. **Dónde:** `_shared/plantillas-meta.ts`. Tarea 6050 de Planify (64).
+
+**⚠ Gap de detección que planteó Pablo (16/10), queda ABIERTO:** si el cliente manda **sólo la imagen/PDF sin texto**, el bot NO lo reconoce como comprobante. La clase «pago» (`lk_whatsapp-webhook`, `handleAdjunto`) exige que `RE_ADJ_PAGO` matchee el caption o un mensaje de los últimos 30 min (comprobante, transfer, pago, depósito, cheque, echeq…). Sin texto cae en «otro» y responde el genérico «Recibimos tu archivo». La visión del lector corre DESPUÉS de clasificar, así que no ayuda. Opciones a decidir: (a) clasificar con visión por defecto cada imagen/PDF (cuesta una llamada por adjunto), (b) tratar un PDF como probable comprobante (riesgo: constancia de ARCA, que ya se maneja aparte), (c) si llega un adjunto sin contexto de un cliente, preguntar «¿es un comprobante de pago?».
