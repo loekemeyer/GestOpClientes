@@ -64,6 +64,7 @@ import { leerConstancia } from "../_shared/constancia.ts";
 import { lineaSegura } from "../_shared/dato-externo.ts";
 import { contextoAlertaArchivo, MOTIVO_ARCHIVO_SOSPECHOSO, VENTANA_AVISO_MS } from "../_shared/archivo-sospechoso.ts";
 import { describirFotoProducto } from "../_shared/vision-producto.ts";
+import { type CandidatoFoto, matchFotoProducto, MAX_CANDIDATOS } from "../_shared/match-foto-producto.ts";
 
 // Auditoría de performance (02/10/2026): este webhook leía app_settings ~17 veces por mensaje, un viaje a la base cada una
 // (3 ó 4 sólo en loadConfig, antes de mirar el mensaje). Ahora la tabla (40 filas, 8 KB) se lee ENTERA una vez por mensaje
@@ -736,11 +737,43 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
     }
     // El agente es producción (modelo real): respeta el tope de gasto diario. Ya no se corta (Pablo, 14/10): pasado el tope contesta igual, pero degradado (sólo modelos gratis / Haiku).
     if (vista.tipo === "busqueda") {
+      // Pablo, 16/10: "quiero que me encuentre el modelo exacto". Describir no alcanza (trae la categoría entera), así que si está
+      // seteado wa_match_foto_modelo se compara la foto del cliente contra las fotos de los candidatos del catálogo (match-foto-producto.ts,
+      // visión PAGA, por eso gateado). El código reconocido se le pasa al agente para que ofrezca ESE, en vez de dejarlo que pregunte "¿cuál?".
+      let instruccion = `Te mando una foto de un producto que estoy buscando. En la foto se ve: ${vista.terminos}. ¿Qué tenés parecido? Mostrame opciones con la foto.`;
+      let matchDiag: Record<string, unknown> | null = null;
+      const matchModelo = ((await getSetting("wa_match_foto_modelo")) ?? "").trim();
+      if (matchModelo && archivo) {
+        try {
+          const { data: cands } = await supabase.rpc("bot_buscar_productos", { p_query: vista.terminos, p_limit: 8 });
+          const candidatos: CandidatoFoto[] = [];
+          for (const row of ((cands ?? []) as Array<{ cod: unknown; description: unknown }>).slice(0, MAX_CANDIDATOS)) {
+            const cod = String(row.cod ?? "").trim();
+            if (!cod) continue;
+            const { data: imgs } = await supabase.rpc("bot_obtener_imagenes_producto", { p_cod: cod });
+            const url = (imgs as Array<{ image_urls?: string[] }> | null)?.[0]?.image_urls?.[0];
+            if (url) candidatos.push({ cod, description: String(row.description ?? ""), url });
+          }
+          if (candidatos.length) {
+            const m = await matchFotoProducto(cfg.anthropicKey, { bytes: archivo.bytes, mime: archivo.mime }, candidatos, matchModelo, phone);
+            matchDiag = { modelo: matchModelo, cod: m.cod, confianza: m.confianza, alternativas: m.alternativas, gasto_usd: m.gasto_usd, raw: m.raw || null };
+            if (m.cod) {
+              const desc = candidatos.find((c) => c.cod === m.cod)?.description ?? "";
+              const otros = m.alternativas.length ? m.alternativas.join(" o ") : "";
+              instruccion = m.confianza === "alta"
+                ? `Te mando una foto de un producto. [Sistema: la foto coincide con el código ${m.cod} (${desc}). Ofrecé ESE artículo, mostrá su foto y confirmá que es el que busca; si pide stock o precio, consultá la herramienta.${otros ? ` Si dice que no es, el otro parecido es el código ${otros}.` : ""}]`
+                : `Te mando una foto de un producto. [Sistema: lo más parecido es el código ${m.cod} (${desc})${otros ? `, y también podría ser el ${otros}` : ""}. Mostrá ese/esos con la foto y preguntá cuál es; no afirmes cuál es si no estás seguro.]`;
+            }
+            // cod null → el artículo no está en el catálogo (o no se pudo comparar): se queda con la instrucción genérica de ofrecer opciones.
+          }
+        } catch (e) { console.error("[match-foto] webhook:", e instanceof Error ? e.message : e); }
+      }
+      // El agente es producción (modelo real): respeta el tope de gasto diario. Ya no se corta (Pablo, 14/10): pasado el tope contesta igual, pero degradado (sólo modelos gratis / Haiku).
       const nivelG = (await nivelGastoDiario()).nivel;
       const degradado = nivelG === "degradar" || nivelG === "escalar";
       iaEmpieza(phone);
       const result = await runConversation(
-        `Te mando una foto de un producto que estoy buscando. En la foto se ve: ${vista.terminos}. ¿Qué tenés parecido? Mostrame opciones con la foto.`,
+        instruccion,
         phone, customer.business_name, customer.cod_cliente, customer.dto_vol, cfg.anthropicKey, "lk_whatsapp-webhook",
         { degradado },
       ).finally(() => iaTermina(phone));
@@ -750,7 +783,8 @@ async function handleAdjunto(msg: AdjuntoMsg, cfg: Config, msgAudio?: string): P
       }
       if (result.media.length) await sendMediaActions(result.media, phone, cfg);
       if (result.reply?.trim()) await responder(result.reply);
-      await alerta("adjunto_recibido", { motivo: "foto_producto", vision: vista.terminos, comprobante_id: comprobanteId, mime });
+      await alerta("adjunto_recibido", { motivo: "foto_producto", vision: vista.terminos,
+        ...(matchDiag ? { match: matchDiag } : {}), comprobante_id: comprobanteId, mime });
       return;
     }
     // "lista" / "sin_vision": sigue el flujo de pedido por archivo de abajo.
