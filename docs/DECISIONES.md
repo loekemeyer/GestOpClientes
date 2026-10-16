@@ -975,3 +975,17 @@ Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estab
 **Cuando llegue el modo:** el cron mapea retirado→`pedido_retirado`, entregado+reparto→`pedido_entregado`, entregado+expreso→`pedido_en_expreso`, se saca el filtro `es_web` y se quita la rama "entregado" del trigger web → un solo camino.
 
 **Mientras tanto (no se rompe nada):** web (incl. expreso, con detección de modo) sigue por el trigger; no web por el cron. No se pisan (partición por `es_web`). El "en viaje" queda como está (cron `wa_avisos_en_viaje_web`).
+
+---
+
+## D050 — Investigación "el agente inventa una factura": era el reenvío de factura (capa fija), no alucinación (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"Investiga a fondo esto"*).
+
+**Qué se creía:** en la corrida 18 el caso `factura` (eval_id 4, "Necesito la factura del último pedido") respondió "Te envío la factura del 16/10 (total $92.112). Ya figura pagada. Factura A 0004-00036276.pdf" con `herramientas = null`. Primera lectura (mía): el agente inventó un documento fiscal. Registré el problema 878.
+
+**Qué pasó de verdad:** el campo `antes.camino` del resultado dice **`fija #10`**: la respuesta NO la generó la IA, la dio la **capa fija FAQ de REENVÍO DE FACTURA** (Pablo 30/09, `faq.ts` línea 1228). Esa capa busca la **factura real** del cliente en `isis_lk.documentos`, la manda en PDF y, si no tiene saldo, dice "ya figura pagada". La factura A 0004-00036276 por $92.112 es la **real** del cliente 4210 (pedido 1692, ver D045, el PDF se subió el 16/10 12:52). `herramientas` quedó null porque la capa fija no llama tools del agente. **No hubo invención: es la feature funcionando.**
+
+**Acciones:** problema 878 → `descartado` (con la causa). Nota del eval `id 4` corregida para describir el reenvío (correcto cuando manda la factura real; deriva a Cobranzas sólo si no se puede). El juez la marcaba "mal" por una nota vieja, no por el bot.
+
+**Lección:** antes de declarar "el agente alucinó", mirar `antes.camino` (ia vs fija) y `herramientas`. Varios "mal" de la corrida eran notas/juez desactualizados, no defectos del bot. Dos casos siguen abiertos como BORDERLINE (no defecto claro): `descuento` (eval_id 2) — la IA a veces da la escala estándar (`consultar_mis_descuentos`) y a veces los descuentos por fecha de pago de la factura abierta (`consultar_mis_facturas`): las dos son aceptables; `mp06` (eval_id 109) — ante un cambio de un artículo que NO está en el pedido, el agente aclara en vez de derivar a ciegas. Pendiente que Pablo diga si los considera defectos antes de tocar `agente-fijos.ts`.
