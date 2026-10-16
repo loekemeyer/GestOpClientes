@@ -57,6 +57,20 @@ Lo ideal: exponerlo en la **misma vista FDW** `virgilio.gv_pedido_web_estado_pag
 hermana) como columnas, para no tocar la cañería de sincronización. Por ejemplo
 `remito_marcado_at timestamptz` y, si hace falta, `remito_tipo text`.
 
+> ⚠ **Estado 16/10 — lo entregado vs. lo que falta (el bloqueo para unificar TODO).** Virgilio ya
+> expone `virgilio.gv_remitos_controlados_bot` (`np`, `tipo` = `retirado`|`entregado`, `cod_cliente`,
+> `controlado_at`, `empresa`, `es_web`) y el cron `wa_avisos_remito_entregado` ya la consume para los
+> **no web** (`es_web = false`). **Falta el MODO:** el feed NO distingue **expreso** de **reparto**
+> (sólo `tipo`), y desde PaginaLK **no hay puente `np`→`order_id`** para deducirlo (`v_pedidos_web`
+> se cruza por `order_id`, el feed trae el `np` string tipo «LK 0309»; `cod_isis` no matchea). Como el
+> **expreso es el modo más grande** (571 de 1.260 pedidos web; reparto 473, retira 216), sin el modo
+> no se puede sacar el filtro `es_web` para unificar: a los de expreso se les mandaría «pedido
+> entregado» cuando en realidad lo entrega el expreso, no LK. **Pedido a Luis:** sumar al feed el
+> **modo** (`expreso`|`reparto`|`retira`) o un flag `es_expreso` + nombre del expreso, igual que ya
+> manda `tipo`. Con eso el cron mapea los tres (retirado→`pedido_retirado`, entregado+reparto→
+> `pedido_entregado`, entregado+expreso→`pedido_en_expreso`) y se saca la rama «entregado» del trigger
+> web → un solo camino.
+
 ## Dos formas de integrarlo (a decidir con Luis + Pablo al implementar)
 
 **Opción A — reusar el estado `entregado` (cambio mínimo).** La marca del remito en Virgilio pone

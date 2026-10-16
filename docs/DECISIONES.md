@@ -961,3 +961,17 @@ Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estab
 **Buscador**: input en la pestaña Bitácora (`btBuscar` en `docs/gestop2.js`, estilo en `docs/index.html`, badge v0.29.8). Filtra **en el navegador** sobre los días ya cargados en `BT.dias` (no pega a la base), busca la palabra en el resumen (viñetas) y en el detalle técnico (asuntos), insensible a mayúsculas y acentos (`btFold` preserva la longitud para poder resaltar), y lista las fechas que coinciden, cada una abre el día. Responde "¿qué día hice tal cosa?".
 
 **Dónde quedó**: commit `b9bdbd7`. Sin cambios de backend del bot; versión visible del dashboard v0.29.8.
+
+## D052 — Unificar TODOS los avisos de entrega por el remito controlado: bloqueado por falta del modo en el feed (2026-10-16)
+
+**Quién:** Pablo Olejavetzky (*"Hagamos que todo fluya por el mismo camino"*).
+
+**Objetivo:** que retirado / entregado / recibido-por-expreso salgan todos del **remito marcado como controlado** en Gestión/Virgilio (`virgilio.gv_remitos_controlados_bot` → cron `wa_avisos_remito_entregado`), para web y no web, y sacar la rama "entregado" del trigger `trg_order_tracking_notify` (hoy el web dispara por el `entregado` de Gestión, sql/168).
+
+**Bloqueo [Seguro]:** el feed trae `tipo` (`retirado`/`entregado`) pero NO el **modo**. No distingue **expreso** de **reparto**, y desde PaginaLK no hay puente `np`→`order_id` para deducirlo (`v_pedidos_web` se cruza por `order_id`; el feed trae el `np` string; `cod_isis` no matchea). El **expreso es el modo más grande** (571 de 1.260 pedidos web; reparto 473, retira 216): sin el modo, sacar el filtro `es_web` del cron le mandaría «pedido entregado» a los de expreso, cuando lo entrega el expreso y no LK. No se hace (regla de Luis: no comunicar mal un dato de entrega).
+
+**Pedido a Luis (lado Virgilio):** sumar al feed el **modo** (`expreso`|`reparto`|`retira`) o un flag `es_expreso` + nombre del expreso, igual que ya manda `tipo`. Contrato y detalle en `docs/REENGANCHE-REMITO-VIRGILIO.md`.
+
+**Cuando llegue el modo:** el cron mapea retirado→`pedido_retirado`, entregado+reparto→`pedido_entregado`, entregado+expreso→`pedido_en_expreso`, se saca el filtro `es_web` y se quita la rama "entregado" del trigger web → un solo camino.
+
+**Mientras tanto (no se rompe nada):** web (incl. expreso, con detección de modo) sigue por el trigger; no web por el cron. No se pisan (partición por `es_web`). El "en viaje" queda como está (cron `wa_avisos_en_viaje_web`).
