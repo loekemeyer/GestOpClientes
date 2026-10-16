@@ -903,3 +903,17 @@ Ahora dicen «listo para retirar desde…», «programado para el…», «retira
 - **Compuerta por código** (`_shared/compuerta-no-figura.ts` + test, cableada en `bot-conversation.ts`): si el cliente dice que hizo un pedido, la respuesta dice que no figura y el turno no derivó, el código deriva `pedido_no_encontrado` (urgente) y suma el aviso aprobado «Le aviso a una persona de Ventas…», sacando la pregunta «¿es alguno de estos?». Caso real: m4 («metí un pedido el 17/9») no derivaba.
 
 **Dónde:** `respuesta-aviso.ts`, `faq.ts`, `pedidos-marca.ts`, `fecha-retiro.ts`, `agente-fijos.ts`, `bot-conversation.ts`, `compuerta-no-figura.ts`. Planify 6088.
+
+---
+
+## D049 — Agregar/cambiar un artículo sobre un pedido YA HECHO: lo hace Ventas (anexo + factura nueva si no salió) (2026-10-16)
+
+**Quién:** Pablo Olejavetzky. **Textual:** *"Si es un pedido ya hecho sí [derivar], porque hay que chequear que ya haya salido; sino agregarlo como anexo a ese pedido con una fc nueva"*.
+
+**Regla:** cuando el cliente pide agregar o cambiar un artículo sobre un pedido ya hecho, el bot **deriva a Ventas** (no lo hace solo ni se queda sólo preguntando). Ventas **chequea si el pedido ya salió**:
+- **No salió** → se agrega como **anexo a ese pedido con una factura nueva**.
+- **Ya salió** (retirado o entregado) → va como **pedido nuevo**.
+
+**Dónde quedó:** notas de eval `m6` (id 21) y `m8` (id 22) actualizadas en `wa_agente_evals`.
+
+**⚠ Implicación abierta (no tocada todavía):** esta regla choca en parte con la de P5 **SIN PEDIDO PENDIENTE** (14/10), que hoy hace que el agente NO derive sobre un pedido facturado/retiro y en cambio liste o encamine. Un pedido facturado-pero-no-retirado "no salió", así que por esta regla el agente debería **derivar** el agregado/cambio. En la corrida 17 el agente NO derivó (m6 calculó cajas, m8 preguntó) → es un defecto real, no una nota vieja. Falta decidir si se alinea el comportamiento del agente (y las notas `mp02`/`mp06`) a esta regla, o queda para la pasada de ajuste del agente. Pendiente del "sí" de Pablo.
