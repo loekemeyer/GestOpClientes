@@ -16,10 +16,11 @@
 // Requiere la variable de entorno SUPABASE_ACCESS_TOKEN.
 //
 // El `resumen` en lenguaje simple (la lista de viñetas que se ve arriba en el modal del día) lo
-// arma Gemini en el plan GRATIS (US$ 0): la key de Google está en wa_agente_model_keys y se lee
-// con el mismo token. No se usa Haiku porque su key es un secreto de las Edge Functions (Deno.env)
-// que la Management API no puede leer por SQL, y Gemini gratis hace el mismo trabajo sin costo.
-// Si Gemini falla, el día se carga igual SIN resumen (el modal muestra áreas, autores y asuntos)
+// arma la edge function lk_bitacora-resumen con Haiku 5.5 (decisión de Pablo, 16/10): la key de
+// Anthropic es un secreto de las Edge Functions, así que el resumen se pide a esa edge (que sí la
+// tiene) en vez de llamar al modelo desde el runner. La edge se protege con el header
+// x-bitacora-secret (valor en app_settings, key 'bitacora_sync_secret'), que se lee con el token.
+// Si la edge falla, el día se carga igual SIN resumen (el modal muestra áreas, autores y asuntos)
 // y no se pisa un resumen que ya estuviera cargado.
 
 import { execFileSync } from "node:child_process";
@@ -55,63 +56,42 @@ async function q(ref, query, read_only = false) {
 
 const sqlLit = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
-// Resumen en lenguaje simple con Gemini GRATIS. Devuelve el texto (viñetas) o null si no se pudo.
+// Resumen en lenguaje simple con Haiku, vía la edge lk_bitacora-resumen (tiene la key de
+// Anthropic en su entorno). Devuelve el texto (viñetas) o null si no se pudo.
 async function resumenSimple(areas, asuntos) {
-  let key, modelosRaw;
+  let secret;
   try {
-    const kr = await q(LK, "select api_key from public.wa_agente_model_keys where proveedor = 'google'", true);
-    key = kr?.[0]?.api_key;
-    const mr = await q(LK, "select value from public.app_settings where key = 'llm_modelo_eval_gratis'", true);
-    modelosRaw = mr?.[0]?.value;
+    const sr = await q(LK, "select value from public.app_settings where key = 'bitacora_sync_secret'", true);
+    secret = sr?.[0]?.value;
   } catch (e) {
-    console.warn("resumen: no se pudo leer la key o el modelo:", e.message);
+    console.warn("resumen: no se pudo leer el secreto:", e.message);
     return null;
   }
-  if (!key || !modelosRaw) return null;
-  const modelos = String(modelosRaw).split(",").map((s) => s.trim()).filter(Boolean);
-
-  const prompt =
-    "A partir de la lista de cambios de un dia de trabajo en un bot de WhatsApp y su panel, escribi un resumen para alguien que NO programa. " +
-    "Reglas: entre 4 y 8 vinetas, cada una una linea corta (maximo unos 90 caracteres), contando QUE cambio para el negocio o para quien usa el bot o el panel. " +
-    "Ignora por completo lo que sea documentacion, notas internas, merges, tests o refactors. " +
-    "Nada de terminos tecnicos (nada de SQL, deploy, commit, endpoint, API, funcion, tabla, migracion, branch, base de datos). " +
-    "No uses punto y coma. Devolve SOLO las vinetas, cada una empezando con '• ', sin titulo ni texto extra.\n\n" +
-    `Areas tocadas: ${JSON.stringify(areas)}\nCambios:\n${asuntos.join("\n")}`;
-
-  for (const model of modelos) {
-    try {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.3, maxOutputTokens: 600 },
-          }),
-        },
-      );
-      if (!r.ok) {
-        console.warn(`resumen: ${model} respondio ${r.status}`);
-        continue;
-      }
-      const data = await r.json();
-      const texto = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ?? "";
-      const vinetas = texto
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.startsWith("•"))
-        .map((l) => l.replace(/;/g, ","));
-      if (vinetas.length >= 2) {
-        console.log(`resumen: generado con ${model} (${vinetas.length} vinetas)`);
-        return vinetas.join("\n");
-      }
-      console.warn(`resumen: ${model} no devolvio vinetas usables`);
-    } catch (e) {
-      console.warn(`resumen: ${model} fallo:`, e.message);
-    }
+  if (!secret) {
+    console.warn("resumen: falta bitacora_sync_secret");
+    return null;
   }
-  return null;
+  try {
+    const r = await fetch(`https://${LK}.supabase.co/functions/v1/lk_bitacora-resumen`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-bitacora-secret": secret },
+      body: JSON.stringify({ areas, asuntos }),
+    });
+    if (!r.ok) {
+      console.warn(`resumen: la edge respondió ${r.status}: ${await r.text()}`);
+      return null;
+    }
+    const data = await r.json();
+    if (data?.resumen && typeof data.resumen === "string") {
+      console.log(`resumen: generado con ${data.modelo ?? "haiku"}`);
+      return data.resumen;
+    }
+    console.warn("resumen: la edge no devolvió resumen");
+    return null;
+  } catch (e) {
+    console.warn("resumen: la edge falló:", e.message);
+    return null;
+  }
 }
 
 // 1) git log del día (reusa el script canónico)
