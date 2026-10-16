@@ -914,6 +914,11 @@ Ahora dicen «listo para retirar desde…», «programado para el…», «retira
 - **No salió** → se agrega como **anexo a ese pedido con una factura nueva**.
 - **Ya salió** (retirado o entregado) → va como **pedido nuevo**.
 
-**Dónde quedó:** notas de eval `m6` (id 21) y `m8` (id 22) actualizadas en `wa_agente_evals`.
+**Dónde quedó:** notas de eval `m6` (21), `m8` (22), `mp02` (105) y `mp06` (109) actualizadas en `wa_agente_evals`.
 
-**⚠ Implicación abierta (no tocada todavía):** esta regla choca en parte con la de P5 **SIN PEDIDO PENDIENTE** (14/10), que hoy hace que el agente NO derive sobre un pedido facturado/retiro y en cambio liste o encamine. Un pedido facturado-pero-no-retirado "no salió", así que por esta regla el agente debería **derivar** el agregado/cambio. En la corrida 17 el agente NO derivó (m6 calculó cajas, m8 preguntó) → es un defecto real, no una nota vieja. Falta decidir si se alinea el comportamiento del agente (y las notas `mp02`/`mp06`) a esta regla, o queda para la pasada de ajuste del agente. Pendiente del "sí" de Pablo.
+**El agente YA estaba alineado — lo que estaba viejo eran las notas (corregido 16/10, Pablo: *"Siempre encontra la manera de alinearte"*).** Leídas las reglas de `agente-fijos.ts`, el flujo real ya implementa lo que pidió Pablo:
+- **AGREGAR** (sumar o subir cajas) a un pedido ya hecho → el agente confirma artículo/código/cajas/pedido y usa `solicitar_agregado_pedido`; si el pedido ya está en armado o facturado, esa herramienta **lo deriva sola a Ventas** (que lo suma como anexo con factura nueva si no salió). Regla CANTIDAD TOTAL para «que sean 15».
+- **SACAR o cambiar** (incl. sacar y sumar en el mismo mensaje) → `derivar_a_persona` motivo `cambio_pedido` sobre el pedido que no salió.
+- Si el único pedido **ya salió** (retirado/entregado) → rige **SIN PEDIDO PENDIENTE**: no se agrega a uno ya salido.
+
+Por eso en la corrida 17 `m8` (preguntó cuántas agregar porque el 505 no estaba en el pedido) y `mp02` (confirmó antes de `solicitar_agregado_pedido`) estaban **bien**: el juez los marcó mal/a_medias por la nota vieja, no por el agente. **Se retira lo que una versión anterior de esta entrada decía («defecto real del agente»): era desajuste de nota.** No hizo falta tocar `agente-fijos.ts`.
