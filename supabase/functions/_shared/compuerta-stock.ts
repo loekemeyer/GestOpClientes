@@ -63,3 +63,19 @@ export function debeForzarStock(texto: string, herramientasUsadas: string[], enP
   if (enPedido || herramientasUsadas.includes("consultar_stock")) return false;
   return afirmaStock(texto);
 }
+
+/** Códigos cuyo STOCK pidió el cliente por su CÓDIGO explícito en el mensaje y que el turno NO consultó. Dispara aunque la respuesta no afirme nada:
+ *  caso real del 16/10 (Pablo), con 4 preguntas juntas el modelo contestó «confirmame si es el artículo que buscás» en vez de mirar el stock del 501,
+ *  que el cliente ya había dado por su código. Sólo códigos que el cliente ESCRIBIÓ y sólo si su mensaje habla de stock: NO toca la pregunta por un
+ *  NOMBRE ambiguo (ésa no trae código), así que no pisa la regla de preguntar ante la duda. `codigosYaConsultados`: los `cod` con que el turno ya
+ *  llamó a consultar_stock, para no repetir los que sí miró. */
+export function stockPorCodigoFaltante(userText: string, codigosYaConsultados: string[]): string[] {
+  const t = String(userText ?? "");
+  if (!/stock/i.test(t)) return [];
+  // Sólo los códigos de la PARTE del mensaje que habla de stock: en «precio del 505, stock del 501» el 505 es una pregunta de PRECIO, no de stock.
+  // Se corta en comas y puntos finales (no en « y », que arrastra el mismo «stock»: «stock del 654 y del 501» son los dos).
+  const clausulasStock = t.split(/[,.;?!]+/).filter((c) => /stock/i.test(c));
+  const cods = [...new Set(clausulasStock.flatMap((c) => codigosDelCliente(c).map((m) => m.cod)))];
+  const ya = new Set(codigosYaConsultados.map((c) => String(c).trim()));
+  return cods.filter((c) => !ya.has(c)).slice(0, MAX_ARTICULOS_COMPUERTA);
+}

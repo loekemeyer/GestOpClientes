@@ -25,7 +25,7 @@ import { lineaSegura } from "./dato-externo.ts";
 import { bloqueEjemplos, type EjemploAprobado, elegirEjemplos, lectorConTope } from "./ejemplos-aprobados.ts";
 import { hechosDeLaCharla } from "./hechos-charla.ts";
 import { articuloEnCurso, cajasRespaldadas } from "./articulo-en-curso.ts";
-import { debeForzarStock, llamadasDeStock } from "./compuerta-stock.ts";
+import { debeForzarStock, llamadasDeStock, MAX_ARTICULOS_COMPUERTA, stockPorCodigoFaltante } from "./compuerta-stock.ts";
 import { debeForzarFoto, fotosAEnviar } from "./compuerta-foto.ts";
 import { bloqueMemoria } from "./memoria-cliente.ts";
 import { anotarDuda } from "./dudas-agente.ts";
@@ -1886,17 +1886,28 @@ export async function runConversation(
     if (!toolCalls.length && !compuertaStockUsada) {
       const enPedidoCompuerta = turnoPedido || usadas.some((u) => HERRAMIENTAS_DE_PEDIDO.has(u.nombre));
       const borrador = sinMarcaDeTramo(res.text ?? "");
-      if (debeForzarStock(borrador, usadas.map((u) => u.nombre), enPedidoCompuerta)) {
-        const llamadas = llamadasDeStock(borrador, userText, rawHistory);
-        if (llamadas.length) {
-          compuertaStockUsada = true;
-          forzada = true;
-          // `_compuerta: true` queda en el registro de herramientas del turno (wa_ia_puntajes.herramientas): así se cuenta cuántas veces saltó. executeTool lo ignora.
-          toolCalls = llamadas.map((l, i) => ({ id: `compuerta_stock_${i + 1}`, name: "consultar_stock", input: { ...l, _compuerta: true } }));
-          console.warn(`[compuerta-stock] la respuesta hablaba de stock sin consultar_stock: se consulta ${llamadas.map((l) => `${l.cod}${l.cajas ? `x${l.cajas}` : ""}`).join(", ")} …${phone.slice(-4)}`);
-        } else {
-          console.warn(`[compuerta-stock] la respuesta habla de stock sin consultar_stock pero no se sabe de qué artículo: sale igual …${phone.slice(-4)}`);
+      let llamadas = [] as ReturnType<typeof llamadasDeStock>;
+      if (!enPedidoCompuerta) {
+        // (a) la respuesta afirma o niega stock sin haberlo consultado.
+        if (debeForzarStock(borrador, usadas.map((u) => u.nombre), enPedidoCompuerta)) {
+          llamadas = llamadasDeStock(borrador, userText, rawHistory);
         }
+        // (b) Pablo, 16/10: el cliente pidió stock de un código explícito (p. ej. «stock del 501») y el turno no lo consultó —con 4 preguntas juntas el
+        //     modelo pedía «confirmame el artículo» en vez de mirar el 501—. Se consulta igual, aunque la respuesta no afirme nada. Sólo por CÓDIGO.
+        const yaConsultados = usadas.filter((u) => u.nombre === "consultar_stock")
+          .map((u) => String((u.input as { cod?: unknown })?.cod ?? "").trim()).filter(Boolean);
+        const faltantes = stockPorCodigoFaltante(userText, yaConsultados)
+          .filter((c) => !llamadas.some((l) => l.cod === c)).map((c) => ({ cod: c }));
+        llamadas = [...llamadas, ...faltantes].slice(0, MAX_ARTICULOS_COMPUERTA);
+      }
+      if (llamadas.length) {
+        compuertaStockUsada = true;
+        forzada = true;
+        // `_compuerta: true` queda en el registro de herramientas del turno (wa_ia_puntajes.herramientas): así se cuenta cuántas veces saltó. executeTool lo ignora.
+        toolCalls = llamadas.map((l, i) => ({ id: `compuerta_stock_${i + 1}`, name: "consultar_stock", input: { ...l, _compuerta: true } }));
+        console.warn(`[compuerta-stock] se fuerza consultar_stock: ${llamadas.map((l) => `${l.cod}${l.cajas ? `x${l.cajas}` : ""}`).join(", ")} …${phone.slice(-4)}`);
+      } else if (!enPedidoCompuerta && debeForzarStock(borrador, usadas.map((u) => u.nombre), enPedidoCompuerta)) {
+        console.warn(`[compuerta-stock] la respuesta habla de stock sin consultar_stock pero no se sabe de qué artículo: sale igual …${phone.slice(-4)}`);
       }
     }
 

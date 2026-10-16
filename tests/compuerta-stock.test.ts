@@ -1,7 +1,7 @@
 // Pruebas de _shared/compuerta-stock.ts (auditoría 834, Pablo Olejavetzky, 15/10/2026): el agente afirmaba stock repitiendo su respuesta anterior, sin llamar a
 // consultar_stock. Funciones puras, sin red, sin IA, US$ 0. Usa los textos reales de la charla de Logística (…1027) del 15/10.
 // Correr: deno run tests/compuerta-stock.test.ts   (sale con código 1 si algo falla)
-import { afirmaStock, debeForzarStock, llamadasDeStock, MAX_ARTICULOS_COMPUERTA } from "../supabase/functions/_shared/compuerta-stock.ts";
+import { afirmaStock, debeForzarStock, llamadasDeStock, MAX_ARTICULOS_COMPUERTA, stockPorCodigoFaltante } from "../supabase/functions/_shared/compuerta-stock.ts";
 import type { FilaCharla } from "../supabase/functions/_shared/articulo-en-curso.ts";
 
 let fallas = 0;
@@ -74,7 +74,7 @@ igual("una respuesta que no habla de stock: no se fuerza", debeForzarStock("Tu p
 
 // ── Guardas de código: la pieza está conectada, no sólo escrita ──
 const fuente = await Deno.readTextFile(new URL("../supabase/functions/_shared/bot-conversation.ts", import.meta.url));
-ok("bot-conversation importa la compuerta", /import \{ debeForzarStock, llamadasDeStock \} from "\.\/compuerta-stock\.ts";/.test(fuente));
+ok("bot-conversation importa la compuerta", /import \{[^}]*debeForzarStock[^}]*llamadasDeStock[^}]*\} from "\.\/compuerta-stock\.ts";/.test(fuente));
 ok("una sola vez por turno", /let compuertaStockUsada = false;/.test(fuente) && /!toolCalls\.length && !compuertaStockUsada/.test(fuente));
 ok("las llamadas forzadas se arman como llamadas de consultar_stock y llevan la marca _compuerta", /name: "consultar_stock", input: \{ \.\.\.l, _compuerta: true \}/.test(fuente));
 ok("el bucle ejecuta toolCalls (las del modelo o las forzadas), no res.toolCalls", /for \(const tc of toolCalls\)/.test(fuente) && !/for \(const tc of res\.toolCalls\)/.test(fuente));
@@ -84,6 +84,13 @@ ok("no corre en la toma de pedidos", /const enPedidoCompuerta = turnoPedido \|\|
 ok("executeTool ignora la marca: sólo lee cod y cajas", /const cod = String\(input\.cod \?\? ""\)\.trim\(\);/.test(fuente) && !/input\._compuerta/.test(fuente));
 const reglas = await Deno.readTextFile(new URL("../supabase/functions/_shared/agente-fijos.ts", import.meta.url));
 ok("la regla STOCK pide volver a consultar aunque ya lo haya dicho", /volvé a consultarlo en cada pregunta de stock, no repitas tu respuesta anterior/.test(reglas));
+
+// stockPorCodigoFaltante (Pablo, 16/10): el cliente pidió stock de un código y no se consultó.
+ok("pidió stock del 501 y no se consultó: lo fuerza", JSON.stringify(stockPorCodigoFaltante("precio del 505, stock del 501, cuando llega mi pedido", [])) === JSON.stringify(["501"]));
+ok("ya se consultó el 501: no lo repite", stockPorCodigoFaltante("stock del 501", ["501"]).length === 0);
+ok("pidió stock de 654 y 501, sólo falta el 501", JSON.stringify(stockPorCodigoFaltante("stock del 654 y del 501", ["654"])) === JSON.stringify(["501"]));
+ok("sin la palabra stock: no dispara (es sólo precio)", stockPorCodigoFaltante("precio del 501", []).length === 0);
+ok("stock por NOMBRE sin código: no inventa código (no pisa la pregunta por duda)", stockPorCodigoFaltante("tenés stock de pelapapas?", []).length === 0);
 
 if (fallas) { console.error(`\n${fallas} falla(s)`); Deno.exit(1); }
 console.log("\ntodo bien");
